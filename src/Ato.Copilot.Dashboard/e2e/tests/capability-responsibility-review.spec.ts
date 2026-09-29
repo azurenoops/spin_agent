@@ -15,7 +15,7 @@ const sourceSnapshot = (controls = ['AC-1', 'AC-2', 'AC-3', 'AC-4']) => JSON.str
 const allocation = (state = 'MissingAllocation', controlId = 'AC-1') => ({
   subscriptionId: 'subscription-a', capabilityId: '11111111-1111-1111-1111-111111111111',
   componentId: '22222222-2222-2222-2222-222222222222', cspProfileId: '33333333-3333-3333-3333-333333333333',
-  controlId, sourceRevision: 'source-1', reviewRevision: 'review-1', state, reviewedSourceRevision: null,
+  providerName: 'Synthetic Provider', controlId, sourceRevision: 'source-1', reviewRevision: 'review-1', state, reviewedSourceRevision: null,
   confirmedBy: null, confirmedAt: null, allocation: null, effectiveInheritanceType: null, designationSource: null,
   sourceAvailable: true, sourceSnapshotJson: sourceSnapshot(), reviewedSourceSnapshotJson: null,
 });
@@ -29,7 +29,10 @@ async function installFixture(page: Page, baseURL: string, options: {
   const reads: { path: string; tenant: string | undefined; mode: string | undefined }[] = [];
   let conflicts = options.conflict ? 1 : 0;
   let data: CapabilityResponsibilityResponse = {
-    systemId: 'system-a', baselineId: options.baseline === false ? null : 'baseline-a', canConfirm: options.canConfirm !== false,
+    systemId: 'system-a',
+    baselineId: options.baseline === false ? null : 'baseline-a',
+    baselineName: options.baseline === false ? null : 'Moderate baseline',
+    canConfirm: options.canConfirm !== false,
     items: [allocation(options.baseline === false ? 'MissingBaseline' : 'MissingAllocation'), {
       ...allocation('PreservedOverride', 'AC-2'), effectiveInheritanceType: 'Customer', designationSource: 'Manual',
     }, allocation('OutsideBaseline', 'AC-3'), allocation('Inactive', 'AC-4')],

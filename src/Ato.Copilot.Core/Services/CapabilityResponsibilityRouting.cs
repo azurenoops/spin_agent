@@ -40,34 +40,37 @@ public static class CapabilityResponsibilityRouting
             .OrderBy(e => e.NextExpansionUtcTicks).ThenBy(e => e.Id).Take(EventsPerPass).Select(e => e.Id).ToListAsync(ct);
         foreach (var id in events)
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var source = await db.Set<CspResponsibilitySourceEvent>().SingleAsync(e => e.Id == id, ct);
-            if (source.FanoutCompleted) continue;
-            var capabilityId = source.CapabilityId.ToString();
-            var routes = await db.CapabilitySubscriptions.AsNoTracking()
-                .Where(s => s.RoutingCapabilityId == capabilityId && s.IsActive
-                    && (source.LastSubscriptionId == null || string.Compare(s.Id, source.LastSubscriptionId) > 0))
-                .OrderBy(s => s.Id).Take(RoutesPerEvent)
-                .Select(s => new { s.Id, s.RoutingTenantId, s.RegisteredSystemId }).ToListAsync(ct);
-            var keys = routes.Select(r => Key($"provider:{source.Id:D}:{r.Id}")).ToArray();
-            var existing = (await db.Set<CapabilityResponsibilityDelivery>().Where(d => keys.Contains(d.Id))
-                .Select(d => d.Id).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
-            foreach (var route in routes)
+            await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
-                var key = Key($"provider:{source.Id:D}:{route.Id}");
-                if (existing.Contains(key)) continue;
-                db.Set<CapabilityResponsibilityDelivery>().Add(new()
+                await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                var source = await db.Set<CspResponsibilitySourceEvent>().SingleAsync(e => e.Id == id, ct);
+                if (source.FanoutCompleted) return;
+                var capabilityId = source.CapabilityId.ToString();
+                var routes = await db.CapabilitySubscriptions.AsNoTracking()
+                    .Where(s => s.RoutingCapabilityId == capabilityId && s.IsActive
+                        && (source.LastSubscriptionId == null || string.Compare(s.Id, source.LastSubscriptionId) > 0))
+                    .OrderBy(s => s.Id).Take(RoutesPerEvent)
+                    .Select(s => new { s.Id, s.RoutingTenantId, s.RegisteredSystemId }).ToListAsync(ct);
+                var keys = routes.Select(r => Key($"provider:{source.Id:D}:{r.Id}")).ToArray();
+                var existing = (await db.Set<CapabilityResponsibilityDelivery>().Where(d => keys.Contains(d.Id))
+                    .Select(d => d.Id).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
+                foreach (var route in routes)
                 {
-                    Id = key, TenantId = route.RoutingTenantId, RegisteredSystemId = route.RegisteredSystemId,
-                    SourceEventId = source.Id, SubscriptionId = route.Id
-                });
-            }
-            source.LastSubscriptionId = routes.LastOrDefault()?.Id ?? source.LastSubscriptionId;
-            source.FanoutCompleted = routes.Count < RoutesPerEvent;
-            source.NextExpansionUtcTicks = DateTime.UtcNow.Ticks;
-            source.ExpansionRevision++;
-            await db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
+                    var key = Key($"provider:{source.Id:D}:{route.Id}");
+                    if (existing.Contains(key)) continue;
+                    db.Set<CapabilityResponsibilityDelivery>().Add(new()
+                    {
+                        Id = key, TenantId = route.RoutingTenantId, RegisteredSystemId = route.RegisteredSystemId,
+                        SourceEventId = source.Id, SubscriptionId = route.Id
+                    });
+                }
+                source.LastSubscriptionId = routes.LastOrDefault()?.Id ?? source.LastSubscriptionId;
+                source.FanoutCompleted = routes.Count < RoutesPerEvent;
+                source.NextExpansionUtcTicks = DateTime.UtcNow.Ticks;
+                source.ExpansionRevision++;
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            });
         }
     }
 

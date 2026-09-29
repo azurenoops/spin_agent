@@ -55,7 +55,8 @@ const snapshot = JSON.stringify({
 });
 const reviewItem = {
   subscriptionId: 'subscription-a', capabilityId: providerCapabilityId, componentId: providerComponentId,
-  cspProfileId: providerId, controlId: 'AU-2', sourceRevision, reviewRevision: 'review-a', state: 'MissingAllocation',
+  cspProfileId: providerId, providerName: 'Synthetic Provider', controlId: 'AU-2',
+  sourceRevision, reviewRevision: 'review-a', state: 'MissingAllocation',
   reviewedSourceRevision: null, confirmedBy: null, confirmedAt: null, allocation: null,
   effectiveInheritanceType: null, designationSource: null, sourceAvailable: true, sourceSnapshotJson: snapshot,
   reviewedSourceSnapshotJson: null,
@@ -87,7 +88,8 @@ export async function installSystemCapabilityFixture(context: BrowserContext, ba
   let confirmed = false;
   let reviewNotes: string | null = null;
   const responsibility = () => ({
-    systemId: 'system-a', baselineId: 'baseline-a', canConfirm: true, pendingImpacts: [],
+    systemId: 'system-a', baselineId: 'baseline-a', baselineName: 'Moderate baseline · CNSSI 1253 IL4',
+    canConfirm: true, pendingImpacts: [],
     items: [{ ...reviewItem, state: confirmed ? 'Applied' : 'MissingAllocation', reviewedSourceRevision: confirmed ? sourceRevision : null,
       reviewedSourceSnapshotJson: confirmed ? snapshot : null, allocation: confirmed ? {
         controlId: 'AU-2', inheritanceType: 'Shared', provider: 'Provider logging', customerResponsibility: 'Mission log review',
@@ -115,6 +117,10 @@ export async function installSystemCapabilityFixture(context: BrowserContext, ba
     permissions: { canRead: true, canEditProfile: true, canManageSystem: !options.denied, canAuthorNarratives: false,
       canReviewNarratives: true, canManageEvidence: true, canRunAssessments: false, canManageRemediation: false, canDecideAuthorization: false },
   } } }));
+  await context.route('**/api/dashboard/systems/system-a/next-actions', route => route.fulfill({ json: {
+    systemId: 'system-a', checkedAt: '2026-09-28T18:00:00Z', effectiveRoles: ['MissionOwner'],
+    items: [], waitingOnOtherRoles: [],
+  } }));
   await context.route(`**${base}{,/**,?*}`, async route => {
     const request = route.request();
     const url = new URL(request.url());

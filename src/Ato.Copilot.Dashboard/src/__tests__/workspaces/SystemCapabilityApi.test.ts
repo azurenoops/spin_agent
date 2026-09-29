@@ -111,6 +111,18 @@ describe('selected-system capability transport', () => {
     });
   });
 
+  it('accepts the backend zero-based revision for a newly prepared operation', async () => {
+    // Arrange
+    const body = { idempotencyKey: 'key-zero', selections: [] };
+    success({ operation: { ...operation, revision: 0 }, existing: false });
+
+    // Act
+    const prepared = await api.prepareSystemCapabilitySetup('org-a', 'system-a', body);
+
+    // Assert
+    expect(prepared.operation.revision).toBe(0);
+  });
+
   it('previews provider removal without deleting a shared provider record', async () => {
     // Arrange
     success({ operation: { ...operation, kind: 'Removal' }, existing: false });

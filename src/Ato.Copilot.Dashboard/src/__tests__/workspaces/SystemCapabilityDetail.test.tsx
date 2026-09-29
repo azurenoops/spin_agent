@@ -27,7 +27,8 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
 vi.mock('../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: { name: 'Selected system', systemId: 'system-a' } }) }));
 vi.mock('../../api/capabilityResponsibilities', async importOriginal => ({
   ...await importOriginal<typeof import('../../api/capabilityResponsibilities')>(),
-  getCapabilityResponsibilities: vi.fn(async () => ({ systemId: 'system-a', baselineId: 'baseline-a', canConfirm: true,
+  getCapabilityResponsibilities: vi.fn(async () => ({
+    systemId: 'system-a', baselineId: 'baseline-a', baselineName: 'Moderate baseline', canConfirm: true,
     items: [responsibilityItem('PendingReview', 'AC-1')], pendingImpacts: [] })),
 }));
 

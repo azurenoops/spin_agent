@@ -25,7 +25,7 @@ public sealed record ConfirmCapabilityResponsibilitiesRequest(
 
 /// <summary>One source contribution and its persisted/effective responsibility state.</summary>
 public sealed record CapabilityResponsibilityItem(
-    string SubscriptionId, Guid CapabilityId, Guid? ComponentId, Guid? CspProfileId,
+    string SubscriptionId, Guid CapabilityId, Guid? ComponentId, Guid? CspProfileId, string? ProviderName,
     string ControlId, string SourceRevision, string ReviewRevision, string State,
     string? ReviewedSourceRevision, string? ConfirmedBy, DateTimeOffset? ConfirmedAt,
     CapabilityResponsibilityAllocation? Allocation, string? EffectiveInheritanceType, string? DesignationSource,
@@ -39,7 +39,7 @@ public sealed record CapabilityResponsibilityImpactResponse(
 
 /// <summary>Review UI contract for the selected system and its current baseline.</summary>
 public sealed record CapabilityResponsibilityResponse(
-    string SystemId, string? BaselineId, bool CanConfirm,
+    string SystemId, string? BaselineId, string? BaselineName, bool CanConfirm,
     IReadOnlyList<CapabilityResponsibilityItem> Items,
     IReadOnlyList<CapabilityResponsibilityImpactResponse> PendingImpacts);
 

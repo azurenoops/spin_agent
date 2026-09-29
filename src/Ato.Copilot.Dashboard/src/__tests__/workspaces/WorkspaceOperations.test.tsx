@@ -116,6 +116,10 @@ function page(route: string, entries = [route]) {
     </MemoryRouter>,
   );
 }
+async function openWorkingEditor() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit working revision' }));
+  return screen.findByRole('dialog', { name: 'Edit working revision' });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -205,6 +209,26 @@ beforeEach(() => {
 });
 
 describe('workspace operations dashboard T050-T059', () => {
+  it('renders distinct implementation and responsibilities panels for the two direct tab URLs', async () => {
+    // Arrange
+    page('/security-capabilities/capability-1?tab=implementation');
+    await screen.findByRole('heading', { name: 'Components that deliver this capability' });
+    // Assert
+    expect(screen.getByRole('tabpanel', { name: 'Implementation' })).toBeVisible();
+    expect(screen.queryByRole('table', { name: 'Control responsibility allocation' })).not.toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('tab', { name: 'Coverage & duties' }));
+    // Assert
+    expect(await screen.findByRole('tabpanel', { name: 'Coverage & duties' })).toBeVisible();
+    expect(screen.getByRole('table', { name: 'Control responsibility allocation' })).toHaveTextContent('AU-6');
+    expect(screen.queryByRole('heading', { name: 'Components that deliver this capability' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Classification')).not.toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('tab', { name: 'Implementation' }));
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Components that deliver this capability' })).toBeVisible();
+    expect(screen.getByLabelText('Current route')).toHaveTextContent('tab=implementation');
+  });
   it('bootstraps the first working revision without inventing defaults or approval', async () => {
     // Arrange
     const persisted = { ...(await api.getWorkingRevision('capability-1')), revision: 1,
@@ -214,10 +238,11 @@ describe('workspace operations dashboard T050-T059', () => {
     page('/security-capabilities/capability-1');
     // Act
     await screen.findByText('No working revision yet. Enter classification and service category to save the first revision.');
+    await openWorkingEditor();
     // Assert
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Classification')).toHaveValue('');
-    expect(screen.getByLabelText('Classification').closest('details')).toHaveAttribute('open');
+    expect(screen.getByRole('dialog', { name: 'Edit working revision' })).toContainElement(screen.getByLabelText('Classification'));
     expect(screen.getByLabelText('Service category')).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Save working revision' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Review publication impact' })).toBeDisabled();
@@ -239,6 +264,7 @@ describe('workspace operations dashboard T050-T059', () => {
     page('/security-capabilities/capability-1');
     // Act
     await screen.findByRole('alert');
+    await openWorkingEditor();
     fireEvent.change(screen.getByLabelText('Classification'), { target: { value: 'CUI' } });
     fireEvent.change(screen.getByLabelText('Service category'), { target: { value: 'Identity' } });
     // Assert
@@ -254,6 +280,7 @@ describe('workspace operations dashboard T050-T059', () => {
     page('/security-capabilities/capability-1');
     // Act
     await screen.findByRole('alert');
+    await openWorkingEditor();
     fireEvent.change(screen.getByLabelText('Classification'), { target: { value: 'CUI' } });
     fireEvent.change(screen.getByLabelText('Service category'), { target: { value: 'Identity' } });
     // Assert
@@ -271,6 +298,7 @@ describe('workspace operations dashboard T050-T059', () => {
     vi.mocked(api.saveWorkingRevision).mockRejectedValueOnce(new api.WorkspaceOperationError('Revision conflict.', 409));
     page('/security-capabilities/capability-1');
     await screen.findByText('No working revision yet. Enter classification and service category to save the first revision.');
+    await openWorkingEditor();
     // Act
     fireEvent.change(screen.getByLabelText('Classification'), { target: { value: 'My classification' } });
     fireEvent.change(screen.getByLabelText('Service category'), { target: { value: 'Identity' } });
@@ -306,9 +334,85 @@ describe('workspace operations dashboard T050-T059', () => {
     await screen.findByRole('heading', { name: 'Components that deliver this capability' });
     // Assert
     expect(screen.getByRole('heading', { name: 'Publication readiness' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Source evidence' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sources and supporting evidence' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Provider implementation narrative' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Link another existing component' })).toBeInTheDocument();
+  });
+
+  it.each([false, true])('shows only explicit delivery contributors, including empty=%s, retaining source provenance', async empty => {
+    // Arrange
+    const detail = await api.getProviderCapability('capability-1');
+    const revision = await api.getWorkingRevision('capability-1');
+    vi.mocked(api.getProviderCapability).mockResolvedValue({
+      ...detail,
+      supportingComponents: [...detail.supportingComponents,
+        { id: 'backup', name: 'Azure Backup', componentType: 'Service', source: 'provider' },
+        { id: 'key-vault', name: 'Azure Key Vault', componentType: 'Service', source: 'provider' }],
+    });
+    vi.mocked(api.getWorkingRevision).mockResolvedValue({
+      ...revision, contributors: empty ? [] : ['backup', 'key-vault'],
+    });
+    page('/security-capabilities/capability-1');
+
+    // Act
+    await screen.findByText(`Working revision v${revision.revision}`);
+    const delivery = within(screen.getByRole('heading', { name: 'Components that deliver this capability' }).closest('section')!);
+    const source = within(screen.getByRole('heading', { name: 'Sources and supporting evidence' }).closest('section')!);
+
+    // Assert
+    expect(delivery.queryByText('Sentinel')).not.toBeInTheDocument();
+    if (empty) {
+      expect(delivery.getByText('No delivery components recorded.')).toBeInTheDocument();
+    } else {
+      expect(delivery.getByText('Azure Backup')).toBeInTheDocument();
+      expect(delivery.getByText('Azure Key Vault')).toBeInTheDocument();
+    }
+    expect(source.getByText(/Source component: Sentinel/)).toBeInTheDocument();
+    expect(source.getByText('Provider SSP')).toBeInTheDocument();
+  });
+
+  it('retains legacy parent delivery only until an explicit empty working revision is saved', async () => {
+    // Arrange
+    const detail = await api.getProviderCapability('capability-1');
+    const revision = await api.getWorkingRevision('capability-1');
+    vi.mocked(api.getProviderCapability).mockResolvedValue({
+      ...detail, capability: { ...detail.capability, workingRevision: null },
+    });
+    vi.mocked(api.getWorkingRevision).mockRejectedValue(
+      new api.WorkspaceOperationError('No revision', 404, 'WORKING_REVISION_NOT_FOUND'));
+    vi.mocked(api.saveWorkingRevision).mockResolvedValue({
+      ...revision, revision: 1, contributors: [], classification: 'CUI', serviceCategory: 'Backup', controlDuties: {},
+    });
+    page('/security-capabilities/capability-1');
+    await screen.findByText(/No working revision yet/);
+    const delivery = within(screen.getByRole('heading', { name: 'Components that deliver this capability' }).closest('section')!);
+    expect(delivery.getByText('Sentinel')).toBeInTheDocument();
+
+    // Act
+    await openWorkingEditor();
+    fireEvent.change(screen.getByLabelText('Classification'), { target: { value: 'CUI' } });
+    fireEvent.change(screen.getByLabelText('Service category'), { target: { value: 'Backup' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save working revision' }));
+
+    // Assert
+    await waitFor(() => expect(delivery.queryByText('Sentinel')).not.toBeInTheDocument());
+    expect(delivery.getByText('No delivery components recorded.')).toBeInTheDocument();
+  });
+
+  it('does not substitute the source parent for an explicitly empty catalog contributor set', async () => {
+    // Arrange
+    const catalog = await api.listProviderCatalog({ page: 1, pageSize: 25 });
+    vi.mocked(api.listProviderCatalog).mockResolvedValue({
+      ...catalog, items: catalog.items.map(item => ({ ...item, workingRevision: 4, supportingComponents: [] })),
+    });
+    page('/security-capabilities');
+
+    // Act
+    const row = (await screen.findByRole('link', { name: 'Threat monitoring' })).closest('tr')!;
+
+    // Assert
+    expect(within(row).getByText('No delivery components recorded.')).toBeInTheDocument();
+    expect(within(row).queryByText(/Sentinel/)).not.toBeInTheDocument();
   });
 
   it('adds a provider capability through the existing reviewed-creation contract', async () => {
@@ -348,9 +452,9 @@ describe('workspace operations dashboard T050-T059', () => {
     // Arrange
     page('/security-capabilities/capability-1');
     // Act
-    await screen.findByRole('heading', { name: 'Source evidence' });
+    await screen.findByRole('heading', { name: 'Sources and supporting evidence' });
     // Assert
-    expect(screen.getByText('No separately identified source evidence recorded.')).toBeInTheDocument();
+    expect(screen.getByText(/No separately identified capability evidence returned/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Source package provenance' })).toBeInTheDocument();
   });
 
@@ -379,7 +483,7 @@ describe('workspace operations dashboard T050-T059', () => {
       ...(await api.getWorkingRevision('capability-1')), revision: 5, contributors: ['person-1', 'component-1'],
     });
     page('/security-capabilities/capability-1');
-    await screen.findByLabelText('Classification');
+    await screen.findByRole('button', { name: 'Link another existing component' });
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Link another existing component' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: /Threat monitoring/ }));
@@ -515,6 +619,7 @@ describe('workspace operations dashboard T050-T059', () => {
     vi.mocked(api.saveWorkingRevision).mockRejectedValue(Object.assign(new Error('Revision changed'), { status: 409 }));
     page('/security-capabilities/capability-1?tab=responsibilities');
     // Act
+    await openWorkingEditor();
     await waitFor(() => expect(screen.getByLabelText('Classification')).toHaveValue('Impact Level 5'));
     expect(screen.getByLabelText('Service category')).toHaveValue('Monitoring');
     expect(screen.getByLabelText(/Contributors/)).toHaveValue('person-1');

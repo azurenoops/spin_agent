@@ -41,7 +41,7 @@ function validateOperation(value: SystemCapabilityOperation, tenantId: string, s
     || (operationId !== undefined && value.operationId !== operationId)
     || !['Setup', 'Removal'].includes(value.kind)
     || !['Prepared', 'Partial', 'Completed', 'InProgress'].includes(value.state)
-    || !Number.isInteger(value.revision) || value.revision < 1
+    || !Number.isInteger(value.revision) || value.revision < 0
     || !Array.isArray(value.selections) || !Array.isArray(value.plannedWrites) || !Array.isArray(value.outcomes)) invalidResponse();
   return value;
 }

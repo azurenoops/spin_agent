@@ -18,7 +18,10 @@ describe('Strict source-bound responsibility confirmation', () => {
     const item = { ...responsibilityItem('Applied', 'AC-1'), ...{
       providerCoverageVerified: true, customerDutiesReviewed: true, reviewNotes: 'Saved notes.',
     } };
-    request.mockResolvedValue({ systemId: 'system/a', baselineId: 'baseline-a', canConfirm: true, items: [item], pendingImpacts: [] });
+    request.mockResolvedValue({
+      systemId: 'system/a', baselineId: 'baseline-a', baselineName: 'Moderate baseline',
+      canConfirm: true, items: [item], pendingImpacts: [],
+    });
     const signal = new AbortController().signal;
     // Act
     await confirmSystemCapabilityResponsibilities('tenant/a', 'system/a', 'capability-a', body, signal);
@@ -32,7 +35,8 @@ describe('Strict source-bound responsibility confirmation', () => {
 
   it('fails explicitly if the response does not include the persisted notes and checks', async () => {
     // Arrange
-    request.mockResolvedValue({ systemId: 'system-a', baselineId: 'baseline-a', canConfirm: true,
+    request.mockResolvedValue({
+      systemId: 'system-a', baselineId: 'baseline-a', baselineName: 'Moderate baseline', canConfirm: true,
       items: [responsibilityItem('Applied', 'AC-1')], pendingImpacts: [] });
     // Act
     const result = confirmSystemCapabilityResponsibilities('tenant-a', 'system-a', 'capability-a', body);

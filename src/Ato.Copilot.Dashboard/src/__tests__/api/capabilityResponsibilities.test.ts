@@ -7,7 +7,10 @@ import {
 import { responsibilityItem, responsibilitySnapshotJson } from '../helpers/capabilityResponsibilityFixture';
 
 vi.mock('../../api/client', () => ({ default: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }));
-const preview = { systemId: 'system/a', baselineId: 'baseline-1', canConfirm: true, items: [], pendingImpacts: [] };
+const preview = {
+  systemId: 'system/a', baselineId: 'baseline-1', baselineName: 'Moderate baseline',
+  canConfirm: true, items: [], pendingImpacts: [],
+};
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe('capability responsibility API contract', () => {
@@ -80,6 +83,13 @@ describe('capability responsibility API contract', () => {
     // Act / Assert
     await expect(getCapabilityResponsibilities('system/a')).rejects.toThrow('The responsibility request failed.');
   });
+  it('distinguishes an unreachable service from a rejected responsibility request', async () => {
+    // Arrange
+    vi.mocked(apiClient.get).mockRejectedValue({ isAxiosError: true, message: 'Network Error' });
+    // Act / Assert
+    await expect(getCapabilityResponsibilities('system/a')).rejects.toThrow(
+      'The responsibility service could not be reached. Your changes were not submitted; retry when the service is available.');
+  });
 
   it('retains the opaque source pin instead of hashing the redacted display snapshot', async () => {
     // Arrange
@@ -97,6 +107,17 @@ describe('capability responsibility API contract', () => {
     // Assert
     expect(read.items[0]!.sourceSnapshotJson).toContain('[redacted]');
     expect(vi.mocked(apiClient.put).mock.calls[0]?.[1]).toMatchObject({ sourceRevision });
+  });
+
+  it('accepts the redacted capability snapshot inside an immutable release envelope', async () => {
+    // Arrange
+    const capability = JSON.parse(responsibilitySnapshotJson());
+    const sourceSnapshotJson = JSON.stringify({ ReleaseRevision: 3, Capability: capability });
+    const data = { ...preview, items: [{ ...responsibilityItem(), sourceSnapshotJson }] };
+    vi.mocked(apiClient.get).mockResolvedValue({ data });
+
+    // Act / Assert
+    await expect(getCapabilityResponsibilities('system/a')).resolves.toEqual(data);
   });
 
   it('accepts an unavailable source with withheld snapshot content', async () => {

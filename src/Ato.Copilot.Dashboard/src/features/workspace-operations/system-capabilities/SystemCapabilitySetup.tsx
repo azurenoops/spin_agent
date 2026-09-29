@@ -16,7 +16,14 @@ type Draft = { version: 1; identity: string; savedAt: number; idempotencyKey: st
 const recordKey = (item: { source: string; recordId: string }) => `${item.source}:${item.recordId}`;
 const systemWideOnly = (component: Item['components'][number]) => component.source === 'local' && component.componentType === 'Person';
 
-export default function SystemCapabilitySetup(props: { tenantId: string; systemId: string }) {
+export default function SystemCapabilitySetup(props: {
+  tenantId: string;
+  systemId: string;
+  embedded?: boolean;
+  catalogSource?: 'local' | 'provider';
+  onClose?: () => void;
+  onCompleted?: () => void;
+}) {
   const session = useWorkspaceSession();
   const identity = JSON.stringify([session?.identity.directoryTenantId, session?.identity.oid,
     session?.workspace.mode, props.tenantId.toLowerCase(), props.systemId.toLowerCase()]);
@@ -68,7 +75,15 @@ function readDraft(key: string, identity: string): Draft | null {
   return value;
 }
 
-function Setup({ tenantId, systemId, identity }: { tenantId: string; systemId: string; identity: string }) {
+function Setup({ tenantId, systemId, identity, embedded = false, catalogSource, onClose, onCompleted }: {
+  tenantId: string;
+  systemId: string;
+  identity: string;
+  embedded?: boolean;
+  catalogSource?: 'local' | 'provider';
+  onClose?: () => void;
+  onCompleted?: () => void;
+}) {
   const session = useWorkspaceSession();
   const { detail: system, setPageContext } = useSystemContext();
   const systemName = system.systemId === systemId ? system.name : systemId;
@@ -89,9 +104,11 @@ function Setup({ tenantId, systemId, identity }: { tenantId: string; systemId: s
   const active = useRef(true);
   const pending = useRef<AbortController | null>(null);
   const submitting = useRef(false);
+  const notifiedCompletion = useRef<string | null>(null);
   const base = `/systems/${encodeURIComponent(systemId)}/security-capabilities`;
   const pageNumber = Math.max(1, Number(params.get('page')) || 1);
-  const source = params.get('source') === 'local' ? 'local' : params.get('source') === 'provider' ? 'provider' : undefined;
+  const requestedSource = params.get('source') === 'local' ? 'local' : params.get('source') === 'provider' ? 'provider' : undefined;
+  const source = catalogSource ?? requestedSource;
   const requestedId = params.get('recordId');
   const catalog = useRemote(signal => boundedRequest(inner => api.listSystemCapabilities(tenantId, systemId,
     { scope: 'available', grouping: 'capability', page: pageNumber, pageSize: 25, source, search: params.get('search') ?? undefined }, inner), signal),
@@ -112,8 +129,8 @@ function Setup({ tenantId, systemId, identity }: { tenantId: string; systemId: s
     if (!sameScope(next, tenantId, systemId, 'Setup')) throw new Error('The saved operation does not match this actor, tenant, system and setup scope.');
     return next;
   }, [tenantId, systemId, operationId]);
-  const operation = savedOperation?.operationId === operationId
-    && (!recovered.data || savedOperation.revision >= recovered.data.revision) ? savedOperation : recovered.data;
+  const operation = operationId ? savedOperation?.operationId === operationId
+    && (!recovered.data || savedOperation.revision >= recovered.data.revision) ? savedOperation : recovered.data : null;
   const canManage = catalog.data?.permissions.canRead === true && catalog.data.permissions.canManage === true && !catalog.loading && !catalog.error;
   const step = operationId ? 3 : params.get('step') === '2' && chosen.length > 0 ? 2 : 1;
   const completed = operation?.state === 'Completed';
@@ -127,7 +144,11 @@ function Setup({ tenantId, systemId, identity }: { tenantId: string; systemId: s
     {operation && <p className="text-sm">{operation.outcomes.filter(outcome => outcome.state === 'Completed').length} completed write checkpoints · {operation.state}</p>}
     <p className="text-xs text-slate-500 dark:text-gray-400">Provider records remain read-only. Control review and narrative approval are separate from applicability.</p>
   </section>, [systemName, organizationName, operation, chosen]);
-  useEffect(() => { setPageContext?.(context); return () => setPageContext?.(null); }, [setPageContext, context]);
+  useEffect(() => {
+    if (embedded) return;
+    setPageContext?.(context);
+    return () => setPageContext?.(null);
+  }, [embedded, setPageContext, context]);
   useEffect(() => {
     active.current = true;
     try {
@@ -146,6 +167,11 @@ function Setup({ tenantId, systemId, identity }: { tenantId: string; systemId: s
     try { sessionStorage.removeItem(storageKey); }
     catch (reason) { setDraftError(`Server setup completed, but its local recovery draft could not be cleared: ${message(reason)}`); }
   }, [completed, storageKey]);
+  useEffect(() => {
+    if (!completed || !operation || notifiedCompletion.current === operation.operationId) return;
+    notifiedCompletion.current = operation.operationId;
+    onCompleted?.();
+  }, [completed, operation, onCompleted]);
   const remember = (next: Chosen[]) => {
     try {
       const draft: Draft = { version: 1, identity, savedAt: Date.now(), idempotencyKey: key.current, chosen: next };
@@ -226,61 +252,103 @@ function Setup({ tenantId, systemId, identity }: { tenantId: string; systemId: s
       }
     });
   };
+  const startCurrentReview = () => {
+    try {
+      sessionStorage.removeItem(storageKey);
+    } catch (reason) {
+      setError(`Cannot discard the stale local draft: ${message(reason)}`);
+      return;
+    }
+    key.current = crypto.randomUUID();
+    setChosen([]);
+    setSavedOperation(null);
+    setError(null);
+    setUncertain(false);
+    setStale(false);
+    setAcknowledged(false);
+    set({ operationId: null, step: 1 });
+    catalog.retry();
+  };
   return <div className="space-y-6">
-    <Link to={base} className="text-sm text-indigo-700 underline dark:text-indigo-300">Back to system capabilities</Link>
-    <header className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-5 dark:border-indigo-900 dark:bg-indigo-950/40">
+    {!embedded && <Link to={base} className="text-sm text-indigo-700 underline dark:text-indigo-300">Back to system capabilities</Link>}
+    {!embedded && <header className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-5 dark:border-indigo-900 dark:bg-indigo-950/40">
       <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">System applicability · {session?.workspace.displayName}</p>
-      <h1 className="mt-2 text-2xl font-semibold">Add security capabilities to {systemName}</h1>
-      <p className="mt-2 text-sm text-slate-600 dark:text-gray-300">Choose existing library capabilities. The target system is locked to this route; provider source records stay read-only.</p>
-    </header>
-    <ol aria-label="Setup progress" className="flex flex-wrap gap-4 border-b border-slate-200 pb-4 text-sm dark:border-gray-700">
+      <h1 className="mt-2 text-2xl font-semibold">{catalogSource === 'local' ? 'Add organization capabilities' : 'Add security capabilities'} to {systemName}</h1>
+      <p className="mt-2 text-sm text-slate-600 dark:text-gray-300">{catalogSource === 'local'
+        ? 'Choose organization-managed library capabilities. CSP hosting and published releases use the Provider hosting workflow.'
+        : 'Choose existing library capabilities. The target system is locked to this route; provider source records stay read-only.'}</p>
+    </header>}
+    {catalogSource === 'local' && <div className={warningClass}>
+      <p>CSP-published capabilities require an exact hosting allocation and release selection.</p>
+      <Link className="mt-2 inline-block font-medium underline" to={`/systems/${encodeURIComponent(systemId)}/provider-relationships/setup`}>
+        Add CSP hosting &amp; capabilities
+      </Link>
+    </div>}
+    <ol aria-label="Setup progress" className={`${embedded ? 'grid grid-cols-3 gap-2 text-xs' : 'flex flex-wrap gap-4 text-sm'} border-b border-slate-200 pb-4 dark:border-gray-700`}>
       {['Select capabilities', 'Review applicability', 'Review and add'].map((label, index) => <li key={label} aria-current={step === index + 1 ? 'step' : undefined}
-        className={step === index + 1 ? 'font-semibold text-indigo-700 dark:text-indigo-300' : 'text-slate-500 dark:text-gray-400'}>{index + 1}. {label}</li>)}
+        className={`${embedded ? 'rounded-md px-2 py-2' : ''} ${step === index + 1
+          ? 'bg-indigo-50 font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+          : 'text-slate-500 dark:text-gray-400'}`}>{index + 1}. {label}</li>)}
     </ol>
     <Status loading={catalog.loading || !hydrated} error={catalog.error} retry={catalog.retry} />
     {requestedId && !operationId && <Status loading={requested.loading} error={requested.error} retry={requested.retry} />}
     {operationId && <Status loading={!operation && recovered.loading} error={recovered.error} retry={recovered.retry} />}
-    {error && <p role="alert" className={errorClass}>{error}</p>}
+    {error && step !== 2 && <div role="alert" className={errorClass}>
+      <p className="font-medium">{error}</p>
+      {stale && step === 3 && <div className="mt-3 space-y-3">
+        <p className="text-sm">The server retained this plan for audit recovery, but it cannot be applied to the current system state.</p>
+        <button type="button" className={secondaryButtonClass} onClick={startCurrentReview}>Start a current review</button>
+      </div>}
+    </div>}
     {draftError && <div role="alert" className={errorClass}><p>{draftError}</p><button type="button" className="mt-2 underline" onClick={() => {
       try { sessionStorage.removeItem(storageKey); setChosen([]); key.current = crypto.randomUUID(); setDraftError(null); set({ step: 1 }); }
       catch (reason) { setDraftError(`Cannot clear the saved draft: ${message(reason)}`); }
     }}>Discard local draft</button></div>}
     {catalog.data && !canManage && <p className={warningClass}>System setup permission is required. Library read access does not authorize changes.</p>}
-    {step === 1 && catalog.data && <div className={`grid items-start gap-5 ${setPageContext ? '' : 'lg:grid-cols-[minmax(0,1fr)_260px]'}`}>
-      <section className={`${workspaceCard} space-y-4`}>
-        <form onSubmit={event => { event.preventDefault(); set({ search: search.trim(), page: 1 }); }} className="flex flex-wrap gap-3">
+    {step === 1 && catalog.data && <div className={`${embedded ? 'flex flex-col' : 'grid'} items-start gap-5 ${!embedded && !setPageContext ? 'lg:grid-cols-[minmax(0,1fr)_260px]' : ''}`}>
+      <section className={`${workspaceCard} ${embedded ? 'w-full' : ''} space-y-4`}>
+        <form onSubmit={event => { event.preventDefault(); set({ search: search.trim(), page: 1 }); }}
+          className={`${embedded ? `grid grid-cols-1 ${catalogSource ? 'sm:grid-cols-[minmax(0,1fr)_auto]' : 'sm:grid-cols-[minmax(0,1fr)_12rem_auto]'} sm:items-end` : 'flex flex-wrap'} gap-3`}>
           <label className="grid flex-1 gap-1 text-sm">Search library capabilities<input className={inputClass} value={search} onChange={event => setSearch(event.target.value)} maxLength={200} /></label>
-          <label className="grid gap-1 text-sm">Source<select className={inputClass} value={source ?? ''} onChange={event => set({ source: event.target.value, page: 1 })}>
+          {!catalogSource && <label className="grid gap-1 text-sm">Source<select className={inputClass} value={source ?? ''} onChange={event => set({ source: event.target.value, page: 1 })}>
             <option value="">All sources</option><option value="local">Organization</option><option value="provider">Provider</option></select></label>
+          }
           <button type="submit" className={secondaryButtonClass}>Search</button>
         </form>
-        <div className="grid gap-3 sm:grid-cols-2">{catalog.data.items.map(item => {
+        <div data-testid="capability-options" className={`grid gap-3 ${embedded ? 'grid-cols-1' : 'sm:grid-cols-2'}`}>{catalog.data.items.map(item => {
           const selected = chosen.some(entry => recordKey(entry.item) === recordKey(item));
-          return <label key={recordKey(item)} className={`rounded-lg border p-4 ${selected ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950' : 'border-slate-200 dark:border-gray-700'}`}>
+          return <label data-testid="capability-option" key={recordKey(item)}
+            className={`grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] gap-x-3 rounded-lg border p-4 ${selected ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950' : 'border-slate-200 dark:border-gray-700'}`}>
             <input type="checkbox" aria-label={`Select ${item.name}`} checked={selected} disabled={locked || item.isApplied || !item.isAvailable || (!selected && chosen.length >= 50)}
               onChange={event => update(event.target.checked ? [...chosen, { item, supports: [], selection: {
                 source: item.source, recordId: item.recordId, sourceRevision: item.sourceRevision, placements: [], supportingCapabilities: [],
               } }] : chosen.filter(entry => recordKey(entry.item) !== recordKey(item)))} />
-            <h2 className="mt-2 font-semibold">{item.name}</h2><p className="text-sm">{item.sourceName}</p>
-            <div className="my-2"><StateBadge>{item.isApplied ? 'Already applied' : item.source === 'provider' ? 'Provider source · Read-only' : 'Organization library'}</StateBadge></div>
-            <p className="text-xs text-slate-500 dark:text-gray-400">{item.components.length} contributors · {item.controlIds.length} mapped controls</p>
-            {!item.isAvailable && <p className="mt-2 text-sm">This source is not currently available.</p>}
+            <div className="min-w-0"><h2 className="font-semibold">{item.name}</h2><p className="mt-1 text-sm">{item.sourceName}</p>
+              <div className="my-2"><StateBadge>{item.isApplied ? 'Already applied' : item.source === 'provider' ? 'Provider source · Read-only' : 'Organization library'}</StateBadge></div>
+              <p className="text-xs text-slate-500 dark:text-gray-400">{item.components.length} contributors · {item.controlIds.length} mapped controls</p>
+              {!item.isAvailable && <p className="mt-2 text-sm">This source is not currently available.</p>}
+            </div>
           </label>;
         })}</div>
         {!catalog.data.items.length && <p>No eligible capabilities match these filters.</p>}
         <Pager page={catalog.data.page} pageSize={catalog.data.pageSize} total={catalog.data.total} onPage={page => set({ page })} />
       </section>
-      <aside className={`${workspaceCard} space-y-4`}><h2 className="font-semibold">Selection summary</h2>
+      <aside data-testid="selection-summary" className={`${workspaceCard} ${embedded ? 'order-first w-full' : ''} space-y-4`}><h2 className="font-semibold">Selection summary</h2>
         <p>{chosen.length} capabilities selected</p><p className="text-sm">Target: {systemName}</p>
-        <ul className="space-y-2 text-sm">{chosen.map(entry => <li key={recordKey(entry.item)}>{entry.item.name} · {entry.item.sourceName}</li>)}</ul>
+        {embedded && chosen.length > 0
+          ? <details className="text-sm"><summary className="cursor-pointer font-medium">Review selected capabilities</summary>
+            <ul className="mt-2 space-y-2">{chosen.map(entry => <li key={recordKey(entry.item)}>{entry.item.name} · {entry.item.sourceName}</li>)}</ul>
+          </details>
+          : <ul className="space-y-2 text-sm">{chosen.map(entry => <li key={recordKey(entry.item)}>{entry.item.name} · {entry.item.sourceName}</li>)}</ul>}
         <p className="text-xs text-slate-500 dark:text-gray-400">Selecting a library record does not grant or confirm inheritance.</p>
-        <button type="button" className={buttonClass} disabled={locked || !chosen.length} onClick={() => set({ step: 2 })}>Continue to applicability</button>
+        <button type="button" className={`${buttonClass} ${embedded ? 'w-full' : ''}`} disabled={locked || !chosen.length} onClick={() => set({ step: 2 })}>Continue to applicability</button>
       </aside>
     </div>}
     {step === 2 && catalog.data && <section className="space-y-4"><h2 className="text-xl font-semibold">Review system applicability</h2>
       {chosen.map(entry => <Applicability key={recordKey(entry.item)} tenantId={tenantId} systemId={systemId} chosen={entry}
         boundaries={catalog.data!.boundaries} disabled={locked} onChange={next => update(chosen.map(value => recordKey(value.item) === recordKey(next.item) ? next : value))} />)}
       <p className={warningClass}>Applicability does not confirm inheritance. Responsibility review and narrative acceptance remain separate authorized actions.</p>
+      {error && <p role="alert" className={errorClass}>{error}</p>}
       <div className="flex gap-3"><button type="button" className={secondaryButtonClass} disabled={busy} onClick={() => set({ step: 1 })}>Back</button>
         <button type="button" className={buttonClass} disabled={locked} onClick={prepare}>Continue to review</button></div>
     </section>}
@@ -291,21 +359,26 @@ function Setup({ tenantId, systemId, identity }: { tenantId: string; systemId: s
         boundaries={catalog.data?.boundaries} systemName={systemName} />
       {operation.lastError && <p className={warningClass}>{operation.lastError}</p>}
       <p className={warningClass}>Library records remain shared. Control responsibility review, narrative proposal acceptance and any authorization decision remain pending separate workflows.</p>
-      {stale && <p className={warningClass}>This saved plan is stale or access changed. Saved changes are retained. Return to the system to review current sources and placements before preparing new work.</p>}
       {!completed && !uncertain && !stale && <label className="flex gap-2 text-sm"><input type="checkbox" checked={acknowledged} disabled={locked}
         onChange={event => setAcknowledged(event.target.checked)} />I reviewed the exact saved plan for this system.</label>}
       <div className="flex flex-wrap gap-3">
         {!completed && !uncertain && !stale && operation.state !== 'InProgress' && <button type="button" className={buttonClass} disabled={locked || !acknowledged} onClick={complete}>
           {operation.state === 'Partial' ? 'Retry unfinished changes' : 'Add to system'}</button>}
         {(uncertain || operation.state === 'InProgress') && <button type="button" className={secondaryButtonClass} disabled={busy} onClick={() => { void act(refresh); }}>Refresh saved outcomes</button>}
-        {completed && <Link className={buttonClass} to={`${base}?view=capability`}>View system capabilities</Link>}
+        {completed && (embedded
+          ? <button type="button" className={buttonClass} onClick={onClose}>View system capabilities</button>
+          : <Link className={buttonClass} to={`${base}?view=capability`}>View system capabilities</Link>)}
         <Link className={secondaryButtonClass} to={`/systems/${encodeURIComponent(systemId)}/inheritance/subscriptions`}>Review responsibilities</Link>
       </div>
       {operation.state === 'InProgress' && <p role="status">The server is processing this operation. Refresh its saved outcomes; do not create another operation.</p>}
       <p className="text-xs text-slate-500 dark:text-gray-400">Refresh or return using this URL to recover the same operation. A retry applies only unfinished server work; it cannot replace this plan.</p>
     </section>}
     <p className="text-xs text-slate-500 dark:text-gray-400">Unsubmitted drafts are scoped to this actor, organization, system and browser tab for 24 hours. Server operations are authoritative. Leaving or cancelling never deletes shared or already-saved data.</p>
-    {!busy && <Link to={base} className="inline-block text-sm text-indigo-700 underline dark:text-indigo-300">{completed ? 'Back to system' : 'Cancel and return to system'}</Link>}
+    {!busy && (embedded
+      ? <button type="button" className="text-sm text-indigo-700 underline dark:text-indigo-300" onClick={onClose}>
+        {completed ? 'Back to system' : 'Cancel and return to system'}
+      </button>
+      : <Link to={base} className="inline-block text-sm text-indigo-700 underline dark:text-indigo-300">{completed ? 'Back to system' : 'Cancel and return to system'}</Link>)}
   </div>;
 }
 

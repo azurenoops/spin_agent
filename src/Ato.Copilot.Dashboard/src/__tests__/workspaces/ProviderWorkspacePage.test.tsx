@@ -6,12 +6,27 @@ import ProviderWorkspacePage from '../../features/provider-workspace/ProviderWor
 import * as api from '../../features/provider-authorizations/api';
 import { offering } from '../provider-authorizations/testData';
 import type { OfferingOverviewData } from '../../features/provider-authorizations/types';
+import '../helpers/dialog';
+vi.mock('../../features/provider-authorizations/ProviderAllocationForm', () => ({
+  ProviderAllocationForm: () => <div>Named customer assignment form</div>,
+  allocationScopeName: (scope: { resourceId?: string; serviceName?: string; subscriptionId?: string }) => scope.serviceName ?? (scope.resourceId ? scope.resourceId.split('/').pop() : `Subscription ${scope.subscriptionId}`),
+}));
 vi.mock('../../features/provider-authorizations/ProviderMonitoringPage', () => ({
   default: () => <h1>Service monitoring</h1>,
+  ProviderMonitoringPanel: () => <h1>Service monitoring</h1>,
+}));
+vi.mock('../../features/provider-authorizations/providerMonitoringApi', () => ({
+  getProviderMonitoring: vi.fn(async () => ({ sources: [], rules: [], evaluations: [] })),
+}));
+vi.mock('../../features/workspace-operations/api', async original => ({
+  ...await original<typeof import('../../features/workspace-operations/api')>(),
+  getDirectoryConnections: vi.fn(async () => []),
+  listOrganizations: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })),
 }));
 
 vi.mock('../../features/provider-authorizations/api', () => ({
   listOfferings: vi.fn(), getOfferingOverview: vi.fn(), listImpactReviews: vi.fn(), getBoundaryOverview: vi.fn(),
+  listFindings: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })), listFindingEvidence: vi.fn(),
   authorizationHref: (id?: string, part?: string) => `/authorizations${id ? `/offerings/${id}` : ''}${part ? `/${part}` : ''}`,
 }));
 vi.mock('../../components/layout/PageLayout', () => ({
@@ -20,7 +35,7 @@ vi.mock('../../components/layout/PageLayout', () => ({
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
   useWorkspaceSession: () => session,
 }));
-let session: { target: { kind: string }; workspace: { permissions: { canAccessCsp: boolean; canManageMemberships: boolean }; displayName: string } };
+let session: { target: { kind: string }; workspace: { permissions: { canAccessCsp: boolean; canManageMemberships: boolean }; displayName: string; roles: string[] } };
 
 const overview: OfferingOverviewData = {
   offeringId: offering.offeringId, offeringRevision: 1,
@@ -33,13 +48,40 @@ const overview: OfferingOverviewData = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  session = { target: { kind: 'csp' }, workspace: { permissions: { canAccessCsp: true, canManageMemberships: true }, displayName: 'Demo Provider' } };
+  session = { target: { kind: 'csp' }, workspace: { permissions: { canAccessCsp: true, canManageMemberships: true }, displayName: 'Demo Provider', roles: ['CSP.Admin'] } };
   vi.mocked(api.listOfferings).mockResolvedValue({ items: [offering], total: 1, page: 1, pageSize: 25 });
   vi.mocked(api.getOfferingOverview).mockResolvedValue(overview);
   vi.mocked(api.listImpactReviews).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 25 });
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({ offeringId: offering.offeringId, offeringRevision: 1,
+    capabilities: { items: [], total: 0, page: 1, pageSize: 25, published: 0, awaitingReview: 0 },
+    missionSystems: { items: [], total: 0, page: 1, pageSize: 25 } });
 });
 
 describe('provider task workspace', () => {
+  it('opens an assignment dialog and searches customer relationships without leaving the selected offering', async () => {
+    // Arrange
+    vi.mocked(api.getBoundaryOverview).mockResolvedValue({
+      offeringId: offering.offeringId, offeringRevision: 1,
+      capabilities: { items: [], page: 1, pageSize: 25, total: 0, published: 0, awaitingReview: 0 },
+      missionSystems: { items: [{ assignmentId: 'a', systemId: 'system-a', systemName: 'Harbor Logistics',
+        targetTenantName: 'Maritime Operations', relationshipState: 'Undetermined', associated: false,
+        adoptedCapabilityCount: 0, assignedScopes: [] }], page: 1, pageSize: 25, total: 1 },
+    });
+    render(<MemoryRouter><ProviderWorkspacePage view="missions" /></MemoryRouter>);
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign service scope' }));
+    // Assert
+    expect(screen.getByRole('dialog', { name: 'Assign service scope' })).toHaveTextContent('Named customer assignment form');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    // Act
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search mission system or organization' }), { target: { value: 'Maritime' } });
+    // Assert
+    expect(await screen.findByText('Harbor Logistics')).toBeVisible();
+    expect(screen.getByRole('columnheader', { name: 'Service / scope' })).toBeVisible();
+    expect(screen.getByRole('columnheader', { name: 'Capability release' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Preview Systems handoff' }));
+    expect(screen.getByRole('dialog', { name: 'Preview Systems handoff' })).toHaveTextContent('read-only');
+  });
   it('renders the mock overview from retained offering records, not sample counts', async () => {
     // Arrange
     render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
@@ -108,37 +150,37 @@ describe('provider task workspace', () => {
     expect(api.listOfferings).not.toHaveBeenCalled();
   });
 
-  it('uses administration links without inventing identity grants or cloud connection status', () => {
+  it('uses administration links without inventing identity grants or cloud connection status', async () => {
     // Arrange / Act
     render(<MemoryRouter><ProviderWorkspacePage view="administration" /></MemoryRouter>);
     // Assert
     expect(screen.getByRole('link', { name: 'Manage organizations' })).toHaveAttribute('href', '/organizations');
-    expect(screen.getByRole('link', { name: 'Review provider setup' })).toHaveAttribute('href', '/onboarding/csp');
+    expect(screen.getByRole('button', { name: 'Review provider profile' })).toBeEnabled();
     expect(api.listOfferings).not.toHaveBeenCalled();
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
   });
 
-  it('routes provider monitoring through its owning workspace without a mission impersonation', () => {
+  it('routes provider monitoring through its owning workspace without a mission impersonation', async () => {
     // Arrange / Act
     render(<MemoryRouter initialEntries={['/provider-changes?tab=monitoring']}><ProviderWorkspacePage view="changes" /></MemoryRouter>);
     // Assert
-    expect(screen.getByRole('heading', { name: 'Service monitoring' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Provider impact reviews' })).toHaveAttribute('href', '/provider-changes');
+    expect(await screen.findByRole('heading', { name: 'Service monitoring' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Change queue' })).toHaveAttribute('href', `/provider-changes?offeringId=${offering.offeringId}`);
     expect(api.listImpactReviews).not.toHaveBeenCalled();
   });
 
   it('loads reviewed changes using retained offering scope', async () => {
     // Arrange
     vi.mocked(api.listImpactReviews).mockResolvedValue({
-      items: [{ reviewId: 'review-1', revision: 1, disposition: 'Pending', reviewedBy: null, reviewedAt: null, contextSnapshotHash: 'context-1', stale: true, title: 'Retention update' }],
+      items: [{ reviewId: 'review-1', revision: 1, disposition: 'PendingReview', reviewedBy: null, reviewedAt: null, contextSnapshotHash: 'context-1', stale: true, title: 'Retention update' }],
       total: 1, page: 1, pageSize: 25,
     });
     // Act
     render(<MemoryRouter><ProviderWorkspacePage view="changes" /></MemoryRouter>);
     // Assert
-    const link = await screen.findByRole('link', { name: 'Retention update' });
-    expect(link).toHaveAttribute('href', `/authorizations/offerings/${offering.offeringId}/impact?reviewId=review-1`);
-    expect(screen.getByText('Refresh review required')).toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: 'Review Retention update' });
+    expect(link).toHaveAttribute('href', `/authorizations/offerings/${offering.offeringId}/impact?reviewId=review-1&returnTo=changes`);
+    expect(screen.getByText('New assessment required')).toBeInTheDocument();
   });
 
   it('shows actual service associations without treating allocation as adoption', async () => {
@@ -155,8 +197,8 @@ describe('provider task workspace', () => {
     render(<MemoryRouter><ProviderWorkspacePage view="missions" /></MemoryRouter>);
     // Assert
     expect(await screen.findByText('DEMO Mission')).toBeInTheDocument();
-    expect(screen.getByText('Association pending')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Assign service scope' })).toHaveAttribute('href', `/authorizations/offerings/${offering.offeringId}/inherited-coverage?task=allocations`);
+    expect(screen.getByText('Awaiting MO')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assign service scope' })).toBeEnabled();
     expect(screen.getByRole('link', { name: 'Cross-organization oversight' })).toHaveAttribute('href', '/provider-oversight/systems');
   });
 
@@ -215,10 +257,10 @@ describe('provider task workspace', () => {
     // Act
     render(<MemoryRouter><ProviderWorkspacePage view="missions" /></MemoryRouter>);
     // Assert
-    expect(await screen.findByText('SeparateBoundary')).toBeInTheDocument();
+    expect(await screen.findByTitle('Recorded relationship state: SeparateBoundary')).toHaveTextContent('Associated');
     expect(screen.getByText('system-a')).toBeInTheDocument();
-    expect(screen.getByText('/subscriptions/subscription-a/resourceGroups/demo')).toBeInTheDocument();
-    expect(screen.getByText('subscription-b')).toBeInTheDocument();
+    expect(screen.getByText('demo, Subscription subscription-b')).toBeInTheDocument();
+    expect(screen.getByText('2 adopted capabilities · Exact releases unavailable')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View relationship for system-a' })).toHaveAttribute('href',
       `/authorizations/offerings/${offering.offeringId}/missions/assignment-a?missionPage=1&offeringPage=1`);
   });

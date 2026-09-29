@@ -62,7 +62,8 @@ public sealed class ProviderCatalogProjectionTests
         // Assert
         page.Total.Should().Be(200);
         page.Items.Should().HaveCount(pageSize);
-        page.Items.Should().OnlyContain(x => x.SupportingComponents != null && x.SupportingComponents.Count == 2);
+        page.Items.Should().OnlyContain(x => x.SupportingComponents != null
+            && x.SupportingComponents.Count == 1 && x.SupportingComponents[0].Id == contributor.Id.ToString());
         counter.Reads.Should().BeLessThanOrEqualTo(6);
         counter.Writes.Should().Be(0);
     }
@@ -88,6 +89,64 @@ public sealed class ProviderCatalogProjectionTests
         overview.SourceArtifacts.Total.Should().Be(0);
         overview.SourceArtifacts.Page.Should().Be(1);
         overview.SourceArtifacts.PageSize.Should().Be(200);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Detail_ExplicitContributorsReplaceDeliveryParentButRetainProvenance(
+        bool hasWorkingRevision, bool emptyContributors)
+    {
+        // Arrange
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(connection).Options;
+        await using var db = new AtoCopilotContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var profile = new CspProfile { DisplayName = "Azure", LegalEntityName = "Azure" };
+        var parent = new CspInheritedComponent
+        {
+            CspProfileId = profile.Id, Name = "Source backup", SourceFileName = "provider-ssp.pdf",
+            SourceArtifactReference = "provider://backup"
+        };
+        var backup = new CspInheritedComponent { CspProfileId = profile.Id, Name = "Azure Backup" };
+        var keyVault = new CspInheritedComponent { CspProfileId = profile.Id, Name = "Azure Key Vault" };
+        var capability = new CspInheritedCapability { CspInheritedComponentId = parent.Id, Name = "Backup and recovery" };
+        db.CspProfiles.Add(profile);
+        db.CspInheritedComponents.AddRange(parent, backup, keyVault);
+        db.CspInheritedCapabilities.Add(capability);
+        if (hasWorkingRevision)
+            db.ProviderCapabilityWorkingRevisions.Add(new ProviderCapabilityWorkingRevision
+            {
+                CapabilityId = capability.Id,
+                ContributorsJson = JsonSerializer.Serialize(emptyContributors ? [] : new[]
+                {
+                    backup.Id.ToString(), keyVault.Id.ToString(), backup.Id.ToString().ToUpperInvariant(), "unresolved"
+                })
+            });
+        await db.SaveChangesAsync();
+        var service = new WorkspaceOperationsService(new ContextFactory(options));
+
+        // Act
+        var detail = await service.GetProviderCapabilityAsync(capability.Id, default);
+        var page = await service.ListProviderCatalogAsync(new(Grouping: "capability"), default);
+
+        // Assert
+        var expected = !hasWorkingRevision ? new[] { parent.Id.ToString() }
+            : emptyContributors ? [] : new[] { backup.Id.ToString(), keyVault.Id.ToString() };
+        detail!.SupportingComponents.Select(x => x.Id).Should().BeEquivalentTo(expected);
+        detail.Capability.SupportingComponents.Should().BeEquivalentTo(detail.SupportingComponents);
+        page.Items.Single().SupportingComponents.Should().BeEquivalentTo(detail.SupportingComponents);
+        detail.Capability.ComponentId.Should().Be(parent.Id);
+        detail.Capability.ComponentName.Should().Be(parent.Name);
+        detail.SourceArtifacts.Should().ContainSingle(x => x.ComponentId == parent.Id
+            && x.SourceFileName == "provider-ssp.pdf" && x.SourceReference == "provider://backup");
+        detail.UnresolvedContributorIds.Should().BeEquivalentTo(
+            hasWorkingRevision && !emptyContributors ? new[] { "unresolved" } : []);
+        (await db.CspInheritedCapabilities.AsNoTracking().SingleAsync()).CspInheritedComponentId.Should().Be(parent.Id);
+        (await db.CspInheritedComponents.AsNoTracking().SingleAsync(x => x.Id == parent.Id))
+            .SourceArtifactReference.Should().Be("provider://backup");
     }
 
     [Fact]

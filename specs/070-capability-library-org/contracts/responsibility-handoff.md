@@ -7,8 +7,9 @@ SQL Server deployment and user manual acceptance remain explicit delivery gates.
 
 Base: `/api/dashboard/systems/{systemId}/capability-subscriptions`.
 
-- `GET /responsibilities`: read-only preview. Returns `systemId`, `baselineId`,
-  `canConfirm`, `items`, and durable pending change impacts.
+- `GET /responsibilities`: read-only preview. Returns `systemId`, the technical
+  `baselineId` concurrency pin, a human-readable `baselineName`, `canConfirm`,
+  `items`, and durable pending change impacts.
 - `PUT /{capabilityId}/responsibilities`: explicit confirmation, with
   `{ baselineId, sourceRevision, reviewRevision, allocations: [{ controlId, inheritanceType,
   provider, customerResponsibility }] }`. Values are Inherited, Shared, Customer.
@@ -24,8 +25,9 @@ Base: `/api/dashboard/systems/{systemId}/capability-subscriptions`.
 - Existing subscribe/reactivate/unsubscribe routes reconcile in the same transaction.
   Repeated unsubscribe of a known inactive subscription returns success without new work.
 
-An item identifies subscription, capability, provider component/profile, current source
-revision, reviewed revision/actor/time, control, confirmed allocation, effective
+An item identifies subscription, capability, provider component/profile, the
+authoritative provider profile display name, current source revision, reviewed
+revision/actor/time, control, confirmed allocation, effective
 designation/source, `sourceAvailable`, `sourceSnapshotJson`,
 `reviewedSourceSnapshotJson`, and state.
 `sourceAvailable` means the provider capability is Mapped and its component Published.
@@ -49,6 +51,16 @@ The UI must first select a baseline, then collect explicit allocations for appli
 controls, submit the displayed baseline/provider/review revisions, and refresh after
 HTTP 409. `reviewRevision` pins the previously displayed confirmations and prevents
 one reviewer from overwriting a concurrent review against the same provider snapshot.
+For Inherited or Shared allocations, the UI initializes the editable provider field
+from the server-supplied provider profile display name; it does not ask the reviewer
+to reconstruct the provider from an opaque profile ID. The value remains editable so
+the reviewer can record a more specific responsible service when required.
+The primary matrix presents the provider capability and provider display name, not
+opaque source hashes or entity IDs. Exact source/review fingerprints and IDs remain
+available in a collapsed technical-details disclosure in the selected-control review
+surface for audit and troubleshooting use.
+The primary summary presents the baseline level and optional overlay as its display
+name; the baseline ID is retained only as a technical concurrency pin.
 HTTP 404 hides absent/foreign/unassigned systems; 403 denies readable systems without
 an effective ISSM/ISSO assignment; 400 rejects malformed allocations; 409 indicates
 stale baseline/source or unavailable subscription. No client actor/role is trusted.
@@ -79,6 +91,13 @@ Narrative processing is mark-only and retryable, with no synchronous model call.
 Impact retains removed subscriptions and source revisions for review after unsubscribe.
 Provider publication remains a provider-source event, not an organization capability
 publication or a cross-tenant authorization bypass.
+
+Every responsibility mutation, including explicit current-baseline reconciliation,
+must execute authorization, the serializable transaction, responsibility reads,
+writes, impact staging, and commit inside the database provider's execution strategy.
+This preserves the all-or-none contract while allowing SQL Server's retrying execution
+strategy to replay the complete unit. A user-initiated transaction outside that unit
+is invalid under the production provider and must not be used.
 
 Provider lifecycle changes stage a `CspResponsibilitySourceEvent` in the same save as
 the source. Identical consecutive content is deduplicated; restoring earlier content

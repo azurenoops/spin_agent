@@ -135,6 +135,7 @@ public sealed partial class CapabilityResponsibilityService
             }
             return new CapabilityResponsibilityItem(source.Subscription.Id, Guid.Parse(source.Subscription.CspInheritedCapabilityId),
                 source.Capability?.CspInheritedComponentId, source.Capability?.CspInheritedComponent.CspProfileId,
+                source.ProviderName,
                 control, source.Revision, ReviewRevision(state, source), status,
                 confirmation?.SourceRevision, confirmation?.ConfirmedBy, confirmation?.ConfirmedAt,
                 confirmation is null ? null : Allocation(confirmation), existing?.InheritanceType.ToString(), existing?.DesignationSource,
@@ -146,7 +147,16 @@ public sealed partial class CapabilityResponsibilityService
             .Where(i => i.TenantId == state.TenantId && i.RegisteredSystemId == state.SystemId && i.AcknowledgedAt == null)
             .Select(i => new CapabilityResponsibilityImpactResponse(i.Id, i.ControlBaselineId, i.ControlId,
                 i.StateHash, i.Reason, i.SourcesJson, i.CreatedAt)).ToListAsync(ct);
-        return new(state.SystemId, state.Baseline?.Id, canConfirm, items, impacts);
+        return new(state.SystemId, state.Baseline?.Id, BaselineName(state.Baseline), canConfirm, items, impacts);
+    }
+
+    private static string? BaselineName(ControlBaseline? baseline)
+    {
+        if (baseline is null) return null;
+        var name = $"{baseline.BaselineLevel.Trim()} baseline";
+        return string.IsNullOrWhiteSpace(baseline.OverlayApplied)
+            ? name
+            : $"{name} · {baseline.OverlayApplied.Trim()}";
     }
 
     private static IEnumerable<string> SourceControls(State state, Source source) =>

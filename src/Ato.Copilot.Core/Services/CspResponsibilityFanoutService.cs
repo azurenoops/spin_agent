@@ -91,14 +91,17 @@ public sealed class CspResponsibilityFanoutService(AtoCopilotContext db, ITenant
                 return;
             }
         }
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var batch = await reconciler.ReconcileBackgroundBatchAsync(claim.SystemId, actor, source?.CapabilityId,
-            delivery.BaselineId, delivery.ControlCursor, source is null ? "BaselineChanged" : "ProviderChanged", ct);
-        delivery.BaselineId = batch.BaselineId;
-        delivery.ControlCursor = batch.Cursor;
-        await FinishAsync(delivery, batch.BaselineId is null ? "MissingBaseline" : batch.Complete ? "Completed" : "MoreControls",
-            batch.Complete, ct, batch.BaselineId is not null && !batch.Complete);
-        await transaction.CommitAsync(ct);
+        await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var batch = await reconciler.ReconcileBackgroundBatchAsync(claim.SystemId, actor, source?.CapabilityId,
+                delivery.BaselineId, delivery.ControlCursor, source is null ? "BaselineChanged" : "ProviderChanged", ct);
+            delivery.BaselineId = batch.BaselineId;
+            delivery.ControlCursor = batch.Cursor;
+            await FinishAsync(delivery, batch.BaselineId is null ? "MissingBaseline" : batch.Complete ? "Completed" : "MoreControls",
+                batch.Complete, ct, batch.BaselineId is not null && !batch.Complete);
+            await transaction.CommitAsync(ct);
+        });
     }
 
     private async Task FinishAsync(CapabilityResponsibilityDelivery delivery, string outcome, bool complete,

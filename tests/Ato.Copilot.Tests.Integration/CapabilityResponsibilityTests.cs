@@ -27,6 +27,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,10 +55,16 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _connection.OpenAsync();
-        _options = new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(_connection).AddInterceptors(_commitFailure, _routingAckFailure).Options;
+        _options = new DbContextOptionsBuilder<AtoCopilotContext>()
+            .UseSqlite(_connection)
+            .ReplaceService<IExecutionStrategyFactory, RetryingExecutionStrategyFactory>()
+            .AddInterceptors(_commitFailure, _routingAckFailure)
+            .Options;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseTestServer();
-        builder.Services.AddDbContext<AtoCopilotContext>(o => o.UseSqlite(_connection).AddInterceptors(_commitFailure));
+        builder.Services.AddDbContext<AtoCopilotContext>(o => o.UseSqlite(_connection)
+            .ReplaceService<IExecutionStrategyFactory, RetryingExecutionStrategyFactory>()
+            .AddInterceptors(_commitFailure));
         builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         var factory = new Mock<IDbContextFactory<AtoCopilotContext>>();
         factory.Setup(f => f.CreateDbContextAsync(It.IsAny<CancellationToken>()))
@@ -115,6 +122,18 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
 
     private string Route => $"/api/dashboard/systems/{_system}/capability-subscriptions";
 
+    private sealed class RetryingExecutionStrategyFactory(ExecutionStrategyDependencies dependencies)
+        : IExecutionStrategyFactory
+    {
+        public IExecutionStrategy Create() => new RetryingExecutionStrategy(dependencies);
+    }
+
+    private sealed class RetryingExecutionStrategy(ExecutionStrategyDependencies dependencies)
+        : ExecutionStrategy(dependencies, 1, TimeSpan.Zero)
+    {
+        protected override bool ShouldRetryOn(Exception exception) => false;
+    }
+
     [Fact]
     public async Task Preview_DistinguishesMissingBaselineAndAllocation_WithoutInferringInheritance()
     {
@@ -153,8 +172,10 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
         var preview = await _client.GetFromJsonAsync<JsonElement>($"{Route}/responsibilities");
 
         // Assert
+        preview.GetProperty("baselineName").GetString().Should().Be("Moderate baseline · CNSSI 1253 IL4");
         var item = preview.GetProperty("items").EnumerateArray().First();
         item.GetProperty("sourceAvailable").GetBoolean().Should().BeTrue();
+        item.GetProperty("providerName").GetString().Should().Be("Synthetic CSP");
         var snapshot = item.GetProperty("sourceSnapshotJson").GetString();
         snapshot.Should().Contain("Synthetic logging").And.Contain("[redacted]")
             .And.NotContain("synthetic-secret").And.NotContain("https://example.invalid");
@@ -263,15 +284,18 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
         await using var scope = _app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var service = scope.ServiceProvider.GetRequiredService<ICapabilityResponsibilityService>();
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
         // Act
-        await service.SubscribeAsync(_system, _capability, "fixture-reviewer");
-        db.Database.CurrentTransaction.Should().BeSameAs(transaction);
-        (await db.RegisteredSystems.SingleAsync(s => s.Id == _system)).Name = "Caller transaction marker";
-        await db.SaveChangesAsync();
-        if (commit) await transaction.CommitAsync();
-        else await transaction.RollbackAsync();
+        await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await service.SubscribeAsync(_system, _capability, "fixture-reviewer");
+            db.Database.CurrentTransaction.Should().BeSameAs(transaction);
+            (await db.RegisteredSystems.SingleAsync(s => s.Id == _system)).Name = "Caller transaction marker";
+            await db.SaveChangesAsync();
+            if (commit) await transaction.CommitAsync();
+            else await transaction.RollbackAsync();
+        });
 
         // Assert
         await using var verify = new AtoCopilotContext(_options);
@@ -290,18 +314,21 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
         await using var scope = _app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var service = scope.ServiceProvider.GetRequiredService<ICapabilityResponsibilityService>();
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-        _commitFailure.FailNext = true;
 
         // Act
-        await service.SubscribeAsync(_system, _capability, "fixture-reviewer");
-        Func<Task> commit = () => transaction.CommitAsync();
+        await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            _commitFailure.FailNext = true;
+            await service.SubscribeAsync(_system, _capability, "fixture-reviewer");
+            Func<Task> commit = () => transaction.CommitAsync();
 
-        // Assert
-        _commitFailure.FailNext.Should().BeTrue("the service must not commit a caller-owned transaction");
-        await commit.Should().ThrowAsync<InvalidOperationException>().WithMessage("Synthetic commit failure");
-        db.Database.CurrentTransaction.Should().BeSameAs(transaction);
-        await transaction.RollbackAsync();
+            // Assert
+            _commitFailure.FailNext.Should().BeTrue("the service must not commit a caller-owned transaction");
+            await commit.Should().ThrowAsync<InvalidOperationException>().WithMessage("Synthetic commit failure");
+            db.Database.CurrentTransaction.Should().BeSameAs(transaction);
+            await transaction.RollbackAsync();
+        });
         await using var verify = new AtoCopilotContext(_options);
         (await verify.CapabilitySubscriptions.CountAsync()).Should().Be(0);
         (await verify.Set<CapabilityResponsibilityProjection>().CountAsync()).Should().Be(0);
@@ -311,7 +338,8 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
     private async Task AddBaselineAsync()
     {
         await using var db = new AtoCopilotContext(_options);
-        db.ControlBaselines.Add(new() { TenantId = _tenant, RegisteredSystemId = _system, BaselineLevel = "Moderate",
+        db.ControlBaselines.Add(new() {
+            TenantId = _tenant, RegisteredSystemId = _system, BaselineLevel = "Moderate", OverlayApplied = "CNSSI 1253 IL4",
             ControlIds = ["AC-2", "AU-6"], TotalControls = 2, CreatedBy = "fixture" });
         await db.SaveChangesAsync();
     }

@@ -13,7 +13,10 @@ vi.mock('../../features/workspace-operations/system-capabilities/systemCapabilit
 function preview(canConfirm = true): CapabilityResponsibilityResponse {
   const item = responsibilityItem('PendingReview', 'AC-1');
   item.allocation = { controlId: 'AC-1', inheritanceType: 'Shared', provider: 'Collect logs', customerResponsibility: 'Review logs' };
-  return { systemId: 'system-a', baselineId: 'baseline-a', canConfirm, items: [item], pendingImpacts: [] };
+  return {
+    systemId: 'system-a', baselineId: 'baseline-a', baselineName: 'Moderate baseline',
+    canConfirm, items: [item], pendingImpacts: [],
+  };
 }
 
 function mount(data = preview(), onChanged = vi.fn()) {

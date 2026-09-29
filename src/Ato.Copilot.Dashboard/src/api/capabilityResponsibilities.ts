@@ -18,6 +18,7 @@ export interface CapabilityResponsibilityItem {
   capabilityId: string;
   componentId: string | null;
   cspProfileId: string | null;
+  providerName: string | null;
   controlId: string;
   sourceRevision: string;
   reviewRevision: string;
@@ -59,6 +60,7 @@ export interface CapabilityResponsibilityImpact {
 export interface CapabilityResponsibilityResponse {
   systemId: string;
   baselineId: string | null;
+  baselineName: string | null;
   canConfirm: boolean;
   items: CapabilityResponsibilityItem[];
   pendingImpacts: CapabilityResponsibilityImpact[];
@@ -115,7 +117,8 @@ function parseProviderSnapshot(snapshotJson: string | null, capabilityId: string
     if (error instanceof SyntaxError) throw invalid();
     throw error;
   }
-  const snapshot = record(value);
+  const envelope = record(value);
+  const snapshot = envelope && 'Capability' in envelope ? record(envelope.Capability) : envelope;
   const component = record(snapshot?.Component);
   if (!snapshot || !text(snapshot.Id) || snapshot.Id.toLowerCase() !== capabilityId.toLowerCase()
     || !text(snapshot.Name) || typeof snapshot.Description !== 'string' || !snapshotStatus(snapshot.Status)
@@ -137,7 +140,7 @@ function validItem(value: unknown): boolean {
   const item = record(value);
   if (!item || !['subscriptionId', 'capabilityId', 'controlId', 'sourceRevision', 'reviewRevision', 'state'].every(key => text(item[key]))
     || typeof item.sourceAvailable !== 'boolean'
-    || !['componentId', 'cspProfileId', 'reviewedSourceRevision', 'confirmedBy', 'confirmedAt', 'effectiveInheritanceType', 'designationSource', 'sourceSnapshotJson', 'reviewedSourceSnapshotJson']
+    || !['componentId', 'cspProfileId', 'providerName', 'reviewedSourceRevision', 'confirmedBy', 'confirmedAt', 'effectiveInheritanceType', 'designationSource', 'sourceSnapshotJson', 'reviewedSourceSnapshotJson']
       .every(key => nullableText(item[key]))) return false;
   const allocation = record(item.allocation);
   return item.allocation === null || !!allocation && allocation.controlId === item.controlId
@@ -147,7 +150,9 @@ function validItem(value: unknown): boolean {
 
 function validatePreview(value: unknown, systemId: string): CapabilityResponsibilityResponse {
   const data = record(value);
-  if (!data || data.systemId !== systemId || !nullableText(data.baselineId) || typeof data.canConfirm !== 'boolean'
+  if (!data || data.systemId !== systemId || !nullableText(data.baselineId) || !nullableText(data.baselineName)
+    || (data.baselineId === null ? data.baselineName !== null : !text(data.baselineName))
+    || typeof data.canConfirm !== 'boolean'
     || !Array.isArray(data.items) || !data.items.every(validItem)
     || !Array.isArray(data.pendingImpacts) || !data.pendingImpacts.every(value => {
       const impact = record(value);
@@ -162,6 +167,10 @@ function errorFrom(reason: unknown): ResponsibilityApiError {
   if (reason instanceof ResponsibilityApiError) return reason;
   const error = record(reason);
   const response = record(error?.response);
+  if (error?.isAxiosError === true && !response) {
+    return new ResponsibilityApiError(
+      'The responsibility service could not be reached. Your changes were not submitted; retry when the service is available.');
+  }
   const body = record(response?.data) ?? error;
   const status = response?.status ?? body?.status;
   const message = body?.title ?? body?.detail ?? body?.error ?? body?.message;

@@ -209,15 +209,22 @@ public sealed partial class CapabilityResponsibilityService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         if (actor.Length > 200) throw new ArgumentException("Actor is too long.");
-        if (adoptionSubscription) await AuthorizeAdoptionSubscriptionAsync(systemId, ct);
-        else await AuthorizeAsync(systemId, true, ct);
-        await using var transaction = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
-        var result = await mutation();
-        await db.SaveChangesAsync(ct);
-        if (transaction is not null) await transaction.CommitAsync(ct);
-        logger.LogInformation("Reconciled subscription responsibilities for system {SystemId} in tenant {TenantId}", systemId, TenantId);
-        return result;
+        async Task<T> ExecuteMutationAsync()
+        {
+            if (adoptionSubscription) await AuthorizeAdoptionSubscriptionAsync(systemId, ct);
+            else await AuthorizeAsync(systemId, true, ct);
+            await using var transaction = db.Database.CurrentTransaction is null
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            var result = await mutation();
+            await db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            logger.LogInformation("Reconciled subscription responsibilities for system {SystemId} in tenant {TenantId}", systemId, TenantId);
+            return result;
+        }
+
+        return db.Database.CurrentTransaction is not null
+            ? await ExecuteMutationAsync()
+            : await db.Database.CreateExecutionStrategy().ExecuteAsync(ExecuteMutationAsync);
     }
 
     private async Task AuthorizeAdoptionSubscriptionAsync(string systemId, CancellationToken ct)
@@ -242,6 +249,9 @@ public sealed partial class CapabilityResponsibilityService(
         var ids = subscriptions.Select(s => Guid.Parse(s.CspInheritedCapabilityId)).ToArray();
         var capabilities = await db.CspInheritedCapabilities.Include(c => c.CspInheritedComponent)
             .Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
+        var profileIds = capabilities.Values.Select(c => c.CspInheritedComponent.CspProfileId).Distinct().ToArray();
+        var providerNames = await db.CspProfiles.AsNoTracking().Where(p => profileIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct);
         var releases = (await db.ProviderCapabilityReleases.AsNoTracking()
                 .Where(x => ids.Contains(x.CapabilityId))
                 .OrderBy(x => x.CapabilityId).ThenByDescending(x => x.Revision)
@@ -257,7 +267,11 @@ public sealed partial class CapabilityResponsibilityService(
             var snapshot = hasImmutableRelease
                 ? release!.SnapshotJson
                 : CspResponsibilitySourceTracker.Snapshot(capability);
-            return new Source(s, capability, snapshot,
+            var providerName = capability is not null
+                && providerNames.TryGetValue(capability.CspInheritedComponent.CspProfileId, out var displayName)
+                    ? displayName
+                    : null;
+            return new Source(s, capability, providerName, snapshot,
                 hasImmutableRelease ? release!.SnapshotHash : Hash(snapshot));
         }).ToList();
         var confirmations = await db.Set<CapabilityResponsibilityConfirmation>()
@@ -338,7 +352,8 @@ public sealed partial class CapabilityResponsibilityService(
         .Where(c => c.SubscriptionId == source.Subscription.Id && c.IsCurrent).OrderBy(c => c.ControlId)
         .Select(c => new { c.Id, c.ControlId, c.SourceRevision })));
 
-    private sealed record Source(CapabilitySubscription Subscription, CspInheritedCapability? Capability, string Snapshot, string Revision);
+    private sealed record Source(
+        CapabilitySubscription Subscription, CspInheritedCapability? Capability, string? ProviderName, string Snapshot, string Revision);
     private sealed record State(Guid TenantId, string SystemId, ControlBaseline? Baseline, List<Source> Sources,
         List<CapabilityResponsibilityConfirmation> Confirmations, List<CapabilityResponsibilityProjection> Projections);
 }

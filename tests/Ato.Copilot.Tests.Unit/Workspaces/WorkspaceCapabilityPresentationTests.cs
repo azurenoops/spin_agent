@@ -16,6 +16,61 @@ namespace Ato.Copilot.Tests.Unit.Workspaces;
 
 public sealed class WorkspaceCapabilityPresentationTests
 {
+    [Theory]
+    [InlineData(false, false, null)]
+    [InlineData(true, false, null)]
+    [InlineData(true, true, null)]
+    [InlineData(false, false, "readable")]
+    [InlineData(true, false, "readable")]
+    [InlineData(true, true, "readable")]
+    public async Task Provider_UsesExplicitWorkingContributorsAndRetainsSourceProvenance(
+        bool hasWorkingRevision, bool emptyContributors, string? systemId)
+    {
+        // Arrange
+        var factory = NewFactory();
+        var tenant = Guid.NewGuid();
+        var capability = Provider(["AC-2"]);
+        var backup = new CspInheritedComponent
+        {
+            CspProfileId = capability.CspInheritedComponent.CspProfileId, Name = "Azure Backup"
+        };
+        var keyVault = new CspInheritedComponent
+        {
+            CspProfileId = capability.CspInheritedComponent.CspProfileId, Name = "Azure Key Vault"
+        };
+        await using (var db = factory.CreateDbContext())
+        {
+            db.Tenants.Add(new Tenant { Id = tenant, DisplayName = "Organization" });
+            db.CspInheritedCapabilities.Add(capability);
+            db.CspInheritedComponents.AddRange(backup, keyVault);
+            db.CapabilitySubscriptions.Add(Subscription(tenant, capability.Id, "readable"));
+            if (hasWorkingRevision)
+                db.ProviderCapabilityWorkingRevisions.Add(new ProviderCapabilityWorkingRevision
+                {
+                    CapabilityId = capability.Id,
+                    ContributorsJson = System.Text.Json.JsonSerializer.Serialize(
+                        emptyContributors ? [] : new[] { backup.Id.ToString(), keyVault.Id.ToString() })
+                });
+            await db.SaveChangesAsync();
+        }
+        var sut = new WorkspaceOperationsService(factory);
+
+        // Act
+        var list = await sut.ListOrganizationCapabilitiesAsync(
+            tenant, new(Grouping: "capability"), "provider", systemId, ["readable"], default);
+        var detail = await sut.GetOrganizationCapabilityAsync(
+            tenant, "provider", capability.Id.ToString(), systemId, ["readable"], default, "capability");
+
+        // Assert
+        var expected = !hasWorkingRevision ? new[] { capability.CspInheritedComponentId.ToString() }
+            : emptyContributors ? [] : new[] { backup.Id.ToString(), keyVault.Id.ToString() };
+        list.Items.Single().SupportingComponents!.Select(x => x.Id).Should().BeEquivalentTo(expected);
+        detail!.SupportingComponents!.Select(x => x.Id).Should().BeEquivalentTo(expected);
+        detail.SourceReference.Should().Be("provider-ssp.pdf");
+        detail.Capability.ReviewState.Should().Be("ReviewRequired");
+        detail.Capability.Responsibility.Should().Be("Undesignated");
+    }
+
     [Fact]
     public async Task Provider_ProjectsPublishedParentAndMappedControlsWithoutInventingReview()
     {
