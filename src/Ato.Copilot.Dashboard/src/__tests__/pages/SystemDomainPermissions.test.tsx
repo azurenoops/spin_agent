@@ -27,6 +27,7 @@ import { systemDetail as assessmentSystemDetail } from '../fixtures/assessmentEn
 import '../helpers/dialog';
 
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
+vi.mock('../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: systemDetail }) }));
 vi.mock('../../hooks/usePolling', async () => {
   const { useEffect } = await import('react');
   return { usePolling: (fn: () => void) => useEffect(() => { fn(); }, [fn]) };
@@ -119,8 +120,12 @@ function page(kind: keyof typeof pages, legacy = false) {
 }
 
 async function openBoundary() {
-  fireEvent.click(await screen.findByText('Production'));
+  if (!screen.queryByRole('dialog')) fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
   await screen.findByRole('button', { name: 'Excluded' });
+}
+
+async function openBoundaryManagement() {
+  await openBoundary();
 }
 
 describe('mock-defined boundary and baseline tasks', () => {
@@ -128,12 +133,12 @@ describe('mock-defined boundary and baseline tasks', () => {
     // Arrange
     render(page('boundaries'));
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Review Production boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
     // Assert
     expect(screen.getByRole('heading', { name: 'Inventory & system boundary' })).toBeVisible();
     expect(await screen.findByRole('button', { name: 'Excluded' })).toBeVisible();
     expect(boundaries.listBoundaryComponents).toHaveBeenCalled();
-    expect(components.getComponents).toHaveBeenCalledWith(systemId, { pageSize: 1 });
+    expect(components.getComponents).not.toHaveBeenCalled();
   });
 
   it('shows recorded information impacts rather than illustrative baseline rows', async () => {
@@ -200,11 +205,12 @@ describe('System-domain permission boundary (#1017)', () => {
     // Arrange
     localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role }));
     const view = render(page('boundaries'));
-    await screen.findByRole('button', { name: '+ Add Boundary' });
+    await openBoundaryManagement();
+    await screen.findByRole('button', { name: 'Create boundary' });
     // Act
-    await invokeClick(screen.getByRole('button', { name: '+ Add Boundary' }));
+    await invokeClick(screen.getByRole('button', { name: 'Create boundary' }));
     // Assert
-    expect(screen.getByRole('button', { name: '+ Add Boundary' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create boundary' })).toBeDisabled();
     expect(screen.getByTitle('Edit boundary')).toBeDisabled();
     expect(screen.getByTitle('Delete boundary')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Create Boundary' })).not.toBeInTheDocument();
@@ -254,7 +260,8 @@ describe('System-domain permission boundary (#1017)', () => {
     vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageSystem: true }, ['MissionOwner', 'ISSM']));
     render(page('boundaries'));
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: '+ Add Boundary' }));
+    await openBoundaryManagement();
+    fireEvent.click(await screen.findByRole('button', { name: 'Create boundary' }));
     fireEvent.change(screen.getByPlaceholderText('e.g., Production Environment'), { target: { value: 'New boundary' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Create Boundary' })); });
     // Assert
@@ -338,6 +345,7 @@ describe('System-domain permission boundary (#1017)', () => {
     // Arrange
     vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageSystem: true }));
     render(page('boundaries'));
+    await openBoundaryManagement();
     await screen.findByTitle('Edit boundary');
     // Act
     if (operation === 'edit') {
@@ -346,7 +354,7 @@ describe('System-domain permission boundary (#1017)', () => {
     } else {
       await openBoundary();
       if (operation === 'assign') {
-        fireEvent.click(screen.getByRole('button', { name: '+ Assign Component' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add components to boundary' }));
         await invokeClick(await screen.findByRole('button', { name: 'Add' }));
       } else if (operation === 'remove') {
         await invokeClick(screen.getByRole('button', { name: 'Remove' }));
@@ -368,9 +376,10 @@ describe('System-domain permission boundary (#1017)', () => {
     // Arrange
     vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageSystem: true }));
     const view = render(page('boundaries'));
-    await screen.findByRole('button', { name: '+ Add Boundary' });
+    await openBoundaryManagement();
+    await screen.findByRole('button', { name: 'Create boundary' });
     if (mode === 'create') {
-      fireEvent.click(screen.getByRole('button', { name: '+ Add Boundary' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create boundary' }));
       fireEvent.change(screen.getByPlaceholderText('e.g., Production Environment'), { target: { value: 'New' } });
     } else fireEvent.click(screen.getByTitle(`${mode === 'edit' ? 'Edit' : 'Delete'} boundary`));
     // Act
@@ -394,9 +403,9 @@ describe('System-domain permission boundary (#1017)', () => {
     // Act
     await invokeClick(screen.getByRole('button', { name: 'Excluded' }));
     await invokeClick(screen.getByRole('button', { name: 'Remove' }));
-    await invokeClick(screen.getByRole('button', { name: '+ Assign Component' }));
+    await invokeClick(screen.getByRole('button', { name: 'Add components to boundary' }));
     // Assert
-    for (const name of ['Excluded', 'Remove', '+ Assign Component']) expect(screen.getByRole('button', { name })).toBeDisabled();
+    for (const name of ['Excluded', 'Remove', 'Add components to boundary']) expect(screen.getByRole('button', { name })).toBeDisabled();
     expect(boundaries.acquireLock).not.toHaveBeenCalled();
     expect(boundaries.removeAssignment).not.toHaveBeenCalled();
     expect(screen.queryByPlaceholderText('Search eligible components...')).not.toBeInTheDocument();
@@ -407,7 +416,7 @@ describe('System-domain permission boundary (#1017)', () => {
     vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageSystem: true }));
     const view = render(page('boundaries'));
     await openBoundary();
-    fireEvent.click(screen.getByRole('button', { name: '+ Assign Component' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add components to boundary' }));
     await screen.findByRole('button', { name: 'Add' });
     // Act
     vi.mocked(useWorkspaceSession).mockReturnValue(session());
@@ -454,7 +463,7 @@ describe('System-domain permission boundary (#1017)', () => {
     // Arrange
     vi.mocked(boundaries.listBoundaryComponents).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 50 });
     render(page('boundaries'));
-    fireEvent.click(await screen.findByText('Production'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
     const remove = await screen.findByRole('button', { name: 'Remove' });
     // Act
     await invokeClick(remove);
@@ -577,7 +586,7 @@ describe('System-domain permission boundary (#1017)', () => {
     vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageSystem: true }));
     vi.mocked(baseline.getBaselineDetail).mockResolvedValue(baselineDetail);
     const view = render(page('baseline'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Re-categorize' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review categorization' }));
     // Act
     vi.mocked(useWorkspaceSession).mockReturnValue(session());
     view.rerender(page('baseline'));
@@ -613,7 +622,7 @@ describe('System-domain permission boundary (#1017)', () => {
     vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageSystem: true }, ['MissionOwner', 'ISSM']));
     vi.mocked(baseline.getBaselineDetail).mockResolvedValue(baselineDetail);
     const view = render(page('baseline'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Re-categorize' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review categorization' }));
     // Act
     await invokeClick(screen.getByRole('button', { name: /save categorization/i }));
     // Assert
@@ -647,6 +656,7 @@ describe('System-domain permission boundary (#1017)', () => {
     // Arrange
     vi.mocked(useWorkspaceSession).mockReturnValue(null);
     const view = render(page('boundaries', true));
+    await openBoundaryManagement();
     // Act
     fireEvent.click(await screen.findByTitle('Delete boundary'));
     await invokeClick(screen.getByRole('button', { name: 'Delete' }));

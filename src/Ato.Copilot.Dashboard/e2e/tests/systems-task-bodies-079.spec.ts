@@ -25,6 +25,11 @@ for (const width of [1440, 390]) {
       purpose: 'InitialSubmission', isValid: false, errorCount: 1, warningCount: 0, validatedAt: '2026-09-26T12:00:00Z',
       findings: [{ severity: 'error', category: 'boundary', artifactType: null, description: 'Review the mission boundary.', remediation: 'Confirm included resources.' }],
     } }));
+    await context.route('**/api/dashboard/systems/system-a/next-actions', route => route.fulfill({ json: {
+      systemId: 'system-a', checkedAt: '2026-09-28T18:00:00Z', effectiveRoles: ['MissionOwner'],
+      items: [{ id: 'submit-data', title: 'Submit data profile for review.', description: 'Submit your saved information types.',
+        path: 'profile/DataTypes', actionLabel: 'Open', responsibleRole: 'MissionOwner' }], waitingOnOtherRoles: [],
+    } }));
     await context.route('**/api/roles/effective', route => route.fulfill({ json: { status: 'success', data: { effectiveRole: null, isTenantAdministrator: false } } }));
     await context.route('**/api/roles/system/system-a', route => route.fulfill({ json: { status: 'success', data: {
       systemId: 'system-a', roles: ['AuthorizingOfficial', 'Issm', 'Isso', 'Sca', 'SystemOwner', 'MissionOwner', 'Administrator'].map(role => ({
@@ -57,7 +62,7 @@ for (const width of [1440, 390]) {
       azureResourceId: null, azureResourceType: null, azureResourceGroup: null, azureLocation: null,
       createdAt: '2026-09-01T00:00:00Z', createdBy: 'Reviewer A',
     }));
-    await context.route('**/api/dashboard/systems/system-a/boundary-definitions/boundary-a/components?*', route => route.fulfill({
+    await context.route('**/api/dashboard/systems/system-a/boundary-definitions/boundary-a/components{,?*}', route => route.fulfill({
       json: { items: boundaryComponents, totalCount: 2, page: 1, pageSize: Number(new URL(route.request().url()).searchParams.get('pageSize') ?? 25) },
     }));
     await context.route('**/api/dashboard/boundary-definitions/boundary-a/components', route => route.fulfill({ json: {
@@ -98,6 +103,16 @@ for (const width of [1440, 390]) {
         hasAgreement: false, agreementType: null, agreementStatus: null,
       }],
     } }));
+    await context.route('**/api/dashboard/systems/system-a/interconnections?*', route => route.fulfill({ json: {
+      items: [{
+        id: 'connection-a', interconnectionId: 'connection-a', systemId: 'system-a',
+        targetSystemName: 'Partner system', targetSystemOwner: '', targetSystemAcronym: '',
+        interconnectionType: 'Api', dataFlowDirection: 'Outbound', dataClassification: 'CUI',
+        dataDescription: '', protocolsUsed: ['HTTPS'], portsUsed: ['443'], securityMeasures: [], authenticationMethod: '',
+        status: 'Proposed', statusReason: null, authorizationToConnect: false, hasAgreement: false, agreements: [],
+        createdBy: 'fixture-user', createdAt: '2026-09-28T17:00:00Z', modifiedAt: null, canManageInterconnections: false,
+      }], total: 1, page: 1, pageSize: 50, canManageInterconnections: false,
+    } }));
     await context.route('**/api/systems/system-a/narrative-library**', route => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/access')) return route.fulfill({ json: { tenantId: 'org-a', systemName: 'Synthetic Mission System', canAuthor: false, canPublishShared: false, canGenerate: false, capabilities: [] } });
@@ -130,7 +145,8 @@ for (const width of [1440, 390]) {
       await page.goto(`${root}${path ? `/${path}` : ''}`);
       // Assert
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
-      if (path.startsWith('profile/')) await expect(page.getByRole('button', { name: 'Save Draft', exact: true })).toBeVisible();
+      if (path === 'profile/PortsProtocolsAndServices') await expect(page.getByRole('button', { name: 'Add connection', exact: true })).toBeVisible();
+      else if (path.startsWith('profile/')) await expect(page.getByRole('button', { name: 'Save Draft', exact: true })).toBeVisible();
       if (path === 'profile/MissionAndPurpose') {
         await page.getByLabel('Mission Statement', { exact: false }).fill('Updated mission support purpose.');
         const saved = page.waitForRequest(request => request.method() === 'PUT'
@@ -142,18 +158,20 @@ for (const width of [1440, 390]) {
       if (path === 'profile/PortsProtocolsAndServices') await expect(page.getByText('Partner system', { exact: true })).toBeVisible();
       if (path === '') {
         await page.screenshot({ path: info.outputPath(`readiness-initial-${width}.png`), fullPage: true });
-        await expect(page.getByLabel('Package purpose')).toHaveValue('InitialSubmission');
-        await page.getByRole('button', { name: 'Validate current package', exact: true }).click();
-        await expect(page.getByRole('heading', { name: 'Review the mission boundary.', exact: true })).toBeVisible();
+        await expect(page.getByText('Initial submission · Not checked', { exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Check readiness', exact: true }).click();
+        await expect(page.getByText('Initial submission · 1 blocking requirement remains', { exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Submit data profile for review.', exact: true })).toBeVisible();
       }
       if (path === 'narratives') await expect(page.getByRole('heading', { name: 'Previous v2' })).toBeVisible();
       if (path === 'evidence') await expect(page.getByRole('button', { name: 'Review evidence Access review.pdf' })).toBeVisible();
       if (path === 'boundaries') {
-        await expect(page.getByRole('cell', { name: 'Mission application', exact: true })).toBeVisible();
-        await page.getByRole('button', { name: 'Review selected boundary' }).click();
+        await expect(page.getByRole('cell', { name: 'Production boundary', exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Review boundary', exact: true }).click();
         await expect(page.getByRole('dialog', { name: 'Production boundary — Details' })).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Placement Mission application', exact: true })).toBeVisible();
         await page.keyboard.press('Escape');
-        await expect(page.getByRole('button', { name: 'Review selected boundary' })).toBeFocused();
+        await expect(page.getByRole('button', { name: 'Review boundary', exact: true })).toBeFocused();
       }
       if (path === 'history') {
         await page.getByRole('button', { name: 'View record: Mission profile reviewed' }).click();

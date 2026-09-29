@@ -424,6 +424,35 @@ describe('cookie-session progress clients', () => {
     expect(complete).toHaveBeenCalledExactlyOnceWith('Completed');
   });
 
+  it.each(['polling', 'realtime'] as const)('preserves warning completion and result identity through %s', async transport => {
+    // Arrange
+    const completion = { id: 'scan-a', status: 'CompletedWithWarnings' as const, processedCount: 2,
+      totalCount: 2, errorMessage: null, cancelRequested: false,
+      resultId: 'import:scan-a', warnings: ['Two rules need manual review.'] };
+    const complete = vi.fn();
+    if (transport === 'realtime') {
+      mocks.capabilities.mockResolvedValue({ ...cookieCapabilities,
+        realtime: { ...cookieCapabilities.realtime, available: true, reasonCode: null } });
+      vi.mocked(scans.getScanImportStatus).mockResolvedValue({ id: 'scan-a', status: 'Processing',
+        processedCount: 0, totalCount: 2, errorMessage: null, cancelRequested: false });
+    } else vi.mocked(scans.getScanImportStatus).mockResolvedValue(completion);
+    mount(<ScanImportProgressBar systemId="system-a" importJobId="scan-a" onComplete={complete} />);
+    // Act
+    if (transport === 'realtime') {
+      await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('JoinImportGroup', 'scan-a'));
+      const progress = mocks.handlers.get('ImportProgress');
+      if (!progress) throw new Error('Expected import progress subscription.');
+      await act(async () => progress({ ...completion, jobId: completion.id }));
+    }
+    // Assert
+    expect(await screen.findByText('Imported with warnings — review retained observations')).toBeInTheDocument();
+    expect(screen.getByText('Two rules need manual review.')).toBeInTheDocument();
+    expect(screen.queryByText('Import complete')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel import' })).not.toBeInTheDocument();
+    expect(complete).toHaveBeenCalledExactlyOnceWith('CompletedWithWarnings',
+      { resultId: 'import:scan-a', warnings: ['Two rules need manual review.'] });
+  });
+
   it('handles package shortcut completion with an authenticated cancellable download', async () => {
     // Arrange
     vi.mocked(packageShortcuts.enqueuePackage).mockResolvedValue({ packageId: 'package-a', status: 'Pending', message: 'Queued' });

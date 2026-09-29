@@ -14,16 +14,20 @@ vi.mock('../../hooks/usePoam', () => ({
   usePoamMetrics: () => ({ data: null, loading: false, error: null, refresh: calls.refreshMetrics }),
   useCreatePoam: () => ({ create: calls.create, loading: false }),
 }));
+vi.mock('../../hooks/usePoamQueue', () => ({
+  usePoamQueue: () => ({ data: { items: [], totalCount: 0, counts: { all: 0, overdue: 0, readyToVerify: 0, closed: 0 } }, loading: false, error: null, refresh: calls.refreshList }),
+}));
 vi.mock('../../components/poam/PoamCreateForm', () => ({
   default: ({ onSubmit }: { onSubmit: (request: CreatePoamRequest) => Promise<void> }) =>
     <button onClick={() => void onSubmit({ weakness: 'Recorded weakness', controlId: 'AC-2' } as CreatePoamRequest)}>Submit existing POAM form</button>,
 }));
+vi.mock('../../components/poam/PoamDetailDrawer', () => ({ default: () => <div>Created commitment detail</div> }));
 vi.mock('../../api/deviations', () => ({ getDeviations: vi.fn(), getDeviationSummary: vi.fn() }));
 vi.mock('../../components/AddDeviationDialog', () => ({ default: ({ systemId }: { systemId: string }) => <div role="dialog">Exception request for {systemId}</div> }));
 
 describe('System risk tasks', () => {
   beforeEach(() => { vi.clearAllMocks(); calls.create.mockResolvedValue({ id: 'poam-a' }); });
-  it('refreshes the real POAM list and metrics after an accepted creation', async () => {
+  it('refreshes the complete POAM queue after an accepted creation', async () => {
     // Arrange
     render(<MemoryRouter><PoamManagement /></MemoryRouter>);
     // Act
@@ -31,9 +35,8 @@ describe('System risk tasks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit existing POAM form' }));
     // Assert
     await waitFor(() => expect(calls.refreshList).toHaveBeenCalled());
-    expect(calls.refreshMetrics).toHaveBeenCalled();
     expect(calls.create).toHaveBeenCalledWith('a', expect.objectContaining({ controlId: 'AC-2' }));
-    expect(screen.getByRole('heading', { name: 'Plan of Action & Milestones' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Track remediation commitments' })).toBeVisible();
   });
   it('shows failed exception retrieval instead of an empty successful register', async () => {
     // Arrange

@@ -1,11 +1,19 @@
+import { useEffect, useRef } from 'react';
 import { Link, useLocation, useParams } from '../workspaces/workspaceNavigation';
 import { isSystemScreenActive, SYSTEM_SCREEN_GROUPS } from './systemScreenRoutes';
 
 interface TaskLink { label: string; path: string; unavailable?: string }
 
-export default function SystemTaskNavigation() {
+export default function SystemTaskNavigation({ definitionOnly = false }: { definitionOnly?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
+  const navigation = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const bar = navigation.current;
+    const active = bar?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (bar && active && bar.scrollWidth > bar.clientWidth)
+      bar.scrollLeft = Math.max(0, active.offsetLeft - bar.offsetLeft - 12);
+  }, [location.pathname, location.search]);
   if (!id) return null;
   const base = `/systems/${encodeURIComponent(id)}`;
   const path = location.pathname.slice(base.length + 1);
@@ -30,7 +38,7 @@ export default function SystemTaskNavigation() {
   } else if (path.startsWith('documents')) {
     contribution = 'SSP / SAP / SAR / POA&M · Package handoff';
     tabs = [
-      { label: 'Readiness checklist', path: 'documents' },
+      { label: 'Readiness', path: 'documents' },
       { label: 'Document previews', path: 'documents/preview' },
       { label: 'Export packages', path: 'documents?tab=exports' },
     ];
@@ -64,6 +72,7 @@ export default function SystemTaskNavigation() {
             : group.label === 'Activity & history' ? 'Retained activity and decision references'
               : 'Reviewed system records';
   }
+  if (definitionOnly) tabs = SYSTEM_SCREEN_GROUPS.find(candidate => candidate.label === 'System definition')!.items;
   if (!tabs.length) return null;
 
   const providerHandoff = path.startsWith('profile/EnvironmentAndDeployment')
@@ -76,8 +85,8 @@ export default function SystemTaskNavigation() {
       .filter(item => !tabs.some(tab => tab.path === item.path))
     : [];
 
-  return <section className="mb-5 min-w-0 space-y-3" aria-label="System task navigation">
-    <div className="flex flex-wrap items-center justify-between gap-2">
+  return <section className={definitionOnly ? 'my-6 min-w-0' : 'mb-5 min-w-0 space-y-3'} aria-label="System task navigation">
+    {!definitionOnly && group?.label !== 'ATO package & eMASS' && <div className="flex flex-wrap items-center justify-between gap-2">
       <p className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
         Contributes to {contribution}
       </p>
@@ -85,18 +94,27 @@ export default function SystemTaskNavigation() {
         {handoff.map(item => <Link key={item.path} className="text-indigo-700 underline underline-offset-4 dark:text-indigo-300"
           to={`${base}/${item.path}`}>{item.label}</Link>)}
       </nav>}
-    </div>
-    <nav aria-label="System task views" className="flex flex-wrap gap-x-4 gap-y-1 border-b border-slate-200 dark:border-slate-700">
+    </div>}
+    <nav ref={navigation} aria-label="System task views" className="system-section-tabs">
       {tabs.map(item => {
         const active = isSystemScreenActive(item.path, location.pathname, location.search, base)
           && !tabs.some(other => other !== item && other.path.startsWith(`${item.path}/`)
             && isSystemScreenActive(other.path, location.pathname, location.search, base));
         if (item.unavailable) return <span key={item.path} aria-disabled="true" title={item.unavailable}
           className="px-1 py-3 text-sm text-slate-400">{item.label} (not available)</span>;
-        return <Link key={item.path} to={`${base}${item.path ? `/${item.path}` : ''}`} aria-current={active ? 'page' : undefined}
-              className={`border-b-2 px-1 py-3 text-sm font-medium ${active
-                ? 'border-indigo-600 text-indigo-700 dark:text-indigo-300'
-                : 'border-transparent text-slate-600 hover:text-indigo-700 dark:text-slate-300'}`}>
+        let destination = `${base}${item.path ? `/${item.path}` : ''}`;
+        if (group?.label === 'ATO package & eMASS') {
+          const [pathname, query] = destination.split('?');
+          const target = new URLSearchParams(query);
+          const current = new URLSearchParams(location.search);
+          for (const key of ['purpose', 'context', 'run']) {
+            const value = current.get(key);
+            if (value !== null) target.set(key, value);
+          }
+          destination = `${pathname}${target.size ? `?${target}` : ''}`;
+        }
+        return <Link key={item.path} to={destination} aria-current={active ? 'page' : undefined}
+              className={active ? 'font-semibold' : undefined}>
               {item.label}
             </Link>;
       })}

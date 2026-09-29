@@ -22,6 +22,7 @@ import { useCspBranding } from './useCspBranding';
 import spinLogo from '../../assets/2026-04-22_15-58-30.png';
 import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 import ProviderNavigation from '../../features/provider-workspace/ProviderNavigation';
+import OrganizationNavigation from '../../features/workspaces/OrganizationNavigation';
 import { displayWorkspaceRoles } from '../../features/workspaces/workspaceRoles';
 
 const legacyNavItems = [
@@ -49,6 +50,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
   const location = useLocation();
   const inSystem = /^\/systems\/[^/]+(?:\/|$)/.test(location.pathname) && location.pathname !== '/systems/new';
   const providerWorkspace = workspace?.target.kind === 'csp' && !inSystem;
+  const organizationWorkspace = workspace?.target.kind === 'organization';
   const mockWorkspace = providerWorkspace || inSystem;
   const navItems = workspace?.target.kind === 'csp'
     ? [
@@ -101,9 +103,9 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
   }, [notificationsOpen]);
 
   return (
-    <div className={`flex ${workspace ? 'h-full' : 'h-screen'} flex-col overflow-hidden`}>
+    <div className={`flex ${workspace ? 'h-full' : 'h-screen'} flex-col overflow-hidden${organizationWorkspace ? ' organization-shell' : ''}`}>
       {/* Top header */}
-      <header className={`relative flex ${providerWorkspace ? 'min-h-20 flex-wrap gap-y-2 py-3' : 'h-14'} flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 sm:px-6 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100`}>
+      <header className={`relative flex ${providerWorkspace ? 'min-h-20 flex-wrap gap-y-2 py-3' : 'h-14'} flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 sm:px-6 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100${organizationWorkspace ? ' organization-topbar' : ''}`}>
         <div className="flex min-w-0 items-center gap-2 lg:gap-6">
           <NavLink
             to="/"
@@ -130,7 +132,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
                 className="block h-10 w-auto object-contain sm:h-12"
               />
             )}
-            {cspBranding.displayName && !providerWorkspace && (
+            {cspBranding.displayName && !providerWorkspace && !organizationWorkspace && (
               <span className="hidden text-base font-semibold text-gray-800 sm:inline dark:text-gray-100">
                 {cspBranding.displayName}
               </span>
@@ -143,7 +145,8 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
             </div>
             <ProviderNavigation mobile />
           </>}
-          {!providerWorkspace && <nav className="hidden items-center gap-1 xl:flex">
+          {organizationWorkspace && <OrganizationNavigation />}
+          {!providerWorkspace && !organizationWorkspace && <nav className="hidden items-center gap-1 xl:flex">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -168,7 +171,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
                 and `/csp/inherited-components` top-nav links have been
                 retired in favor of the scope-aware resolvers. */}
           </nav>}
-          {!providerWorkspace && <details className="relative xl:hidden">
+          {!providerWorkspace && !organizationWorkspace && <details className="relative xl:hidden">
             <summary className="cursor-pointer rounded-md border px-3 py-2 text-sm font-medium text-gray-700 dark:border-gray-600 dark:text-gray-200">
               Navigation
             </summary>

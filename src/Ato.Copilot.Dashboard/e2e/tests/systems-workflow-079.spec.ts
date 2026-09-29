@@ -12,6 +12,36 @@ async function capture(page: Page, info: TestInfo, name: string) {
 }
 
 for (const width of [1440, 390]) {
+  test(`Readiness excludes legacy diagnostics at ${width}px`, async ({ page, context, baseURL }, info) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1000 });
+    await installSystemCapabilityFixture(context, baseURL!);
+    await context.route('**/api/dashboard/systems/system-a', route => route.fulfill({ json: {
+      systemId: 'system-a', name: 'Synthetic Mission System', acronym: 'SYN', currentRmfPhase: 'Prepare',
+      hostingEnvironment: 'Synthetic cloud', systemType: 'MajorApplication', missionCriticality: 'MissionEssential',
+      rmfPhaseProgress: [], rmfPhaseTransitions: [], recentActivity: [],
+      keyMetrics: { complianceScore: 0, complianceScoreDelta: 0, priorScore: 0, atoDaysRemaining: null,
+        atoSeverity: 'none', totalOpenPoams: 0, overduePoams: 0, narrativeCoverage: 0, activeDeviations: 0,
+        catIFindings: 0, catIIFindings: 0, catIIIFindings: 0 },
+    } }));
+    const heatmapRequests: string[] = [];
+    page.on('request', request => {
+      if (new URL(request.url()).pathname.endsWith('/heatmap')) heatmapRequests.push(request.url());
+    });
+
+    // Act
+    await page.goto(systemRoot);
+
+    // Assert
+    await expect(page.getByRole('tab', { name: 'Readiness', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Monitoring & follow-up', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Continue preparation', exact: true })).toHaveAttribute('href', `${systemRoot}/documents?purpose=InitialSubmission`);
+    await expect(page.getByText('System diagnostics & RMF phase management', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'RMF Phase Progress', exact: true })).toHaveCount(0);
+    expect(heatmapRequests).toEqual([]);
+    await capture(page, info, 'readiness');
+  });
+
   test(`Systems task groups and source handoffs at ${width}px`, async ({ page, context, baseURL }, info) => {
     // Arrange: synthetic API responses exercise production components, not backend persistence.
     await page.setViewportSize({ width, height: 1000 });
@@ -90,13 +120,18 @@ for (const width of [1440, 390]) {
       expect(sort).not.toBeNull();
       expect(Math.abs(search!.y - sort!.y)).toBeLessThan(5);
     }
-    if (width === 390) await page.getByText('System navigation', { exact: true }).click();
-    for (const group of ['Overview', 'System definition', 'Controls & evidence', 'Assessment & risk',
-      'ATO package & eMASS', 'Continuous monitoring', 'Team & permissions', 'Activity & history']) {
-      await expect(page.getByText(group, { exact: true }).filter({ visible: true }).first()).toBeVisible();
+    const groups = ['Overview', 'System definition', 'Controls & evidence', 'Assessment & risk',
+      'ATO package & eMASS', 'Continuous monitoring', 'Team & permissions', 'Activity & history'];
+    if (width === 390) {
+      const selector = page.getByRole('combobox', { name: 'Navigate system pages' });
+      await expect(selector).toBeVisible();
+      expect(await selector.locator('optgroup').evaluateAll(items => items.map(item => item.label))).toEqual(groups);
+      await expect(selector.locator('option').filter({ hasText: /^Document previews$/ })).toHaveAttribute('value', 'documents/preview');
+    } else {
+      const navigation = page.getByRole('navigation', { name: 'System navigation' });
+      await expect(navigation.getByRole('link')).toHaveText(groups);
+      await expect(navigation.getByRole('link', { name: 'ATO package & eMASS' })).toHaveAttribute('href', `${systemRoot}/documents`);
     }
-    await expect(page.getByRole('link', { name: 'Document previews', exact: true }).first()).toHaveAttribute('href', `${systemRoot}/documents/preview`);
-    if (width === 390) await page.getByText('System navigation', { exact: true }).click();
     await capture(page, info, 'applied-capabilities');
     await page.getByRole('navigation', { name: 'System task views' }).getByRole('link', { name: 'Responsibilities', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Responsibility matrix' })).toBeVisible();
@@ -109,8 +144,9 @@ for (const width of [1440, 390]) {
     // Act / Assert: real environment form and authoritative provider context are composed together.
     await page.goto(`${systemRoot}/profile/EnvironmentAndDeployment`);
     await expect(page.getByRole('heading', { name: 'Provider hosting' })).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Provider hosting', exact: true }).getByText('Mission hosting', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Review hosting scope', exact: true })).toHaveAttribute('href', `${systemRoot}/profile/EnvironmentAndDeployment/hosting`);
+    await expect(page.getByRole('table', { name: 'Associated provider scope', exact: true })).toContainText('Synthetic provider · Mission hosting');
+    await expect(page.getByRole('link', { name: 'Review hosting scope', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Choose provider hosting', exact: true })).toBeVisible();
     await capture(page, info, 'environment-hosting');
 
     // Act / Assert: validation calls the existing server contract; exports remain a separate task.

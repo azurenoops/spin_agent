@@ -72,12 +72,12 @@ describe('system capability application routing', () => {
     expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/security-capabilities?search=SOC&view=component#selected');
   });
 
-  it('routes fresh legacy add links to the guided flow without changing the system', async () => {
+  it('routes provider add links to the canonical CSP hosting and adoption flow', async () => {
     // Arrange / Act
     mount('/systems/system-a/security-capabilities?dialog=capability&source=provider&recordId=cap-a');
     // Assert
-    await screen.findByRole('heading', { name: 'Add to system-a' });
-    expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/security-capabilities/add?source=provider&recordId=cap-a');
+    await screen.findByRole('heading', { name: 'Legacy hosting association' });
+    expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/provider-relationships/setup');
   });
 
   it('keeps persisted single-record operations recoverable through the legacy setup link', async () => {

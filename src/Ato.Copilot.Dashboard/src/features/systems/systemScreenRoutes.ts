@@ -39,7 +39,7 @@ export const SYSTEM_SCREEN_GROUPS: SystemScreenGroup[] = [
     { path: 'deviations', label: 'Exceptions' },
   ] },
   { label: 'ATO package & eMASS', items: [
-    { path: 'documents', label: 'Readiness checklist' },
+    { path: 'documents', label: 'Readiness' },
     { path: 'documents/preview', label: 'Document previews' },
     { path: 'documents?tab=exports', label: 'Export packages' },
     { path: 'emass/status', label: 'eMASS reconciliation' },

@@ -76,4 +76,16 @@ describe('authenticated API downloads', () => {
     await expect(downloading).rejects.toThrow('The server did not return a downloadable file.');
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
   });
+
+  it('surfaces a protected download denial carried as a JSON blob', async () => {
+    // Arrange
+    const blob = new Blob([], { type: 'application/json' });
+    Object.defineProperty(blob, 'text', { value: async () => JSON.stringify({ error: { message: 'Access was revoked.' } }) });
+    http.get.mockRejectedValue({ response: { status: 403, data: blob } });
+    // Act
+    const downloading = downloadAuthenticatedFile('/api/files/a');
+    // Assert
+    await expect(downloading).rejects.toThrow('Access was revoked.');
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+  });
 });

@@ -4,12 +4,26 @@ import { describe, expect, it } from 'vitest';
 import SystemTaskNavigation from '../../features/systems/SystemTaskNavigation';
 import { isSystemScreenActive, SYSTEM_SCREEN_GROUPS } from '../../features/systems/systemScreenRoutes';
 
-function RouteView() {
+function RouteView({ definitionOnly = false }: { definitionOnly?: boolean }) {
   const location = useLocation();
-  return <><SystemTaskNavigation /><output>{location.pathname}{location.search}</output></>;
+  return <><SystemTaskNavigation definitionOnly={definitionOnly} /><output>{location.pathname}{location.search}</output></>;
 }
 
 describe('Systems task navigation', () => {
+  it.each(SYSTEM_SCREEN_GROUPS.find(group => group.label === 'System definition')!.items)(
+    'keeps exactly six definition tabs on $label without duplicate contribution or subtask tabs', ({ path, label }) => {
+      // Arrange / Act
+      render(<MemoryRouter initialEntries={[`/systems/a/${path}`]}>
+        <Routes><Route path="/systems/:id/*" element={<RouteView definitionOnly />} /></Routes>
+      </MemoryRouter>);
+      // Assert
+      expect(screen.getAllByRole('link')).toHaveLength(6);
+      expect(screen.getByRole('link', { name: label })).toHaveAttribute('aria-current', 'page');
+      expect(screen.queryByText(/Contributes to/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Provider hosting' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Component inventory' })).not.toBeInTheDocument();
+    });
+
   it('exposes all System definition tasks as the mock horizontal group tabs', () => {
     // Arrange / Act
     render(<MemoryRouter initialEntries={['/systems/a/profile/MissionAndPurpose']}>

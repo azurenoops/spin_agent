@@ -8,8 +8,10 @@ import { getSystemDetail } from '../../api/systemDetail';
 import { getProfileCompleteness } from '../../api/systemProfile';
 import type { SystemDetailResponse, ProfileCompletenessResponse, TodoList } from '../../types/dashboard';
 import AsyncErrorState from '../AsyncErrorState';
-import { SYSTEM_SCREEN_GROUPS, isSystemScreenActive } from '../../features/systems/systemScreenRoutes';
+import { SYSTEM_SCREEN_GROUPS } from '../../features/systems/systemScreenRoutes';
 import SystemTaskNavigation from '../../features/systems/SystemTaskNavigation';
+import { packageReturnHref } from '../../features/systems/packageReadinessNavigation';
+import { SystemPageSelector, SystemSidebar } from '../../features/systems/SystemNavigation';
 
 // ─── Context ────────────────────────────────────────────────────────────────
 
@@ -113,13 +115,13 @@ export const SYSTEM_NAV_GROUPS: NavGroup[] = SYSTEM_SCREEN_GROUPS.map(group => (
 // ─── Layout ─────────────────────────────────────────────────────────────────
 
 export default function SystemLayout() {
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<SystemDetailResponse | null>(null);
   const [profileCompleteness, setProfileCompleteness] = useState<ProfileCompletenessResponse | null>(null);
   const [todoCount, setTodoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [navCollapsed, setNavCollapsed] = useState(false);
   const [sidePanelTab, setSidePanelTab] = useState<'todo' | 'details' | 'page' | null>(null);
   const [pageContext, setPageContext] = useState<ReactNode | null>(null);
 
@@ -167,10 +169,6 @@ export default function SystemLayout() {
 
   usePolling(fetchData, undefined, !!id);
 
-  // fix(#505): useLocation must be called before any early returns to satisfy
-  // React Rules of Hooks — hooks cannot be called after conditional returns.
-  const location = useLocation();
-
   if (loading) {
     return (
       <PageLayout title="System Detail">
@@ -191,6 +189,9 @@ export default function SystemLayout() {
   }
 
   const basePath = `/systems/${id}`;
+  const isOverview = location.pathname.replace(/\/$/, '') === basePath;
+  const isDefinitionPage = SYSTEM_SCREEN_GROUPS.find(group => group.label === 'System definition')!.items
+    .some(item => location.pathname === `${basePath}/${item.path}`);
 
   // Count incomplete profile sections for notification badge on details tab
   const profileActionCount = profileCompleteness
@@ -305,84 +306,7 @@ export default function SystemLayout() {
     </div>
   );
 
-  const leftPanel = (
-    <aside
-      className={`hidden md:flex flex-col flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto transition-all duration-200 dark:border-gray-700 dark:bg-gray-900 ${
-        navCollapsed ? 'w-14' : 'w-56'
-      }`}
-    >
-      <div className={`flex items-center ${navCollapsed ? 'justify-center' : 'justify-between'} px-3 py-3 border-b border-gray-100 dark:border-gray-700`}>
-        {!navCollapsed && (
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Navigation</span>
-        )}
-        <button
-          type="button"
-          onClick={() => setNavCollapsed(!navCollapsed)}
-          className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-100"
-          title={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          aria-label={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-        >
-          <svg className={`h-4 w-4 transition-transform ${navCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-      </div>
-      <nav className="flex-1 py-2 px-2 overflow-y-auto">
-        {SYSTEM_NAV_GROUPS.map((group, gi) => {
-          return (
-          <div key={group.label}>
-            {/* Group divider — thin line when collapsed, label when expanded */}
-            {gi > 0 && navCollapsed && (
-              <div className="my-2 border-t border-gray-200" />
-            )}
-            {!navCollapsed && (
-              <div className={`px-3 ${gi === 0 ? 'pt-1' : 'pt-4'} pb-1 flex items-center gap-1.5`}>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                  {group.label}
-                </span>
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const to = `${basePath}${item.path ? `/${item.path}` : ''}`;
-                const isActive = isSystemScreenActive(item.path, location.pathname, location.search, basePath, true);
-                if (item.unavailable) return (
-                  <span key={item.path} aria-disabled="true" title={item.unavailable}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-400 dark:text-gray-500">
-                    <svg aria-hidden="true" className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
-                    </svg>
-                    {!navCollapsed && <span>{item.label}<span className="block text-[10px]">Not available</span></span>}
-                    {navCollapsed && <span className="sr-only">{item.label}: {item.unavailable}</span>}
-                  </span>
-                );
-                return (
-                  <Link
-                    key={item.path}
-                    to={to}
-                    data-testid={`nav-${item.path || 'overview'}`}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                      isActive
-                        ? 'bg-indigo-50 text-indigo-700 font-medium dark:bg-indigo-950 dark:text-indigo-200'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
-                    } ${navCollapsed ? 'justify-center' : ''}`}
-                    title={navCollapsed ? item.label : undefined}
-                  >
-                    <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
-                    </svg>
-                    <span className={navCollapsed ? 'sr-only' : ''}>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-          );
-        })}
-      </nav>
-    </aside>
-  );
+  const leftPanel = <SystemSidebar systemId={detail.systemId} systemName={detail.name} />;
 
   return (
     <SystemContext.Provider value={{ detail, refetch: fetchData, setPageContext }}>
@@ -392,39 +316,23 @@ export default function SystemLayout() {
         defaultSidePanelOpen={false}
         leftPanel={leftPanel}
       >
+        <SystemPageSelector systemId={detail.systemId} />
+        {packageReturnHref(detail.systemId, location.search) && <Link
+          className="mb-4 inline-flex text-sm font-medium text-indigo-700 underline dark:text-indigo-300"
+          to={packageReturnHref(detail.systemId, location.search)!}>Return to package readiness</Link>}
         {/* Breadcrumb */}
         <div className="mb-4 text-sm">
-          <Link to="/" className="text-indigo-600 hover:underline dark:text-indigo-300">
-            Portfolio
+          <Link to="/systems" className="text-indigo-600 hover:underline dark:text-indigo-300">
+            Systems
           </Link>
           <span className="mx-2 text-gray-400">/</span>
           <Link to={basePath} className="text-indigo-600 hover:underline dark:text-indigo-300">
             {detail.name}
           </Link>
+          {isOverview && <><span className="mx-2 text-gray-400">/</span><span className="text-slate-500">Overview</span></>}
+          {isDefinitionPage && <><span className="mx-2 text-gray-400">/</span><span className="text-slate-500">System definition</span></>}
         </div>
-        <details className="mb-4 rounded border border-gray-200 p-3 text-sm dark:border-gray-700 md:hidden">
-          <summary className="cursor-pointer font-medium">System navigation</summary>
-          <nav aria-label="Mobile system navigation" className="mt-2 space-y-4">
-            {SYSTEM_NAV_GROUPS.map(group => (
-              <div key={group.label}>
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{group.label}</h2>
-                <div className="mt-1 grid grid-cols-1 gap-1 min-[360px]:grid-cols-2">
-                  {group.items.map(item => item.unavailable
-                    ? <span key={item.path} aria-disabled="true" className="rounded p-2 text-gray-400">
-                        {item.label}<span className="block text-xs">Not available</span>
-                      </span>
-                    : <Link key={item.path} to={`${basePath}${item.path ? `/${item.path}` : ''}`}
-                        aria-current={isSystemScreenActive(item.path, location.pathname, location.search, basePath, true) ? 'page' : undefined}
-                        className="rounded p-2 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-gray-800">
-                        {item.label}
-                      </Link>)}
-                </div>
-              </div>
-            ))}
-          </nav>
-        </details>
-
-        <SystemTaskNavigation />
+        {!isOverview && !isDefinitionPage && <SystemTaskNavigation />}
         <div className="min-w-0"><Outlet /></div>
       </PageLayout>
     </SystemContext.Provider>
