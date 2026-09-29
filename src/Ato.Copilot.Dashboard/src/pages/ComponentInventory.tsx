@@ -180,7 +180,9 @@ export default function ComponentInventory() {
       // Filter out components already shown in this system
       const currentIds = new Set(components.map((c) => c.id));
       setTotalOrgComponents(res.items.length);
-      setOrgComponents(res.items.filter((c) => !currentIds.has(c.id)));
+      setOrgComponents(res.items.filter(c => c.componentType === 'Policy'
+        ? !c.systemAssignments?.some(assignment => assignment.registeredSystemId === systemId)
+        : !currentIds.has(c.id)));
     } catch {
       setOrgAssignError('Failed to load org components');
     } finally {
@@ -191,6 +193,10 @@ export default function ComponentInventory() {
   const handleAssignExisting = async (comp: OrgComponentDto) => {
     if (!requirePermission()) return;
     if (!systemId) return;
+    if (comp.componentType === 'Policy') {
+      navigate(`/systems/${systemId}/legal?policyAction=add&policySource=${encodeURIComponent(comp.id)}`);
+      return;
+    }
     setOrgAssigning(comp.id);
     setOrgAssignError(null);
     try {
@@ -481,7 +487,7 @@ export default function ComponentInventory() {
                             disabled={!canManage || orgAssigning === comp.id}
                             className="ml-3 shrink-0 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                           >
-                            {orgAssigning === comp.id ? 'Assigning…' : 'Assign'}
+                            {orgAssigning === comp.id ? 'Assigning…' : comp.componentType === 'Policy' ? 'Add policy reference' : 'Assign'}
                           </button>
                         </div>
                       ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import type { CreateBoundaryDefinitionRequest, BoundaryDefinitionDto, BoundaryDefinitionType } from '../../types/dashboard';
 
 const TYPE_OPTIONS: BoundaryDefinitionType[] = ['Physical', 'Logical', 'Hybrid'];
@@ -13,6 +13,8 @@ interface BoundaryFormProps {
 }
 
 export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error, canSubmit = true }: BoundaryFormProps) {
+  const nameId = useId();
+  const descriptionId = useId();
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [name, setName] = useState(initial?.name ?? '');
   const [boundaryType, setBoundaryType] = useState<BoundaryDefinitionType>(initial?.boundaryType ?? 'Logical');
@@ -28,6 +30,7 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!canSubmit) {
       setPermissionError('You do not have permission to manage boundaries.');
       return;
@@ -46,12 +49,14 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error,
     <form onSubmit={handleSubmit} className="space-y-4">
       {permissionError && <p role="alert">{permissionError}</p>}
       {error && (
-        <div className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}</div>
+        <div role="alert" className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}</div>
       )}
 
+      <fieldset disabled={isSubmitting || !canSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+        <label htmlFor={nameId} className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
         <input
+          id={nameId}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -81,8 +86,9 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error,
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <label htmlFor={descriptionId} className="block text-sm font-medium text-gray-700 mb-1">Description</label>
         <textarea
+          id={descriptionId}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={2000}
@@ -91,6 +97,7 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error,
           placeholder="Describe the purpose and scope of this boundary..."
         />
       </div>
+      </fieldset>
 
       <div className="flex gap-2 pt-2">
         <button
@@ -102,8 +109,9 @@ export function BoundaryForm({ initial, onSubmit, onCancel, isSubmitting, error,
         </button>
         <button
           type="button"
+          disabled={isSubmitting}
           onClick={onCancel}
-          className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+          className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
         >
           Cancel
         </button>

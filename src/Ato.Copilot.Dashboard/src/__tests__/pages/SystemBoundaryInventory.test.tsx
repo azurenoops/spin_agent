@@ -1,42 +1,78 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import SystemBoundaryInventory from '../../features/systems/SystemBoundaryInventory';
-import { listBoundaryComponents } from '../../api/boundaries';
-vi.mock('../../api/boundaries', () => ({ listBoundaryComponents: vi.fn() }));
-const boundaries = [{ id: 'boundary-a', name: 'Production', isPrimary: true, boundaryType: 'Logical' },
-  { id: 'boundary-b', name: 'Recovery', isPrimary: false, boundaryType: 'Physical' }];
+import type { BoundaryDefinitionDto } from '../../types/dashboard';
+
+const boundary: BoundaryDefinitionDto = {
+  id: 'boundary-a', registeredSystemId: 'system-a', name: 'mission-api', description: null,
+  boundaryType: 'Logical', isPrimary: true, componentCount: 0, resourceCount: 0,
+  coveragePercent: 0, createdAt: '2026-09-28',
+};
+
 describe('Recorded boundary inventory', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(listBoundaryComponents).mockResolvedValue({
-      items: [{ assignmentId: 'assignment-a', componentId: 'component-a', componentName: 'Mission storage', componentType: 'Thing',
-        source: 'System', isInScope: false, exclusionRationale: 'Outside production', inheritanceProvider: null, subType: null,
-        azureResourceId: null, azureResourceType: null, azureResourceGroup: null, azureLocation: null,
-        createdAt: '2026-09-26', createdBy: 'Reviewer A' }],
-      totalCount: 1, page: 1, pageSize: 25,
-    });
-  });
-  it('shows actual included/excluded assignments without acquiring an edit lock', async () => {
+  it('renders an empty boundary as a real row rather than an empty component table', () => {
     // Arrange / Act
-    render(<SystemBoundaryInventory systemId="a" boundaries={boundaries} onReview={vi.fn()} />);
+    render(<SystemBoundaryInventory boundaries={[boundary]} onOpenBoundary={vi.fn()} />);
     // Assert
-    expect(await screen.findByRole('cell', { name: 'Mission storage' })).toBeVisible();
-    expect(screen.getByText('Excluded')).toBeVisible();
-    expect(screen.getByText('Outside production')).toBeVisible();
-    expect(listBoundaryComponents).toHaveBeenCalledWith('a', 'boundary-a', { page: 1, pageSize: 25 });
+    const row = screen.getByRole('row', { name: /mission-api/ });
+    expect(within(row).getByRole('cell', { name: 'Logical' })).toBeVisible();
+    expect(within(row).getByRole('cell', { name: 'No description recorded' })).toBeVisible();
+    expect(within(row).getByRole('cell', { name: 'Primary' })).toBeVisible();
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(screen.queryByText('No boundaries defined yet.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader').map(cell => cell.textContent))
+      .toEqual(['Boundary', 'Type', 'Description', 'Role', 'Open']);
   });
-  it('reviews and switches only explicit boundaries within this system', async () => {
+
+  it('lists every boundary, not only the primary boundary or those with components', () => {
     // Arrange
-    const review = vi.fn();
-    render(<SystemBoundaryInventory systemId="a" boundaries={boundaries} onReview={review} />);
-    await screen.findByText('Mission storage');
+    const recovery = { ...boundary, id: 'boundary-b', name: 'Recovery', isPrimary: false, componentCount: 3 };
     // Act
-    fireEvent.change(screen.getByLabelText('Recorded boundary'), { target: { value: 'boundary-b' } });
+    render(<SystemBoundaryInventory boundaries={[recovery, boundary]} onOpenBoundary={vi.fn()} />);
     // Assert
-    await waitFor(() => expect(listBoundaryComponents).toHaveBeenCalledWith('a', 'boundary-b', { page: 1, pageSize: 25 }));
+    expect(screen.getAllByRole('row')).toHaveLength(3);
+    expect(screen.getByRole('cell', { name: 'mission-api' })).toBeVisible();
+    expect(screen.getByRole('cell', { name: 'Recovery' })).toBeVisible();
+    expect(screen.getByRole('cell', { name: 'Additional' })).toBeVisible();
+  });
+
+  it('opens the exact boundary even when names are identical', () => {
+    // Arrange
+    const open = vi.fn();
+    render(<SystemBoundaryInventory boundaries={[boundary, { ...boundary, id: 'boundary-b', isPrimary: false }]} onOpenBoundary={open} />);
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Review selected boundary' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open boundary mission-api' })[1]!);
     // Assert
-    expect(review).toHaveBeenCalledWith('boundary-b');
+    expect(open).toHaveBeenCalledExactlyOnceWith('boundary-b');
+  });
+
+  it('retains the compact mock table and offers creation only when supplied by its caller', () => {
+    // Arrange
+    const create = vi.fn();
+    // Act
+    const view = render(<SystemBoundaryInventory boundaries={[]} onOpenBoundary={vi.fn()} />);
+    // Assert
+    expect(screen.getByText('No boundaries defined yet.')).toBeVisible();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toHaveClass('text-xs');
+    // Act
+    view.rerender(<SystemBoundaryInventory boundaries={[]} onOpenBoundary={vi.fn()}
+      emptyAction={<button onClick={create}>Create boundary</button>} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create boundary' }));
+    // Assert
+    expect(create).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the boundary row and its trigger stable when assignment counts refresh', () => {
+    // Arrange
+    const open = vi.fn();
+    const view = render(<SystemBoundaryInventory boundaries={[boundary]} onOpenBoundary={open} />);
+    const trigger = screen.getByRole('button', { name: 'Open boundary mission-api' });
+    // Act
+    view.rerender(<SystemBoundaryInventory boundaries={[{ ...boundary, componentCount: 1 }]} onOpenBoundary={open} />);
+    // Assert
+    expect(screen.getByRole('button', { name: 'Open boundary mission-api' })).toBe(trigger);
+    expect(screen.getAllByRole('row')).toHaveLength(2);
   });
 });
