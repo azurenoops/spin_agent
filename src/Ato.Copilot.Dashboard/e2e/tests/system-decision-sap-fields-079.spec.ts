@@ -70,6 +70,10 @@ for (const width of [1440, 390]) {
 
     // Act: save and reload the same SAP draft, not a second plan engine.
     await page.goto(`${root}/assessments?tab=plan`);
+    await expect(page.getByLabel('Assessment title', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Edit assessment draft', exact: true }).click();
+    const assessmentDialog = page.getByRole('dialog', { name: 'Edit assessment draft' });
+    await expect(assessmentDialog).toBeVisible();
     await page.getByLabel('Assessment title', { exact: true }).fill('Manual mission assessment');
     await page.getByLabel('Assessment lead', { exact: true }).fill('Assigned SCA');
     await page.getByLabel('Assessment scope', { exact: true }).fill('Reviewed boundary and selected baseline.');
@@ -78,10 +82,16 @@ for (const width of [1440, 390]) {
     // Assert
     await expect(page.getByText('Assessment draft saved. Review and finalization remain separate.')).toBeVisible();
     expect(writes[1]?.body).toMatchObject({ title: 'Manual mission assessment', assessmentLead: 'Assigned SCA', expectedContentHash: hash });
+    await expect(assessmentDialog).toHaveCount(0);
     await page.reload();
+    await expect(page.getByText('Examine documents, interview staff and test controls.', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Edit assessment draft', exact: true }).click();
     await expect(page.getByLabel('Assessment title', { exact: true })).toHaveValue('Manual mission assessment');
     await expect(page.getByLabel('Assessment approach', { exact: true })).toHaveValue('Examine documents, interview staff and test controls.');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`manual-sap-${width}.png`), fullPage: true });
+    await page.keyboard.press('Escape');
+    await expect(assessmentDialog).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Edit assessment draft', exact: true })).toBeFocused();
   });
 }

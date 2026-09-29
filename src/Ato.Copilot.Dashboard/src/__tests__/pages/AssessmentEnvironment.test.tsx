@@ -12,7 +12,7 @@ import {
   readinessPath, subscriptionId, systemDetail, systemId, unavailableSubscriptionId,
 } from '../fixtures/assessmentEnvironment';
 
-const context = vi.hoisted(() => ({ systemId: 'assessment-system-a' }));
+const context = vi.hoisted(() => ({ systemId: 'assessment-system-a', canonical: false }));
 vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { ...systemDetail, systemId: context.systemId }, refetch: vi.fn() }),
 }));
@@ -21,20 +21,28 @@ vi.mock('../../api/client', () => ({ default: { get: vi.fn(), put: vi.fn(), post
 
 const responses = new Map<string, () => unknown>();
 const panel = () => screen.findByRole('region', { name: /Azure assessment environment/i });
-const pageElement = (prefix = '') => (
-  <MemoryRouter initialEntries={[`${prefix}/systems/${context.systemId}/assessments/environment`]}>
+const accessPath = (id = systemId) => `/systems/${id}/assessment-environment/access`;
+const pageElement = (prefix = '') => {
+  context.canonical = prefix.startsWith('/workspaces');
+  return <MemoryRouter initialEntries={[`${prefix}/systems/${context.systemId}/assessments/environment`]}>
     <Routes><Route path={`${prefix}/systems/:id/assessments/environment`} element={<AssessmentEnvironment />} /></Routes>
-  </MemoryRouter>
-);
+  </MemoryRouter>;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.put).mockReset();
   vi.mocked(apiClient.delete).mockReset();
   context.systemId = systemId;
+  context.canonical = false;
   vi.mocked(useWorkspaceSession).mockReturnValue(null);
   responses.clear();
   for (const id of [systemId, otherSystemId]) {
+    responses.set(accessPath(id), () => {
+      const session = vi.mocked(useWorkspaceSession).mock.results.at(-1)?.value;
+      const allowed = !context.canonical && !session || session?.systemAccess?.systemId === id && session?.systemAccess?.permissions.canRunAssessments === true;
+      return { systemId: id, canConfigure: !!allowed, reason: allowed ? null : 'Your current workspace does not authorize assessment configuration.' };
+    });
     responses.set(environmentPath(id), () => environment(id));
     responses.set(readinessPath(id), () => readiness(false, id));
   }
@@ -87,7 +95,17 @@ describe('Assessments Azure environment configuration (#981)', () => {
     await within(await panel()).findByRole('checkbox', { name: /Synthetic Commercial Alpha/i });
 
     // Assert
-    expect(vi.mocked(apiClient.get).mock.calls.every(([url]) => url === environmentPath() || url === readinessPath())).toBe(true);
+    expect(vi.mocked(apiClient.get).mock.calls.every(([url]) => url === environmentPath() || url === readinessPath() || url === accessPath())).toBe(true);
+  });
+
+  it('uses the exact configuration policy projection rather than execution or system-management flags', async () => {
+    // Arrange
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId, { canRunAssessments: false, canManageSystem: false }));
+    responses.set(accessPath(), () => ({ systemId, canConfigure: true, reason: null }));
+    render(pageElement('/workspaces/organizations/tenant-a'));
+    // Act / Assert
+    expect(await screen.findByRole('checkbox', { name: /Synthetic Commercial Alpha/i })).toBeEnabled();
+    expect(apiClient.get).toHaveBeenCalledWith(accessPath(), expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('waits for configuration authorization before checking readiness', async () => {
@@ -312,7 +330,8 @@ describe('Assessments Azure environment configuration (#981)', () => {
     // Assert
     expect(within(attachment).getByText('Azure assessment access required')).toBeInTheDocument();
     expect(within(attachment).queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
-    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(apiClient.get).toHaveBeenCalledWith(accessPath(), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(vi.mocked(apiClient.get).mock.calls.some(([url]) => url === environmentPath() || url === readinessPath())).toBe(false);
   });
 
   it('preserves workspace and selected-system context in configuration page navigation', async () => {

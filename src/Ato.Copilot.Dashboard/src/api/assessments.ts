@@ -127,6 +127,18 @@ export async function getAssessmentEnvironment(systemId: string): Promise<Assess
   return data;
 }
 
+export async function getAssessmentEnvironmentAccess(systemId: string, signal?: AbortSignal): Promise<{
+  systemId: string; canConfigure: boolean; reason: string | null;
+}> {
+  const { data } = await apiClient.get<{ systemId: string; canConfigure: boolean; reason: string | null }>(
+    `/systems/${encodeURIComponent(systemId)}/assessment-environment/access`, { signal },
+  );
+  if (data?.systemId !== systemId || typeof data.canConfigure !== 'boolean'
+    || data.reason !== null && typeof data.reason !== 'string')
+    throw new Error('Azure configuration permission could not be verified for this system.');
+  return data;
+}
+
 export async function saveAssessmentEnvironment(systemId: string, request: UpdateAssessmentEnvironment): Promise<AssessmentEnvironment> {
   const { data } = await apiClient.put<AssessmentEnvironment>(`/systems/${encodeURIComponent(systemId)}/assessment-environment`, request);
   return data;

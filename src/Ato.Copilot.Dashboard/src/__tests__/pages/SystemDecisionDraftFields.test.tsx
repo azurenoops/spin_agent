@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '../helpers/dialog';
 import ExternalDecisionRecords from '../../features/systems/ExternalDecisionRecords';
 import SapDraftEditor from '../../features/systems/SapDraftEditor';
 import * as api from '../../features/systems/systemDecisionDraftApi';
+import { generateSap } from '../../api/sap';
 vi.mock('../../features/systems/systemDecisionDraftApi', async importOriginal => ({
   ...await importOriginal<typeof import('../../features/systems/systemDecisionDraftApi')>(),
   getExternalDecisionContext: vi.fn(), recordExternalDecision: vi.fn(), getSapDraft: vi.fn(), updateSapDraft: vi.fn(),
@@ -58,6 +59,8 @@ describe('Remaining Systems document fields', () => {
     // Arrange
     render(<SapDraftEditor systemId="a" onSaved={vi.fn()} />);
     // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit assessment draft' }));
+    expect(screen.getByRole('dialog', { name: 'Edit assessment draft' })).toBeVisible();
     fireEvent.change(await screen.findByLabelText('Assessment title'), { target: { value: 'Manual assessment' } });
     fireEvent.change(screen.getByLabelText('Assessment lead'), { target: { value: 'Assigned SCA' } });
     fireEvent.change(screen.getByLabelText('Assessment scope'), { target: { value: 'Reviewed boundary and baseline' } });
@@ -75,19 +78,76 @@ describe('Remaining Systems document fields', () => {
     // Act
     render(<SapDraftEditor systemId="a" onSaved={vi.fn()} />);
     // Assert
-    expect(await screen.findByLabelText('Assessment title')).toBeDisabled();
+    expect(await screen.findByText('Initial assessment')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Edit assessment draft' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Assessment title')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save assessment draft' })).not.toBeInTheDocument();
   });
-  it('reloads the current SAP after a conflict and never claims stale edits were saved', async () => {
+  it('retains the entered SAP after a conflict until an explicit reload', async () => {
     // Arrange
     vi.mocked(api.updateSapDraft).mockRejectedValue(new Error('The assessment draft changed.'));
     render(<SapDraftEditor systemId="a" onSaved={vi.fn()} />);
     // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit assessment draft' }));
     fireEvent.change(await screen.findByLabelText('Assessment title'), { target: { value: 'Stale title' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save assessment draft' }));
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('draft changed');
+    expect(screen.getByRole('dialog', { name: 'Edit assessment draft' })).toBeVisible();
+    expect(screen.getByLabelText('Assessment title')).toHaveValue('Stale title');
+    expect(api.getSapDraft).toHaveBeenCalledTimes(1);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Reload current draft' }));
+    // Assert
     await waitFor(() => expect(screen.getByLabelText('Assessment title')).toHaveValue('Initial assessment'));
     expect(screen.queryByText('Assessment draft saved. Review and finalization remain separate.')).not.toBeInTheDocument();
+  });
+  it('keeps assessment fields off the page and cancels editing without a write', async () => {
+    // Arrange
+    render(<SapDraftEditor systemId="a" onSaved={vi.fn()} />);
+    const edit = await screen.findByRole('button', { name: 'Edit assessment draft' });
+    expect(screen.queryByLabelText('Assessment title')).not.toBeInTheDocument();
+    // Act
+    edit.focus();
+    fireEvent.click(edit);
+    fireEvent.change(screen.getByLabelText('Assessment title'), { target: { value: 'Unsaved edit' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    // Assert
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(edit).toHaveFocus();
+    expect(api.updateSapDraft).not.toHaveBeenCalled();
+    fireEvent.click(edit);
+    expect(screen.getByLabelText('Assessment title')).toHaveValue('Initial assessment');
+  });
+  it('requires dialog confirmation before generating a new assessment draft', async () => {
+    // Arrange
+    vi.mocked(api.getSapDraft).mockResolvedValue({ ...draft, status: 'Finalized', canEdit: false });
+    render(<SapDraftEditor systemId="a" onSaved={vi.fn()} />);
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate plan draft' }));
+    // Assert
+    expect(screen.getByRole('dialog', { name: 'Generate assessment plan' })).toBeVisible();
+    expect(generateSap).not.toHaveBeenCalled();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Generate draft' }));
+    // Assert
+    await waitFor(() => expect(generateSap).toHaveBeenCalledWith('a'));
+  });
+  it('prevents dismissal while saving the exact assessment draft', async () => {
+    // Arrange
+    let finish!: (value: typeof draft) => void;
+    vi.mocked(api.updateSapDraft).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    render(<SapDraftEditor systemId="a" onSaved={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit assessment draft' }));
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Save assessment draft' }));
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // Assert
+    expect(screen.getByRole('dialog')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+    expect(screen.getByLabelText('Assessment title')).toBeDisabled();
+    await act(async () => finish(draft));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

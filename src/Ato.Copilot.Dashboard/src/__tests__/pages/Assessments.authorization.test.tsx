@@ -1,273 +1,140 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import '../helpers/dialog';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Assessments from '../../pages/Assessments';
-import { getAssessmentDetail, getAssessments, runAssessment } from '../../api/assessments';
-import { finalizeSap, generateSap, getLatestSap, type SapResponse } from '../../api/sap';
-import { createSar } from '../../api/sar';
-import { useWorkspaceSession, type WorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
-import type { SystemWorkspacePermissions } from '../../features/workspaces/types';
-import { historicalAssessment, readiness, systemDetail, systemId } from '../fixtures/assessmentEnvironment';
-import { invokeClick, requireElement, workspaceSession } from '../helpers/domainPermissions';
+import * as api from '../../api/assessmentWorkspace';
+import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
+import { workspaceSession, invokeClick } from '../helpers/domainPermissions';
+import { planWorkspace, resultsWorkspace, resultDetail } from '../fixtures/assessmentWorkspace';
 
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
-vi.mock('../../components/layout/SystemLayout', () => ({
-  useSystemContext: () => ({ detail: systemDetail }),
+vi.mock('../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: { systemId: 'system-a', name: 'System A' } }) }));
+vi.mock('../../api/assessmentWorkspace', async original => ({
+  ...await original<typeof api>(), getAssessmentPlan: vi.fn(), getAssessmentResults: vi.fn(), getAssessmentResult: vi.fn(),
+  collectAssessmentResults: vi.fn(), createAssessmentPlan: vi.fn(), finalizeAssessmentPlan: vi.fn(), prepareAssessmentReport: vi.fn(),
 }));
-vi.mock('../../hooks/useAssessmentReadiness', () => ({
-  useAssessmentReadiness: () => ({ ...readiness(true), result: readiness(true), refresh: vi.fn(), block: vi.fn() }),
-}));
-vi.mock('../../api/assessments', () => ({
-  getAssessments: vi.fn(), runAssessment: vi.fn(), getAssessmentDetail: vi.fn(),
-}));
-vi.mock('../../api/sap', () => ({
-  getLatestSap: vi.fn(), generateSap: vi.fn(), finalizeSap: vi.fn(),
-}));
-vi.mock('../../api/sar', () => ({ getLatestSar: vi.fn().mockResolvedValue(null), createSar: vi.fn() }));
-vi.mock('../../api/components', () => ({ getAssessmentComponentRisks: vi.fn().mockResolvedValue(null) }));
-vi.mock('../../components/remediation/CreateRemediationTaskModal', () => ({ default: () => <div>Task dialog</div> }));
+vi.mock('../../components/remediation/CreateRemediationTaskModal', () => ({ default: () => <div role="dialog">Task dialog</div> }));
 vi.mock('../../components/AddDeviationDialog', () => ({ default: () => <div>Deviation dialog</div> }));
-vi.mock('../../features/systems/SapDraftEditor', () => ({
-  default: ({ systemId }: { systemId: string }) => <section aria-label="Assessment draft record">{systemId}</section>,
-}));
-
-function session(permissions: Partial<SystemWorkspacePermissions> = {}, roles = ['MissionOwner']): WorkspaceSession {
-  return workspaceSession(systemId, permissions, roles);
+const deniedPlan = { ...planWorkspace, permissions: { canCreatePlan: false, canEditPlan: false, canFinalizePlan: false,
+  createReason: 'Plan generation not authorized.', editReason: 'Plan editing not authorized.', finalizeReason: 'Finalization not authorized.' } };
+const deniedDetail = { ...resultDetail, permissions: { ...resultDetail.permissions, canReview: false, canReconcile: false,
+  canRemediate: false, canRequestDeviation: false } };
+function page(query = '?tab=results&plan=sap-a') {
+  return <MemoryRouter initialEntries={[`/workspaces/organizations/tenant-a/systems/system-a/assessments${query}`]}><Assessments /></MemoryRouter>;
 }
-const canonicalPath = `/workspaces/org/tenant-a/systems/${systemId}/assessments`;
-const page = (path = canonicalPath) => <MemoryRouter initialEntries={[path]}><Assessments /></MemoryRouter>;
-const sap: SapResponse = {
-  sapId: 'sap-a', systemId, title: 'Plan', status: 'Draft', format: 'markdown', baselineLevel: 'Moderate',
-  totalControls: 1, customerControls: 1, inheritedControls: 0, sharedControls: 0,
-  stigBenchmarkCount: 0, controlsWithObjectives: 1, evidenceGaps: 0, familySummaries: [],
-  generatedAt: '2026-01-01T00:00:00Z', warnings: [],
-};
-
-async function openFinding() {
-  fireEvent.click((await screen.findAllByRole('button', { name: 'View' })).at(-1)!);
-  fireEvent.click(await screen.findByRole('button', { name: 'AC (1)' }));
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(useWorkspaceSession).mockReturnValue(session());
-  vi.mocked(getAssessments).mockResolvedValue([historicalAssessment]);
-  vi.mocked(getLatestSap).mockResolvedValue(sap);
-  vi.mocked(runAssessment).mockResolvedValue({ assessmentId: 'run-a', systemId, status: 'Completed' });
-  vi.mocked(getAssessmentDetail).mockResolvedValue({
-    ...historicalAssessment, notAssessedControls: 0, completedAt: historicalAssessment.assessedAt,
-    executiveSummary: null, criticalCount: 0, highCount: 1, mediumCount: 0, lowCount: 0, familyResults: [],
-    findings: [{
-      findingId: 'finding-a', controlId: 'AC-1', controlFamily: 'AC', title: 'Synthetic finding',
-      description: 'Test finding', severity: 'High', status: 'Open', resourceType: null, resourceId: null,
-      remediationGuidance: null, discoveredAt: historicalAssessment.assessedAt, deviationId: null, deviationType: null,
-    }],
-  });
+  vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession('system-a', {}, ['MissionOwner']));
+  vi.mocked(api.getAssessmentPlan).mockResolvedValue(deniedPlan);
+  vi.mocked(api.getAssessmentResults).mockResolvedValue(resultsWorkspace);
+  vi.mocked(api.getAssessmentResult).mockResolvedValue(deniedDetail);
+  vi.mocked(api.collectAssessmentResults).mockResolvedValue({ status: 'Completed', message: 'Collection retained, pending review.', resultIds: ['assessment:run-a'] });
 });
 afterEach(() => { cleanup(); localStorage.clear(); });
 
-describe('Assessment mutation authorization (#1017)', () => {
-  it('opens the assessment-plan task without rendering run and results actions', async () => {
-    // Arrange
-    render(page(`${canonicalPath}?tab=plan`));
-    // Act
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+describe('Assessment server action permissions', () => {
+  it('keeps plan editing/finalization separate from Azure and SAR actions', async () => {
+    // Arrange / Act
+    render(page('?tab=plan&plan=sap-a'));
     // Assert
-    expect(screen.getByRole('heading', { name: 'Plan the assessment' })).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Run Assessment' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Generate SAR' })).not.toBeInTheDocument();
-    expect(generateSap).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: 'Finalize plan' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Choose lead' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Run Azure checks' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Prepare draft SAR' })).not.toBeInTheDocument();
+    expect(api.createAssessmentPlan).not.toHaveBeenCalled();
   });
-
-  it('offers the actual assessment-configuration handoff on the results task', async () => {
-    // Arrange
-    render(page());
-    // Act
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-    // Assert
-    expect(screen.getByRole('link', { name: 'Configure assessment' })).toHaveAttribute('href', `/systems/${systemId}/assessments/environment`);
-    expect(screen.getByRole('heading', { name: 'Assessments & results' })).toBeVisible();
-  });
-
-  it.each(['AO', 'ISSM'])('ignores a MissionOwner forged %s browser preference', async role => {
+  it.each(['ISSM', 'AO', 'Administrator'])('ignores a forged %s browser persona', async role => {
     // Arrange
     localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role }));
     render(page());
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Run Assessment' }));
-
+    await invokeClick(await screen.findByRole('button', { name: 'Run Azure checks' }));
     // Assert
-    expect(screen.getAllByRole('button', { name: 'Run Assessment' })[0]).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Generate SAP' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Generate SAR' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Finalize SAP' })).toBeDisabled();
-    expect(runAssessment).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Run Azure checks' })).toBeDisabled();
+    expect(api.collectAssessmentResults).not.toHaveBeenCalled();
+    expect(api.prepareAssessmentReport).not.toHaveBeenCalled();
   });
-
-  it('permits an explicitly granted assessment run with multiple server roles', async () => {
+  it('offers configuration only when that operation is independently granted', async () => {
     // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({ canRunAssessments: true }, ['MissionOwner', 'ISSM']));
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace,
+      collection: { ...resultsWorkspace.collection, canConfigureAzure: true } });
+    // Act
     render(page());
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-
-    // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Run Assessment' }));
-    await act(async () => { fireEvent.click(requireElement(screen.getAllByRole('button', { name: 'Run Assessment' })[1])); });
-
     // Assert
-    expect(runAssessment).toHaveBeenCalledWith(systemId);
+    expect(await screen.findByRole('link', { name: 'Configure Azure assessment →' })).toHaveAttribute('href', '/systems/system-a/assessments/environment');
+    expect(screen.getByRole('button', { name: 'Run Azure checks' })).toBeDisabled();
   });
-
-  it('does not infer SAP or SAR authority from broad granted permissions', async () => {
+  it('executes an explicitly granted run with the selected plan and request identity', async () => {
     // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({
-      canManageSystem: true, canRunAssessments: true, canDecideAuthorization: true,
-    }, ['ISSM', 'AuthorizingOfficial']));
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace,
+      collection: { ...resultsWorkspace.collection, canRunAzure: true, runReason: null,
+        azure: { ...resultsWorkspace.collection.azure, state: 'Ready' } } });
     render(page());
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-
     // Act
-    await invokeClick(screen.getByRole('button', { name: 'Finalize SAP' }));
-
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Azure checks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start scoped checks' }));
     // Assert
-    expect(screen.getByRole('button', { name: 'Generate SAP' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Generate SAR' })).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission|not authorized/i);
-    expect(finalizeSap).not.toHaveBeenCalled();
-    expect(generateSap).not.toHaveBeenCalled();
-    expect(createSar).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.collectAssessmentResults).toHaveBeenCalledWith('system-a',
+      { planId: 'sap-a', expectedPlanHash: 'plan-hash', requestId: expect.any(String) }));
   });
-
-  it.each([null, session(), session({ canRunAssessments: false })])('fails closed with absent or denied canonical permission', async access => {
+  it('does not infer document authority from broad system or assessment authority', async () => {
     // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(access);
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession('system-a',
+      { canManageSystem: true, canRunAssessments: true, canDecideAuthorization: true }, ['ISSM', 'AuthorizingOfficial']));
+    render(page('?tab=plan&plan=sap-a'));
+    // Act
+    await invokeClick(await screen.findByRole('button', { name: 'Finalize plan' }));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Finalize saved plan' })).toBeDisabled();
+    expect(api.finalizeAssessmentPlan).not.toHaveBeenCalled();
+  });
+  it('fails closed when the authorization projection fails to load', async () => {
+    // Arrange
+    vi.mocked(api.getAssessmentResults).mockRejectedValue(new Error('Workspace permission is unavailable.'));
+    // Act
     render(page());
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-
-    // Act
-    await invokeClick(screen.getByRole('button', { name: 'Run Assessment' }));
-
     // Assert
-    expect(screen.getAllByRole('button', { name: 'Run Assessment' })[0]).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission|not authorized/i);
-    expect(runAssessment).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Workspace permission is unavailable.');
+    expect(screen.queryByRole('button', { name: 'Run Azure checks' })).not.toBeInTheDocument();
+    expect(api.collectAssessmentResults).not.toHaveBeenCalled();
   });
-
-  it('rechecks permission in an already open run dialog after revocation', async () => {
+  it('does not expose denied finding actions', async () => {
+    // Arrange / Act
+    render(page('?tab=results&plan=sap-a&result=assessment%3Arun-a'));
+    // Assert
+    const dialog = await screen.findByRole('dialog', { name: 'Result details' });
+    await within(dialog).findByRole('heading', { name: /Access observation/ });
+    expect(within(dialog).queryByRole('button', { name: 'Create remediation task' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Request deviation' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Review a control' })).not.toBeInTheDocument();
+  });
+  it('closes pending finding writes when the server workspace context changes', async () => {
     // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({ canRunAssessments: true }));
+    vi.mocked(api.getAssessmentResult).mockResolvedValue({ ...deniedDetail, permissions: { ...deniedDetail.permissions, canRemediate: true } });
+    const view = render(page('?tab=results&plan=sap-a&result=assessment%3Arun-a'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Create remediation task' }));
+    expect(screen.getByText('Task dialog')).toBeVisible();
+    // Act
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession('system-a', { canManageSystem: true }, ['SystemOwner']));
+    await act(async () => { view.rerender(page('?tab=results&plan=sap-a&result=assessment%3Arun-a')); });
+    // Assert
+    expect(screen.queryByText('Task dialog')).not.toBeInTheDocument();
+  });
+  it('rechecks a pending collection after access changes instead of using its old grant', async () => {
+    // Arrange
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession('system-a', { canRunAssessments: true }, ['Sca']));
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace,
+      collection: { ...resultsWorkspace.collection, canRunAzure: true, runReason: null,
+        azure: { ...resultsWorkspace.collection.azure, state: 'Ready' } } });
     const view = render(page());
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-    fireEvent.click(screen.getByRole('button', { name: 'Run Assessment' }));
-
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Azure checks' }));
     // Act
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({ canRunAssessments: false }));
-    view.rerender(page());
-    const submit = requireElement(screen.getAllByRole('button', { name: 'Run Assessment' })[1]);
-    await invokeClick(submit);
-
+    vi.mocked(api.getAssessmentResults).mockResolvedValue(resultsWorkspace);
+    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession('system-a', { canRead: true }, ['SystemOwner']));
+    await act(async () => { view.rerender(page()); });
     // Assert
-    expect(submit).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission|not authorized/i);
-    expect(runAssessment).not.toHaveBeenCalled();
-  });
-
-  it('preserves deliberately unrestricted legacy actions without a workspace session', async () => {
-    // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(null);
-    vi.mocked(finalizeSap).mockResolvedValue({ ...sap, status: 'Finalized' });
-    render(page(`/systems/${systemId}/assessments`));
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-
-    // Act
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Finalize SAP' })); });
-
-    // Assert
-    expect(screen.getByRole('button', { name: 'Generate SAP' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Generate SAR' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Run Assessment' })).toBeEnabled();
-    expect(finalizeSap).toHaveBeenCalledWith(systemId, 'sap-a');
-  });
-
-  it('rejects finding task and deviation entry handlers for a MissionOwner', async () => {
-    // Arrange
-    render(page());
-    await openFinding();
-
-    // Act
-    await invokeClick(screen.getByRole('button', { name: '+ Create Task' }));
-    await invokeClick(screen.getByRole('button', { name: '+ Create Deviation' }));
-
-    // Assert
-    expect(screen.getByRole('button', { name: '+ Create Task' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '+ Create Deviation' })).toBeDisabled();
-    expect(screen.queryByText('Task dialog')).not.toBeInTheDocument();
-    expect(screen.queryByText('Deviation dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission/i);
-  });
-
-  it('unmounts an open shared task dialog on revocation and does not reopen it after regrant', async () => {
-    // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageRemediation: true }));
-    const view = render(page());
-    await openFinding();
-    fireEvent.click(screen.getByRole('button', { name: '+ Create Task' }));
-    expect(screen.getByText('Task dialog')).toBeInTheDocument();
-
-    // Act
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageRemediation: false }));
-    view.rerender(page());
-
-    // Assert
-    expect(screen.queryByText('Task dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission changed/i);
-
-    // Act
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageRemediation: true }));
-    view.rerender(page());
-
-    // Assert
-    expect(screen.queryByText('Task dialog')).not.toBeInTheDocument();
-  });
-
-  it('does not infer deviation-request permission from broader remediation or authorization flags', async () => {
-    // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({
-      canManageRemediation: true, canManageSystem: true, canDecideAuthorization: true,
-    }));
-    render(page());
-    await openFinding();
-
-    // Act
-    await invokeClick(screen.getByRole('button', { name: '+ Create Deviation' }));
-
-    // Assert
-    expect(screen.getByRole('button', { name: '+ Create Deviation' })).toBeDisabled();
-    expect(screen.queryByText('Deviation dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission/i);
-  });
-
-  it.each(['SAP', 'SAR'])('rechecks a legacy-opened %s dialog when workspace permissions appear', async document => {
-    // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(null);
-    const legacy = `/systems/${systemId}/assessments`;
-    const view = render(page(legacy));
-    await screen.findByRole('button', { name: 'Finalize SAP' });
-    fireEvent.click(screen.getByRole('button', { name: `Generate ${document}` }));
-
-    // Act
-    vi.mocked(useWorkspaceSession).mockReturnValue(session({ canManageSystem: true, canRunAssessments: true }));
-    view.rerender(page(legacy));
-    const submit = requireElement(screen.getAllByRole('button', { name: `Generate ${document}` })[1]);
-    await invokeClick(submit);
-
-    // Assert
-    expect(submit).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission/i);
-    expect(generateSap).not.toHaveBeenCalled();
-    expect(createSar).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: 'Start scoped checks' })).toBeDisabled();
+    expect(api.collectAssessmentResults).not.toHaveBeenCalled();
   });
 });

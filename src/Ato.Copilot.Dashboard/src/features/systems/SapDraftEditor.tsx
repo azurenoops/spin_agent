@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { generateSap } from '../../api/sap';
 import { getSapDraft, updateSapDraft, documentActionError, type SapDraft } from './systemDecisionDraftApi';
 import { systemPanel, systemPrimaryAction, systemSecondaryAction } from './SystemTaskPresentation';
+import SetupDialog from '../workspace-operations/SetupDialog';
 
 export default function SapDraftEditor({ systemId, onSaved }: { systemId: string; onSaved: () => void }) {
   const [data, setData] = useState<SapDraft | null>(null);
@@ -13,6 +14,7 @@ export default function SapDraftEditor({ systemId, onSaved }: { systemId: string
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [dialog, setDialog] = useState<'edit' | 'create' | null>(null);
   const request = useRef<AbortController | null>(null);
   const writing = useRef(false);
   const accept = (value: SapDraft) => {
@@ -26,7 +28,7 @@ export default function SapDraftEditor({ systemId, onSaved }: { systemId: string
     catch (reason) { if (!controller.signal.aborted) setError(documentActionError(reason)); }
     finally { if (!controller.signal.aborted) setLoading(false); }
   }, [systemId]);
-  useEffect(() => { void load(); return () => request.current?.abort(); }, [load]);
+  useEffect(() => { setDialog(null); void load(); return () => request.current?.abort(); }, [load]);
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!data?.canEdit || !data.sapId || !data.draftHash || writing.current) return;
@@ -34,16 +36,15 @@ export default function SapDraftEditor({ systemId, onSaved }: { systemId: string
     try {
       accept(await updateSapDraft(systemId, data.sapId, { title, assessmentLead: lead, scopeNotes: scope,
         assessmentApproach: approach, expectedContentHash: data.draftHash }));
-      setNotice('Assessment draft saved. Review and finalization remain separate.'); onSaved();
+      setDialog(null); setNotice('Assessment draft saved. Review and finalization remain separate.'); onSaved();
     } catch (reason) {
-      setError(`${documentActionError(reason)} The current draft has been reloaded; review again before saving.`);
-      await load();
+      setError(`${documentActionError(reason)} Your edits are retained. If the source changed, reload the current draft and review it before saving again.`);
     } finally { writing.current = false; setBusy(false); }
   };
   const create = async () => {
     if (!data?.canCreate || writing.current) return;
     writing.current = true; setBusy(true); setError(null);
-    try { await generateSap(systemId); await load(); onSaved(); }
+    try { await generateSap(systemId); setDialog(null); await load(); onSaved(); }
     catch (reason) { setError(documentActionError(reason)); }
     finally { writing.current = false; setBusy(false); }
   };
@@ -53,11 +54,30 @@ export default function SapDraftEditor({ systemId, onSaved }: { systemId: string
     <h2 id="manual-assessment-draft" className="text-lg font-semibold">Assessment draft record</h2>
     <p className="mt-2 text-sm text-slate-500">Describe the lead, scope and approach in the same retained SAP. Saving rerenders its content; it does not finalize the plan.</p>
     {loading && <p role="status" className="mt-4">Loading assessment draft…</p>}
-    {error && <div className="mt-4 text-sm text-amber-900"><p role="alert">{error}</p>
+    {error && !dialog && <div className="mt-4 text-sm text-amber-900"><p role="alert">{error}</p>
       <button type="button" className={`mt-2 ${systemSecondaryAction}`} onClick={() => { setError(null); void load(); }}>Retry assessment draft</button></div>}
     {notice && <p role="status" className="mt-4 text-sm text-emerald-800">{notice}</p>}
-    {data?.sapId ? <form onSubmit={event => void save(event)} className="mt-5 space-y-4">
+    {data?.sapId ? <div className="mt-5 space-y-4">
       <p className="text-xs text-slate-500">Plan {data.sapId} · {data.status}</p>
+      <dl className="grid gap-4 text-sm sm:grid-cols-2">
+        {[['Title', data.title], ['Assessment lead', data.assessmentLead], ['Scope', data.scopeNotes], ['Approach', data.assessmentApproach]].map(([label, value]) =>
+          <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words">{value || 'Not recorded'}</dd></div>)}
+      </dl>
+      {data.canEdit && <button type="button" className={systemSecondaryAction} disabled={busy || loading} onClick={() => {
+        accept(data); setError(null); setNotice(null); setDialog('edit');
+      }}>Edit assessment draft</button>}
+      {data.status === 'Finalized' && <p className="text-sm text-slate-500">This finalized plan is immutable. Generate a new draft to propose changes.</p>}
+    </div> : !loading && data && <p className="mt-4 text-sm">No assessment plan has been generated for this system.</p>}
+    {data?.canCreate && data.status !== 'Draft' && <button type="button" disabled={busy || loading} className={`mt-4 ${systemPrimaryAction}`}
+      onClick={() => { setError(null); setDialog('create'); }}>Generate plan draft</button>}
+    {dialog && <SetupDialog title={dialog === 'edit' ? 'Edit assessment draft' : 'Generate assessment plan'}
+      busy={busy || loading} onClose={() => setDialog(null)}
+      description="Changes affect the retained assessment draft. Review and finalization remain separate actions.">
+      {error && <div className="mb-4 space-y-2 text-sm text-amber-900"><p role="alert">{error}</p>
+        {dialog === 'edit' && <button type="button" disabled={busy || loading} className={systemSecondaryAction}
+          onClick={() => { setError(null); void load(); }}>Reload current draft</button>}
+      </div>}
+      {dialog === 'edit' ? <form onSubmit={event => void save(event)} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm">Assessment title<input required maxLength={500} disabled={locked} className={input} value={title} onChange={event => setTitle(event.target.value)} /></label>
         <label className="text-sm">Assessment lead<input maxLength={200} disabled={locked} className={input} value={lead} onChange={event => setLead(event.target.value)} /></label>
@@ -66,9 +86,17 @@ export default function SapDraftEditor({ systemId, onSaved }: { systemId: string
         <textarea id="sap-manual-scope" maxLength={4000} rows={4} disabled={locked} className={input} value={scope} onChange={event => setScope(event.target.value)} /></div>
       <div><label htmlFor="sap-manual-approach" className="block text-sm">Assessment approach</label>
         <textarea id="sap-manual-approach" maxLength={4000} rows={4} disabled={locked} className={input} value={approach} onChange={event => setApproach(event.target.value)} /></div>
-      {data.canEdit && <button type="submit" disabled={busy || !title.trim()} className={systemPrimaryAction}>{busy ? 'Saving…' : 'Save assessment draft'}</button>}
-      {data.status === 'Finalized' && <p className="text-sm text-slate-500">This finalized plan is immutable. Generate a new draft to propose changes.</p>}
-    </form> : !loading && data && <p className="mt-4 text-sm">No assessment plan has been generated for this system.</p>}
-    {data?.canCreate && data.status !== 'Draft' && <button type="button" disabled={busy} className={`mt-4 ${systemPrimaryAction}`} onClick={() => void create()}>Generate plan draft</button>}
+      <div className="flex flex-wrap justify-end gap-3">
+        <button type="button" disabled={busy || loading} className={systemSecondaryAction} onClick={() => setDialog(null)}>Cancel</button>
+        <button type="submit" disabled={locked || !title.trim()} className={systemPrimaryAction}>{busy ? 'Saving…' : 'Save assessment draft'}</button>
+      </div>
+    </form> : <div className="space-y-4">
+      <p className="text-sm">Generate a new draft from this system's current assessment context. Existing finalized plans remain unchanged.</p>
+      <div className="flex flex-wrap justify-end gap-3">
+        <button type="button" disabled={busy || loading} className={systemSecondaryAction} onClick={() => setDialog(null)}>Cancel</button>
+        <button type="button" disabled={busy || loading || !data?.canCreate} className={systemPrimaryAction} onClick={() => void create()}>Generate draft</button>
+      </div>
+    </div>}
+    </SetupDialog>}
   </section>;
 }
