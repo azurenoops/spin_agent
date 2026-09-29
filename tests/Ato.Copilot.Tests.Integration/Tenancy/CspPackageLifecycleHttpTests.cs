@@ -87,6 +87,7 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         var (path, proposed) = await ReceiveReferenceAsync();
         proposed.ReviewState.Should().Be("NeedsReview");
         proposed.Citations.Should().NotBeEmpty();
+        proposed.AnalysisProfileVersion.Should().Be(2);
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var packageId = Guid.Parse(path.Split('/')[^1]);
@@ -114,6 +115,9 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
 
         // Assert
         stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        edited.AnalysisProfileVersion.Should().Be(proposed.AnalysisProfileVersion);
+        reviewed.AnalysisProfileVersion.Should().Be(proposed.AnalysisProfileVersion);
+        rejected.AnalysisProfileVersion.Should().Be(proposed.AnalysisProfileVersion);
         edited.Revision.Should().Be(proposed.Revision + 1);
         reviewed.Revision.Should().Be(edited.Revision + 1);
         reviewed.ReviewState.Should().Be("Reviewed");
@@ -124,6 +128,10 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         retained.AuthorizationReference!.Issuer.Should().Be("Human-corrected synthetic issuer");
         retained.Citations.Should().BeEquivalentTo(proposed.Citations);
         retained.PublishedRecordId.Should().BeNull();
+        var persisted = await db.CspPackageCandidates.AsNoTracking()
+            .SingleAsync(x => x.Id == proposed.CandidateId);
+        JsonSerializer.Deserialize<PackageCandidateResponse>(persisted.PayloadJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)).Should().BeEquivalentTo(rejected);
         (await DataAsync<Page<PackageCandidateResponse>>(await refreshedClient.GetAsync(
             path + "/candidates?type=AuthorizationReference&reviewState=Reviewed"))).Items.Should().BeEmpty();
         var auditRows = await db.CspPackageAudits.AsNoTracking()
@@ -259,10 +267,14 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         var initial = await WaitForAnalysisAsync(path);
         initial.ProcessingState.Should().Be("NeedsAttention");
         var candidate = (await DataAsync<Page<PackageCandidateResponse>>(await _client.GetAsync(path + "/candidates"))).Items.Single();
+        candidate.AnalysisProfileVersion.Should().Be(2);
         var reviewed = await DataAsync<PackageCandidateResponse>(await _client.PatchAsJsonAsync(path + $"/candidates/{candidate.CandidateId:D}",
             new EditPackageCandidateRequest(candidate.Revision, "Human-reviewed preserved component", candidate.Description,
                 candidate.ComponentType, "Unclassified", "Audit", candidate.ControlDuties, candidate.ContributorIds,
                 "Reviewed", null, null)));
+        reviewed.AnalysisProfileVersion.Should().Be(candidate.AnalysisProfileVersion);
+        (await DataAsync<Page<PackageCandidateResponse>>(await _client.GetAsync(path + "/candidates")))
+            .Items.Should().ContainSingle().Which.Should().BeEquivalentTo(reviewed);
         using var retry = new HttpRequestMessage(HttpMethod.Post, path + "/retry");
         retry.Headers.Add("Idempotency-Key", "retry-incomplete-entry");
         // Act
@@ -273,6 +285,15 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         resumed.Coverage.Unsupported.Should().Be(1);
         var preserved = (await DataAsync<Page<PackageCandidateResponse>>(await _client.GetAsync(path + "/candidates"))).Items.Single();
         preserved.Should().BeEquivalentTo(reviewed);
+        using var replay = new HttpRequestMessage(HttpMethod.Post, path + "/retry");
+        replay.Headers.Add("Idempotency-Key", "retry-incomplete-entry");
+        (await _client.SendAsync(replay)).StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var replayed = await DataAsync<PackageStatus>(await _client.GetAsync(path));
+        replayed.Revision.Should().Be(resumed.Revision);
+        replayed.ProcessingState.Should().Be(resumed.ProcessingState);
+        replayed.Coverage.Should().BeEquivalentTo(resumed.Coverage);
+        (await DataAsync<Page<PackageCandidateResponse>>(await _client.GetAsync(path + "/candidates")))
+            .Items.Should().ContainSingle().Which.Should().BeEquivalentTo(reviewed);
         var entries = (await DataAsync<Page<PackageEntryResponse>>(await _client.GetAsync(path + "/entries"))).Items;
         var incomplete = entries.Single(x => x.ArchivePath.EndsWith("incomplete.txt"));
         (await _client.PatchAsJsonAsync(path + $"/entries/{incomplete.EntryId:D}",
@@ -283,6 +304,8 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         var excluded = await WaitForAnalysisAsync(path);
         excluded.ProcessingState.Should().Be("ReadyForReview");
         excluded.Coverage.Excluded.Should().Be(1);
+        (await DataAsync<Page<PackageCandidateResponse>>(await _client.GetAsync(path + "/candidates")))
+            .Items.Should().ContainSingle().Which.Should().BeEquivalentTo(reviewed);
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         (await db.CspPackageEntries.SingleAsync(x => x.PackageId == id && x.IsOriginal)).MediaType.Should().Be("application/octet-stream");

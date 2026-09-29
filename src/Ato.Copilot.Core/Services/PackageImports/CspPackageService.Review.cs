@@ -18,14 +18,15 @@ public sealed partial class CspPackageService
             var candidate = await db.CspPackageCandidates.SingleOrDefaultAsync(x => x.PackageId == id && x.Id == candidateId, ct)
                 ?? throw new KeyNotFoundException("Candidate was not found.");
             if (candidate.Revision != request.ExpectedRevision) throw new DbUpdateConcurrencyException("Candidate revision is stale.");
-            if (Candidate(candidate).PublishedRecordId.HasValue) throw new DbUpdateConcurrencyException("Published candidates are immutable.");
+            var current = (await CandidatesWithRetainedClaimsAsync(db, package, [candidate], ct)).Single();
+            if (current.PublishedRecordId.HasValue) throw new DbUpdateConcurrencyException("Published candidates are immutable.");
             ValidateEdit(request, candidate.Type);
-            var reference = request.AuthorizationReference ?? Candidate(candidate).AuthorizationReference;
+            var reference = request.AuthorizationReference ?? current.AuthorizationReference;
             ValidateAuthorizationReference(candidate.Type, reference, request.ReviewAction);
             if (candidate.Type == "AuthorizationReference" && request.ReviewAction == "Reviewed")
             {
                 var entries = await db.CspPackageEntries.Where(x => x.PackageId == id).ToListAsync(ct);
-                var citations = Candidate(candidate).Citations;
+                var citations = current.Citations;
                 // Reviewing cited reference metadata does not clear surrounding semantic-analysis exceptions.
                 if (citations.Count == 0 || citations.Any(c => !SupportsCitation(entries.SingleOrDefault(x => x.Id == c.ArtifactId), c, allowIncomplete: true)))
                     throw new DbUpdateConcurrencyException("A reviewed authorization reference requires non-excluded, source-supported citations.");
@@ -35,11 +36,12 @@ public sealed partial class CspPackageService
             candidate.ReviewState = request.ReviewAction;
             candidate.ReviewedBy = request.ReviewAction == "Reviewed" ? actor : null;
             candidate.ReviewedAt = request.ReviewAction == "Reviewed" ? DateTimeOffset.UtcNow : null;
-            var payload = Candidate(candidate) with
+            var payload = current with
             {
+                Revision = candidate.Revision, ReviewState = candidate.ReviewState,
                 Name = request.Name.Trim(), Description = request.Description.Trim(),
                 ComponentType = candidate.Type == "AuthorizationReference"
-                    ? Candidate(candidate).ComponentType
+                    ? current.ComponentType
                     : request.ComponentType ?? throw new ArgumentException("Component type is required."),
                 Classification = request.Classification.Trim(), ServiceCategory = request.ServiceCategory.Trim(),
                 ControlDuties = request.ControlDuties.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.Value),
