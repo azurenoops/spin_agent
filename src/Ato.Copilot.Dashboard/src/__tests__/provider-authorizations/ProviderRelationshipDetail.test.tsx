@@ -8,6 +8,7 @@ import * as api from '../../features/provider-authorizations/api';
 import * as hosting from '../../features/provider-authorizations/hostingApi';
 import { offering } from './testData';
 import { PackageImportError } from '../../features/package-imports/request';
+import '../helpers/dialog';
 
 vi.mock('../../components/layout/PageLayout', () => ({ default: ({ children }: { children: ReactNode }) => <main>{children}</main> }));
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => ({
@@ -59,7 +60,8 @@ it('opens the provider relationship with its exact retained allocation and real 
   expect(await screen.findByText('Retained service allocation')).toBeInTheDocument();
   expect(hosting.getHostingScope).toHaveBeenCalledWith(offering.offeringId, 'retained-scope', expect.any(AbortSignal));
   expect(api.getBoundaryOverview).toHaveBeenCalledWith(offering.offeringId, 1, 3, expect.any(AbortSignal));
-  expect(screen.getByRole('link', { name: 'Manage service allocations' })).toHaveAttribute('href', api.authorizationHref(offering.offeringId, 'inherited-coverage?task=allocations'));
+  expect(screen.getByRole('button', { name: 'Assign another service scope' })).toBeEnabled();
+  expect(screen.queryByRole('navigation', { name: 'Offering sections' })).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Open Recorded protection' })).toHaveAttribute('href', '/workspaces/csp/security-capabilities/capability-1');
   expect(screen.getByRole('link', { name: 'Review current publication for Recorded protection' })).toHaveAttribute('href', '/workspaces/csp/security-capabilities/capability-1?tab=review');
   expect(screen.getByRole('link', { name: 'Back to mission systems' })).toHaveAttribute('href', `/workspaces/csp/systems?offeringId=${offering.offeringId}&offeringPage=2&missionPage=3`);
@@ -85,7 +87,7 @@ it('locates the exact relationship after its listing page changes', async () => 
   // Act
   mount();
   // Assert
-  expect(await screen.findByText('Recorded capability adoptions')).toBeInTheDocument();
+  expect(await screen.findByText('2 adopted capabilities · Exact releases unavailable')).toBeInTheDocument();
   expect(api.getBoundaryOverview).toHaveBeenCalledWith(offering.offeringId, 1, 2, expect.any(AbortSignal));
 });
 it('refuses mismatched projection ownership instead of showing another offering’s adoptions', async () => {
@@ -109,4 +111,20 @@ it('restores the capability catalog page without losing the mission listing cont
   expect(api.getBoundaryOverview).toHaveBeenCalledWith(offering.offeringId, 2, 3, expect.any(AbortSignal));
   expect(screen.getByRole('link', { name: 'Back to mission systems' })).toHaveAttribute('href',
     `/workspaces/csp/systems?offeringId=${offering.offeringId}&offeringPage=2&missionPage=3`);
+});
+
+it('previews the selected customer handoff without entering the mission workspace or confusing current catalog with adopted releases', async () => {
+  // Arrange
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({ ...projection, missionSystems: {
+    ...projection.missionSystems, items: [{ ...projection.missionSystems.items[0]!, adoptedCapabilityCount: 1,
+      adoptedReleases: [{ capabilityId: 'capability-1', capabilityName: 'Recorded protection', releaseId: 'older-release',
+        revision: 2, currentReleaseRevision: 3, updateAvailable: true }] }],
+  } });
+  mount();
+  // Act
+  fireEvent.click(await screen.findByRole('button', { name: 'Preview Apply published capabilities' }));
+  // Assert
+  expect(screen.getByRole('dialog', { name: 'Preview Mission Owner handoff' })).toHaveTextContent('Recorded protection · Revision 2');
+  expect(screen.getByRole('dialog')).toHaveTextContent('Update available');
+  expect(screen.getByRole('dialog')).toHaveTextContent('does not open or impersonate');
 });

@@ -4,6 +4,8 @@ import { EvidenceSharingControls } from '../../features/provider-authorizations/
 import { ProviderEvidencePanel } from '../../features/provider-authorizations/ProviderEvidencePanel';
 import * as api from '../../features/provider-authorizations/evidenceSharingApi';
 import type { FindingEvidence } from '../../features/provider-authorizations/types';
+import { PackageImportError } from '../../features/package-imports/request';
+import '../helpers/dialog';
 
 vi.mock('../../features/provider-authorizations/evidenceSharingApi', () => ({
   listShareTargets: vi.fn(), listEvidenceShares: vi.fn(), approveEvidenceShare: vi.fn(),
@@ -35,6 +37,9 @@ it('requires a named eligible system, reviewed summary and explicit approval bef
   await screen.findByRole('option', { name: /Mission Alpha/ });
   // Act
   fireEvent.change(screen.getByLabelText('Named mission system'), { target: { value: 'assignment' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Review summary access' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Review summary access' }));
+  expect(screen.getByRole('dialog', { name: 'Approve customer-facing summary' })).toHaveTextContent('private.pdf');
   fireEvent.change(screen.getByLabelText('Customer-facing summary'), { target: { value: 'Approved summary' } });
   // Assert
   expect(api.approveEvidenceShare).not.toHaveBeenCalled();
@@ -91,12 +96,77 @@ it('revokes a persisted approval through its fenced API even when no eligible ta
   vi.mocked(api.revokeEvidenceShare).mockResolvedValue({ ...grant, revision: 2, revokedAt: '2026-09-26T13:00:00Z' });
   render(<EvidenceSharingControls evidence={evidence} />);
   // Act
+  fireEvent.click(await screen.findByRole('button', { name: 'Revoke summary access' }));
+  expect(screen.getByRole('dialog', { name: 'Revoke summary access' })).toHaveTextContent('Approved summary');
   fireEvent.change(await screen.findByLabelText('Revocation rationale'), { target: { value: 'Withdraw access' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Revoke summary access' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Revoke summary access' }));
   // Assert
   await waitFor(() => expect(api.revokeEvidenceShare).toHaveBeenCalledWith('offering', 'grant',
     { expectedRevision: 1, rationale: 'Withdraw access' }, expect.any(String)));
   expect(api.approveEvidenceShare).not.toHaveBeenCalled();
+});
+it('keeps summary inputs out of the record view and cancels without approval', async () => {
+  // Arrange
+  render(<EvidenceSharingControls evidence={evidence} />);
+  await screen.findByRole('option', { name: /Mission Alpha/ });
+  expect(screen.queryByLabelText('Customer-facing summary')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Named mission system'), { target: { value: 'assignment' } });
+  const trigger = screen.getByRole('button', { name: 'Review summary access' });
+  await waitFor(() => expect(trigger).toBeEnabled());
+  // Act
+  trigger.focus();
+  fireEvent.click(trigger);
+  fireEvent.change(screen.getByLabelText('Customer-facing summary'), { target: { value: 'Discarded summary' } });
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+  // Assert
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+  expect(api.approveEvidenceShare).not.toHaveBeenCalled();
+});
+it('blocks summary dismissal during approval and preserves rejected text and confirmation', async () => {
+  // Arrange
+  let reject!: (reason: Error) => void;
+  vi.mocked(api.approveEvidenceShare).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+  render(<EvidenceSharingControls evidence={evidence} />);
+  await screen.findByRole('option', { name: /Mission Alpha/ });
+  fireEvent.change(screen.getByLabelText('Named mission system'), { target: { value: 'assignment' } });
+  const trigger = screen.getByRole('button', { name: 'Review summary access' });
+  await waitFor(() => expect(trigger).toBeEnabled());
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('Customer-facing summary'), { target: { value: 'Retain approved draft' } });
+  fireEvent.click(within(dialog).getByLabelText(/I approve only this summary/));
+  // Act
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Approve summary access' }));
+  fireEvent(dialog, new Event('cancel', { bubbles: true, cancelable: true }));
+  // Assert
+  expect(dialog).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  expect(within(dialog).getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+  reject(new PackageImportError('Approval revision changed', 409));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Approval revision changed');
+  expect(within(dialog).getByLabelText('Customer-facing summary')).toHaveValue('Retain approved draft');
+  expect(within(dialog).getByLabelText(/I approve only this summary/)).toBeChecked();
+});
+it('retains revocation rationale after a rejected write and permits explicit cancellation', async () => {
+  // Arrange
+  vi.mocked(api.listEvidenceShares).mockResolvedValue(page([grant]));
+  vi.mocked(api.revokeEvidenceShare).mockRejectedValue(new PackageImportError('Revocation rejected', 422));
+  render(<EvidenceSharingControls evidence={evidence} />);
+  const trigger = await screen.findByRole('button', { name: 'Revoke summary access' });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole('dialog');
+  // Act
+  fireEvent.change(within(dialog).getByLabelText('Revocation rationale'), { target: { value: 'Retain withdrawal reason' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Revoke summary access' }));
+  // Assert
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Revocation rejected');
+  expect(within(dialog).getByLabelText('Revocation rationale')).toHaveValue('Retain withdrawal reason');
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled());
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
 });
 
 it('removes a revoked summary from the mission view after access is refreshed', async () => {

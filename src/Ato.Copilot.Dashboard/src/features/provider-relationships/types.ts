@@ -117,6 +117,8 @@ export interface ProviderRelationship {
   systemName: string | null;
   hostingScopeName: string | null;
   canAssociate: boolean;
+  canReviewRelationship?: boolean;
+  canReviewCoveredScope?: boolean;
 }
 
 export interface ApplicableProviderCapability {

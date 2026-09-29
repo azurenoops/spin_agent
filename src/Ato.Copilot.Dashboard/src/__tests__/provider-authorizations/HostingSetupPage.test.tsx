@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HostingSetupPage } from '../../features/provider-authorizations/HostingSetupPage';
 import * as api from '../../features/provider-authorizations/api';
@@ -9,6 +9,9 @@ import { boundary, offering } from './testData';
 import type { ExternalDecision, OfferingBoundaryOverview } from '../../features/provider-authorizations/types';
 import type { HostingScopeRevision } from '../../features/provider-authorizations/hostingTypes';
 import '../helpers/dialog';
+vi.mock('../../features/provider-authorizations/ProviderAllocationForm', () => ({
+  ProviderAllocationForm: () => <section aria-label="Named assignment form">Named customer and scope selection</section>,
+}));
 
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getOffering: vi.fn(), getBoundary: vi.fn(), getBoundaryOverview: vi.fn(), listInheritedProviderReferences: vi.fn(),
@@ -58,6 +61,71 @@ beforeEach(() => {
 });
 
 describe('task-led CSP hosting setup', () => {
+  it('shows business offering identity and actual boundary version while retaining the exact boundary name in provenance', async () => {
+    // Arrange
+    const retainedName = 'SYNTHETIC Azure IL5 azure-il5-shared-services/release-1.2:b892d1e27191';
+    vi.mocked(api.getBoundary).mockResolvedValue({ ...boundary, name: retainedName, version: 7 });
+    mount(true);
+    // Act
+    const card = screen.getByRole('region', { name: 'Service boundary' });
+    // Assert
+    expect(await within(card).findByText(`${offering.name} · v7`)).toBeVisible();
+    expect(card).not.toHaveTextContent(retainedName);
+    expect(screen.getByText(retainedName, { exact: true })).not.toBeVisible();
+    // Act
+    fireEvent.click(screen.getByText('Record details & provenance'));
+    // Assert
+    expect(screen.getByText('Exact recorded boundary name')).toBeVisible();
+    expect(screen.getByText(retainedName, { exact: true })).toBeVisible();
+    expect(screen.getByText(boundary.boundaryRevisionId, { exact: true })).toBeVisible();
+  });
+
+  it('matches the scope read view with one compact scope table and scope-specific support', async () => {
+    // Arrange
+    vi.mocked(api.getBoundary).mockResolvedValue({ ...boundary, services: ['Platform logging'],
+      exclusions: [{ scope: null, description: 'Mission application code', rationale: 'Customer operated' }] });
+    vi.mocked(api.getBoundaryOverview).mockResolvedValue({ ...overview, missionSystems: page([
+      { ...overview.missionSystems.items[0]!, assignedScopes: current.permittedScopes },
+    ]) });
+    mount(true);
+    // Act
+    const panel = await screen.findByRole('region', { name: 'Technical hosting scope' });
+    await within(panel).findByRole('link', { name: 'View customer' });
+    // Assert
+    expect(within(panel).getAllByRole('table')).toHaveLength(1);
+    expect(within(panel).getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Scope', 'Use', 'Actions']);
+    expect(within(panel).getByText('Mission Alpha allocation')).toBeInTheDocument();
+    expect(within(panel).queryByText('Technical scope details')).not.toBeInTheDocument();
+    expect(within(panel).getByText('Record details & provenance')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'SaaS and other clouds' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Contributes to the system package' })).toHaveTextContent('Inventory and dependencies');
+    expect(screen.queryByRole('region', { name: 'Mission Owner handoff' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Edit proposed scope' })).not.toBeInTheDocument();
+  });
+
+  it.each(['Microsoft365DoD', 'ManualService'] as const)('retains exact %s service identity behind the compact read view', async environment => {
+    // Arrange
+    const serviceScope: HostingScopeRevision = { ...current, permittedScopes: [{
+      kind: 'Service', serviceName: 'Customer collaboration', serviceId: 'collaboration-instance',
+      environment, tenantReference: 'customer-service-tenant',
+    }] };
+    vi.mocked(hosting.getHostingScope).mockResolvedValue(serviceScope);
+    vi.mocked(api.getBoundaryOverview).mockResolvedValue({ ...overview, missionSystems: page([]) });
+    render(<MemoryRouter><HostingSetupPage offering={{ ...offering, environments: [environment],
+      currentHostingScopeRevisionId: current.snapshot.revisionId }} onChanged={vi.fn()} /></MemoryRouter>);
+    // Act
+    const table = await screen.findByRole('table', { name: 'Technical service scope' });
+    // Assert
+    expect(within(table).getByText('Customer collaboration')).toBeVisible();
+    expect(within(table).queryByText(/Subscription|Azure/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Technical hosting scope' })).not.toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Review service scope' }));
+    // Assert
+    expect(screen.getByRole('dialog', { name: 'Configure service relationship' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Hosting scope name')).toHaveValue(serviceScope.name);
+  });
+
   it('uses business identity and the exact scope revision while retaining recovery markers only in provenance', async () => {
     // Arrange
     const recordedName = 'SYNTHETIC Azure IL5 · azure-il5/release-1.2:b892d1e27191';
@@ -67,17 +135,20 @@ describe('task-led CSP hosting setup', () => {
     // Act
     const context = await screen.findByRole('region', { name: 'Technical hosting scope' });
     // Assert
-    expect(await within(context).findByRole('heading', { name: `${offering.name} · Scope revision 2` })).toBeInTheDocument();
+    fireEvent.click(within(context).getByText('Record details & provenance'));
+    expect(within(context).getAllByRole('heading', { name: `${offering.name} · Scope revision 2` })[0]).toBeVisible();
     expect(within(context).getByText('Shared platform logging and network protection')).toBeVisible();
-    expect(within(context).getByText(recordedName)).not.toBeVisible();
-    expect(within(context).getByText(current.snapshot.snapshotHash)).not.toBeVisible();
-    fireEvent.click(within(context).getByText('Hosting provenance'));
-    expect(within(context).getByText(recordedName)).toBeVisible();
-    expect(within(context).getByText(current.snapshot.snapshotHash)).toBeVisible();
+    const provenance = within(context).getByText('Hosting provenance').closest('details')!;
+    expect(within(provenance).getByText(recordedName)).not.toBeVisible();
+    expect(within(provenance).getByText(current.snapshot.snapshotHash)).not.toBeVisible();
+    fireEvent.click(within(provenance).getByText('Hosting provenance'));
+    expect(within(provenance).getByText(recordedName)).toBeVisible();
+    expect(within(provenance).getByText(current.snapshot.snapshotHash)).toBeVisible();
   });
 
   it.each([
     ['hosting', 'Configure Azure hosting'], ['missions', 'Mission system associations'],
+    ['responsibilities', 'Review responsibilities'],
   ])('opens the requested %s overview task in a dialog without a mutation', async (task, title) => {
     // Arrange / Act
     render(<MemoryRouter initialEntries={[`/?task=${task}`]}><HostingSetupPage offering={offering} onChanged={vi.fn()} /></MemoryRouter>);
@@ -98,9 +169,31 @@ describe('task-led CSP hosting setup', () => {
       offering={{ ...offering, currentHostingScopeRevisionId: current.snapshot.revisionId }} onChanged={vi.fn()} /></MemoryRouter>);
     // Assert
     expect(await screen.findByRole('dialog', { name: 'Provider hosting allocation' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText('Hosting scope name')).toBeEnabled());
-    expect(screen.getByLabelText('Hosting scope name')).toHaveValue(current.name);
-    expect(screen.getByRole('region', { name: 'Configure hosting form' })).toHaveAttribute('data-task', 'allocations');
+    expect(await screen.findByRole('region', { name: 'Named assignment form' })).toBeInTheDocument();
+  });
+
+  it('reacts to query task navigation, clears the task on close and reopens the same action', async () => {
+    // Arrange
+    function LocationProbe() {
+      const location = useLocation();
+      return <><output aria-label="Current task query">{location.search}</output>
+        <Link to="/?task=references">Open upstream references</Link></>;
+    }
+    render(<MemoryRouter><LocationProbe /><HostingSetupPage offering={offering} onChanged={vi.fn()} /></MemoryRouter>);
+    await screen.findByRole('region', { name: 'Service boundary' });
+    // Act
+    fireEvent.click(screen.getByRole('link', { name: 'Open upstream references' }));
+    // Assert
+    expect(await screen.findByRole('dialog', { name: 'Add or review upstream provider references' })).toBeVisible();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Close task' }));
+    // Assert
+    expect(screen.getByLabelText('Current task query')).toBeEmptyDOMElement();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('link', { name: 'Open upstream references' }));
+    // Assert
+    expect(await screen.findByRole('dialog', { name: 'Add or review upstream provider references' })).toBeVisible();
   });
   it.each([
     ['Suggested next step', 'Configure hosting', 'Configure Azure hosting'],

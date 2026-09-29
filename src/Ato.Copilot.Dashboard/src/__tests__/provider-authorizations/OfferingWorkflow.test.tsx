@@ -86,6 +86,7 @@ describe('source-backed offering workflow', () => {
     await screen.findByRole('heading', { name: section === '/boundary' ? 'Service boundary' : section === '/packages' ? 'Authorizations & sources' : offering.name, level: 1 });
     expect(screen.getByRole('navigation', { name: 'Offering sections' })).toBeInTheDocument();
     // Act
+    if (!section) fireEvent.click(screen.getByRole('link', { name: 'Authorizations & sources' }));
     fireEvent.click(screen.getByRole('link', { name: 'Add source material' }));
     // Assert
     expect(await screen.findByRole('heading', { name: 'Start with your authorization package' })).toBeInTheDocument();
@@ -158,9 +159,9 @@ describe('source-backed offering workflow', () => {
     fireEvent.click(await screen.findByText('Version history', { selector: 'summary' }));
     await screen.findByText(/Offering revision 3/);
     // Act
-    fireEvent.click(screen.getByRole('link', { name: 'Change impact' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Services & scope' }));
     // Assert
-    expect(await screen.findByRole('heading', { name: 'Change impact' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Offering hosting' })).toHaveTextContent('offering-a · 4');
     expect(api.getOffering).toHaveBeenCalledTimes(2);
   });
   it('mounts hosting management with the selected offering alongside inherited references', async () => {

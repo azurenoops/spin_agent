@@ -18,7 +18,7 @@ export function HostingContextSummary({ offeringName, scope }: { offeringName: s
   </div>;
 }
 
-export function HostingScopeIdentity({ scope }: { scope: ProviderScope }) {
+export function HostingScopeIdentity({ scope, compact = false }: { scope: ProviderScope; compact?: boolean }) {
   const segments = scope.kind === 'Service' ? [] : scope.resourceId.split('/').filter(Boolean);
   const lastType = segments.at(-2)?.toLowerCase();
   const label = scope.kind === 'Service' ? scope.serviceName
@@ -27,7 +27,9 @@ export function HostingScopeIdentity({ scope }: { scope: ProviderScope }) {
         : `Resource · ${segments.at(-1) || 'Name not recorded'}`;
   return <div>
     <span>{label}</span>
-    <small className="block">{offeringEnvironments[scope.kind === 'Service' ? scope.environment : scope.cloud]}</small>
+    {compact ? lastType === 'subscriptions' && <small>Subscription identity available in details</small>
+      : <small className="block">{offeringEnvironments[scope.kind === 'Service' ? scope.environment : scope.cloud]}</small>}
+    {!compact && <>
     <details className="provider-record-details"><summary>Technical scope details</summary>
       <div className="break-all text-xs">{scopeLabel(scope)}</div>
       {scope.kind !== 'Service' && <dl className="space-y-1 break-all text-xs">
@@ -35,5 +37,6 @@ export function HostingScopeIdentity({ scope }: { scope: ProviderScope }) {
         <dt>Subscription</dt><dd>{scope.subscriptionId}</dd>
       </dl>}
     </details>
+    </>}
   </div>;
 }

@@ -40,6 +40,9 @@ export const relationship = {
 
 export const adoption = {
   subscription: { id: 'subscription-a', alreadySubscribed: false, unsubscribed: false, created: true,
-    responsibilities: { systemId: 'system-a', baselineId: null, canConfirm: false, items: [], pendingImpacts: [] } },
+    responsibilities: {
+      systemId: 'system-a', baselineId: null, baselineName: null,
+      canConfirm: false, items: [], pendingImpacts: [],
+    } },
   adoptionSnapshotId: 'adoption-a', releaseId: 'release-a', contextSnapshotHash: 'context-hash',
 };

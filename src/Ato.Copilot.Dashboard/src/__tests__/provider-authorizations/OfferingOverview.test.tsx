@@ -33,6 +33,10 @@ async function manual() {
   await within(dialog).findByRole('option', { name: /Test service boundary/ });
   return dialog;
 }
+async function records() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Offering records' }));
+  return screen.findByRole('dialog', { name: 'Offering records and review actions' });
+}
 function fill(dialog: HTMLElement) {
   fireEvent.change(within(dialog).getByLabelText('Boundary revision'), { target: { value: boundary.boundaryRevisionId } });
   fireEvent.change(within(dialog).getByLabelText('Reference', { exact: true }), { target: { value: 'Existing source decision' } });
@@ -53,6 +57,7 @@ describe('Offering overview', () => {
     // Arrange
     mount();
     // Act
+    await records();
     const authorization = await screen.findByRole('region', { name: 'Authorization' });
     // Assert
     expect(screen.getByRole('heading', { name: 'Offering overview' })).toBeInTheDocument();
@@ -77,6 +82,7 @@ describe('Offering overview', () => {
     vi.mocked(api.getOfferingOverview).mockResolvedValue(data);
     mount();
     // Act
+    await records();
     const next = await screen.findByRole('region', { name: 'Next action' });
     // Assert
     expect(within(next).getAllByRole('link')).toHaveLength(1);
@@ -107,6 +113,7 @@ describe('Offering overview', () => {
     vi.mocked(api.getOfferingOverview).mockResolvedValue(data);
     mount();
     // Act
+    await records();
     const next = await screen.findByRole('region', { name: 'Next action' });
     // Assert
     expect([...within(next).queryAllByRole('link'), ...within(next).queryAllByRole('button')]).toHaveLength(1);
@@ -120,6 +127,7 @@ describe('Offering overview', () => {
     vi.mocked(api.getOfferingOverview).mockResolvedValue(data);
     mount();
     // Act
+    await records();
     const authorization = await screen.findByRole('region', { name: 'Authorization' });
     // Assert
     expect(within(authorization).getByText('Example authorizing official')).toBeInTheDocument();
@@ -147,6 +155,7 @@ describe('Offering overview', () => {
     // Act
     vi.mocked(api.getOfferingOverview).mockResolvedValue(offeringOverview());
     fireEvent.click(within(alert).getByRole('button', { name: 'Retry overview' }));
+    await records();
     // Assert
     expect(await screen.findByRole('region', { name: 'Next action' })).toBeInTheDocument();
   });
@@ -162,6 +171,7 @@ describe('Offering overview', () => {
     vi.mocked(api.getOfferingOverview).mockResolvedValue(data);
     mount();
     // Act
+    await records();
     const authorization = await screen.findByRole('region', { name: 'Authorization' });
     // Assert
     expect(within(authorization).getByText(metadataReviewState === 'Unconfirmed'
@@ -206,6 +216,7 @@ describe('Offering overview', () => {
     }));
     mount();
     // Act
+    await records();
     fireEvent.click(within(await screen.findByRole('region', { name: 'Package analysis' })).getByRole('button', { name: 'Next' }));
     // Assert
     await waitFor(() => expect(api.getOfferingOverview).toHaveBeenLastCalledWith(offering.offeringId, 1, 2, expect.any(AbortSignal)));
@@ -240,6 +251,7 @@ describe('Offering overview', () => {
     vi.mocked(api.listDecisions).mockResolvedValue(page([recordedAuthorization]));
     mount();
     // Act
+    await records();
     fireEvent.click(within(await screen.findByRole('region', { name: 'Authorization' }))
       .getByRole('button', { name: 'Review authorization records' }));
     const dialog = await screen.findByRole('dialog', { name: 'Review authorization records' });

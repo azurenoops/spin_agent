@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import '../helpers/dialog';
 import { ProviderMonitoringPanel } from '../../features/provider-authorizations/ProviderMonitoringPage';
 import * as api from '../../features/provider-authorizations/providerMonitoringApi';
 import type { ProviderMonitoringEvaluation, ProviderMonitoringRule, ProviderMonitoringWorkspace } from '../../features/provider-authorizations/providerMonitoringApi';
@@ -31,6 +32,51 @@ beforeEach(() => {
 const open = () => render(<MemoryRouter><ProviderMonitoringPanel offeringId="offering-a" /></MemoryRouter>);
 
 describe('provider-owned source monitoring', () => {
+  it('opens focused rule dialogs, cancels without writes and returns focus to the invoker', async () => {
+    // Arrange
+    open();
+    const trigger = await screen.findByRole('button', { name: 'Create monitoring rule' });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    expect(screen.queryByLabelText('Rule name')).not.toBeInTheDocument();
+    // Act
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Create monitoring rule' });
+    fireEvent.change(within(dialog).getByLabelText('Rule name'), { target: { value: 'Discard this draft' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    // Assert
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(api.saveProviderMonitoringRule).not.toHaveBeenCalled();
+    fireEvent.click(trigger);
+    expect(screen.getByLabelText('Rule name')).toHaveValue('');
+  });
+
+  it('keeps rejected input and errors in the dialog and prevents dismissal during a write', async () => {
+    // Arrange
+    let reject!: (reason: Error) => void;
+    vi.mocked(api.saveProviderMonitoringRule).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+    open();
+    const trigger = await screen.findByRole('button', { name: 'Create monitoring rule' });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Create monitoring rule' });
+    fireEvent.change(within(dialog).getByLabelText('Rule name'), { target: { value: 'Retain rule draft' } });
+    fireEvent.change(within(dialog).getByLabelText('Owner'), { target: { value: 'Reviewer' } });
+    // Act
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save rule' }));
+    fireEvent(dialog, new Event('cancel', { bubbles: true, cancelable: true }));
+    // Assert
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+    expect(within(dialog).getByLabelText('Rule name')).toBeDisabled();
+    reject(new Error('Rule revision changed'));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Rule revision changed');
+    expect(within(dialog).getByLabelText('Rule name')).toHaveValue('Retain rule draft');
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  });
+
   it('sends an owning offering, reviewed source fence and typed condition', async () => {
     // Arrange
     open();
@@ -56,6 +102,7 @@ describe('provider-owned source monitoring', () => {
     await screen.findByText('No provider review was created by this result.');
     expect(api.evaluateProviderMonitoringRule).not.toHaveBeenCalled();
     // Act
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Evaluate now' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Evaluate now' }));
     // Assert
     expect(await screen.findByRole('link', { name: 'Review provider impact' })).toHaveAttribute('href',

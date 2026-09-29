@@ -6,11 +6,13 @@ import { AuthorizationsPage } from '../../features/provider-authorizations/Autho
 import WorkspacePageHeader from '../../components/layout/WorkspacePageHeader';
 import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import * as api from '../../features/provider-authorizations/api';
+import * as packages from '../../features/package-imports/api';
 import { offering } from './testData';
 import { offeringOverview, recordedAuthorization } from './overviewFixtures';
 import { PackageImportError } from '../../features/package-imports/request';
 import { page } from '../package-imports/fixtures';
 import '../package-imports/crypto';
+import '../helpers/dialog';
 
 vi.mock('../../components/layout/PageLayout', () => ({ default: ({ children }: { children: ReactNode }) => <main>{children}</main> }));
 vi.mock('../../components/layout/WorkspacePageHeader', async original => {
@@ -23,7 +25,10 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
 }));
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getOffering: vi.fn(), getOfferingOverview: vi.fn(), listPackageVersions: vi.fn(), listOfferings: vi.fn(), listFindings: vi.fn(),
-  getFinding: vi.fn(), listFindingEvidence: vi.fn(), listPoamItems: vi.fn(), reviewFinding: vi.fn(), submitFindingEvidence: vi.fn(), createPoamItem: vi.fn(),
+  getFinding: vi.fn(), createFinding: vi.fn(), listFindingEvidence: vi.fn(), listPoamItems: vi.fn(), reviewFinding: vi.fn(), submitFindingEvidence: vi.fn(), createPoamItem: vi.fn(),
+}));
+vi.mock('../../features/package-imports/api', async original => ({
+  ...await original<typeof packages>(), getPackageEntries: vi.fn(),
 }));
 const finding = { findingId: 'finding-1', offeringId: offering.offeringId, revision: 3,
   title: 'Synthetic logging delay', observation: 'Retained test observation', severityAsStated: 'Moderate',
@@ -43,6 +48,7 @@ beforeEach(() => {
   vi.mocked(api.listPoamItems).mockResolvedValue(page([]));
   vi.mocked(api.getOfferingOverview).mockResolvedValue(offeringOverview());
   vi.mocked(api.listPackageVersions).mockResolvedValue(page([]));
+  vi.mocked(packages.getPackageEntries).mockResolvedValue(page([]));
 });
 it('never treats uploaded evidence as closure and requires explicit selected evidence', async () => {
   // Arrange
@@ -132,6 +138,7 @@ it('creates a provider remediation plan pinned to the current offering and findi
   mount(api.authorizationHref(offering.offeringId, 'findings/finding-1'));
   // Act
   fireEvent.click(await screen.findByRole('button', { name: 'Add remediation plan' }));
+  expect(screen.getByRole('dialog', { name: 'Add remediation plan' })).toHaveTextContent(finding.title);
   fireEvent.change(screen.getByLabelText('Plan title'), { target: { value: 'Restore logging' } });
   fireEvent.change(screen.getByLabelText('Corrective action'), { target: { value: 'Automate collection' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save remediation plan' }));
@@ -141,6 +148,78 @@ it('creates a provider remediation plan pinned to the current offering and findi
     expectedOfferingRevision: offering.revision, title: 'Restore logging', findingIds: [finding.findingId],
     correctiveAction: 'Automate collection', ownerAsStated: '', milestones: [], citations: [],
   }, expect.any(String));
+});
+it('opens finding creation only in a cancellable dialog and retains a rejected draft', async () => {
+  // Arrange
+  vi.mocked(api.createFinding).mockRejectedValue(new PackageImportError('Finding rejected', 422));
+  mount(api.authorizationHref(offering.offeringId, 'findings'));
+  const trigger = await screen.findByRole('button', { name: 'Add finding' });
+  expect(screen.queryByLabelText('Finding title')).not.toBeInTheDocument();
+  // Act
+  trigger.focus();
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole('dialog', { name: 'Record a provider finding' });
+  fireEvent.change(within(dialog).getByLabelText('Finding title'), { target: { value: 'Retained draft' } });
+  fireEvent.change(within(dialog).getByLabelText('Observation'), { target: { value: 'Observed condition' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Record finding' }));
+  // Assert
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Finding rejected');
+  expect(within(dialog).getByLabelText('Finding title')).toHaveValue('Retained draft');
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled());
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+});
+it('keeps remediation plan inputs inside the dialog through a failed write', async () => {
+  // Arrange
+  let reject!: (reason: Error) => void;
+  vi.mocked(api.createPoamItem).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+  mount(api.authorizationHref(offering.offeringId, 'findings/finding-1'));
+  const trigger = await screen.findByRole('button', { name: 'Add remediation plan' });
+  expect(screen.queryByLabelText('Plan title')).not.toBeInTheDocument();
+  trigger.focus();
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole('dialog');
+  fireEvent.change(within(dialog).getByLabelText('Plan title'), { target: { value: 'Retain plan' } });
+  fireEvent.change(within(dialog).getByLabelText('Corrective action'), { target: { value: 'Restore collection' } });
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Save remediation plan' })).toBeEnabled());
+  // Act
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save remediation plan' }));
+  fireEvent(dialog, new Event('cancel', { bubbles: true, cancelable: true }));
+  // Assert
+  expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  expect(within(dialog).getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+  reject(new PackageImportError('Offering revision changed', 409));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Offering revision changed');
+  expect(within(dialog).getByLabelText('Plan title')).toHaveValue('Retain plan');
+  expect(within(dialog).getByLabelText('Corrective action')).toHaveValue('Restore collection');
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled());
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+});
+it('keeps evidence upload in a dialog and blocks dismissal until the write resolves', async () => {
+  // Arrange
+  let reject!: (reason: Error) => void;
+  vi.mocked(api.submitFindingEvidence).mockImplementation(() => new Promise((_, fail) => { reject = fail; }));
+  mount(api.authorizationHref(offering.offeringId, 'findings/finding-1'));
+  const trigger = await screen.findByRole('button', { name: 'Submit remediation evidence' });
+  await waitFor(() => expect(trigger).toBeEnabled());
+  expect(screen.queryByLabelText('Evidence description')).not.toBeInTheDocument();
+  // Act
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole('dialog', { name: 'Submit remediation evidence' });
+  fireEvent.change(within(dialog).getByLabelText('Evidence file (1 byte–10 MiB)'), { target: { files: [new File(['evidence'], 'evidence.txt')] } });
+  fireEvent.change(within(dialog).getByLabelText('Evidence description'), { target: { value: 'Retained evidence description' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Submit evidence for review' }));
+  fireEvent(dialog, new Event('cancel', { bubbles: true, cancelable: true }));
+  // Assert
+  expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  expect(within(dialog).getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+  reject(new PackageImportError('Evidence revision changed', 409));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Evidence revision changed');
+  expect(within(dialog).getByLabelText('Evidence description')).toHaveValue('Retained evidence description');
+  expect(within(dialog).getByLabelText('Evidence file (1 byte–10 MiB)')).toHaveProperty('files', expect.arrayContaining([expect.objectContaining({ name: 'evidence.txt' })]));
 });
 it('keeps retained source coverage distinct from a reviewed external authorization', async () => {
   // Arrange
@@ -152,6 +231,6 @@ it('keeps retained source coverage distinct from a reviewed external authorizati
   await screen.findByText(recordedAuthorization.reference);
   // Assert
   expect(screen.getByText('Uploaded authorization documents.zip')).toBeInTheDocument();
-  expect(screen.getByText(/26 of 27 files processed/)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Review recorded authorization' })).toHaveAttribute('href', api.authorizationHref(offering.offeringId, 'decisions/decision-1'));
+  expect(screen.getByText(/26 of 27 entries processed/)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'View record' })).toHaveAttribute('href', api.authorizationHref(offering.offeringId, 'decisions/decision-1'));
 });

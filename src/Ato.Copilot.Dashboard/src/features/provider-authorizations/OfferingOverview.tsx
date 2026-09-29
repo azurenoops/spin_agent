@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from '../workspaces/workspaceNavigation';
-import { buttonClass, errorClass, Pager, secondaryButtonClass, surfaceClass, useRemote } from '../workspace-operations/workspaceUi';
+import { buttonClass, errorClass, Pager, secondaryButtonClass, useRemote } from '../workspace-operations/workspaceUi';
 import SetupDialog from '../workspace-operations/SetupDialog';
 import { stateLabel } from '../package-imports/PackageReceipts';
 import { DecisionPanel } from './DecisionPanel';
@@ -103,7 +103,7 @@ export function OfferingOverview({ offering: loadedOffering }: { offering: Offer
   const [offering, setOffering] = useState(loadedOffering);
   const [authorizationPage, setAuthorizationPage] = useState(1);
   const [packagePage, setPackagePage] = useState(1);
-  const [dialog, setDialog] = useState<'manual' | 'records' | 'identity' | null>(null);
+  const [dialog, setDialog] = useState<'manual' | 'records' | 'identity' | 'details' | null>(null);
   const [pending, setPending] = useState(false);
   const remote = useRemote(signal => api.getOfferingOverview(offering.offeringId, authorizationPage, packagePage, signal),
     [offering.offeringId, loadedOffering.revision, authorizationPage, packagePage]);
@@ -141,22 +141,22 @@ export function OfferingOverview({ offering: loadedOffering }: { offering: Offer
             ? 'Canonical capability revisions are independent of source document editions.'
             : data.capabilities.published > 0 && 'An offering-wide release version is not reported.'}</p></div>
         <ProviderBadge tone={data.capabilities.awaitingReview || data.capabilities.awaitingApproval ? 'attention' : 'neutral'}>
-          {data.capabilities.awaitingReview || data.capabilities.awaitingApproval ? 'Provider review required' : 'Review release candidates'}
+          {data.capabilities.awaitingReview || data.capabilities.awaitingApproval ? 'Provider review required' : data.capabilities.published ? 'Published baseline' : 'Not published'}
         </ProviderBadge>
       </div>
       <dl className="provider-metrics" aria-label="Offering metrics">
-        <div><dt>Capabilities available</dt><dd>{data.capabilities.published}</dd><p className="text-xs text-slate-500">Published capabilities, not authorization decisions</p></div>
+        <div><dt>Capabilities available</dt><dd>{data.capabilities.published}</dd><p className="text-xs text-slate-500">{releaseLabel ? `Published ${releaseLabel.toLowerCase()}` : 'Published service implementations'}</p></div>
         <div><dt>Mission systems</dt><dd>{data.hosting.associatedSystemCount}</dd><p className="text-xs text-slate-500">Associated with this hosting scope</p></div>
         <div><dt>Source documents</dt><dd>{data.packages.sourceDocumentCount ?? (data.packages.items.length === data.packages.total
           ? data.packages.items.reduce((sum, item) => sum + item.package.coverage.total, 0) : 'Not reported')}</dd>
-          <p className="text-xs text-slate-500">Retained source documents, including superseded review sources and excluded files</p></div>
+          <p className="text-xs text-slate-500" title="Retained source documents, including superseded review sources and excluded files">Includes retained source history</p></div>
         <div aria-label="Open findings"><dt>Open findings</dt><dd>{data.openFindingCount ?? (findingCount.loading ? 'Checking…' : findingCount.error ? 'Unavailable' : findingCount.data)}</dd>
           <p className="text-xs text-slate-500">Provider findings not closed</p>
           {data.openFindingCount == null && findingCount.error && <button className="text-xs text-indigo-700 underline" onClick={findingCount.retry}>Retry finding count</button>}</div>
       </dl>
       <div className="provider-grid"><div className="space-y-5">
       <ProviderPanel title="Complete the next release">
-        <ProviderChecklistRow step={1} title="Sources reviewed" description={`${data.packages.total} source packages · ${data.packages.awaitingReview} records awaiting review.`}>
+        <ProviderChecklistRow step={1} title="Sources reviewed" description={`${data.packages.total} source package${data.packages.total === 1 ? '' : 's'} · ${data.packages.awaitingReview} records awaiting review.`}>
           <ProviderBadge tone={data.packages.needsAttention || data.packages.awaitingReview ? 'attention' : 'neutral'}>{sourceReviewLabel(data)}</ProviderBadge>
         </ProviderChecklistRow>
         <ProviderChecklistRow step={2} title="Scope confirmed" description={data.hosting.configured ? `${data.hosting.scopeCount} hosting scopes recorded. Review boundaries and exclusions before publication.` : 'Define the exact service boundary and customer eligibility.'}>
@@ -165,8 +165,8 @@ export function OfferingOverview({ offering: loadedOffering }: { offering: Offer
         <ProviderChecklistRow step={3} title="Capability changes reviewed" description={`${data.capabilities.awaitingReview} awaiting review · ${data.capabilities.awaitingApproval} awaiting approval.`}>
           <ProviderBadge tone={data.capabilities.awaitingReview || data.capabilities.awaitingApproval ? 'attention' : 'neutral'}>{data.capabilities.awaitingReview || data.capabilities.awaitingApproval ? 'Review required' : 'No pending proposals'}</ProviderBadge>
         </ProviderChecklistRow>
-        <ProviderChecklistRow step={4} title="Approve and publish" description="Review exact capability revisions, source citations and affected mission systems. Publication checks remain required.">
-          <Link className="provider-secondary" to={api.authorizationHref(offering.offeringId, 'inherited-coverage?task=capabilities')}>Review release candidates</Link>
+        <ProviderChecklistRow step={4} title="Approve and publish" description="Review the exact release and affected mission systems.">
+          <Link className="provider-secondary" aria-label="Review release candidates" to={api.authorizationHref(offering.offeringId, 'inherited-coverage?task=capabilities')}>Review</Link>
         </ProviderChecklistRow>
       </ProviderPanel>
       <ProviderPanel title="Recorded authorization">
@@ -179,7 +179,9 @@ export function OfferingOverview({ offering: loadedOffering }: { offering: Offer
         </div>) : <p>No external decision recorded here. Review the retained sources; this does not establish whether an authorization exists.</p>}
         {!data.authorizations.total && <button type="button" className="provider-secondary mt-3" onClick={() => setDialog('manual')}>Record authorization manually</button>}
       </ProviderPanel>
-      <details className="provider-record-details"><summary>Detailed offering records and review actions</summary><div className="space-y-5">
+      <button type="button" className="provider-text" onClick={() => setDialog('details')}>Offering records</button>
+      {dialog === 'details' && <SetupDialog title="Offering records and review actions" busy={pending} onClose={() => setDialog(null)}
+        description="Inspect retained source, publication and service records without changing their review state."><div className="provider-workspace space-y-5">
       <NextAction data={data} offering={offering} reviewRecords={reviewRecords} />
       <div className="space-y-5">
         <Card title="Authorization" description="Record who authorized this offering, what the decision covers, and its dates and conditions.">
@@ -229,27 +231,27 @@ export function OfferingOverview({ offering: loadedOffering }: { offering: Offer
             <Link className={linkClass} to={`${api.authorizationHref(offering.offeringId, 'inherited-coverage')}?task=missions`}>View associations</Link>
           </div>
         </Card>
+        <Card title="Service identity" description="Recorded identity and revision of this offering.">
+          <dl><ProviderFact label="Service model">{offering.serviceModel ? serviceModels[offering.serviceModel] : 'Not recorded'}</ProviderFact>
+            <ProviderFact label="Management">{offering.managementArrangement ? managementArrangements[offering.managementArrangement] : 'Not recorded'}</ProviderFact>
+            <ProviderFact label="Offering ID">{offering.offeringId}</ProviderFact>
+            <ProviderFact label="Revision">{data.offeringRevision}</ProviderFact>
+            <ProviderFact label="Lifecycle">{offering.lifecycle}</ProviderFact>
+          </dl>
+          <button type="button" className={secondaryButtonClass} disabled={remote.loading || pending} onClick={() => { remote.retry(); findingCount.retry(); }}>Refresh overview</button>
+        </Card>
       </div>
-      </div></details>
+      </div></SetupDialog>}
       </div><ProviderSupport childrenFirst={false}>
         <ProviderPanel title="Your service team">
           <p><strong>{offering.serviceOwner || 'Service owner not recorded'}</strong> · Service owner</p>
           <p className="mt-2"><strong>{offering.securityContact || 'Security contact not recorded'}</strong> · Security contact</p>
-          <button className="provider-secondary mt-4" disabled={pending} onClick={() => setDialog('identity')}>Edit service identity</button>
+          <button className="provider-text mt-3" disabled={pending} onClick={() => setDialog('identity')}>Edit service identity</button>
+          <Link className="provider-text mt-2 block" to="/provider-administration">Manage provider access →</Link>
         </ProviderPanel>
-        <ProviderPanel title="Service identity"><dl>
-          <ProviderFact label="Service model">{offering.serviceModel ? serviceModels[offering.serviceModel] : 'Not recorded'}</ProviderFact>
-          <ProviderFact label="Management">{offering.managementArrangement ? managementArrangements[offering.managementArrangement] : 'Not recorded'}</ProviderFact>
-        </dl></ProviderPanel>
-        <ProviderPanel title="Source information"><p>{sourceReviewLabel(data)}. Source metadata, service publication and customer acceptance remain separate.</p>
-          <Link className="provider-secondary mt-3" to={api.authorizationHref(offering.offeringId, 'packages')}>Review source material</Link></ProviderPanel>
       </ProviderSupport></div>
-      <details className={`${surfaceClass} p-4`}><summary className={`cursor-pointer ${linkClass}`}>Offering details</summary>
-        <p className="mt-2 break-all text-sm">Offering ID: {offering.offeringId}<br />Revision: {data.offeringRevision}<br />Lifecycle: {offering.lifecycle}</p>
-        <button type="button" className={secondaryButtonClass} disabled={remote.loading || pending} onClick={() => { remote.retry(); findingCount.retry(); }}>Refresh overview</button>
-      </details>
     </>}
-    {dialog && <SetupDialog busy={pending} onClose={() => setDialog(null)}
+    {dialog && dialog !== 'details' && <SetupDialog busy={pending} onClose={() => setDialog(null)}
       title={dialog === 'identity' ? 'Edit service identity' : dialog === 'manual' ? 'Record an existing authorization' : 'Review authorization records'}
       description="Document an existing external decision. This does not issue a new ATO. Save draft details, then explicitly review the source metadata before recording.">
       {dialog === 'identity' ? <OfferingIdentityEditor offering={offering} onPendingChange={setPending}

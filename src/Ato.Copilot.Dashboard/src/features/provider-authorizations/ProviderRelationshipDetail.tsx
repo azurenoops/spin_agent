@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import { Link } from '../workspaces/workspaceNavigation';
 import { Pager, Status, useQueryState, useRemote } from '../workspace-operations/workspaceUi';
-import { ProviderPanel, ProviderSupport } from './ProviderPresentation';
+import { ProviderBadge, ProviderFact, ProviderPanel } from './ProviderPresentation';
 import { HostingContextSummary, HostingScopeIdentity } from './HostingContextSummary';
-import { authorizationHref, getBoundaryOverview } from './api';
+import { authorizationHref, changeImpactHref, getBoundaryOverview } from './api';
 import { getHostingAssignment, getHostingScope } from './hostingApi';
 import type { Offering, OfferingBoundaryOverview } from './types';
 import type { HostingAssignment } from './hostingTypes';
+import WorkspacePageHeader from '../../components/layout/WorkspacePageHeader';
+import SetupDialog from '../workspace-operations/SetupDialog';
+import { allocationScopeName, ProviderAllocationForm } from './ProviderAllocationForm';
+import { MissionReleaseSummary, ProviderMissionHandoff, type HandoffStep } from './ProviderMissionHandoff';
 
 async function relationshipProjection(offeringId: string, assignment: HostingAssignment, capabilityPage: number,
   missionPage: number, signal: AbortSignal) {
@@ -42,6 +47,9 @@ async function relationshipProjection(offeringId: string, assignment: HostingAss
 }
 
 export function ProviderRelationshipDetail({ offering, assignmentId }: { offering: Offering; assignmentId: string }) {
+  const [handoff, setHandoff] = useState<HandoffStep | null>(null);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [pending, setPending] = useState(false);
   const { params: query, set } = useQueryState();
   const page = (key: string) => {
     const value = Number(query.get(key));
@@ -63,17 +71,26 @@ export function ProviderRelationshipDetail({ offering, assignmentId }: { offerin
   [offering.offeringId, allocation.data?.revision, allocation.data?.relationshipState, capabilityPage, missionPage]);
   const refresh = () => { allocation.retry(); snapshot.retry(); projection.retry(); };
   const back = `/systems?${new URLSearchParams({ offeringId: offering.offeringId, offeringPage: String(offeringPage), missionPage: String(missionPage) })}`;
-  return <div className="provider-grid"><div className="space-y-5">
+  return <>
+    <div className="provider-page-head"><WorkspacePageHeader eyebrow="Provider operations" title={allocation.data?.systemName || 'Service relationship'}
+      description="Track the service relationship while preserving the Mission Owner's control over their system."
+      actions={<button type="button" className="provider-primary" disabled={!projection.data} onClick={() => setHandoff('hosting')}>Preview Mission Owner handoff</button>} /></div>
+    <div className="provider-grid"><div className="space-y-5">
     <div className="flex flex-wrap gap-3"><Link className="provider-secondary" to={back}>Back to mission systems</Link>
       <button className="provider-secondary" onClick={refresh}>Reload relationship</button></div>
     <Status loading={allocation.loading} error={allocation.error} retry={refresh} />
     {allocation.data && <>
-      <ProviderPanel title={allocation.data.systemName || allocation.data.systemId}>
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <div><dt className="text-slate-500">Service offering</dt><dd>{offering.name}</dd></div>
-          <div><dt className="text-slate-500">Customer organization</dt><dd>{allocation.data.targetTenantName || 'Name unavailable'}</dd></div>
-          <div><dt className="text-slate-500">Allocation revision</dt><dd>{allocation.data.revision}</dd></div>
-          <div><dt className="text-slate-500">Relationship state</dt><dd>{allocation.data.relationshipState}</dd></div>
+      <ProviderPanel title="Service relationship">
+        <dl>
+          <ProviderFact label="Organization">{allocation.data.targetTenantName || 'Name unavailable'}</ProviderFact>
+          <ProviderFact label="Offering">{offering.name}</ProviderFact>
+          <ProviderFact label="Allocated scope">{allocation.data.assignedScopes.map(allocationScopeName).join(', ') || 'No scope recorded'}</ProviderFact>
+          <ProviderFact label="Provider assignment"><ProviderBadge tone="success">Recorded · Revision {allocation.data.revision}</ProviderBadge></ProviderFact>
+          <ProviderFact label="Mission association">{projection.data
+            ? <ProviderBadge tone={projection.data.relationship.associated ? 'success' : 'attention'}>{projection.data.relationship.associated ? allocation.data.relationshipState : 'Awaiting confirmation'}</ProviderBadge>
+            : projection.error ? 'Unavailable' : 'Loading association'}</ProviderFact>
+          <ProviderFact label="Capability adoption">{projection.data ? <MissionReleaseSummary relationship={projection.data.relationship} /> : 'Not loaded'}</ProviderFact>
+          <ProviderFact label="Customer duties">Require separate authorized mission review</ProviderFact>
         </dl>
         <details className="mt-4 text-xs"><summary>Retained identities</summary>
           <p className="break-all">Allocation: {allocation.data.assignmentId}<br />System: {allocation.data.systemId}<br />
@@ -81,21 +98,33 @@ export function ProviderRelationshipDetail({ offering, assignmentId }: { offerin
             Scope hash: {allocation.data.hostingScope.snapshotHash}</p>
         </details>
       </ProviderPanel>
-      <ProviderPanel title="Allocated service scope">
+      <details className="provider-record-details"><summary>Allocation source details</summary><ProviderPanel title="Allocated service scope">
         <Status loading={snapshot.loading} error={snapshot.error} retry={snapshot.retry} />
         {snapshot.data && <><HostingContextSummary offeringName={offering.name} scope={snapshot.data} />
           <p className="mt-1 text-xs">This is the allocation’s retained scope, not an automatic replacement with the offering’s newest scope.</p>
           <ul className="mt-4 space-y-2 text-sm">{allocation.data.assignedScopes.map((item, index) => <li className="break-words" key={index}><HostingScopeIdentity scope={item} /></li>)}</ul></>}
-      </ProviderPanel>
+      </ProviderPanel></details>
       <Status loading={projection.loading} error={projection.error} retry={refresh} />
       {projection.data && <>
-        <ProviderPanel title="Relationship and adoption summary">
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <div><dt className="text-slate-500">Mission association</dt><dd>{projection.data.relationship.associated ? 'Relationship recorded' : 'Association pending'}</dd></div>
-            <div><dt className="text-slate-500">Recorded capability adoptions</dt><dd>{projection.data.relationship.adoptedCapabilityCount}</dd></div>
-          </dl>
-          <p className="mt-3 text-xs">Counts come from the provider relationship projection. They do not establish customer-duty completion or identify an exact mission-adopted release.</p>
+        <ProviderPanel title="Customer handoff">
+          {([
+            ['hosting', '1. Confirm the hosting association', 'Mission Owner checks the selected system and scope.'],
+            ['capabilities', '2. Apply published capabilities', 'Choose the release and inspect customer duties.'],
+            ['documents', '3. Complete the system package', 'Evidence and implementation records feed document previews.'],
+          ] as const).map(([step, title, description]) => <div key={step} className="provider-checklist-row">
+            <div><h3>{title}</h3><p>{description}</p></div>
+            <button type="button" className="provider-secondary" aria-label={`Preview ${title.slice(3)}`} onClick={() => setHandoff(step)}>Preview</button>
+          </div>)}
         </ProviderPanel>
+        {!!projection.data.relationship.adoptedReleases?.some(item => item.updateAvailable) && <ProviderPanel title="Provider release updates">
+          <p className="mb-3 text-xs">These actions review the provider's capability change. They do not record the customer's disposition or replace its adopted release.</p>
+          {projection.data.relationship.adoptedReleases.filter(item => item.updateAvailable).map(item => <div key={item.capabilityId} className="provider-checklist-row">
+            <div><h3>{item.capabilityName}</h3><p>Customer revision {item.revision} · Current offering revision {item.currentReleaseRevision}</p></div>
+            <Link className="provider-secondary" to={changeImpactHref(offering.offeringId, { capabilityId: item.capabilityId })}
+              aria-label={`Review provider impact for ${item.capabilityName}`}>Review provider impact</Link>
+          </div>)}
+        </ProviderPanel>}
+        <details className="provider-record-details"><summary>Current offering catalog (not customer selections)</summary>
         <ProviderPanel title="Offering capability catalog">
           <p className="mb-3 text-xs">These are offering catalog records, not a per-system adopted-release ledger.</p>
           {!projection.data.capabilities.items.length && <p>No offering capabilities on this page.</p>}
@@ -108,16 +137,26 @@ export function ProviderRelationshipDetail({ offering, assignmentId }: { offerin
               to={authorizationHref(offering.offeringId, `packages/${encodeURIComponent(item.packageId)}${item.candidateId ? `/candidates/${encodeURIComponent(item.candidateId)}` : ''}`)}>Review source proposal</Link>}
           </article>)}
           <Pager {...projection.data.capabilities} onPage={value => set({ capabilityPage: value })} />
-        </ProviderPanel>
+        </ProviderPanel></details>
       </>}
     </>}
-  </div><ProviderSupport>
+  </div><aside className="provider-support">
+    <ProviderPanel title="Provider visibility"><p>Show this allocated relationship and its current customer release selections. This does not expose unrelated mission content or grant customer-workspace access.</p></ProviderPanel>
     <ProviderPanel title="Provider actions">
       <div className="grid gap-3">
-        <Link className="provider-secondary" to={authorizationHref(offering.offeringId, 'inherited-coverage?task=allocations')}>Manage service allocations</Link>
-        <Link className="provider-secondary" to={authorizationHref(offering.offeringId, 'impact')}>Review offering change impact</Link>
+        <button type="button" className="provider-secondary" onClick={() => setAssignOpen(true)}>Assign another service scope</button>
+        <Link className="provider-text" to={`/provider-changes?offeringId=${encodeURIComponent(offering.offeringId)}&offeringPage=${offeringPage}`}>View offering impact reviews →</Link>
       </div>
     </ProviderPanel>
     <ProviderPanel title="Separate authority"><p>This provider-only view does not enter or impersonate the mission workspace. Customer responsibilities and mission authorization require their own authorized reviewers.</p></ProviderPanel>
-  </ProviderSupport></div>;
+  </aside></div>
+  {handoff && projection.data && <SetupDialog title="Preview Mission Owner handoff" busy={false} onClose={() => setHandoff(null)}
+    description="Read-only preview of this exact customer service relationship, not the private mission workspace.">
+    <ProviderMissionHandoff initialStep={handoff} offeringName={offering.name} relationship={projection.data.relationship} />
+  </SetupDialog>}
+  {assignOpen && <SetupDialog title="Assign service scope" busy={pending} onClose={() => setAssignOpen(false)}
+    description="Select the customer and permitted scope. Existing relationships are not replaced.">
+    <ProviderAllocationForm offering={offering} onPendingChange={setPending} onSaved={() => { setAssignOpen(false); refresh(); }} />
+  </SetupDialog>}
+  </>;
 }

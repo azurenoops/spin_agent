@@ -1,5 +1,5 @@
 import { Activity, Building2, House, Settings, Users } from 'lucide-react';
-import { NavLink } from '../workspaces/workspaceNavigation';
+import { Link, NavLink, useLocation } from '../workspaces/workspaceNavigation';
 
 const destinations = [
   { to: '/', label: 'Overview', icon: House },
@@ -10,8 +10,18 @@ const destinations = [
 ];
 
 export default function ProviderNavigation({ mobile = false }: { mobile?: boolean }) {
+  const { pathname, search } = useLocation();
+  const relationship = /^\/authorizations\/offerings\/[^/]+\/missions\//.test(pathname);
+  const capability = /^\/security-capabilities\/[^/]+(?:\/|$)/.test(pathname);
+  const changes = pathname.startsWith('/authorizations/offerings/') && new URLSearchParams(search).get('returnTo') === 'changes';
+  const contextDestination = changes ? '/provider-changes' : relationship ? '/systems' : capability ? '/authorizations' : null;
   const links = <nav aria-label={mobile ? 'Provider mobile navigation' : 'Provider workspace'} className="space-y-1">
-    {destinations.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'}
+    {destinations.map(({ to, label, icon: Icon }) => contextDestination && ['/systems', '/authorizations', '/provider-changes'].includes(to)
+      ? <Link key={to} to={to} aria-current={contextDestination === to ? 'page' : undefined}
+        className={`flex items-center gap-3 rounded-lg px-3 py-3 text-[13px] ${contextDestination === to ? 'bg-[#efedfc] font-semibold text-[#5143d7]' : 'text-slate-600 hover:bg-slate-50'}`}>
+        <Icon size={18} aria-hidden="true" />{label}
+      </Link>
+      : <NavLink key={to} to={to} end={to === '/'}
       className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-3 text-[13px] transition-colors ${
         isActive ? 'bg-[#efedfc] font-semibold text-[#5143d7] dark:bg-indigo-950 dark:text-indigo-200'
           : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-gray-800'}`}>

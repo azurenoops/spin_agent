@@ -2,7 +2,7 @@ import type { BoundaryRevision, Finding, FindingEvidence, Offering, OfferingBoun
 import type { HostingScopeRevision } from '../../src/features/provider-authorizations/hostingTypes';
 import { offeringOverview, recordedAuthorization } from '../../src/__tests__/provider-authorizations/overviewFixtures';
 import { boundary, offering } from '../../src/__tests__/provider-authorizations/testData';
-import { candidate } from '../../src/__tests__/package-imports/fixtures';
+import { candidate, entry } from '../../src/__tests__/package-imports/fixtures';
 import type { ProviderCapabilityDetail } from '../../src/features/workspace-operations/types';
 
 export const paged = <T,>(items: T[]): Page<T> => ({ items, page: 1, pageSize: 25, total: items.length });
@@ -61,6 +61,11 @@ export const fixtureCandidates = paged([
     controlDuties: { 'AU-6': 'Shared', 'AU-11': 'Customer configures additional retention' } }),
   candidate({ candidateId: 'candidate-network', name: 'Network boundary protection', description: 'Shared network inspection service',
     controlDuties: { 'SC-7': 'Shared' }, reviewState: 'Reviewed' }),
+]);
+export const fixtureEntries = paged([
+  entry({ entryId: 'archive', fileName: 'source.zip', mediaType: 'application/zip' }),
+  entry({ entryId: 'matrix', fileName: 'responsibility-matrix.json', archivePath: 'responsibility-matrix.json' }),
+  entry({ entryId: 'assessment', fileName: 'assessment-summary.json', archivePath: 'assessment-summary.json' }),
 ]);
 export const fixtureFinding: Finding = { findingId: 'finding-fixture', offeringId: offering.offeringId, revision: 2,
   title: 'Synthetic logging evidence delay', observation: 'Synthetic retained observation', severityAsStated: 'Moderate',

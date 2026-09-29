@@ -36,6 +36,11 @@ export interface OfferingBoundaryCapability {
 export interface OfferingBoundaryMission {
   assignmentId: string; systemId: string; systemName: string | null; relationshipState: string;
   associated: boolean; adoptedCapabilityCount: number; assignedScopes: ProviderScope[];
+  targetTenantId?: string | null; targetTenantName?: string | null;
+  adoptedReleases?: {
+    capabilityId: string; capabilityName: string; releaseId: string; revision: number;
+    currentReleaseRevision: number | null; updateAvailable: boolean;
+  }[];
 }
 export interface OfferingBoundaryOverview {
   offeringId: string; offeringRevision: number;

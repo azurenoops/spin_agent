@@ -203,7 +203,7 @@ it('describes retained source totals without assigning superseded documents to a
   // Act
   render(<MemoryRouter><OfferingOverview offering={offering} /></MemoryRouter>);
   // Assert
-  expect(await screen.findByText('Retained source documents, including superseded review sources and excluded files')).toBeInTheDocument();
+  expect(await screen.findByTitle('Retained source documents, including superseded review sources and excluded files')).toHaveTextContent('Includes retained source history');
   expect(screen.getByLabelText('Offering metrics')).toHaveTextContent('32');
   expect(screen.queryByText(/Retained entries across 1 source packages/)).not.toBeInTheDocument();
 });

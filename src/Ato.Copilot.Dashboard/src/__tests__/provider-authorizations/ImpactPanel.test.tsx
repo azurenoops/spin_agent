@@ -52,6 +52,25 @@ async function decide() {
   fireEvent.change(screen.getByLabelText('Review rationale'), { target: { value: 'Reviewed exact scope and affected systems.' } });
 }
 describe('purpose-led exact change impact', () => {
+  it('opens an exact review as a focused record with retained sources, a mission table and collapsed history', async () => {
+    // Arrange
+    vi.mocked(api.listImpactReviews).mockResolvedValue({ ...emptyImpactPage, items: [pendingImpact], total: 1 });
+    show({ initialReviewId: 'impact-1' });
+    // Act
+    const changes = await screen.findByRole('region', { name: 'What changes' });
+    // Assert
+    expect(within(changes).getByText('Review the saved responsibility changes.')).toBeInTheDocument();
+    expect(within(changes).getByText(/Before-and-after values were not retained/)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Retained review context' })).toHaveTextContent('version-1');
+    const systems = screen.getByRole('table', { name: 'Affected mission systems' });
+    expect(within(systems).getByRole('row', { name: /Mission Alpha/ })).toHaveTextContent('NeedsReview');
+    expect(screen.getByRole('complementary', { name: 'Provider review outcome' })).toBeInTheDocument();
+    expect(screen.getByText('Review history').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByRole('button', { name: 'Prepare fresh impact assessment' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Record provider impact review' })).not.toBeInTheDocument();
+    expect(api.previewImpact).not.toHaveBeenCalled();
+    expect(api.reviewImpact).not.toHaveBeenCalled();
+  });
   it('leads with the purpose of Change impact instead of a technical preparation form', async () => {
     // Arrange
     show();
@@ -89,7 +108,7 @@ describe('purpose-led exact change impact', () => {
     expect(screen.getByText('Reviewed logging duties.')).toBeInTheDocument();
     expect(screen.getByText(/does not publish capabilities/)).toBeInTheDocument();
     expect(screen.getByText(acceptedImpact.contextSnapshotHash).closest('details')).not.toHaveAttribute('open');
-    expect(screen.queryByRole('button', { name: 'Save review decision' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record provider impact review' })).not.toBeInTheDocument();
     expect(api.previewImpact).not.toHaveBeenCalled();
     expect(api.reviewImpact).not.toHaveBeenCalled();
   });
@@ -98,14 +117,14 @@ describe('purpose-led exact change impact', () => {
     show({ publicationHref: '/workspaces/csp/security-capabilities/capability-1?tab=review' });
     // Act
     await prepare(); await decide();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save review decision' })).toBeEnabled());
-    fireEvent.click(screen.getByRole('button', { name: 'Save review decision' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Record provider impact review' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Record provider impact review' }));
     // Assert
     await waitFor(() => expect(api.previewImpact).toHaveBeenCalledWith('offering-1', impactContext, expect.any(String)));
     expect(api.reviewImpact).toHaveBeenCalledWith('offering-1', impactPreview, 'AcceptForPublication', 'Reviewed exact scope and affected systems.');
     expect(await screen.findByText('Review decision saved. No publication was performed.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue to publication review' })).toHaveAttribute('href', '/workspaces/csp/security-capabilities/capability-1?tab=review');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Review a proposed change' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start a different change' })).toBeEnabled());
   });
   it('shows preview blockers and disables acceptance without disabling rejection', async () => {
     // Arrange
@@ -115,9 +134,9 @@ describe('purpose-led exact change impact', () => {
     await prepare(); await decide();
     // Assert
     expect(screen.getByText('Recorded authority expired.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save review decision' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Record provider impact review' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Review decision'), { target: { value: 'Reject' } });
-    expect(screen.getByRole('button', { name: 'Save review decision' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Record provider impact review' })).toBeEnabled();
   });
   it('retains rationale after conflict and requires an explicit updated assessment', async () => {
     // Arrange
@@ -125,11 +144,11 @@ describe('purpose-led exact change impact', () => {
     show();
     await prepare(); await decide();
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Save review decision' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record provider impact review' }));
     // Assert
     expect(await screen.findByText(/Context changed\. Generate a new preview/)).toBeInTheDocument();
     expect(screen.getByLabelText('Review rationale')).toHaveValue('Reviewed exact scope and affected systems.');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save review decision' })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Record provider impact review' })).toBeDisabled());
     const update = screen.getByRole('button', { name: 'Update impact review' });
     await waitFor(() => expect(update).toBeEnabled());
     fireEvent.click(update);
@@ -146,9 +165,10 @@ describe('purpose-led exact change impact', () => {
     // Arrange
     show(); await prepare(); await decide();
     // Act
+    fireEvent.click(screen.getByText('Change selection'));
     fireEvent.click(screen.getByRole('radio', { name: /^Expanded government services/ }));
     // Assert
-    expect(screen.queryByRole('button', { name: 'Save review decision' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record provider impact review' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Assess impact' })).toBeDisabled();
     expect(api.reviewImpact).not.toHaveBeenCalled();
   });
@@ -175,12 +195,30 @@ describe('purpose-led exact change impact', () => {
     vi.mocked(api.reviewImpact).mockRejectedValueOnce(new Error('Response lost.'));
     show(); await prepare(); await decide();
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Save review decision' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record provider impact review' }));
     const retry = await screen.findByRole('button', { name: 'Retry same operation' });
     // Assert
     expect(screen.getByLabelText('Review rationale')).toBeDisabled();
+    fireEvent.click(screen.getByText('Change selection'));
     expect(screen.getByRole('button', { name: 'Assess impact' })).toBeDisabled();
     fireEvent.click(retry);
+    await screen.findByText('Review decision saved. No publication was performed.');
+    expect(vi.mocked(api.reviewImpact).mock.calls[0]).toEqual(vi.mocked(api.reviewImpact).mock.calls[1]);
+  });
+  it('retains the frozen decision form while exact detail data reloads', async () => {
+    // Arrange
+    vi.mocked(api.reviewImpact).mockRejectedValueOnce(new Error('Response lost.'));
+    const view = show();
+    await prepare(); await decide();
+    fireEvent.click(screen.getByRole('button', { name: 'Record provider impact review' }));
+    await screen.findByRole('button', { name: 'Retry same operation' });
+    vi.mocked(presentation.getImpactDetails).mockReturnValueOnce(new Promise(() => undefined));
+    // Act
+    view.rerender(<MemoryRouter><ImpactPanel offering={{ ...offering, revision: 5 }} onChanged={vi.fn()} /></MemoryRouter>);
+    // Assert
+    expect(screen.getByLabelText('Review rationale')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Retry same operation' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry same operation' }));
     await screen.findByText('Review decision saved. No publication was performed.');
     expect(vi.mocked(api.reviewImpact).mock.calls[0]).toEqual(vi.mocked(api.reviewImpact).mock.calls[1]);
   });
@@ -213,7 +251,7 @@ describe('purpose-led exact change impact', () => {
     // Act
     view.rerender(<MemoryRouter><ImpactPanel offering={{ ...offering, revision: 5 }} onChanged={vi.fn()} /></MemoryRouter>);
     // Assert
-    expect(screen.getByRole('button', { name: 'Save review decision' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Record provider impact review' })).toBeDisabled();
     expect(screen.getByText(/Changes detected or this assessment expired/)).toBeInTheDocument();
     expect(api.reviewImpact).not.toHaveBeenCalled();
   });
@@ -224,7 +262,7 @@ describe('purpose-led exact change impact', () => {
     // Act
     await prepare(); await decide();
     // Assert
-    expect(screen.getByRole('button', { name: 'Save review decision' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Record provider impact review' })).toBeDisabled();
   });
   it('opens a stale saved review and carries exact context into a new explicit assessment', async () => {
     // Arrange
@@ -232,7 +270,7 @@ describe('purpose-led exact change impact', () => {
     vi.mocked(api.getOffering).mockResolvedValue({ ...offering, revision: 9 });
     show({ initialReviewId: 'impact-1' });
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Update impact review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Prepare fresh impact assessment' }));
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /^Logging coverage/ })).toBeChecked());
     fireEvent.click(screen.getByRole('checkbox', { name: 'I reviewed the selected changes and supporting versions.' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Assess impact' })).toBeEnabled());

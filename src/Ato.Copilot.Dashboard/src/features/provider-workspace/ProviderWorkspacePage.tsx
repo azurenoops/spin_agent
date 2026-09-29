@@ -5,12 +5,16 @@ import { Link, useLocation } from '../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import { Pager, Status, useRemote } from '../workspace-operations/workspaceUi';
 import * as api from '../provider-authorizations/api';
-import type { Offering, OfferingOverviewData } from '../provider-authorizations/types';
-import ProviderMonitoringPage from '../provider-authorizations/ProviderMonitoringPage';
-import { scopeLabel } from '../provider-authorizations/scopes';
+import type { Offering, OfferingBoundaryMission, OfferingOverviewData } from '../provider-authorizations/types';
+import ProviderChangesPage from './ProviderChangesPage';
 import { ProviderAdministration } from '../provider-authorizations/ProviderAdministration';
 import { publishedReleaseLabel, sourceReviewLabel } from '../provider-authorizations/providerReadModels';
 import { offeringEnvironments } from '../provider-authorizations/scopes';
+import { readAllPages } from '../provider-authorizations/providerReadModels';
+import { ProviderBadge } from '../provider-authorizations/ProviderPresentation';
+import SetupDialog from '../workspace-operations/SetupDialog';
+import { allocationScopeName, ProviderAllocationForm } from '../provider-authorizations/ProviderAllocationForm';
+import { MissionReleaseSummary, ProviderMissionHandoff } from '../provider-authorizations/ProviderMissionHandoff';
 
 type View = 'overview' | 'changes' | 'missions' | 'administration';
 const panel = 'min-w-0 rounded-[10px] border border-slate-200 bg-white p-[22px] dark:border-gray-700 dark:bg-gray-900';
@@ -23,40 +27,36 @@ const queryPage = (search: string, name: string) => {
 
 export default function ProviderWorkspacePage({ view = 'overview' }: { view?: View }) {
   const session = useWorkspaceSession();
-  const location = useLocation();
-  const monitoring = view === 'changes' && new URLSearchParams(location.search).get('tab') === 'monitoring';
   if (session?.target.kind !== 'csp' || !session.workspace.permissions.canAccessCsp) {
     return <p role="alert" className="p-6 text-red-700">Provider workspace access is required.</p>;
   }
   return <PageLayout title="Provider workspace">
-    <div className="mx-auto w-full max-w-[1476px]">
+    <div className={`mx-auto w-full max-w-[1476px]${view === 'missions' ? ' provider-workspace' : ''}`}>
       <p className="mb-5 text-xs text-slate-500">Provider / {view === 'overview' ? 'Overview' : view === 'changes' ? 'Changes' : view === 'missions' ? 'Mission systems' : 'Administration'}</p>
-      {view === 'changes' && <nav aria-label="Provider change tasks" className="mb-6 flex gap-5 border-b border-slate-200 text-sm">
-        <Link to="/provider-changes" aria-current={!monitoring ? 'page' : undefined}
-          className={`border-b-2 py-3 ${!monitoring ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500'}`}>Provider impact reviews</Link>
-        <Link to="/provider-changes?tab=monitoring" aria-current={monitoring ? 'page' : undefined}
-          className={`border-b-2 py-3 ${monitoring ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500'}`}>Service monitoring</Link>
-      </nav>}
-      {view === 'administration' ? <Administration /> : monitoring ? <ProviderMonitoringPage /> : <OfferingWorkspace view={view} />}
+      {view === 'administration' ? <Administration /> : view === 'changes' ? <ProviderChangesPage /> : <OfferingWorkspace view={view} />}
     </div>
   </PageLayout>;
 }
 
-function OfferingWorkspace({ view }: { view: 'overview' | 'changes' | 'missions' }) {
+function OfferingWorkspace({ view }: { view: 'overview' | 'missions' }) {
   const { search } = useLocation();
   const [page, setPage] = useState(() => queryPage(search, 'offeringPage'));
   const [selectedId, setSelectedId] = useState(() => new URLSearchParams(search).get('offeringId') ?? '');
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignPending, setAssignPending] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const [notice, setNotice] = useState('');
   const offerings = useRemote(signal => api.listOfferings(page, '', signal), [page]);
   const selected = selectedId ? offerings.data?.items.find(item => item.offeringId === selectedId) : offerings.data?.items[0];
   return <>
-    <WorkspacePageHeader eyebrow="Provider operations" title={view === 'overview' ? 'Your provider workspace' : view === 'missions' ? 'Mission systems' : 'Changes requiring attention'}
+    <WorkspacePageHeader eyebrow="Provider operations" title={view === 'overview' ? 'Your provider workspace' : 'Mission systems'}
       description={view === 'overview'
         ? 'Maintain the services and evidence Mission Owners use to prepare and sustain their ATO packages.'
-        : view === 'missions' ? 'See exactly which service scopes and releases your customers use.'
-          : 'Understand service changes, affected customers, and the action each owner needs to take.'}
-      actions={selected && <Link className={primary} to={api.authorizationHref(selected.offeringId, view === 'overview' ? 'packages' : view === 'missions' ? 'inherited-coverage?task=allocations' : 'impact')}>
-        {view === 'overview' ? 'Review source material' : view === 'missions' ? 'Assign service scope' : 'Review change impact'}
-      </Link>} />
+        : 'See exactly which service scopes and releases your customers use.'}
+      actions={selected && (view === 'missions' ? <button className="provider-primary" onClick={() => { setNotice(''); setAssignOpen(true); }}>Assign service scope</button>
+        : <Link className={primary} to={api.authorizationHref(selected.offeringId, view === 'overview' ? 'packages' : 'impact')}>
+          {view === 'overview' ? 'Review source material' : 'Review change impact'}
+        </Link>)} />
     <Status loading={offerings.loading} error={offerings.error} retry={offerings.retry} />
     {offerings.data && <>
       {!selected ? <section className={panel}>
@@ -74,8 +74,17 @@ function OfferingWorkspace({ view }: { view: 'overview' | 'changes' | 'missions'
         {view === 'overview' ? <OfferingOverview key={selected.offeringId} offering={selected}>
           <OfferingTable offerings={offerings.data.items} />
         </OfferingOverview>
-          : view === 'missions' ? <MissionSystems key={selected.offeringId} offering={selected} offeringPage={page} />
-            : <Changes key={selected.offeringId} offering={selected} />}
+          : <>
+            {notice && <p role="status" className="provider-banner">{notice}</p>}
+            <MissionSystems key={selected.offeringId} offering={selected} offeringPage={page} refresh={refresh} />
+            {assignOpen && <SetupDialog title="Assign service scope" busy={assignPending} onClose={() => setAssignOpen(false)}
+              description="Select a named customer, mission system and permitted service scope. This does not provision cloud access.">
+              <ProviderAllocationForm key={selected.offeringId} offering={selected} onPendingChange={setAssignPending} onSaved={() => {
+                setAssignOpen(false); setRefresh(value => value + 1); setNotice('Service assignment recorded. Mission association, capability adoption and responsibility review remain separate.');
+              }} />
+              <div className="mt-4 flex justify-end"><button type="button" className="provider-secondary" disabled={assignPending} onClick={() => setAssignOpen(false)}>Cancel</button></div>
+            </SetupDialog>}
+          </>}
       </>}
       {offerings.data.total > offerings.data.pageSize && <Pager {...offerings.data} onPage={next => { setPage(next); setSelectedId(''); }} />}
     </>}
@@ -113,40 +122,69 @@ function OfferingSourceCells({ offering }: { offering: Offering }) {
   </>;
 }
 
-function MissionSystems({ offering, offeringPage }: { offering: Offering; offeringPage: number }) {
+function MissionSystems({ offering, offeringPage, refresh }: { offering: Offering; offeringPage: number; refresh: number }) {
   const { search } = useLocation();
   const [page, setPage] = useState(() => {
     const selectedFromUrl = new URLSearchParams(search).get('offeringId');
     return !selectedFromUrl || selectedFromUrl === offering.offeringId ? queryPage(search, 'missionPage') : 1;
   });
-  const data = useRemote(signal => api.getBoundaryOverview(offering.offeringId, 1, page, signal), [offering.offeringId, page]);
-  return <section className={panel}>
+  const [query, setQuery] = useState('');
+  const [handoff, setHandoff] = useState<OfferingBoundaryMission | null>(null);
+  const data = useRemote(async signal => {
+    const first = (await api.getBoundaryOverview(offering.offeringId, 1, page, signal)).missionSystems;
+    if (!query.trim()) return first;
+    const items = await readAllPages(async next => next === page ? first
+      : (await api.getBoundaryOverview(offering.offeringId, 1, next, signal)).missionSystems, signal);
+    return { ...first, page: 1, total: items.length, items };
+  }, [offering.offeringId, page, query, refresh]);
+  const needle = query.trim().toLocaleLowerCase();
+  const items = data.data?.items.filter(item => !needle || `${item.systemName ?? item.systemId} ${item.targetTenantName ?? ''}`.toLocaleLowerCase().includes(needle)) ?? [];
+  return <>
+  <section className="provider-panel">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h2 className="font-semibold">Service relationships</h2>
+      <h2 className="font-semibold">Customer service relationships</h2>
       <Link to="/provider-oversight/systems" className={action}>Cross-organization oversight</Link>
     </div>
-    <p className="mb-4 text-xs text-slate-500">Allocation, Mission Owner association, and capability adoption are distinct. An assigned service does not establish an authorization.</p>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <input type="search" aria-label="Search mission system or organization" placeholder="Search mission system or organization"
+        className="w-full max-w-[380px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" value={query}
+        onChange={event => { setQuery(event.target.value); setPage(1); }} />
+      {data.data && <ProviderBadge tone="neutral">{needle ? items.length : data.data.total} service relationship{(needle ? items.length : data.data.total) === 1 ? '' : 's'}</ProviderBadge>}
+    </div>
     <Status loading={data.loading} error={data.error} retry={data.retry} />
     {data.data && <>
-      {data.data.missionSystems.items.length === 0 ? <p className="text-sm text-slate-500">No mission systems are assigned to this offering.</p>
-        : <div className="overflow-x-auto"><table className="w-full text-left text-xs">
+      {items.length === 0 ? <p className="text-sm text-slate-500">{needle ? 'No mission systems or organizations match this search.' : 'No mission systems are assigned to this offering.'}</p>
+        : <div className="provider-table-wrap"><table className="provider-table min-w-[780px]" aria-label="Customer service relationships">
           <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-gray-800">
-            <tr><th className="p-3">Mission system</th><th className="p-3">Association</th><th className="p-3">Applied capabilities</th><th className="p-3">Assigned scope</th><th className="p-3"><span className="sr-only">Actions</span></th></tr>
+            <tr><th>Mission system</th><th>Service / scope</th><th>Association</th><th>Capability release</th><th><span className="sr-only">Actions</span></th></tr>
           </thead>
-          <tbody>{data.data.missionSystems.items.map(system => <tr key={system.assignmentId} className="border-b border-slate-100 dark:border-gray-800">
-            <td className="p-3 font-semibold">{system.systemName ?? system.systemId}</td>
-            <td className="p-3">{system.associated ? system.relationshipState : 'Association pending'}</td>
-            <td className="p-3">{system.adoptedCapabilityCount}</td>
-            <td className="p-3">{system.assignedScopes.length ? <ul className="space-y-1">
-              {system.assignedScopes.map((scope, index) => <li key={`${scopeLabel(scope)}:${index}`} className="max-w-sm break-all">{scopeLabel(scope)}</li>)}
-            </ul> : 'No scope recorded'}</td>
-            <td className="p-3"><Link className={action} aria-label={`View relationship for ${system.systemName ?? system.systemId}`}
+          <tbody>{items.map(system => <tr key={system.assignmentId}>
+            <td className="font-semibold">{system.systemName ?? system.systemId}<small>{system.targetTenantName ?? 'Organization name unavailable'}</small></td>
+            <td>{offering.name}<small>{system.assignedScopes.length ? system.assignedScopes.map(allocationScopeName).join(', ') : 'No scope recorded'}</small></td>
+            <td><span title={`Recorded relationship state: ${system.relationshipState}`}><ProviderBadge tone={!system.associated || system.relationshipState === 'ReviewRequired' ? 'attention' : 'success'}>
+              {!system.associated ? 'Awaiting MO' : system.relationshipState === 'ReviewRequired' ? 'Review required' : 'Associated'}
+            </ProviderBadge></span></td>
+            <td><MissionReleaseSummary relationship={system} /></td>
+            <td><Link className="provider-secondary" aria-label={`View relationship for ${system.systemName ?? system.systemId}`}
               to={api.authorizationHref(offering.offeringId, `missions/${encodeURIComponent(system.assignmentId)}?missionPage=${page}&offeringPage=${offeringPage}`)}>View relationship</Link></td>
           </tr>)}</tbody>
         </table></div>}
-      <Pager {...data.data.missionSystems} onPage={setPage} />
+      {!needle && data.data.total > data.data.pageSize && <Pager {...data.data} onPage={setPage} />}
     </>}
-  </section>;
+  </section>
+  <div className="provider-banner provider-banner-release mt-5">
+    <div><strong>Association, adoption, and responsibilities have different states.</strong><p>A hosting allocation does not apply capabilities or accept customer duties.</p></div>
+    <button type="button" className="provider-secondary" disabled={!items.length} onClick={() => setHandoff(items[0] ?? null)}>Preview Systems handoff</button>
+  </div>
+  {handoff && <SetupDialog title="Preview Systems handoff" busy={false} onClose={() => setHandoff(null)}
+    description="Read-only provider-side preview. No customer workspace access or role change occurs.">
+    <label className="mb-4 block text-sm">Mission service relationship<select className="mt-1 block w-full rounded border p-2" value={handoff.assignmentId}
+      onChange={event => setHandoff(items.find(item => item.assignmentId === event.target.value) ?? null)}>
+      {items.map(item => <option key={item.assignmentId} value={item.assignmentId}>{item.systemName ?? item.systemId} · {item.targetTenantName ?? 'Organization unavailable'}</option>)}
+    </select></label>
+    <ProviderMissionHandoff offeringName={offering.name} relationship={handoff} />
+  </SetupDialog>}
+  </>;
 }
 
 function Metric({ label, value, caption }: { label: string; value: number | string; caption: string }) {
@@ -208,41 +246,6 @@ function Support({ title, children }: { title: string; children: ReactNode }) {
   </section>;
 }
 
-function Changes({ offering }: { offering: Offering }) {
-  const [page, setPage] = useState(1);
-  const reviews = useRemote(signal => api.listImpactReviews(offering.offeringId, page, signal), [offering.offeringId, page]);
-  return <section className={panel}>
-    <h2 className="mb-3 font-semibold">Retained impact reviews</h2>
-    <p className="mb-4 text-xs text-slate-500">Provider review and Mission Owner disposition are separate. These records do not establish continuous monitoring health.</p>
-    <Status loading={reviews.loading} error={reviews.error} retry={reviews.retry} />
-    {reviews.data && <>
-      {reviews.data.items.length === 0 && <p className="text-sm text-slate-500">No impact reviews are recorded for this offering.</p>}
-      {reviews.data.items.map(review => <div key={review.reviewId} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-4 dark:border-gray-800">
-        <Link to={`${api.authorizationHref(offering.offeringId, 'impact')}?reviewId=${encodeURIComponent(review.reviewId)}`} className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-          {review.title || `Impact review ${review.reviewId}`}
-        </Link>
-        <span className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-gray-800 dark:text-slate-300">{review.stale ? 'Refresh review required' : review.disposition}</span>
-      </div>)}
-      <Pager {...reviews.data} onPage={setPage} />
-    </>}
-  </section>;
-}
-
 function Administration() {
-  return <>
-    <WorkspacePageHeader eyebrow="Provider operations" title="Provider administration" description="Manage the people and connections used to maintain provider records." />
-    <ProviderAdministration />
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_290px]">
-      <section className={panel}>
-        <h2 className="mb-3 font-semibold">Workspace administration</h2>
-        <Task title="Organizations and memberships" description="Use explicit membership and scoped role assignments. Directory lookup alone does not grant access."
-          to="/organizations" action="Manage organizations" />
-        <Task title="Provider setup" description="Review persisted provider identity, contacts, classification and source receipts."
-          to="/onboarding/csp" action="Review provider setup" />
-        <Task title="Audit history" description="Inspect retained access, review and publication records."
-          to="/audit" action="View audit history" />
-      </section>
-      <Support title="Authority stays explicit"><p>Provider administration does not grant mission authorship, customer responsibility acceptance, or an authorization decision.</p></Support>
-    </div>
-  </>;
+  return <ProviderAdministration />;
 }

@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Link, useLocation } from '../workspaces/workspaceNavigation';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useLocation, useNavigate } from '../workspaces/workspaceNavigation';
 import { buttonClass, secondaryButtonClass, Pager, useRemote } from '../workspace-operations/workspaceUi';
 import { DecisionPanel } from './DecisionPanel';
 import { HostingPanel } from './HostingPanel';
@@ -7,11 +7,12 @@ import SetupDialog from '../workspace-operations/SetupDialog';
 import * as api from './api';
 import { getHostingScope, listHostingScopes } from './hostingApi';
 import type { Offering } from './types';
-import { ProviderBadge, ProviderFact, ProviderPanel, ProviderSupport } from './ProviderPresentation';
+import { ProviderBadge, ProviderChecklistRow, ProviderFact, ProviderPanel } from './ProviderPresentation';
 import { OfferingCapabilities } from './OfferingCapabilities';
 import { HostingContextSummary, HostingScopeIdentity } from './HostingContextSummary';
 import { managementArrangements, serviceModels } from './OfferingIdentity';
 import { offeringEnvironments, scopeLabel } from './scopes';
+import { ProviderAllocationForm } from './ProviderAllocationForm';
 
 type Task = 'hosting' | 'references' | 'capabilities' | 'missions' | 'responsibilities' | 'allocations';
 type ReadState = { loading: boolean; error: string | null; retry: () => void };
@@ -57,12 +58,29 @@ export function HostingSetupPage({ offering: loadedOffering, onChanged }: { offe
 
 function ServiceScopeSetup({ offering: loadedOffering, onChanged }: { offering: Offering; onChanged: () => void }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const requestedTask = new URLSearchParams(location.search).get('task');
   const [refreshedOffering, setRefreshedOffering] = useState<Offering | null>(null);
   const offering = refreshedOffering && refreshedOffering.revision > loadedOffering.revision ? refreshedOffering : loadedOffering;
   const [active, setActive] = useState<Task | null>(() =>
-    requestedTask === 'hosting' || requestedTask === 'capabilities' || requestedTask === 'missions' || requestedTask === 'allocations' ? requestedTask : null);
+    requestedTask === 'hosting' || requestedTask === 'capabilities' || requestedTask === 'missions'
+      || requestedTask === 'allocations' || requestedTask === 'responsibilities' || requestedTask === 'references' ? requestedTask : null);
   const [pending, setPending] = useState(false);
+  useEffect(() => {
+    if (pending) return;
+    setActive(requestedTask === 'hosting' || requestedTask === 'missions' || requestedTask === 'allocations'
+      || requestedTask === 'responsibilities' || requestedTask === 'references' ? requestedTask : null);
+  }, [requestedTask]);
+  const clearTaskQuery = () => {
+    if (!requestedTask) return;
+    const query = new URLSearchParams(location.search);
+    query.delete('task');
+    navigate(`${location.pathname}${query.size ? `?${query}` : ''}`, { replace: true });
+  };
+  const closeTask = () => {
+    if (pending) return;
+    setActive(null); clearTaskQuery();
+  };
   const [newReference, setNewReference] = useState(true);
   const [capabilityPage, setCapabilityPage] = useState(1);
   const [missionPage, setMissionPage] = useState(1);
@@ -89,46 +107,72 @@ function ServiceScopeSetup({ offering: loadedOffering, onChanged }: { offering: 
           ? 'responsibilities' : 'missions';
   const open = (task: Task) => { if (task === 'references') setNewReference(true); setActive(task); setPending(false); };
   const saved = () => {
-    setActive(null); setPending(false); hosting.retry(); references.retry(); boundary.retry(); overview.retry(); onChanged();
+    setActive(null); setPending(false); clearTaskQuery(); hosting.retry(); references.retry(); boundary.retry(); overview.retry(); onChanged();
   };
   const action = (task: Exclude<Task, 'allocations'>, primary = false) => <button type="button"
     className={primary ? buttonClass : secondaryButtonClass} disabled={pending || !ready(states[task])}
     onClick={() => open(task)}>{task === 'hosting' && serviceHosted ? 'Configure service relationship' : actions[task]}</button>;
   return <div className="provider-grid"><div className="space-y-5">
-    <Link className="provider-primary" to={api.authorizationHref(offering.offeringId, 'inherited-coverage/propose')}>Edit proposed scope</Link>
-    <ProviderPanel title="Service boundary" action={<Link className="provider-secondary" to={api.authorizationHref(offering.offeringId, 'boundary')}>Review boundary</Link>}>
+    <ProviderPanel title="Service boundary">
       <Availability title="Service boundary" state={boundary} />
-      {ready(boundary) && <div className="space-y-4">
+      {ready(boundary) && <>
         <dl><ProviderFact label="Service model">{offering.serviceModel ? serviceModels[offering.serviceModel] : 'Not recorded'}</ProviderFact>
           <ProviderFact label="Management arrangement">{offering.managementArrangement ? managementArrangements[offering.managementArrangement] : 'Not recorded'}</ProviderFact>
           <ProviderFact label="Environment">{offering.environments.map(cloud => offeringEnvironments[cloud]).join(', ')}</ProviderFact>
-          <ProviderFact label="Recorded boundary">{boundary.data ? `${boundary.data.name} · v${boundary.data.version}` : 'Not recorded'}</ProviderFact></dl>
-        {boundary.data && <><p className={muted}>{boundary.data.scopeStatement}</p>
-          <div><h3 className="font-semibold">Included services</h3><p className={muted}>{boundary.data.services.join(', ') || 'No services stated. Missing scope is not universal coverage.'}</p></div>
-          <div><h3 className="font-semibold">Excluded work</h3>{boundary.data.exclusions.length ? <ul className="list-disc pl-5 text-sm">{boundary.data.exclusions.map((item, index) => <li key={index}>{item.description}</li>)}</ul>
-            : <p className={muted}>No explicit exclusions recorded. Review the source before inferring coverage.</p>}</div></>}
-      </div>}
+          <ProviderFact label="Recorded boundary">{boundary.data ? `${offering.name} · v${boundary.data.version}` : 'Not recorded'}</ProviderFact></dl>
+        <ProviderChecklistRow title="Included services"
+          description={boundary.data?.services.join(', ') || 'No services stated. Missing scope is not universal coverage.'}>
+          {boundary.data && <ProviderBadge tone="success">Recorded</ProviderBadge>}
+        </ProviderChecklistRow>
+        <ProviderChecklistRow title="Excluded work"
+          description={boundary.data?.exclusions.map(item => item.description).join(' ') || 'No explicit exclusions recorded. Review the source before inferring coverage.'}>{null}</ProviderChecklistRow>
+      </>}
     </ProviderPanel>
-    <ProviderPanel title={serviceHosted ? 'Technical service scope' : 'Technical hosting scope'} action={action('hosting')}>
+    <ProviderPanel title={serviceHosted ? 'Technical service scope' : 'Technical hosting scope'}>
       <Availability title="Technical hosting scope" state={hosting} />
-      {ready(hosting) && hosting.data && <HostingContextSummary offeringName={offering.name} scope={hosting.data} />}
-      {ready(hosting) && <>{hosting.data?.permittedScopes.length ? <div className="provider-table-wrap"><table className="provider-table" aria-label="Technical hosting scope">
-        <thead><tr><th>Scope</th><th>Use</th><th>Status</th></tr></thead>
-        <tbody>{hosting.data.permittedScopes.map((scope, index) => <tr key={index}>
-          <td><HostingScopeIdentity scope={scope} /></td><td>Provider service boundary</td><td><ProviderBadge tone="neutral">Recorded</ProviderBadge></td>
-        </tr>)}</tbody></table></div> : <p>No technical scope recorded. Define eligible resources or an explicit manual service relationship.</p>}</>}
       <Availability title="Customer allocations" state={overview} />
-      {!!overview.data?.missionSystems.items.length && <div className="provider-table-wrap mt-4"><table className="provider-table" aria-label="Customer service allocations">
-        <thead><tr><th>Allocated scope</th><th>Customer use</th><th><span className="sr-only">Actions</span></th></tr></thead>
-        <tbody>{overview.data.missionSystems.items.map(mission => <tr key={mission.assignmentId}>
-          <td>{mission.assignedScopes.length ? mission.assignedScopes.map((scope, index) => <HostingScopeIdentity key={index} scope={scope} />) : 'Scope not reported'}</td>
-          <td>{mission.systemName || 'System name unavailable'}<small>{mission.associated ? 'Associated' : 'Awaiting Mission Owner association'}</small></td>
-          <td><Link to={api.authorizationHref(offering.offeringId, `missions/${encodeURIComponent(mission.assignmentId)}`)}>View customer</Link></td>
-        </tr>)}</tbody></table>
-        {overview.data.missionSystems.total > overview.data.missionSystems.pageSize && <Pager {...overview.data.missionSystems} onPage={setMissionPage} />}
+      {(ready(hosting) && !!hosting.data?.permittedScopes.length || ready(overview) && !!overview.data?.missionSystems.items.length) &&
+        <div className="provider-table-wrap relative"><table className="provider-table min-w-[560px]" aria-label={serviceHosted ? 'Technical service scope' : 'Technical hosting scope'}>
+          <thead><tr><th scope="col">Scope</th><th scope="col">Use</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+          <tbody>
+            {ready(hosting) && hosting.data?.permittedScopes.map((scope, index) => <tr key={`provider-${index}`}>
+              <td><HostingScopeIdentity scope={scope} compact /></td><td>Provider service boundary</td><td><ProviderBadge tone="success">Recorded</ProviderBadge></td>
+            </tr>)}
+            {ready(overview) && overview.data?.missionSystems.items.map(mission => <tr key={mission.assignmentId}>
+              <td>{mission.assignedScopes.length ? mission.assignedScopes.map((scope, index) => <HostingScopeIdentity key={index} scope={scope} compact />) : 'Scope not reported'}</td>
+              <td>{mission.systemName ? `${mission.systemName} allocation` : 'System name unavailable'}</td>
+              <td><Link className="provider-secondary" to={api.authorizationHref(offering.offeringId, `missions/${encodeURIComponent(mission.assignmentId)}`)}>View customer</Link></td>
+            </tr>)}
+          </tbody>
+        </table></div>}
+      {ready(hosting) && !hosting.data?.permittedScopes.length && <p>No technical scope recorded. Define eligible resources or an explicit manual service relationship.</p>}
+      {ready(overview) && overview.data && overview.data.missionSystems.total > overview.data.missionSystems.pageSize &&
+        <Pager {...overview.data.missionSystems} onPage={setMissionPage} />}
+    <details className="provider-record-details"><summary>Record details &amp; provenance</summary><div className="space-y-5">
+      {ready(hosting) && hosting.data && <HostingContextSummary offeringName={offering.name} scope={hosting.data} />}
+      {ready(boundary) && boundary.data && <div>
+        <dl className="space-y-2 break-all text-xs">
+          <dt>Exact recorded boundary name</dt><dd>{boundary.data.name}</dd>
+          <dt>Boundary revision ID</dt><dd>{boundary.data.boundaryRevisionId}</dd>
+          <dt>Boundary snapshot hash</dt><dd>{boundary.data.snapshotHash}</dd>
+        </dl>
+        <p>{boundary.data.scopeStatement}</p>
+        <Link className="provider-secondary" to={api.authorizationHref(offering.offeringId, 'boundary')}>Review boundary</Link>
       </div>}
-    </ProviderPanel>
-    <details className="provider-record-details"><summary>Scope setup and administration</summary><div className="space-y-5">
+      {ready(overview) && !!overview.data?.missionSystems.items.length && <section aria-label="Customer scope provenance">
+        <h3>Customer scope provenance</h3>
+        {overview.data.missionSystems.items.map(mission => <div key={mission.assignmentId}>
+          <h4>{mission.systemName || 'System name unavailable'}</h4>
+          <p>{mission.associated ? 'Associated' : 'Awaiting Mission Owner association'}</p>
+          {mission.assignedScopes.map((scope, index) => <p key={index} className="break-all">{scopeLabel(scope)}</p>)}
+        </div>)}
+      </section>}
+      <section aria-label="Versioned changes">
+        <h3>Versioned changes</h3>
+        <p>Review the exact proposed scope and affected systems before publication. Existing mission associations retain their selected versions.</p>
+        <Link className="provider-secondary" to={api.authorizationHref(offering.offeringId, 'impact')}>Review change impact</Link>
+      </section>
+    <details><summary>Scope setup and administration</summary><div className="space-y-5">
     <section aria-label="Suggested next step" className="space-y-4 rounded-lg bg-indigo-50 p-5 dark:bg-indigo-950">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="font-semibold">Suggested next step</h2><p className={muted}>Start here, or open one task below. These are setup records, not an authorization decision.</p></div>
@@ -188,8 +232,10 @@ function ServiceScopeSetup({ offering: loadedOffering, onChanged }: { offering: 
       {ready(boundary) && <p className={muted}>{boundary.data ? `Recorded boundary: ${boundary.data.name}` : 'No boundary responsibilities recorded.'} Viewing this page does not accept duties for a mission system.</p>}
     </TaskCard>
     </div></details>
+    </div></details>
+    </ProviderPanel>
     {active && <SetupDialog key={active} title={taskTitle(active)} description={`Offering: ${offering.name}`}
-      busy={pending} onClose={() => setActive(null)}>
+      busy={pending} onClose={closeTask}>
       <div className="space-y-4">
       <Availability title={taskTitle(active)} state={active === 'allocations' ? hosting : states[active]} />
       {active === 'hosting' && <fieldset disabled={!ready(hosting)}>
@@ -229,7 +275,7 @@ function ServiceScopeSetup({ offering: loadedOffering, onChanged }: { offering: 
         </details>
       </>}
       {active === 'allocations' && ready(hosting) && <fieldset>
-        <HostingPanel offering={offering} initialScope={hosting.data ?? undefined} task="allocations" onPendingChange={setPending} onChanged={saved} />
+        <ProviderAllocationForm offering={offering} onPendingChange={setPending} onSaved={saved} />
       </fieldset>}
       {active === 'responsibilities' && ready(boundary) && <>
         <div className="grid gap-5 md:grid-cols-2">{([
@@ -243,10 +289,17 @@ function ServiceScopeSetup({ offering: loadedOffering, onChanged }: { offering: 
         <Link className={linkStyle} to={api.authorizationHref(offering.offeringId, 'boundary')}>Review or edit the authorization boundary</Link>
       </>}
       <div className="flex justify-end">
-        <button type="button" className={secondaryButtonClass} disabled={pending} onClick={() => setActive(null)}>Close task</button>
+        <button type="button" className={secondaryButtonClass} disabled={pending} onClick={closeTask}>Close task</button>
       </div>
       </div>
     </SetupDialog>}
-  </div><ProviderSupport><ProviderPanel title="Boundary and hosting"><p>The authorization boundary describes the recorded service. A hosting allocation identifies the exact part a mission consumes.</p></ProviderPanel>
-    <ProviderPanel title="Versioned changes"><p>Review the exact proposed scope and affected systems before publication. Existing mission associations retain their selected versions.</p><Link className="provider-secondary mt-3" to={api.authorizationHref(offering.offeringId, 'impact')}>Review change impact</Link></ProviderPanel></ProviderSupport></div>;
+  </div><aside className="provider-support">
+    <ProviderPanel title="Boundary and hosting"><p>The authorization boundary describes the recorded service. A hosting allocation identifies the exact part a mission consumes.</p></ProviderPanel>
+    <ProviderPanel title="SaaS and other clouds"><p>SaaS can use a tenant/service relationship. Other cloud scopes need explicit validated types, not invented Azure IDs.</p>
+      <button type="button" className="provider-secondary" disabled={pending || !ready(hosting)} onClick={() => open('hosting')}>Review service scope</button>
+    </ProviderPanel>
+    <ProviderPanel title="Contributes to the system package"><ol className="list-decimal pl-[18px] text-xs leading-[1.8] text-[#64728a]">
+      <li>Hosting architecture</li><li>Inventory and dependencies</li><li>Eligibility for service implementations</li>
+    </ol></ProviderPanel>
+  </aside></div>;
 }
