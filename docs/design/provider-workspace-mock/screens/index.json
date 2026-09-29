@@ -1,0 +1,218 @@
+[
+  {
+    "id": "overview",
+    "title": "Your provider workspace",
+    "desc": "Maintain the services and evidence Mission Owners use to prepare and sustain their ATO packages.",
+    "group": "Overview"
+  },
+  {
+    "id": "offerings",
+    "title": "Service offerings",
+    "desc": "Keep each service, environment, and responsibility model clearly defined.",
+    "group": "Offerings"
+  },
+  {
+    "id": "create",
+    "title": "Create a service offering",
+    "desc": "Start with the service identity. Add authorization sources and publish reviewed capabilities afterward.",
+    "group": "Offerings"
+  },
+  {
+    "id": "offering",
+    "title": "Azure IL5 · Shared services",
+    "desc": "Manage the source-backed service baseline that customers can apply to their systems.",
+    "group": "Offerings"
+  },
+  {
+    "id": "sources",
+    "title": "Authorizations & sources",
+    "desc": "Review what the documents actually say before they support a published service release.",
+    "group": "Offerings"
+  },
+  {
+    "id": "import",
+    "title": "Add source material",
+    "desc": "Attach documents to this offering. SPIN proposes records for review before anything reaches customers.",
+    "group": "Offerings"
+  },
+  {
+    "id": "analysis",
+    "title": "Review package analysis",
+    "desc": "Resolve source exceptions, then review the proposed records by their purpose.",
+    "group": "Offerings"
+  },
+  {
+    "id": "source-review",
+    "title": "Review an extracted implementation",
+    "desc": "Compare the proposal with its source, confirm customer duties, and retain your rationale.",
+    "group": "Offerings"
+  },
+  {
+    "id": "authorization",
+    "title": "Recorded authorization",
+    "desc": "Inspect the external decision and the exact boundary it references.",
+    "group": "Offerings"
+  },
+  {
+    "id": "scope",
+    "title": "Services & scope",
+    "desc": "Define what your service provides and where customer use is eligible.",
+    "group": "Offerings"
+  },
+  {
+    "id": "scope-edit",
+    "title": "Propose a scope update",
+    "desc": "Review the next version without altering the scope used by existing releases.",
+    "group": "Offerings"
+  },
+  {
+    "id": "capabilities",
+    "title": "Capabilities & responsibilities",
+    "desc": "Publish reusable security implementations with a clear provider/customer split.",
+    "group": "Offerings"
+  },
+  {
+    "id": "capability",
+    "title": "Centralized audit collection",
+    "desc": "Review the implementation, supporting evidence, and customer duties as one service contract.",
+    "group": "Offerings"
+  },
+  {
+    "id": "release",
+    "title": "Review and publish release 1.3",
+    "desc": "Confirm the exact service implementation changes and the information customers will receive.",
+    "group": "Offerings"
+  },
+  {
+    "id": "evidence",
+    "title": "Evidence & findings",
+    "desc": "Maintain usable evidence and make service weaknesses visible to the right reviewers.",
+    "group": "Offerings"
+  },
+  {
+    "id": "evidence-detail",
+    "title": "Shared-services assessment summary",
+    "desc": "Review exactly what customers can access and include in their system package.",
+    "group": "Offerings"
+  },
+  {
+    "id": "finding",
+    "title": "Logging evidence collection delay",
+    "desc": "Track provider remediation and customer impact without duplicating the mission’s risk decision.",
+    "group": "Offerings"
+  },
+  {
+    "id": "missions",
+    "title": "Mission systems",
+    "desc": "See exactly which service scopes and releases your customers use.",
+    "group": "Mission systems"
+  },
+  {
+    "id": "allocation",
+    "title": "Assign service scope",
+    "desc": "Record what a customer can associate with its system. This does not provision cloud access.",
+    "group": "Mission systems"
+  },
+  {
+    "id": "customer",
+    "title": "Harbor Logistics",
+    "desc": "Track the service relationship while preserving the Mission Owner’s control over their system.",
+    "group": "Mission systems"
+  },
+  {
+    "id": "changes",
+    "title": "Changes requiring attention",
+    "desc": "Understand service changes, affected customers, and the action each owner needs to take.",
+    "group": "Changes"
+  },
+  {
+    "id": "impact",
+    "title": "Review the retention change",
+    "desc": "Trace the proposed service change to customer duties and system documentation.",
+    "group": "Changes"
+  },
+  {
+    "id": "monitoring",
+    "title": "Service monitoring",
+    "desc": "Monitor source freshness and shared-service changes, then route meaningful impacts to customer systems.",
+    "group": "Changes"
+  },
+  {
+    "id": "rule",
+    "title": "Configure a monitoring rule",
+    "desc": "Define the condition, scope, and response so the rule can produce an actionable review.",
+    "group": "Changes"
+  },
+  {
+    "id": "administration",
+    "title": "Provider administration",
+    "desc": "Manage the people and connections used to maintain provider records.",
+    "group": "Administration"
+  },
+  {
+    "id": "history",
+    "title": "Provider audit history",
+    "desc": "Follow retained changes, source reviews, publication, and customer-access decisions.",
+    "group": "Administration"
+  },
+  {
+    "id": "system-hosting",
+    "title": "Environment & hosting",
+    "desc": "Associate this mission system with the provider service it actually uses.",
+    "group": "System definition"
+  },
+  {
+    "id": "system-capabilities",
+    "title": "Applied capabilities",
+    "desc": "Select a provider release and inspect the implementation and customer work before applying it.",
+    "group": "Controls & evidence"
+  },
+  {
+    "id": "system-duties",
+    "title": "Responsibilities",
+    "desc": "Complete the work that remains with the mission after provider capabilities are applied.",
+    "group": "Controls & evidence"
+  },
+  {
+    "id": "system-evidence",
+    "title": "Provider evidence in this system",
+    "desc": "See usable artifacts, controlled references, and the gaps that still need attention.",
+    "group": "Controls & evidence"
+  },
+  {
+    "id": "system-documents",
+    "title": "Document previews",
+    "desc": "Review how provider records and mission work combine in the system package.",
+    "group": "ATO package & eMASS"
+  },
+  {
+    "id": "system-package",
+    "title": "ATO package readiness",
+    "desc": "Resolve document and evidence gaps before preparing a package for the receiving eMASS workflow.",
+    "group": "ATO package & eMASS"
+  },
+  {
+    "id": "system-impact",
+    "title": "Review provider change impact",
+    "desc": "Determine what the provider’s retention change means for this mission system.",
+    "group": "Continuous monitoring"
+  },
+  {
+    "id": "system-monitoring",
+    "title": "Coverage & health",
+    "desc": "Monitor this system’s resources and adopted provider services with clear source-health status.",
+    "group": "Continuous monitoring"
+  },
+  {
+    "id": "onboarding",
+    "title": "Set up your provider workspace",
+    "desc": "Create the service workspace and optionally add source material. Review extracted records later in the portal.",
+    "group": "Administration"
+  },
+  {
+    "id": "onboarding-status",
+    "title": "Your workspace is ready",
+    "desc": "Continue into the portal to review source analysis when you are ready.",
+    "group": "Administration"
+  }
+]

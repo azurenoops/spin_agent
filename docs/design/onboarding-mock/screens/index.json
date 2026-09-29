@@ -1,0 +1,134 @@
+[
+  {
+    "id": "start",
+    "title": "What are you setting up?",
+    "desc": "Take the shortest path to the workspace you need. Detailed review happens after setup.",
+    "group": "Start"
+  },
+  {
+    "id": "resume",
+    "title": "Continue your setup",
+    "desc": "Saved records and unfinished tasks are shown separately. Resume without starting over.",
+    "group": "Start"
+  },
+  {
+    "id": "p-details",
+    "title": "Identify your provider",
+    "desc": "Capture the organization operating the service and the contact who maintains its records.",
+    "group": "Provider"
+  },
+  {
+    "id": "p-access",
+    "title": "Confirm provider access",
+    "desc": "Review the authorized administrator and the person responsible for security review.",
+    "group": "Provider"
+  },
+  {
+    "id": "p-offering",
+    "title": "Add your first service offering",
+    "desc": "Give Mission Owners a clear service identity. Review its authorization and implementations later.",
+    "group": "Provider"
+  },
+  {
+    "id": "p-sources",
+    "title": "Add source material",
+    "desc": "Optional: retain the package now and review its proposed records in the provider portal.",
+    "group": "Provider"
+  },
+  {
+    "id": "p-uncertain",
+    "title": "Check the package receipt",
+    "desc": "The upload response was interrupted. Confirm the existing request before trying again.",
+    "group": "Provider"
+  },
+  {
+    "id": "p-review",
+    "title": "Review provider setup",
+    "desc": "Confirm the workspace details. Source review and service publication remain separate tasks.",
+    "group": "Provider"
+  },
+  {
+    "id": "p-ready",
+    "title": "Your provider workspace is ready",
+    "desc": "Continue the detailed work in the portal, where the team can review it together.",
+    "group": "Provider"
+  },
+  {
+    "id": "o-details",
+    "title": "Set up an organization",
+    "desc": "Create the organization record and identify the person responsible for its administration.",
+    "group": "Organization"
+  },
+  {
+    "id": "o-admin",
+    "title": "Choose the organization administrator",
+    "desc": "Use an existing authorized identity or find the person in the connected directory.",
+    "group": "Organization"
+  },
+  {
+    "id": "directory-offline",
+    "title": "Directory lookup is unavailable",
+    "desc": "Choose a supported path without losing the setup details already entered.",
+    "group": "Organization"
+  },
+  {
+    "id": "o-review",
+    "title": "Review organization setup",
+    "desc": "Confirm what will be created and what access will be established.",
+    "group": "Organization"
+  },
+  {
+    "id": "o-ready",
+    "title": "Organization setup status",
+    "desc": "See what is ready and the next action appropriate to your access.",
+    "group": "Organization"
+  },
+  {
+    "id": "o-repair",
+    "title": "Review administrator setup status",
+    "desc": "Reconcile an interrupted enrollment against the organization’s actual current access records.",
+    "group": "Organization"
+  },
+  {
+    "id": "s-details",
+    "title": "Start your system workspace",
+    "desc": "Capture the system identity and choose the documentation work you need to begin.",
+    "group": "System"
+  },
+  {
+    "id": "s-team",
+    "title": "Identify your system team",
+    "desc": "Review effective roles and assign the next preparation tasks without recreating organization membership.",
+    "group": "System"
+  },
+  {
+    "id": "s-sources",
+    "title": "Bring existing documentation",
+    "desc": "Optional: add supported sources or start with a blank draft. Imports remain reviewable.",
+    "group": "System"
+  },
+  {
+    "id": "s-hosting",
+    "title": "Identify how the system is hosted",
+    "desc": "Associate the exact available service scope, or leave a clear task for later.",
+    "group": "System"
+  },
+  {
+    "id": "s-connect",
+    "title": "Plan cloud monitoring",
+    "desc": "Optional: configure a permitted read-only connection now or continue without live monitoring.",
+    "group": "System"
+  },
+  {
+    "id": "s-review",
+    "title": "Review system setup",
+    "desc": "Create the workspace and a focused work queue for documentation and monitoring.",
+    "group": "System"
+  },
+  {
+    "id": "s-ready",
+    "title": "Your system workspace is ready",
+    "desc": "Begin with the next useful task. The same records will build your package and support ongoing review.",
+    "group": "System"
+  }
+]

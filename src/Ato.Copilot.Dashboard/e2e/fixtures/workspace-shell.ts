@@ -11,6 +11,7 @@ export interface WorkspaceFixtureOptions {
   multiple?: boolean;
   mismatch?: boolean;
   support?: boolean;
+  canManageSystem?: boolean;
 }
 
 /** Synthetic API responses exercise the real SPA; they do not establish backend authorization. */
@@ -62,7 +63,7 @@ export async function installWorkspaceFixture(context: BrowserContext, baseURL: 
     if (path === '/api/auth/workspaces') return success({ items: choices, total: choices.length });
     if (path.endsWith('/workspace-access')) return success({
       systemId: 'system-a', roles: ['MissionOwner', 'Reader'],
-      permissions: { canRead: true, canEditProfile: true, canManageSystem: false, canAuthorNarratives: false,
+      permissions: { canRead: true, canEditProfile: true, canManageSystem: options.canManageSystem ?? false, canAuthorNarratives: false,
         canReviewNarratives: false, canManageEvidence: false, canRunAssessments: false,
         canManageRemediation: false, canDecideAuthorization: false },
     });
