@@ -33,6 +33,7 @@ public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
     private static readonly Guid TenantId = Guid.Parse("74dfc91c-6a22-4182-8e99-7c2ecc37d010");
     private static readonly Guid DirectoryId = Guid.Parse("74dfc91c-6a22-4182-8e99-7c2ecc37d011");
     private static readonly Guid ActorId = Guid.Parse("74dfc91c-6a22-4182-8e99-7c2ecc37d012");
+    private static readonly Guid PersonId = Guid.Parse("74dfc91c-6a22-4182-8e99-7c2ecc37d013");
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private ScanImportQueue _queue = null!;
@@ -51,6 +52,12 @@ public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
         builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
         builder.Services.AddScoped<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
+        builder.Services.AddScoped<ITenantContext>(_ => new TenantContext(TenantId) { PersonId = PersonId, IsWorkspaceRequest = true });
+        builder.Services.AddScoped<AssessmentResultsWorkspaceService>();
+        builder.Services.AddSingleton(Mock.Of<Ato.Copilot.Core.Interfaces.Compliance.IAssessmentEnvironmentService>());
+        builder.Services.AddSingleton(Mock.Of<Ato.Copilot.Core.Interfaces.Compliance.IAssessmentArtifactService>());
+        builder.Services.AddSingleton(Mock.Of<Ato.Copilot.Core.Interfaces.Compliance.IAtoComplianceEngine>());
+        builder.Services.AddSingleton(Mock.Of<Ato.Copilot.Core.Interfaces.Compliance.ISecurityAssessmentReportService>());
         builder.Services.AddSingleton(Mock.Of<ICspProfileService>());
         builder.Services.AddSingleton(Mock.Of<ITenantImpersonationService>());
         builder.Services.AddOptions<RoleClaimMappingsOptions>();
@@ -65,7 +72,7 @@ public sealed class ScanImportEndpointIntegrationTests : IAsyncLifetime
         await _app.StartAsync();
         await using (var db = await _app.Services.GetRequiredService<IDbContextFactory<AtoCopilotContext>>().CreateDbContextAsync())
         {
-            var person = new Person { TenantId = TenantId, DisplayName = "Scan operator", Email = "scan@example.invalid" };
+            var person = new Person { Id = PersonId, TenantId = TenantId, DisplayName = "Scan operator", Email = "scan@example.invalid" };
             db.Tenants.Add(new Tenant { Id = TenantId, DisplayName = "Scan organization" });
             db.Persons.Add(person);
             db.OrganizationMemberships.Add(new OrganizationMembership { TenantId = TenantId, PersonId = person.Id,

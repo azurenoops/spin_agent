@@ -12,6 +12,10 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Hubs;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Mcp.Workers;
 
@@ -59,33 +63,54 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
 
     private async Task ProcessJobAsync(ScanImportJob job, CancellationToken stoppingToken)
     {
+        using var tenantScope = _scopeFactory.CreateScope();
+        using var tenantBinding = tenantScope.ServiceProvider.GetService<ITenantContextAccessor>()?.Push(
+            new TenantContext(job.TenantId) { PersonId = job.PersonId });
+        using var capture = job.Capture is null ? null : ScanImportCapture.Push(job.Capture);
         try
         {
             using var jobCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 stoppingToken,
                 _tracker.GetCancellationToken(job.JobId));
+            jobCancellation.CancelAfter(TimeSpan.FromMinutes(30));
             var cancellationToken = jobCancellation.Token;
 
-            if (!_tracker.TryStart(job.JobId))
+            if (job.Capture is null && !_tracker.TryStart(job.JobId))
             {
                 await BroadcastProgressAsync(job.JobId, ImportJobStatus.Cancelled, 0, 0, "Import cancelled.");
                 return;
             }
 
-            await BroadcastProgressAsync(job.JobId, ImportJobStatus.Processing, 0, 0, null);
-
             // IScanImportService is Scoped — must resolve within a scope
             using var scope = _scopeFactory.CreateScope();
             var importService = scope.ServiceProvider.GetRequiredService<IScanImportService>();
+            if (job.Capture is not null)
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+                var claimed = await db.ScanImportRecords.Where(x => x.Id == job.JobId
+                    && x.RegisteredSystemId == job.SystemId && x.ImportStatus == ScanImportStatus.Queued
+                    && x.ResultProvenanceJson == job.Capture.ProvenanceJson)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.ImportStatus, ScanImportStatus.Processing), cancellationToken);
+                if (claimed != 1) return;
+                if (!_tracker.TryStart(job.JobId))
+                {
+                    await RetainStatusAsync(job, ScanImportStatus.Cancelled, "Import cancelled.", cancellationToken);
+                    return;
+                }
+            }
+            await BroadcastProgressAsync(job.JobId, ImportJobStatus.Processing, 0, 0, null);
             var fileContent = await File.ReadAllBytesAsync(job.TemporaryFilePath, cancellationToken);
 
             int totalEntries;
             int openCount;
+            ScanImportStatus importStatus;
+            IReadOnlyList<string> warnings;
+            string importRecordId;
             if (job.ImportType == "CKL")
             {
                 var result = await importService.ImportCklAsync(
                     job.SystemId,
-                    assessmentId: null,
+                    assessmentId: job.Capture?.AssessmentId,
                     fileContent,
                     job.FileName,
                     ImportConflictResolution.Skip,
@@ -94,12 +119,16 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
                     cancellationToken);
                 totalEntries = result.TotalEntries;
                 openCount = result.OpenCount;
+                importStatus = result.Status;
+                warnings = result.Warnings;
+                importRecordId = result.ImportRecordId;
+                if (result.Status == ScanImportStatus.Failed) throw new InvalidOperationException("CKL import failed. Check the file and retry.");
             }
             else if (job.ImportType == "XCCDF")
             {
                 var result = await importService.ImportXccdfAsync(
                     job.SystemId,
-                    assessmentId: null,
+                    assessmentId: job.Capture?.AssessmentId,
                     fileContent,
                     job.FileName,
                     ImportConflictResolution.Skip,
@@ -108,12 +137,16 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
                     cancellationToken);
                 totalEntries = result.TotalEntries;
                 openCount = result.OpenCount;
+                importStatus = result.Status;
+                warnings = result.Warnings;
+                importRecordId = result.ImportRecordId;
+                if (result.Status == ScanImportStatus.Failed) throw new InvalidOperationException("XCCDF import failed. Check the file and retry.");
             }
             else if (job.ImportType == "Nessus")
             {
                 var result = await importService.ImportNessusAsync(
                     job.SystemId,
-                    assessmentId: null,
+                    assessmentId: job.Capture?.AssessmentId,
                     fileContent,
                     job.FileName,
                     ImportConflictResolution.Skip,
@@ -122,13 +155,31 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
                     cancellationToken);
                 totalEntries = result.TotalPluginResults;
                 openCount = result.CriticalCount + result.HighCount + result.MediumCount + result.LowCount;
+                importStatus = result.Status;
+                warnings = result.Warnings;
+                importRecordId = result.ImportRecordId;
+                if (result.Status == ScanImportStatus.Failed) throw new InvalidOperationException("Nessus import failed. Check the file and retry.");
             }
             else
             {
                 throw new InvalidOperationException($"Unsupported scan import type '{job.ImportType}'.");
             }
 
-            if (!_tracker.TryComplete(job.JobId, totalEntries, totalEntries))
+            var completionStatus = importStatus == ScanImportStatus.CompletedWithWarnings || warnings.Count > 0
+                ? ScanImportStatus.CompletedWithWarnings : ScanImportStatus.Completed;
+            var retained = await RetainStatusAsync(job, completionStatus, null, cancellationToken, warnings);
+            if (job.Capture is not null && retained is null) return;
+            if (retained is not null)
+            {
+                completionStatus = retained.ImportStatus;
+                warnings = retained.Warnings;
+                importRecordId = retained.Id;
+                totalEntries = retained.TotalEntries;
+            }
+            var status = completionStatus == ScanImportStatus.CompletedWithWarnings
+                ? ImportJobStatus.CompletedWithWarnings : ImportJobStatus.Completed;
+            var resultId = string.IsNullOrWhiteSpace(importRecordId) ? null : "import:" + importRecordId;
+            if (!_tracker.TryComplete(job.JobId, totalEntries, totalEntries, status, warnings, resultId))
             {
                 await BroadcastProgressAsync(job.JobId, ImportJobStatus.Cancelled, 0, 0, "Import cancelled.");
                 return;
@@ -136,30 +187,37 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
 
             await BroadcastProgressAsync(
                 job.JobId,
-                ImportJobStatus.Completed,
+                status,
                 totalEntries,
                 totalEntries,
-                null);
+                null,
+                warnings,
+                resultId);
 
             _logger.LogInformation(
-                "Import job {JobId} completed: {Total} entries, {Open} open findings",
-                job.JobId, totalEntries, openCount);
+                "Import job {JobId} finished with {Status}: {Total} entries, {Open} open findings",
+                job.JobId, status, totalEntries, openCount);
         }
         catch (OperationCanceledException)
         {
+            var retained = await RetainStatusAsync(job, ScanImportStatus.Cancelled, "Import cancelled; already collected observations retained.", CancellationToken.None);
+            if (job.Capture is not null && retained is null) return;
             _tracker.Update(job.JobId, s => s.Status = ImportJobStatus.Cancelled);
             await BroadcastProgressAsync(job.JobId, ImportJobStatus.Cancelled, 0, 0, "Import cancelled.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Import job {JobId} failed: {Message}", job.JobId, ex.Message);
+            var retained = await RetainStatusAsync(job, ScanImportStatus.Failed, "Import failed; retained partial observations remain available. Retry the same file.", CancellationToken.None);
+            if (job.Capture is not null && retained is null) return;
             _tracker.Update(job.JobId, s =>
             {
                 s.Status = ImportJobStatus.Failed;
-                s.ErrorMessage = ex.Message;
+                s.ErrorMessage = "Import failed; retained partial observations remain available. Retry the same file.";
             });
-            await BroadcastProgressAsync(job.JobId, ImportJobStatus.Failed, 0, 0, ex.Message);
+            await BroadcastProgressAsync(job.JobId, ImportJobStatus.Failed, 0, 0, "Import failed; retained partial observations remain available.");
         }
+
         finally
         {
             try
@@ -173,12 +231,38 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
         }
     }
 
+    private async Task<ScanImportRecord?> RetainStatusAsync(ScanImportJob job, ScanImportStatus status, string? error,
+        CancellationToken ct, IReadOnlyList<string>? warnings = null)
+    {
+        if (job.Capture is null) return null;
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var record = await db.ScanImportRecords.SingleAsync(x => x.Id == job.JobId && x.RegisteredSystemId == job.SystemId, ct);
+        if (AssessmentResultProvenance.Read(record.ResultProvenanceJson).ExecutionToken
+            != AssessmentResultProvenance.Read(job.Capture.ProvenanceJson).ExecutionToken)
+        {
+            _logger.LogWarning("Import execution {JobId} was superseded; its status will not replace the retained retry.", job.JobId);
+            return null;
+        }
+        if (status is ScanImportStatus.Completed or ScanImportStatus.CompletedWithWarnings
+            && record.ImportStatus == ScanImportStatus.Cancelled)
+            throw new OperationCanceledException("Import was cancelled.");
+        if (warnings is not null) record.Warnings = record.Warnings.Concat(warnings).Distinct().ToList();
+        record.ImportStatus = status == ScanImportStatus.Completed && record.Warnings.Count > 0
+            ? ScanImportStatus.CompletedWithWarnings : status;
+        record.ErrorMessage = error;
+        await db.SaveChangesAsync(ct);
+        return record;
+    }
+
     private async Task BroadcastProgressAsync(
         string jobId,
         ImportJobStatus status,
         int processedCount,
         int totalCount,
-        string? errorMessage)
+        string? errorMessage,
+        IReadOnlyList<string>? warnings = null,
+        string? resultId = null)
     {
         try
         {
@@ -191,6 +275,8 @@ public sealed class ScanImportBackgroundWorker : BackgroundService
                     processedCount,
                     totalCount,
                     errorMessage,
+                    warnings = warnings ?? [],
+                    resultId,
                 });
         }
         catch (Exception ex)

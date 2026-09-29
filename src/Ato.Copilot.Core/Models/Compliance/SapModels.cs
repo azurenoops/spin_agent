@@ -56,6 +56,23 @@ public class SecurityAssessmentPlan
     [ConcurrencyCheck]
     public SapStatus Status { get; set; } = SapStatus.Draft;
 
+    [ConcurrencyCheck]
+    public long Revision { get; set; } = 1;
+
+    public DateTime? UpdatedAt { get; set; }
+
+    [MaxLength(200)]
+    public string? UpdatedBy { get; set; }
+
+    [MaxLength(200)]
+    public string? AssessmentLeadUserId { get; set; }
+
+    [MaxLength(200)]
+    public string? GenerationRequestId { get; set; }
+
+    [MaxLength(36)]
+    public string? PreviousPlanId { get; set; }
+
     /// <summary>SAP document title (e.g., "Security Assessment Plan — ACME System — FY26 Q2").</summary>
     [Required]
     [MaxLength(500)]
@@ -173,6 +190,11 @@ public class SapControlEntry
     [Required]
     [MaxLength(20)]
     public string ControlId { get; set; } = string.Empty;
+
+    public bool IsExcluded { get; set; }
+
+    [MaxLength(4000)]
+    public string? ExclusionRationale { get; set; }
 
     /// <summary>Control title from OSCAL catalog.</summary>
     [Required]
@@ -297,7 +319,10 @@ public record SapGenerationInput(
     string? RulesOfEngagement = null,
     List<SapTeamMemberInput>? TeamMembers = null,
     List<SapMethodOverrideInput>? MethodOverrides = null,
-    string Format = "markdown");
+    string Format = "markdown",
+    string? GenerationRequestId = null,
+    string? PreviousPlanId = null,
+    string? ExpectedContentHash = null);
 
 /// <summary>Input for SAP update (draft only).</summary>
 public record SapUpdateInput(
@@ -311,7 +336,14 @@ public record SapUpdateInput(
     string? Title = null,
     string? AssessmentLead = null,
     string? AssessmentApproach = null,
-    string? ExpectedContentHash = null);
+    string? ExpectedContentHash = null,
+    long? ExpectedRevision = null,
+    string? AssessmentLeadUserId = null,
+    List<string>? IncludedControlIds = null,
+    Dictionary<string, string>? ExclusionReasons = null,
+    bool ReplaceSchedule = false,
+    bool ReplaceLead = false,
+    string? UpdatedBy = null);
 
 /// <summary>Result of SAP generation or retrieval.</summary>
 public class SapDocument

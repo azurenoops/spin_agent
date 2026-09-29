@@ -8,6 +8,55 @@
 
 ## Clarifications
 
+### September 28, 2026 - Connected guided assessment workflow
+
+User Story 5 extends the existing SAP and assessment records into one connected
+**Plan -> Collect results -> Review -> Prepare SAR** experience. Parent tracking:
+[azurenoops/spin_agent#211](https://github.com/azurenoops/spin_agent/issues/211).
+External story creation/linkage requires approval; local implementation is requested.
+
+- Both pages select the same retained SAP ID/revision and structured control
+  entries. No parallel plan store or second generation workflow is permitted.
+- Replace duplicate SAP cards with one readable summary, baseline versus planned
+  scope counts, source dates, and collapsed history. Checklist tasks come from
+  actual validation and stored planning gaps, not the mock's illustrative count.
+- Preserve the current SAP rule: completeness warnings are advisory, not new
+  hard finalization gates. Distinguish permission/status/concurrency blockers.
+- Choose a named assessment lead without assigning authorization roles. Preserve
+  team members, schedule, rules of engagement, scope notes, structured controls,
+  methods and objectives. Scope selection must not become a free-text substitute.
+- Save edits to the same draft, preview saved content without regeneration, and
+  finalize only through the authorized transition with revision checks.
+  Finalized records remain immutable. Explicit revision creates/reuses the next
+  working draft; refresh/retry cannot delete and recreate existing drafts.
+- Results pages expose real Azure readiness, configuration/execution permissions,
+  and supported mission imports (currently CKL/XCCDF/Nessus through HTTP).
+  Preliminary collection is permitted where supported without a finalized SAP.
+- Pin original plan revision/scope to new results. Legacy or preliminary results
+  remain explicitly unlinked until an authorized reconciliation; do not rewrite
+  their original provenance when the plan changes.
+- Separate collected observations, human determinations/review, and authorization.
+  Coverage uses selected plan controls, not baseline size. Failed/unavailable
+  checks never synthesize Satisfied determinations.
+- Retain findings, evidence, errors, exclusions, duplicate/stale indicators and
+  historical scope. Review uses existing assessment-artifact services and
+  findings/remediation/POA&M workflows with scoped authorization.
+- SAR preparation uses selected retained plan/results and the existing report
+  service. Preserve versions/review/evidence provenance and show readiness gaps.
+  Do not turn advisory report gaps or draft-plan status into artificial draft
+  generation gates. Draft, reviewed report, package export, submission and AO
+  decision remain different states.
+- Reads and writes validate organization/system/record/action, with idempotent
+  retry semantics for long-running collection/import/report requests. Preserve
+  completed work and expose partial failure, not success-shaped defaults.
+- Verify SAP saved-field rendering, SAR selected-result accuracy, scope isolation,
+  concurrency, missing connectivity/denied execution, supported imports, keyboard,
+  navigation, mobile and themes. Document downstream export gaps honestly.
+
+This amendment supersedes the historical draft deletion/overwrite behavior for
+the guided workflow and the assumption that collection must wait for finalization.
+See [the connected-workflow contract](contracts/assessment-workspace.md).
+
 ### Session 2026-03-04
 
 - Q: Spec 015 explicitly placed SAP out of scope ("assessment planning is an organizational process outside scope"). Why bring it in now? → A: The codebase has matured significantly since spec 015. The OSCAL catalog already contains assessment objectives (`assessment-objective` parts) extractable via `NistControlsService.ExtractObjectives()`. The `ControlBaseline`, `ControlEffectiveness`, `ControlInheritance`, and evidence models are now fully implemented. With this foundation, SAP generation is no longer organizational guesswork — it's structured document assembly from data already in the system.

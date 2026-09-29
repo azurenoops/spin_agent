@@ -494,7 +494,7 @@ public class AtoComplianceEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task RunComprehensiveAssessment_PartialFailure_ContinuesAndCompletes()
+    public async Task RunComprehensiveAssessment_PartialFailure_RetainsWorkWithoutClaimingCompletion()
     {
         // Setup most families to succeed, but one scanner throws
         var failingScanner = new Mock<IComplianceScanner>();
@@ -515,7 +515,7 @@ public class AtoComplianceEngineTests : IDisposable
         var engine = CreateEngine();
         var result = await engine.RunComprehensiveAssessmentAsync("test-sub");
 
-        result.Status.Should().Be(AssessmentStatus.Completed);
+        result.Status.Should().Be(AssessmentStatus.Failed);
         result.ControlFamilyResults.Should().HaveCount(20);
 
         var acResult = result.ControlFamilyResults.First(f => f.FamilyCode == "AC");
@@ -543,7 +543,7 @@ public class AtoComplianceEngineTests : IDisposable
 
         _persistenceMock.Verify(x => x.SaveAssessmentAsync(
             It.Is<ComplianceAssessment>(a => a.Status == AssessmentStatus.Completed),
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Exactly(21));
     }
 
     [Fact]
@@ -569,6 +569,8 @@ public class AtoComplianceEngineTests : IDisposable
         result.ScanPillarResults.Should().ContainKey("ARM");
         result.ScanPillarResults.Should().ContainKey("Policy");
         result.ScanPillarResults.Should().ContainKey("Defender");
+        result.ScanPillarResults["Policy"].Should().BeFalse("a missing evaluator outcome is not proof of success");
+        result.ScanPillarResults["Defender"].Should().BeFalse("a missing evaluator outcome is not proof of success");
     }
 
     [Fact]
@@ -1794,21 +1796,19 @@ public class AtoComplianceEngineTests : IDisposable
     // ─── T105: Persistence Failure Behavior Tests ──────────────────────────
 
     [Fact]
-    public async Task RunComprehensiveAssessmentAsync_PersistenceFails_ReturnsAssessment()
+    public async Task RunComprehensiveAssessmentAsync_PersistenceFails_PropagatesFailure()
     {
+        // Arrange
         SetupScannerRegistryForAllFamilies();
 
-        // Make persistence throw — but the assessment should still be returned
         _persistenceMock.Setup(x => x.SaveAssessmentAsync(It.IsAny<ComplianceAssessment>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB is down"));
 
         var engine = CreateEngine();
-        var result = await engine.RunComprehensiveAssessmentAsync("sub-1");
-
-        // The assessment should still be returned even though persistence failed
-        result.Should().NotBeNull();
-        result.SubscriptionId.Should().Be("sub-1");
-        result.Status.Should().Be(AssessmentStatus.Completed);
+        // Act
+        var run = () => engine.RunComprehensiveAssessmentAsync("sub-1");
+        // Assert
+        await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB is down");
     }
 
     [Fact]

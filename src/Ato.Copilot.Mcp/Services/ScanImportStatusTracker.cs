@@ -16,7 +16,8 @@ public enum ImportJobStatus
     Processing,
     Completed,
     Failed,
-    Cancelled
+    Cancelled,
+    CompletedWithWarnings
 }
 
 /// <summary>Mutable snapshot of a scan import job's progress.</summary>
@@ -31,6 +32,8 @@ public sealed class ImportJobState
     public int TotalCount { get; set; }
     public string? ErrorMessage { get; set; }
     public bool CancelRequested { get; set; }
+    public string? ResultId { get; set; }
+    public IReadOnlyList<string> Warnings { get; set; } = [];
 
     internal object SyncRoot { get; } = new();
     internal CancellationToken CancellationToken => _cancellation.Token;
@@ -88,16 +91,21 @@ public sealed class ScanImportStatusTracker
     }
 
     /// <summary>Complete a job only when no cancellation request won the race.</summary>
-    public bool TryComplete(string jobId, int processedCount, int totalCount)
+    public bool TryComplete(string jobId, int processedCount, int totalCount,
+        ImportJobStatus status = ImportJobStatus.Completed, IReadOnlyList<string>? warnings = null, string? resultId = null)
     {
+        if (status is not (ImportJobStatus.Completed or ImportJobStatus.CompletedWithWarnings))
+            throw new ArgumentOutOfRangeException(nameof(status), "Completion must be successful or completed with warnings.");
         if (!_jobs.TryGetValue(jobId, out var state)) return false;
 
         lock (state.SyncRoot)
         {
             if (state.CancelRequested || state.Status == ImportJobStatus.Cancelled) return false;
-            state.Status = ImportJobStatus.Completed;
+            state.Status = status;
             state.ProcessedCount = processedCount;
             state.TotalCount = totalCount;
+            state.Warnings = warnings?.ToArray() ?? [];
+            state.ResultId = resultId;
             return true;
         }
     }
@@ -134,7 +142,7 @@ public sealed class ScanImportStatusTracker
     {
         lock (state.SyncRoot)
         {
-            if (state.Status is ImportJobStatus.Completed or ImportJobStatus.Failed or ImportJobStatus.Cancelled)
+            if (state.Status is ImportJobStatus.Completed or ImportJobStatus.CompletedWithWarnings or ImportJobStatus.Failed or ImportJobStatus.Cancelled)
                 return false;
 
             state.CancelRequested = true;

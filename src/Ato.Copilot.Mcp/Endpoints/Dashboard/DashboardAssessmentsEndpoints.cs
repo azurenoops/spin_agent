@@ -308,6 +308,11 @@ public static partial class DashboardEndpoints
                 return AssessmentEnvironmentError(
                     readiness.ErrorCode ?? throw new InvalidOperationException("Blocked assessment readiness requires an error code."),
                     readiness.Message, readiness.Suggestion);
+            if (readiness.Subscriptions.Count != 1
+                || await context.AuthorizationBoundaries.AnyAsync(x => x.RegisteredSystemId == systemId, ct)
+                || await context.BoundaryComponentAssignments.AnyAsync(x =>
+                    x.AuthorizationBoundaryDefinition.RegisteredSystemId == systemId, ct))
+                return Results.Conflict(new { error = "Use the connected assessment workspace for multi-subscription collection. Resource-restricted boundaries require a scope-capable evaluator; no broader scan was run." });
 
             var system = await context.RegisteredSystems
                 .FirstOrDefaultAsync(s => s.Id == systemId && s.IsActive, ct);
@@ -332,44 +337,7 @@ public static partial class DashboardEndpoints
                 await context.SaveChangesAsync(ct);
             }
 
-            var failedControlIds = new HashSet<string>(
-                assessment.Findings.Select(f => f.ControlId).Where(id => id != null)!,
-                StringComparer.OrdinalIgnoreCase);
-
-            var baseline = await context.ControlBaselines
-                .AsNoTracking()
-                .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, ct);
-
-            if (baseline is not null)
-            {
-                var azEffRecords = new List<ControlEffectiveness>();
-                foreach (var controlId in baseline.ControlIds)
-                {
-                    var failed = failedControlIds.Contains(controlId);
-                    var finding = failed
-                        ? assessment.Findings.FirstOrDefault(f =>
-                            string.Equals(f.ControlId, controlId, StringComparison.OrdinalIgnoreCase))
-                        : null;
-
-                    azEffRecords.Add(new ControlEffectiveness
-                    {
-                        AssessmentId = assessment.Id,
-                        RegisteredSystemId = systemId,
-                        ControlId = controlId,
-                        Determination = failed
-                            ? EffectivenessDetermination.OtherThanSatisfied
-                            : EffectivenessDetermination.Satisfied,
-                        AssessmentMethod = "Examine",
-                        AssessorId = actorId,
-                        AssessedAt = DateTime.UtcNow,
-                        CatSeverity = failed && finding?.CatSeverity != null
-                            ? finding.CatSeverity
-                            : (failed ? Ato.Copilot.Core.Models.Compliance.CatSeverity.CatII : null),
-                    });
-                }
-                context.ControlEffectivenessRecords.AddRange(azEffRecords);
-                await context.SaveChangesAsync(ct);
-            }
+            // Collection observations never create human effectiveness determinations.
 
             // Log activity
             context.DashboardActivities.Add(new DashboardActivity
@@ -385,92 +353,17 @@ public static partial class DashboardEndpoints
 
             // Capture a trend snapshot after assessment completes
             try { await trendSnapshotService.CaptureSnapshotAsync(systemId, ct); }
-            catch { /* non-fatal */ }
-
-            // ─── Auto-create POA&M items from open findings ──────────────────
-            var poamCreated = 0;
-            var openFindings = assessment.Findings
-                .Where(f => f.Status == FindingStatus.Open || f.Status == FindingStatus.InProgress)
-                .ToList();
-
-            foreach (var finding in openFindings)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                try
-                {
-                    var severity = finding.CatSeverity ?? (finding.Severity switch
-                    {
-                        FindingSeverity.Critical or FindingSeverity.High => Ato.Copilot.Core.Models.Compliance.CatSeverity.CatI,
-                        FindingSeverity.Medium => Ato.Copilot.Core.Models.Compliance.CatSeverity.CatII,
-                        _ => Ato.Copilot.Core.Models.Compliance.CatSeverity.CatIII,
-                    });
-
-                    var dueDate = severity switch
-                    {
-                        Ato.Copilot.Core.Models.Compliance.CatSeverity.CatI => DateTime.UtcNow.AddDays(30),
-                        Ato.Copilot.Core.Models.Compliance.CatSeverity.CatII => DateTime.UtcNow.AddDays(90),
-                        _ => DateTime.UtcNow.AddDays(180),
-                    };
-
-                    var poam = await authorizationService.CreatePoamAsync(
-                        systemId,
-                        finding.Title ?? finding.Description ?? $"Finding for {finding.ControlId}",
-                        finding.ControlId ?? "Unknown",
-                        severity.ToString(),
-                        actorId,
-                        dueDate,
-                        finding.Id,
-                        finding.RemediationGuidance,
-                        cancellationToken: ct);
-                    poamCreated++;
-                }
-                catch { /* non-fatal — continue creating remaining POA&M items */ }
+                logger.LogError(ex, "Trend snapshot failed for assessment {AssessmentId}", assessment.Id);
+                return Results.Json(new { error = "Assessment retained, but trend snapshot failed.", assessmentId = assessment.Id }, statusCode: 503);
             }
 
-            // ─── Auto-create Kanban remediation board from assessment ─────────
+            // Follow-up actions remain available through their independently authorized endpoints.
+            var poamCreated = 0;
             string? boardId = null;
             var kanbanTaskCount = 0;
-            try
-            {
-                var board = await kanbanService.CreateBoardFromAssessmentAsync(
-                    assessment.Id,
-                    $"{system.Name} — Assessment {DateTime.UtcNow:yyyy-MM-dd}",
-                    subscriptionId,
-                    assessment.InitiatedBy ?? actorId,
-                    ct);
-                boardId = board.Id;
-                kanbanTaskCount = board.Tasks.Count;
-
-                // Link POA&M items to kanban tasks via FindingId
-                var poamItems = await context.PoamItems
-                    .Where(p => p.RegisteredSystemId == systemId && p.FindingId != null)
-                    .ToListAsync(ct);
-                var tasksByFinding = board.Tasks
-                    .Where(t => t.FindingId != null)
-                    .ToDictionary(t => t.FindingId!, t => t);
-
-                foreach (var poam in poamItems)
-                {
-                    if (poam.FindingId != null && tasksByFinding.TryGetValue(poam.FindingId, out var task))
-                    {
-                        poam.RemediationTaskId = task.Id;
-                        task.PoamItemId = poam.Id;
-                    }
-                }
-                await context.SaveChangesAsync(ct);
-            }
-            catch { /* non-fatal — board creation failure doesn't block assessment */ }
-
-            // ─── Auto-generate remediation plan ──────────────────────────────
             string? remediationPlanId = null;
-            try
-            {
-                var plan = await remediationEngine.GenerateRemediationPlanAsync(
-                    openFindings,
-                    null,
-                    ct);
-                remediationPlanId = plan.Id;
-            }
-            catch { /* non-fatal */ }
 
             return Results.Ok(new
             {

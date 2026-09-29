@@ -17,6 +17,31 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
+### US5 - Connected guided assessment workflow (2026-09-28)
+
+Parent: [azurenoops/spin_agent#211](https://github.com/azurenoops/spin_agent/issues/211).
+External issue write/link approval remains a separate gate.
+
+- [ ] GUIDE01 Approve/create/link the user-story issue and mirror this checklist.
+- [x] GUIDE02 Add failing plan/preview/finalization/concurrency/scope tests.
+- [x] GUIDE03 Implement one retained-plan projection and focused draft editors using existing SAP records/services and actual validation rules.
+- [x] GUIDE04 Add failing collection/import/result lineage, coverage, review, retry and SAR-source tests.
+- [x] GUIDE05 Preserve supported Azure/import methods with real permissions/readiness, scope and partial-failure handling; no automatic baseline-wide passes.
+- [x] GUIDE06 Pin original plan/scope and explicit review/reconciliation provenance on existing result records; preserve historical associations.
+- [x] GUIDE07 Prepare retained SAR drafts from selected sources through the existing report service with idempotency and authorization.
+- [x] GUIDE08 Add failing UI tests and implement mock-aligned Plan/Results pages, workflow links, editors, result details, review and SAR readiness.
+- [x] GUIDE09 Preserve findings/remediation/POA&M and supported import/procedure/team/schedule actions; remove duplicate SAP generation controls.
+- [x] GUIDE10 Verify rendered SAP fields and SAR selected-result/evidence/review provenance, and document remaining export connections.
+- [x] GUIDE11 Run Dashboard typecheck/build, relevant backend/frontend tests, and desktop/mobile/theme/keyboard browser checks.
+- [x] GUIDE12 Deploy locally for manual acceptance, report verified results and baseline failures; no push.
+
+Final local results: 64 backend tests passed (20 existing Nessus placeholders
+skipped), 100 frontend tests passed, 5 browser cases passed, Dashboard static/build
+checks and API image build passed. Four unrelated PendingImpacts constructor
+errors still block the whole solution's unit project. Actual SQL Server additive
+columns and local API health are verified. Organization-account manual acceptance
+and GUIDE01 GitHub approval remain external gates; no grants or pushes were made.
+
 **Purpose**: Create SAP entities, enum, DTOs, and database configuration required by all user stories
 
 - [X] T001 Create SecurityAssessmentPlan, SapControlEntry, SapTeamMember entities, SapStatus enum, and all DTOs (SapMethodOverrideInput, SapTeamMemberInput, SapGenerationInput, SapUpdateInput, SapDocument, SapFamilySummary, SapValidationResult) in src/Ato.Copilot.Core/Models/Compliance/SapModels.cs

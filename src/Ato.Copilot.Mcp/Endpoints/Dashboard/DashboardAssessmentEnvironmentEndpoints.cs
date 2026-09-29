@@ -16,6 +16,22 @@ public static partial class DashboardEndpoints
 {
     private static void MapAssessmentEnvironmentRoutes(IEndpointRouteBuilder group, ICurrentUserService currentUser)
     {
+        group.MapGet("/systems/{systemId}/assessment-environment/access", async (
+            string systemId, HttpContext http,
+            [Microsoft.AspNetCore.Mvc.FromServices] AssessmentResultsWorkspaceService workspace, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await workspace.GetConfigurationAccessAsync(systemId, http.User, ct)); }
+            catch (AssessmentWorkspaceException failure)
+            {
+                return Results.Json(new { error = failure.Message }, statusCode: failure.Status);
+            }
+        })
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader)
+        .WithName("GetAssessmentEnvironmentAccess")
+        .WithSummary("Read the exact system's Azure configuration permission without probing Azure or loading assessment history.")
+        .Produces<AssessmentEnvironmentAccessResponse>()
+        .Produces(StatusCodes.Status404NotFound);
+
         group.MapGet("/systems/{systemId}/assessment-readiness", async (
             string systemId, HttpContext http, IAssessmentEnvironmentService service,
             HttpAuthorizationService authorization, ILogger<AssessmentEnvironmentService> logger, CancellationToken ct) =>
@@ -52,6 +68,7 @@ public static partial class DashboardEndpoints
             }
         })
         .RequireAuthorization(Policies.ComplianceWriter)
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceWriter)
         .WithName("GetAssessmentEnvironment")
         .WithSummary("Read actual Azure attachment configuration and organization subscription choices.")
         .Produces<AssessmentEnvironmentResponse>()
@@ -69,6 +86,7 @@ public static partial class DashboardEndpoints
             }
         })
         .RequireAuthorization(Policies.ComplianceWriter)
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceWriter)
         .WithName("ConfigureAssessmentEnvironment")
         .WithSummary("Save eligible Azure attachment metadata; connectivity is checked separately.")
         .Produces<AssessmentEnvironmentResponse>()
@@ -91,6 +109,7 @@ public static partial class DashboardEndpoints
             }
         })
         .RequireAuthorization(Policies.ComplianceWriter)
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceWriter)
         .WithName("DetachAssessmentEnvironment")
         .WithSummary("Detach Azure assessment configuration without changing historical assessments.")
         .Produces(StatusCodes.Status204NoContent)

@@ -35,6 +35,9 @@ public static class ScanImportEndpoints
             HttpRequest request,
             ScanImportQueue queue,
             ScanImportStatusTracker tracker,
+            AssessmentResultsWorkspaceService workspace,
+            Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext tenant,
+            Ato.Copilot.Core.Data.Context.AtoCopilotContext db,
             CancellationToken cancellationToken) =>
         {
             if (!request.HasFormContentType || request.Form.Files.Count == 0)
@@ -51,8 +54,10 @@ public static class ScanImportEndpoints
                     errorCode = "FILE_TOO_LARGE",
                 });
 
+            var uploadDirectory = Path.Combine(AppContext.BaseDirectory, "scan-import-uploads");
+            Directory.CreateDirectory(uploadDirectory);
             var temporaryFilePath = Path.Combine(
-                Path.GetTempPath(),
+                uploadDirectory,
                 $"ato-copilot-scan-{Guid.NewGuid():N}.upload");
 
             try
@@ -89,8 +94,42 @@ public static class ScanImportEndpoints
                     return Results.StatusCode(415); // Unsupported Media Type
                 }
 
-                // Create a job ID and register with the in-memory tracker
-                var importJobId = Guid.NewGuid().ToString();
+                string fileHash;
+                await using (var content = File.OpenRead(temporaryFilePath))
+                    fileHash = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(content, cancellationToken)).ToLowerInvariant();
+                Ato.Copilot.Core.Models.Compliance.ScanImportRecord record;
+                try
+                {
+                    record = await workspace.CaptureImportAsync(systemId,
+                        request.Form["planId"].FirstOrDefault(), request.Form["expectedPlanHash"].FirstOrDefault(),
+                        request.Form["requestId"].FirstOrDefault(), fileHash, file.FileName, file.Length, detectedType, cancellationToken);
+                }
+                catch (AssessmentWorkspaceException ex)
+                {
+                    File.Delete(temporaryFilePath);
+                    return Results.Json(new { error = ex.Message }, statusCode: ex.Status);
+                }
+                var importJobId = record.Id;
+                var execution = Ato.Copilot.Core.Models.Compliance.AssessmentResultProvenance.Read(record.ResultProvenanceJson);
+                var leaseActive = execution.ExecutionLeaseExpiresAt is null || execution.ExecutionLeaseExpiresAt > DateTime.UtcNow;
+                if (record.ImportStatus is Ato.Copilot.Core.Models.Compliance.ScanImportStatus.Completed
+                    or Ato.Copilot.Core.Models.Compliance.ScanImportStatus.CompletedWithWarnings
+                    || record.ImportStatus == Ato.Copilot.Core.Models.Compliance.ScanImportStatus.Processing && leaseActive
+                    || record.ImportStatus == Ato.Copilot.Core.Models.Compliance.ScanImportStatus.Queued
+                        && tracker.TryGet(systemId, importJobId) is { Status: ImportJobStatus.Queued })
+                {
+                    File.Delete(temporaryFilePath);
+                    return Results.Accepted($"/api/dashboard/systems/{systemId}/scans/import/{importJobId}/status",
+                        new { importJobId, statusUrl = $"/api/dashboard/systems/{systemId}/scans/import/{importJobId}/status",
+                            detectedFileType = detectedType, fileName = record.FileName, fileSizeBytes = record.FileSizeBytes,
+                            resultId = "import:" + record.Id, message = "Existing retained import; original plan association preserved." });
+                }
+                record.ImportStatus = Ato.Copilot.Core.Models.Compliance.ScanImportStatus.Queued;
+                record.ErrorMessage = null;
+                execution.ExecutionToken = Guid.NewGuid().ToString();
+                execution.ExecutionLeaseExpiresAt = DateTime.UtcNow.AddMinutes(30);
+                record.ResultProvenanceJson = execution.Serialize();
+                await db.SaveChangesAsync(cancellationToken);
                 tracker.Register(importJobId, systemId);
 
                 // Enqueue — the BackgroundWorker drains the channel
@@ -102,6 +141,9 @@ public static class ScanImportEndpoints
                     TemporaryFilePath = temporaryFilePath,
                     ImportType = detectedType,
                     ImportedBy = WorkspaceService.Identity(request.HttpContext.User).ObjectId.ToString(),
+                    TenantId = tenant.EffectiveTenantId,
+                    PersonId = tenant.PersonId,
+                    Capture = new(record.Id, record.AssessmentId, record.WorkspaceOperationKey!, record.ResultProvenanceJson!),
                 });
 
                 if (!enqueued)
@@ -136,12 +178,21 @@ public static class ScanImportEndpoints
 
         // ─── GET .../scans/import/{importId}/status ───────────────────────────
         // Returns the current status of an import job for polling fallback.
-        app.MapGet("/api/dashboard/systems/{systemId}/scans/import/{importId}/status", (
+        app.MapGet("/api/dashboard/systems/{systemId}/scans/import/{importId}/status", async (
             string systemId,
             string importId,
-            ScanImportStatusTracker tracker) =>
+            ScanImportStatusTracker tracker,
+            Ato.Copilot.Core.Data.Context.AtoCopilotContext db,
+            CancellationToken ct) =>
         {
+            var record = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleOrDefaultAsync(
+                db.ScanImportRecords.Where(x => x.Id == importId && x.RegisteredSystemId == systemId), ct);
             var state = tracker.TryGet(systemId, importId);
+            if (record is not null)
+                return Results.Ok(new { id = record.Id, status = record.ImportStatus.ToString(),
+                    processedCount = record.TotalEntries, totalCount = record.TotalEntries,
+                    errorMessage = record.ErrorMessage, cancelRequested = state?.CancelRequested ?? false,
+                    resultId = "import:" + record.Id, warnings = record.Warnings });
             if (state is null)
                 return Results.NotFound(new { error = "Import job not found", errorCode = "NOT_FOUND" });
 
@@ -153,6 +204,8 @@ public static class ScanImportEndpoints
                 totalCount = state.TotalCount,
                 errorMessage = state.ErrorMessage,
                 cancelRequested = state.CancelRequested,
+                resultId = state.ResultId,
+                warnings = state.Warnings,
             });
         })
         .WithName("GetScanImportStatus")
@@ -162,13 +215,26 @@ public static class ScanImportEndpoints
 
         // ─── DELETE .../scans/import/{importId} ───────────────────────────────
         // Requests cancellation of an in-progress import job.
-        app.MapDelete("/api/dashboard/systems/{systemId}/scans/import/{importId}", (
+        app.MapDelete("/api/dashboard/systems/{systemId}/scans/import/{importId}", async (
             string systemId,
             string importId,
-            ScanImportStatusTracker tracker) =>
+            ScanImportStatusTracker tracker,
+            Ato.Copilot.Core.Data.Context.AtoCopilotContext db,
+            CancellationToken ct) =>
         {
+            var record = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleOrDefaultAsync(
+                db.ScanImportRecords.Where(x => x.Id == importId && x.RegisteredSystemId == systemId), ct);
+            if (record is not null)
+            {
+                if (record.ImportStatus is Ato.Copilot.Core.Models.Compliance.ScanImportStatus.Completed
+                    or Ato.Copilot.Core.Models.Compliance.ScanImportStatus.CompletedWithWarnings)
+                    return Results.Conflict(new { error = "The completed import is retained and cannot be cancelled." });
+                record.ImportStatus = Ato.Copilot.Core.Models.Compliance.ScanImportStatus.Cancelled;
+                record.ErrorMessage = "Cancellation requested; retained observations remain available.";
+                await db.SaveChangesAsync(ct);
+            }
             var cancelled = tracker.RequestCancel(systemId, importId);
-            if (!cancelled)
+            if (!cancelled && record is null)
                 return Results.NotFound(new { error = "Import job not found", errorCode = "NOT_FOUND" });
 
             return Results.Ok(new { id = importId, cancelRequested = true });

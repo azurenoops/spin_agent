@@ -51,6 +51,17 @@ public class AssessmentArtifactService : IAssessmentArtifactService
         string assessorId = "mcp-user",
         CancellationToken cancellationToken = default)
     {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        return await AssessControlInContextAsync(context, assessmentId, controlId, determination,
+            method, evidenceIds, notes, catSeverity, assessorId, cancellationToken);
+    }
+
+    public async Task<ControlEffectiveness> AssessControlInContextAsync(
+        AtoCopilotContext context, string assessmentId, string controlId, string determination,
+        string? method, List<string>? evidenceIds, string? notes, string? catSeverity,
+        string assessorId, CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(assessmentId, nameof(assessmentId));
         ArgumentException.ThrowIfNullOrWhiteSpace(controlId, nameof(controlId));
         ArgumentException.ThrowIfNullOrWhiteSpace(determination, nameof(determination));
@@ -74,9 +85,6 @@ public class AssessmentArtifactService : IAssessmentArtifactService
         if (det == EffectivenessDetermination.OtherThanSatisfied && catSev == null)
             throw new InvalidOperationException(
                 "cat_severity is required when determination is 'OtherThanSatisfied'.");
-
-        using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         // Verify assessment exists
         var assessment = await context.Assessments
