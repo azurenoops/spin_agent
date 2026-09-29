@@ -8,6 +8,7 @@ import { generateProposal, generateQueuedProposal, getProposalById, getNarrative
 import { useSettings } from '../hooks/useSettings';
 import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
 import NarrativeImpactHistory from '../components/narratives/NarrativeImpactHistory';
+import ControlNarrativeWorkspace from '../features/narratives/ControlNarrativeWorkspace';
 import './NarrativeWorkspace.css';
 import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport, systemSecondaryAction } from '../features/systems/SystemTaskPresentation';
 
@@ -176,14 +177,15 @@ function Workspace({ systemId }: { systemId: string }) {
     });
   }
   const pending = proposals.filter(item => item.status === 'Draft');
-  const showReview = view === 'review' || view === 'narratives' && pending.length > 0;
-  const showRecords = !loading && !loadError && (view === 'records' || view === 'narratives' && !showReview);
+  const showReview = view === 'review';
+  const showWorkspace = view === 'narratives';
+  const showRecords = !loading && !loadError && view === 'records';
 
   return <div className="narrative-workspace">
-    {['narratives', 'records', 'review'].includes(view) && <SystemTaskHeading title="Control implementation narratives"
+    {['records', 'review'].includes(view) && <SystemTaskHeading title={view === 'records' ? 'Full narrative editor' : 'Review proposed update'}
       description="Write and review statements describing how this system implements each control."
       action={<button type="button" className={systemSecondaryAction} disabled={locked || proposals.length === 0} onClick={() => go('review')}>Review proposed update</button>} />}
-    <SystemTaskColumns support={<>
+    <SystemTaskColumns support={showWorkspace ? undefined : <>
       <SystemTaskSupport title="Contributes to"><p>SSP · Implementation statements</p></SystemTaskSupport>
       <SystemTaskSupport title="Review against sources">
         <p>Compare the retained statement and proposed changes before approval. Source changes do not replace the active narrative automatically.</p>
@@ -192,9 +194,13 @@ function Workspace({ systemId }: { systemId: string }) {
         <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/inheritance/subscriptions`}>Control responsibilities</Link>
       </SystemTaskSupport>
     </>}>
-    {(loadError || error) && <div role="alert" className="nw-alert"><ShieldAlert size={18} /><span>{loadError || error}</span>
+    {!showWorkspace && (loadError || error) && <div role="alert" className="nw-alert"><ShieldAlert size={18} /><span>{loadError || error}</span>
       <button type="button" onClick={() => { setError(''); setRevision(current => current + 1); }} title="Retry loading"><RefreshCw size={16} /></button></div>}
-    {loading && <p role="status" className="nw-muted">Loading narrative context...</p>}
+    {!showWorkspace && loading && <p role="status" className="nw-muted">Loading narrative context...</p>}
+
+    {showWorkspace && <ControlNarrativeWorkspace systemId={systemId}
+      onOpenEditor={() => go('records')} onOpenLibrary={() => go('library')}
+      onReviewProposal={proposalId => navigate(`${base}/review?proposal=${encodeURIComponent(proposalId)}`)} />}
 
     {showRecords && <>
       {pending.length > 0 && <div className="nw-notice"><GitCompareArrows size={18} /><span>{pending.length} proposed update{pending.length === 1 ? '' : 's'} awaiting review</span>

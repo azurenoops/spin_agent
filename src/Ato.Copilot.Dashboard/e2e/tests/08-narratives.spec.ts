@@ -170,7 +170,7 @@ test.describe('Narratives', () => {
       request.method() === 'PATCH' && request.url().endsWith('/controls/AC-2/narrative'));
 
     // Act
-    await page.goto('/systems/e2e-system/narratives');
+    await page.goto('/systems/e2e-system/narratives/records');
     const expandButton = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'AC-2', exact: true }) })
       .getByRole('button', { name: 'Expand' });
     await expect(expandButton).toBeVisible();
