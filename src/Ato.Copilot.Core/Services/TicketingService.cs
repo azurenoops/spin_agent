@@ -36,10 +36,21 @@ public class TicketingService
         string projectKey,
         string apiKeySecretName,
         bool syncEnabled,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Func<Task>? authorizeBeforeSave = null)
     {
         var existing = await _db.TicketingIntegrations
             .FirstOrDefaultAsync(t => t.RegisteredSystemId == systemId, ct);
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var endpoint) || endpoint.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(endpoint.UserInfo) || endpoint.AbsolutePath != "/"
+            || !string.IsNullOrEmpty(endpoint.Query) || !string.IsNullOrEmpty(endpoint.Fragment))
+            throw new InvalidOperationException("Ticketing requires an HTTPS origin without embedded credentials.");
+        if (string.IsNullOrWhiteSpace(projectKey) || projectKey.Length > 200)
+            throw new InvalidOperationException("A project key or table name is required.");
+        if (string.IsNullOrWhiteSpace(apiKeySecretName))
+            apiKeySecretName = existing?.KeyVaultSecretUri
+                ?? throw new InvalidOperationException("A server credential reference is required.");
 
         // Validate connectivity
         var ticketProvider = _providers.FirstOrDefault(p => p.ProviderType == provider)
@@ -48,6 +59,7 @@ public class TicketingService
         var connected = await ticketProvider.TestConnectionAsync(baseUrl, projectKey, apiKeySecretName, ct);
         if (!connected)
             throw new InvalidOperationException("Connection test failed. Verify URL, project key, and credentials.");
+        if (authorizeBeforeSave is not null) await authorizeBeforeSave();
 
         if (existing != null)
         {
@@ -81,6 +93,8 @@ public class TicketingService
         string direction = "push",
         CancellationToken ct = default)
     {
+        if (direction is not ("push" or "pull"))
+            throw new InvalidOperationException("Only explicit push or pull is supported. Bidirectional synchronization is not implemented.");
         var poam = await _db.PoamItems.FindAsync(new object[] { poamId }, ct)
             ?? throw new KeyNotFoundException($"POA&M '{poamId}' not found.");
 
@@ -95,8 +109,10 @@ public class TicketingService
             ?? throw new InvalidOperationException($"Provider '{config.Provider}' is not available.");
 
         TicketSyncResult result;
-        if (direction == "pull" && !string.IsNullOrEmpty(poam.ExternalTicketRef))
+        if (direction == "pull")
         {
+            if (string.IsNullOrEmpty(poam.ExternalTicketRef))
+                throw new InvalidOperationException("Link an external ticket before pulling. Pull never creates a ticket.");
             result = await provider.PullAsync(poam.ExternalTicketRef, config, ct);
         }
         else

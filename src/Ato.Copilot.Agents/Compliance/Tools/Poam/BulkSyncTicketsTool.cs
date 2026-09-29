@@ -15,7 +15,7 @@ public class BulkSyncTicketsTool : BaseTool
     public BulkSyncTicketsTool(IServiceScopeFactory scopeFactory, ILogger<BulkSyncTicketsTool> logger) : base(logger) => _scopeFactory = scopeFactory;
 
     public override string Name => "compliance_bulk_sync_tickets";
-    public override string Description => "Bulk sync all open POA&M items for a system with their linked tickets.";
+    public override string Description => "Legacy POA&M-owned bulk ticket operations, separate from task links. Explicit push or read-only pull only; no bidirectional or automatic synchronization.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {

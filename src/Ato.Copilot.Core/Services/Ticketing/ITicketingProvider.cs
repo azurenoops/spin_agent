@@ -12,13 +12,17 @@ public interface ITicketingProvider
     Task<bool> TestConnectionAsync(string baseUrl, string projectKey, string credential, CancellationToken ct);
     Task<TicketSyncResult> PushAsync(PoamItem poam, TicketingIntegration config, CancellationToken ct);
     Task<TicketSyncResult> PullAsync(string externalRef, TicketingIntegration config, CancellationToken ct);
+    Task<TicketSyncResult> CreateTaskAsync(TaskTicketCreate request, TicketingIntegration config, CancellationToken ct);
 }
+
+public sealed record TaskTicketCreate(string Title, string Description, string CorrelationKey);
 
 public class TicketSyncResult
 {
     public bool Success { get; set; }
     public string? ExternalRef { get; set; }
     public string? ExternalStatus { get; set; }
+    public string? ExternalAssignee { get; set; }
     public string? Error { get; set; }
     public DateTime SyncTimestamp { get; set; } = DateTime.UtcNow;
 }
