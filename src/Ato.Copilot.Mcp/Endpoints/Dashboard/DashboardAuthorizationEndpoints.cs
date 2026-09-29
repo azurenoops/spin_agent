@@ -491,17 +491,15 @@ public static partial class DashboardEndpoints
                 .ThenByDescending(s => s.catI)
                 .ToList();
 
-            // Remediation tasks across all boards (or filtered by system via board's subscription)
+            // Subscription grouping does not establish registered-system ownership.
             var taskQuery = context.RemediationTasks.AsNoTracking();
             if (!string.IsNullOrEmpty(systemId))
             {
-                var boardIds = await context.RemediationBoards
-                    .Where(b => b.SubscriptionId == systemId)
-                    .Select(b => b.Id)
-                    .ToListAsync(ct);
-                // Also include tasks linked to POA&M items for this system
-                var poamTaskIds = poams.Where(p => p.RemediationTaskId != null).Select(p => p.RemediationTaskId!).ToHashSet();
-                taskQuery = taskQuery.Where(t => boardIds.Contains(t.BoardId) || poamTaskIds.Contains(t.Id));
+                var scopedTaskIds = new List<string>();
+                foreach (var candidate in await context.RemediationTasks.ToListAsync(ct))
+                    if (await Ato.Copilot.Core.Services.RemediationScope.TaskSystemAsync(context, candidate, ct) == systemId)
+                        scopedTaskIds.Add(candidate.Id);
+                taskQuery = taskQuery.Where(t => scopedTaskIds.Contains(t.Id));
             }
 
             var tasks = await taskQuery.ToListAsync(ct);
@@ -601,17 +599,11 @@ public static partial class DashboardEndpoints
 
             if (!string.IsNullOrEmpty(systemId))
             {
-                var boardIds = await context.RemediationBoards
-                    .Where(b => b.SubscriptionId == systemId)
-                    .Select(b => b.Id)
-                    .ToListAsync(ct);
-                // Also include tasks linked to POA&M items for this system
-                var poamTaskIds = await context.PoamItems
-                    .Where(p => p.RegisteredSystemId == systemId && p.RemediationTaskId != null)
-                    .Select(p => p.RemediationTaskId!)
-                    .Distinct()
-                    .ToListAsync(ct);
-                taskQuery = taskQuery.Where(t => boardIds.Contains(t.BoardId) || poamTaskIds.Contains(t.Id));
+                var scopedTaskIds = new List<string>();
+                foreach (var candidate in await context.RemediationTasks.ToListAsync(ct))
+                    if (await Ato.Copilot.Core.Services.RemediationScope.TaskSystemAsync(context, candidate, ct) == systemId)
+                        scopedTaskIds.Add(candidate.Id);
+                taskQuery = taskQuery.Where(t => scopedTaskIds.Contains(t.Id));
             }
 
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<KanbanTaskStatus>(status, true, out var ts))
@@ -727,34 +719,14 @@ public static partial class DashboardEndpoints
         group.MapPost("/remediation/tasks", async (
             CreateRemediationTaskRequest body,
             AtoCopilotContext context,
-            IKanbanService kanbanService,
+            RemediationWorkspaceService workspace,
+            ITenantContext tenant,
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(body.SystemId))
                 return Results.BadRequest(new ErrorResponse { Error = "systemId is required", ErrorCode = "INVALID_INPUT" });
             if (string.IsNullOrWhiteSpace(body.Title))
                 return Results.BadRequest(new ErrorResponse { Error = "title is required", ErrorCode = "INVALID_INPUT" });
-
-            // Resolve or create the default board for this system
-            var board = await context.RemediationBoards
-                .Where(b => b.SubscriptionId == body.SystemId)
-                .OrderByDescending(b => b.CreatedAt)
-                .FirstOrDefaultAsync(ct);
-
-            if (board == null)
-            {
-                board = await kanbanService.CreateBoardAsync(
-                    $"Remediation — {body.SystemId[..Math.Min(8, body.SystemId.Length)]}",
-                    body.SystemId, currentUser.CurrentUserId, ct);
-            }
-
-            // Default controlId to "AC-1" if not provided (required by KanbanService)
-            var controlId = !string.IsNullOrWhiteSpace(body.ControlId) ? body.ControlId : "AC-1";
-
-            FindingSeverity? severity = null;
-            if (!string.IsNullOrWhiteSpace(body.Severity) &&
-                Enum.TryParse<FindingSeverity>(body.Severity, true, out var sv))
-                severity = sv;
 
             DateTime? dueDate = null;
             if (!string.IsNullOrWhiteSpace(body.DueDate) &&
@@ -763,12 +735,10 @@ public static partial class DashboardEndpoints
 
             try
             {
-                var task = await kanbanService.CreateTaskAsync(
-                    board.Id, body.Title, controlId, currentUser.CurrentUserId,
-                    description: body.Description,
-                    severity: severity,
-                    dueDate: dueDate,
-                    cancellationToken: ct);
+                var id = await workspace.CreateTaskAsync(tenant.EffectiveTenantId, body.SystemId,
+                    new CreateWorkspaceTask(Guid.NewGuid().ToString(), body.Title, body.Description ?? body.Title,
+                        body.ControlId ?? "", body.Severity ?? "Medium", body.FindingId, dueDate), currentUser.CurrentUserId, ct);
+                var task = await workspace.TaskAsync(tenant.EffectiveTenantId, body.SystemId, id, ct);
 
                 return Results.Ok(new
                 {
@@ -788,18 +758,23 @@ public static partial class DashboardEndpoints
             {
                 return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
             }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
             catch (InvalidOperationException ex)
             {
                 return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "OPERATION_FAILED" });
             }
         })
-        .WithName("CreateRemediationTask");
+        .WithName("CreateRemediationTask")
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.CreateRemediationTask, Policies.ComplianceWriter,
+            invocation => invocation.Arguments.OfType<CreateRemediationTaskRequest>().Single().SystemId);
 
         // ─── Move Remediation Task (Kanban column change) ────────────────────
         group.MapPut("/remediation/tasks/{taskId}/move", async (
             string taskId,
             MoveTaskRequest body,
             AtoCopilotContext context,
+            IKanbanService kanbanService,
+            HttpContext http,
             CancellationToken ct) =>
         {
             if (!Enum.TryParse<KanbanTaskStatus>(body.Status, true, out var newStatus))
@@ -810,21 +785,20 @@ public static partial class DashboardEndpoints
                 return Results.NotFound(new ErrorResponse { Error = "Task not found", ErrorCode = "NOT_FOUND" });
 
             var oldStatus = task.Status;
-            task.Status = newStatus;
-            task.UpdatedAt = DateTime.UtcNow;
-
-            task.History.Add(new TaskHistoryEntry
+            if (body.RowVersion.HasValue && body.RowVersion.Value != task.RowVersion)
+                return Results.Conflict(new { error = "Task changed. Reload before retrying." });
+            var systemId = await Ato.Copilot.Core.Services.RemediationScope.TaskSystemAsync(context, task, ct);
+            if (systemId is null)
+                return Results.Conflict(new { error = "Task system ownership cannot be resolved. Link retained assessment provenance first." });
+            try
             {
-                TaskId = taskId,
-                EventType = HistoryEventType.StatusChanged,
-                OldValue = oldStatus.ToString(),
-                NewValue = newStatus.ToString(),
-                ActingUserId = currentUser.CurrentUserId,
-                ActingUserName = "Dashboard User",
-                Timestamp = DateTime.UtcNow,
-            });
-
-            await context.SaveChangesAsync(ct);
+                await kanbanService.MoveTaskAsync(taskId, newStatus, currentUser.CurrentUserId,
+                    currentUser.CurrentUserName, await RemediationRoleAsync(systemId, http, ct),
+                    body.Comment, body.SkipValidation, ct);
+            }
+            catch (UnauthorizedAccessException) { return Results.StatusCode(403); }
+            catch (DbUpdateConcurrencyException ex) { return Results.Conflict(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
 
             return Results.Ok(new
             {
@@ -835,7 +809,8 @@ public static partial class DashboardEndpoints
                 updatedAt = task.UpdatedAt,
             });
         })
-        .WithName("MoveRemediationTask");
+        .WithName("MoveRemediationTask")
+        .RequireWorkspaceOperation(SystemWorkspaceOperation.MoveRemediationTask, Policies.ComplianceWriter);
 
         // ─── Deviation CRUD (Feature 035) ────────────────────────────────────
     }

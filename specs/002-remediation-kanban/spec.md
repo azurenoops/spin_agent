@@ -381,3 +381,12 @@ The Compliance Agent maintains conversational context so users can refer to prev
 - Boards are scoped to a single Azure subscription. Cross-subscription boards are out of scope for this feature.
 - The existing assessment and remediation infrastructure (AtoComplianceEngine, RemediationEngine, EvidenceStorageService) will be reused without modification to their core logic.
 - Comment threading is single-level (replies to a root comment), not deeply nested.
+# Connected workspace amendment
+
+Dashboard remediation now shares the canonical Kanban transition engine (issue
+#992). Task status, explicit verification, finding disposition and linked POA&M
+status are independent. Task ownership must resolve to an actual registered
+system; a board's subscription is not a system ID. Several tasks may remediate
+one finding, and tasks may be shared across multiple same-system POA&M items.
+See [connected remediation contract](../039-poam-management/contracts/connected-remediation.md)
+for ownership, verification, concurrency and API details.

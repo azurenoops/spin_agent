@@ -66,6 +66,15 @@ public class RemediationBoard : ConcurrentEntity
 [TenantScoped]
 public class RemediationTask : ConcurrentEntity
 {
+    public string? RegisteredSystemId { get; set; }
+    public string VerificationStatus { get; set; } = "NotVerified";
+    public string? VerificationNotes { get; set; }
+    public string? VerifiedBy { get; set; }
+    public DateTime? VerifiedAt { get; set; }
+    public string EvidenceReferencesJson { get; set; } = "[]";
+    public string? WorkspaceOperationKey { get; set; }
+    public string? WorkspaceIntentHash { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

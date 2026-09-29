@@ -562,12 +562,19 @@ public class PoamServiceTests : IDisposable
     [Fact]
     public async Task UpdateStatusAsync_RiskAccepted_WithDeviationId_Succeeds()
     {
+        // Arrange
         var poam = await CreateOngoingPoam();
+        _db.Deviations.Add(new Deviation { Id = "dev-001", TenantId = poam.TenantId,
+            RegisteredSystemId = poam.RegisteredSystemId, Status = DeviationStatus.Approved,
+            ExpirationDate = DateTime.UtcNow.AddDays(30) });
+        await _db.SaveChangesAsync();
 
+        // Act
         var result = await _sut.UpdateStatusAsync(
             poam.Id, PoamStatus.RiskAccepted, poam.RowVersion, "user",
             deviationId: "dev-001");
 
+        // Assert
         result.Status.Should().Be(PoamStatus.RiskAccepted);
         result.DeviationId.Should().Be("dev-001");
     }

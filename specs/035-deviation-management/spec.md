@@ -244,3 +244,11 @@ The notification system sends alerts for deviation lifecycle events. When a devi
 - **SC-008**: Deviation management actions (create, approve, deny, list) are accessible from all three chat surfaces: dashboard chat panel, M365 Teams, and VS Code extension.
 - **SC-009**: Zero hard-deleted deviation records — all deviations are retained in terminal states for audit compliance.
 - **SC-010**: Reviewers can approve or deny a deviation from an M365 Teams Adaptive Card without navigating to the dashboard.
+# Connected remediation amendment
+
+The remediation workspace displays retained exception decisions independently
+from findings, tasks and POA&M status. An exception is effective only when its
+retained status is Approved and its expiration date has not passed. Link
+operations must validate both records' tenant/system scope, and do not approve
+exceptions or close tasks. Existing Feature 035 review/effect policy is retained.
+See [connected remediation contract](../039-poam-management/contracts/connected-remediation.md).

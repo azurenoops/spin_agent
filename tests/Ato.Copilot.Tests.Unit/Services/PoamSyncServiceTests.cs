@@ -53,10 +53,12 @@ public class PoamSyncServiceTests : IDisposable
             IsActive = true,
         });
 
+        _db.Assessments.Add(new ComplianceAssessment { Id = "assessment-sync", RegisteredSystemId = SystemId, SubscriptionId = "subscription" });
         _db.RemediationBoards.Add(new RemediationBoard
         {
             Id = BoardId,
-            SubscriptionId = SystemId,
+            SubscriptionId = "subscription",
+            AssessmentId = "assessment-sync",
             Name = "Test Board",
             Owner = "test",
         });
@@ -102,17 +104,17 @@ public class PoamSyncServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateTaskFromPoamAsync_AlreadyLinked_Throws()
+    public async Task CreateTaskFromPoamAsync_AlreadyLinked_CreatesAdditionalTask()
     {
         var poam = await _poamService.CreateAsync(
             SystemId, "W", "S", "AC-1", CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30));
 
         await _sut.CreateTaskFromPoamAsync(poam.Id, BoardId, "user");
 
-        // Trying to create again should fail
-        var act = () => _sut.CreateTaskFromPoamAsync(poam.Id, BoardId, "user");
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*ALREADY_LINKED*");
+        // Act
+        await _sut.CreateTaskFromPoamAsync(poam.Id, BoardId, "user");
+        // Assert
+        (await _db.PoamTaskLinks.CountAsync(l => l.PoamItemId == poam.Id)).Should().Be(2);
     }
 
     // ─── Link Tests ──────────────────────────────────────────────────────────
@@ -143,7 +145,7 @@ public class PoamSyncServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task LinkAsync_AlreadyLinkedPoam_Throws()
+    public async Task LinkAsync_AlreadyLinkedPoam_RetainsBothRelationships()
     {
         var poam = await _poamService.CreateAsync(
             SystemId, "W", "S", "AC-1", CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30));
@@ -155,9 +157,11 @@ public class PoamSyncServiceTests : IDisposable
 
         await _sut.LinkAsync(poam.Id, task1.Id, "user");
 
-        var act = () => _sut.LinkAsync(poam.Id, task2.Id, "user");
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*ALREADY_LINKED*");
+        // Act
+        await _sut.LinkAsync(poam.Id, task2.Id, "user");
+        // Assert
+        (await _db.PoamTaskLinks.CountAsync(l => l.PoamItemId == poam.Id)).Should().Be(2);
+        poam.RemediationTaskId.Should().BeNull();
     }
 
     // ─── Unlink Tests ────────────────────────────────────────────────────────
@@ -180,20 +184,21 @@ public class PoamSyncServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UnlinkAsync_NotLinked_Throws()
+    public async Task UnlinkAsync_NotLinked_IsIdempotent()
     {
         var poam = await _poamService.CreateAsync(
             SystemId, "W", "S", "AC-1", CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30));
 
-        var act = () => _sut.UnlinkAsync(poam.Id, "user");
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*NOT_LINKED*");
+        // Act
+        await _sut.UnlinkAsync(poam.Id, "user");
+        // Assert
+        (await _db.PoamTaskLinks.CountAsync()).Should().Be(0);
     }
 
     // ─── Cascade Tests ───────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CascadeStatusChangeAsync_FromPoam_UpdatesLinkedTask()
+    public async Task CascadeStatusChangeAsync_FromPoam_PreservesIndependentTask()
     {
         var poam = await _poamService.CreateAsync(
             SystemId, "W", "S", "AC-1", CatSeverity.CatII, "POC", DateTime.UtcNow.AddDays(30));
@@ -204,7 +209,7 @@ public class PoamSyncServiceTests : IDisposable
             poam.Id, PoamStatus.Completed, CascadeOrigin.FromPoam, "user");
 
         var updatedTask = await _db.RemediationTasks.FindAsync(task.Id);
-        updatedTask!.Status.Should().Be(Ato.Copilot.Core.Models.Kanban.TaskStatus.Done);
+        updatedTask!.Status.Should().Be(Ato.Copilot.Core.Models.Kanban.TaskStatus.Backlog);
     }
 
     [Fact]
@@ -236,7 +241,7 @@ public class PoamSyncServiceTests : IDisposable
             poam.Id, newDueDate, null, CascadeOrigin.FromPoam, "user");
 
         var updatedTask = await _db.RemediationTasks.FindAsync(task.Id);
-        updatedTask!.DueDate.Should().BeCloseTo(newDueDate, TimeSpan.FromSeconds(1));
+        updatedTask!.DueDate.Should().Be(poam.ScheduledCompletionDate);
     }
 
     // ─── History Entry Tests ─────────────────────────────────────────────────

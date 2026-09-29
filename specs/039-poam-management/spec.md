@@ -7,6 +7,27 @@
 
 ## Assumptions
 
+### Connected workspace amendment (2026-09-29)
+
+The approved Findings & Remediation and POA&M mock redesign supersedes older
+automatic-creation and automatic-cascade assumptions below. Assessment findings,
+corrective tasks, verification, milestones, POA&M closure, external tickets,
+exceptions, and authorization remain distinct records and decisions. No task or
+external-ticket completion alone closes a finding or POA&M.
+
+The workspaces must expose finding-led queues, multiple shared task relationships,
+retained assessment/plan provenance, focused accessible drawers, explicit
+verification, and truthful connector capabilities. Preserve manual work,
+List/Board, export, trends, required submission fields, and exception lifecycle.
+Do not render failed loads as empty queues or infer permissions from role labels.
+
+Existing tracking: azurenoops/spin_agent#750 (structural links),
+azurenoops/spin_agent#992 (canonical task transitions), and parent
+azurenoops/spin_agent#217. A new combined tracking issue and parent-link preview
+was presented; approval was unavailable. External writes remain pending, with
+local implementation continuing. See the connected-workspace contracts for the
+verified implementation boundary and acceptance evidence.
+
 - The existing `PoamItem` entity (with milestones, deviation links, finding links, and remediation task links) remains the core data model. New fields are additive, not breaking.
 - Component linkage reuses the `SystemComponent` entity hierarchy already present in the data model (Feature 025 — HW/SW Inventory). However, the system-scoped Component Inventory page (`ComponentInventory.tsx`) is not currently routed or navigable in the dashboard — it exists as an unlinked page. This feature must wire it up as a prerequisite so users can browse and manage system components before linking them to POA&M items.
 - The Component Inventory page must be added to the system-scoped navigation (SystemLayout) at `/systems/:id/components` and registered in the application router. This ensures users can access the inventory from the system sidebar alongside Boundaries, Capability Coverage, and other system-level pages.

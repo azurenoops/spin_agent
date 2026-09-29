@@ -43,6 +43,15 @@ public class DeviationService : IDeviationService
         var system = await _db.RegisteredSystems
             .FirstOrDefaultAsync(s => s.Id == systemId, cancellationToken)
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(_db, systemId, p => p.CanManageRemediation, cancellationToken);
+        await ValidateLinkedScopeAsync(_db, system.TenantId, systemId, request.FindingId, request.PoamEntryId, cancellationToken);
+        if (request.BoundaryDefinitionId is not null && !await _db.AuthorizationBoundaryDefinitions.AnyAsync(
+            b => b.Id == request.BoundaryDefinitionId && b.TenantId == system.TenantId && b.RegisteredSystemId == systemId, cancellationToken))
+            throw new InvalidOperationException("INVALID_LINK_SCOPE: Boundary is not in this system.");
+        if (request.EvidenceIds is { Count: > 0 } && await _db.ScanImportRecords.CountAsync(
+            e => request.EvidenceIds.Contains(e.Id) && e.TenantId == system.TenantId && e.RegisteredSystemId == systemId, cancellationToken)
+            != request.EvidenceIds.Distinct().Count())
+            throw new InvalidOperationException("INVALID_LINK_SCOPE: Exception evidence is not in this system.");
 
         // Parse enums
         if (!Enum.TryParse<DeviationType>(request.DeviationType, ignoreCase: true, out var deviationType))
@@ -76,6 +85,7 @@ public class DeviationService : IDeviationService
 
         var deviation = new Deviation
         {
+            TenantId = system.TenantId,
             RegisteredSystemId = systemId,
             DeviationType = deviationType,
             Status = DeviationStatus.Pending,
@@ -394,6 +404,16 @@ public class DeviationService : IDeviationService
 
         if (deviation.Status != DeviationStatus.Pending)
             throw new InvalidOperationException("NOT_PENDING: Deviation is not in Pending status.");
+        if (_db.IsWorkspaceRequest)
+        {
+            await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(_db, deviation.RegisteredSystemId,
+                p => p.CanManageRemediation, cancellationToken);
+            var roles = await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.ResolveRolesAsync(_db,
+                deviation.TenantId, _db.WorkspacePersonId!.Value, deviation.RegisteredSystemId, cancellationToken);
+            reviewerRole = roles.Contains(RmfRole.AuthorizingOfficial) ? "AO" :
+                roles.Contains(RmfRole.Issm) ? "ISSM" :
+                throw new UnauthorizedAccessException("Only an assigned ISSM or AO may review exceptions.");
+        }
 
         var decision = request.Decision?.Trim();
         if (decision != "Approve" && decision != "Deny")
@@ -438,6 +458,10 @@ public class DeviationService : IDeviationService
         // Final decision (ISSM for CAT II/III, or AO for CAT I)
         if (decision == "Approve")
         {
+            if (deviation.ExpirationDate <= DateTime.UtcNow)
+                throw new InvalidOperationException("EXPIRED_REQUEST: An expired exception cannot be approved.");
+            await ValidateLinkedScopeAsync(_db, deviation.TenantId, deviation.RegisteredSystemId,
+                deviation.FindingId, deviation.PoamEntryId, cancellationToken);
             deviation.Status = DeviationStatus.Approved;
             ApplyApprovalCascade(deviation);
         }
@@ -501,6 +525,8 @@ public class DeviationService : IDeviationService
         deviation.RevocationReason = request.Reason;
         deviation.ModifiedAt = DateTime.UtcNow;
 
+        await ValidateLinkedScopeAsync(_db, deviation.TenantId, deviation.RegisteredSystemId,
+            deviation.FindingId, deviation.PoamEntryId, cancellationToken);
         RevertLinkedEntities(deviation);
 
         _db.DashboardActivities.Add(new DashboardActivity
@@ -627,6 +653,8 @@ public class DeviationService : IDeviationService
             deviation.Status = DeviationStatus.Expired;
             deviation.ModifiedAt = DateTime.UtcNow;
 
+            await ValidateLinkedScopeAsync(_db, deviation.TenantId, deviation.RegisteredSystemId,
+                deviation.FindingId, deviation.PoamEntryId, cancellationToken);
             RevertLinkedEntities(deviation);
 
             _db.DashboardActivities.Add(new DashboardActivity
@@ -738,6 +766,19 @@ public class DeviationService : IDeviationService
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────────────
+    private static async Task ValidateLinkedScopeAsync(AtoCopilotContext db, Guid tenant, string system,
+        string? findingId, string? poamId, CancellationToken ct)
+    {
+        if (findingId is not null)
+        {
+            var finding = await db.Findings.SingleOrDefaultAsync(f => f.Id == findingId && f.TenantId == tenant, ct);
+            if (finding is null || await RemediationScope.FindingSystemAsync(db, finding, ct) != system)
+                throw new InvalidOperationException("INVALID_LINK_SCOPE: Finding is not in this system.");
+        }
+        if (poamId is not null && !await db.PoamItems.AnyAsync(p => p.Id == poamId &&
+            p.TenantId == tenant && p.RegisteredSystemId == system, ct))
+            throw new InvalidOperationException("INVALID_LINK_SCOPE: POA&M is not in this system.");
+    }
 
     /// <summary>
     /// Apply status cascade when a deviation is approved:

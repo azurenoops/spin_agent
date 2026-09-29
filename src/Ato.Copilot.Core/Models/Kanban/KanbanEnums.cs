@@ -44,7 +44,12 @@ public enum HistoryEventType
     /// <summary>Due date modified.</summary>
     DueDateChanged = 8,
     /// <summary>Severity level changed.</summary>
-    SeverityChanged = 9
+    SeverityChanged = 9,
+    RelationshipLinked = 10,
+    RelationshipUnlinked = 11,
+    DetailsUpdated = 12,
+    EvidenceLinked = 13,
+    VerificationRecorded = 14
 }
 
 /// <summary>
