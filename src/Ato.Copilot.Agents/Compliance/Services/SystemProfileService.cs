@@ -13,7 +13,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// completeness metrics, business-context drafts, and profile audit trail.
 /// </summary>
 /// <remarks>Feature 046 – Mission System Details.</remarks>
-public class SystemProfileService : ISystemProfileService
+public partial class SystemProfileService : ISystemProfileService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SystemProfileService> _logger;
@@ -59,6 +59,7 @@ public class SystemProfileService : ISystemProfileService
             ?? throw new InvalidOperationException($"SYSTEM_NOT_FOUND: System '{systemId}' not found.");
 
         var sections = await db.SystemProfileSections
+            .Include(s => s.UserCategories)
             .Where(s => s.RegisteredSystemId == systemId)
             .ToListAsync(cancellationToken);
 
@@ -71,7 +72,7 @@ public class SystemProfileService : ISystemProfileService
             return new SectionSummary
             {
                 SectionType = type,
-                GovernanceStatus = exists ? section!.GovernanceStatus : SspSectionStatus.NotStarted,
+                GovernanceStatus = exists ? AggregateProfileStatus(section!) : SspSectionStatus.NotStarted,
                 CompletionPercentage = exists ? section!.CompletionPercentage : 0,
                 LastEditedBy = exists ? section!.LastEditedBy : null,
                 LastEditedAt = exists ? section!.LastEditedAt : null,
@@ -159,10 +160,12 @@ public class SystemProfileService : ISystemProfileService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         return await db.SystemProfileSections
-            .Include(s => s.UserCategories.OrderBy(c => c.SortOrder))
-            .Include(s => s.DataTypeEntries.OrderBy(d => d.SortOrder))
-            .Include(s => s.PpsEntries.OrderBy(p => p.SortOrder))
-            .Include(s => s.LeveragedAuthorizations.OrderBy(l => l.SortOrder))
+            .Include(s => s.UserCategories
+                .Where(c => !(c.PendingDeletion && c.GovernanceStatus == SspSectionStatus.Approved))
+                .OrderBy(c => c.SortOrder).ThenBy(c => c.Id))
+            .Include(s => s.DataTypeEntries.OrderBy(d => d.SortOrder).ThenBy(d => d.Id))
+            .Include(s => s.PpsEntries.OrderBy(p => p.SortOrder).ThenBy(p => p.Id))
+            .Include(s => s.LeveragedAuthorizations.OrderBy(l => l.SortOrder).ThenBy(l => l.Id))
             .FirstOrDefaultAsync(s => s.RegisteredSystemId == systemId
                 && s.SectionType == sectionType, cancellationToken);
     }
@@ -182,10 +185,21 @@ public class SystemProfileService : ISystemProfileService
     }
 
     /// <inheritdoc />
-    public async Task<SystemProfileSection> SaveDraftAsync(
+    public Task<SystemProfileSection> SaveDraftAsync(
         string systemId,
         ProfileSectionType sectionType,
         string? draftContent,
+        string userId,
+        RmfRole? simulatedRole = null,
+        CancellationToken cancellationToken = default) =>
+        SaveDraftWithChildrenAsync(systemId, sectionType, draftContent, null, userId, simulatedRole, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<SystemProfileSection> SaveDraftWithChildrenAsync(
+        string systemId,
+        ProfileSectionType sectionType,
+        string? draftContent,
+        IReadOnlyList<System.Text.Json.JsonElement>? childItems,
         string userId,
         RmfRole? simulatedRole = null,
         CancellationToken cancellationToken = default)
@@ -196,7 +210,14 @@ public class SystemProfileService : ISystemProfileService
         await EnsureSystemExistsAsync(db, systemId, cancellationToken);
         await RequireRoleAsync(db, systemId, userId, SaveRoles, simulatedRole, cancellationToken);
 
+        if (!Enum.IsDefined(sectionType) || draftContent?.Length > 16000)
+            throw new InvalidOperationException("INVALID_INPUT: Invalid section type or content exceeds 16000 characters.");
+
         var section = await db.SystemProfileSections
+            .Include(s => s.UserCategories)
+            .Include(s => s.DataTypeEntries)
+            .Include(s => s.PpsEntries)
+            .Include(s => s.LeveragedAuthorizations)
             .FirstOrDefaultAsync(s => s.RegisteredSystemId == systemId
                 && s.SectionType == sectionType, cancellationToken);
 
@@ -218,14 +239,21 @@ public class SystemProfileService : ISystemProfileService
         }
         else
         {
-            if (section.GovernanceStatus == SspSectionStatus.UnderReview)
+            var scalarChanged = sectionType == ProfileSectionType.UsersAndAccess
+                ? !EquivalentAccessContext(section.DraftContent, draftContent)
+                : section.DraftContent != draftContent;
+            if (!scalarChanged && sectionType == ProfileSectionType.UsersAndAccess)
+                draftContent = section.DraftContent;
+            if (section.GovernanceStatus == SspSectionStatus.UnderReview &&
+                (sectionType != ProfileSectionType.UsersAndAccess || scalarChanged))
                 throw new InvalidOperationException(
                     $"INVALID_STATUS: Cannot edit section '{sectionType}' — it is currently under review.");
 
             var previousStatus = section.GovernanceStatus;
 
             // Re-edit of approved section → transition to Draft, preserve ApprovedContent (R2)
-            if (section.GovernanceStatus == SspSectionStatus.Approved)
+            if (section.GovernanceStatus == SspSectionStatus.Approved &&
+                (sectionType != ProfileSectionType.UsersAndAccess || scalarChanged))
             {
                 section.ApprovedContent ??= section.DraftContent;
                 section.GovernanceStatus = SspSectionStatus.Draft;
@@ -236,6 +264,9 @@ public class SystemProfileService : ISystemProfileService
             section.LastEditedBy = userId;
             section.LastEditedAt = DateTime.UtcNow;
         }
+
+        if (childItems is not null)
+            ReplaceDraftChildren(db, section, childItems);
 
         try
         {
@@ -523,6 +554,7 @@ public class SystemProfileService : ISystemProfileService
             ?? throw new InvalidOperationException($"SYSTEM_NOT_FOUND: System '{systemId}' not found.");
 
         var sections = await db.SystemProfileSections
+            .Include(s => s.UserCategories)
             .Where(s => s.RegisteredSystemId == systemId)
             .ToListAsync(cancellationToken);
 
@@ -536,7 +568,7 @@ public class SystemProfileService : ISystemProfileService
         foreach (var mandatoryType in MandatorySections)
         {
             var status = sectionMap.TryGetValue(mandatoryType, out var s)
-                ? s.GovernanceStatus
+                ? AggregateProfileStatus(s)
                 : SspSectionStatus.NotStarted;
 
             var statusKey = status.ToString();
@@ -604,6 +636,7 @@ public class SystemProfileService : ISystemProfileService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         var sections = await db.SystemProfileSections
+            .Include(s => s.UserCategories)
             .Where(s => s.RegisteredSystemId == systemId)
             .ToListAsync(cancellationToken);
 
@@ -615,7 +648,7 @@ public class SystemProfileService : ISystemProfileService
         foreach (var type in AllSectionTypes)
         {
             var status = sectionMap.TryGetValue(type, out var section)
-                ? section.GovernanceStatus
+                ? AggregateProfileStatus(section)
                 : SspSectionStatus.NotStarted;
 
             if (status is SspSectionStatus.NotStarted or SspSectionStatus.Draft)
@@ -681,14 +714,29 @@ public class SystemProfileService : ISystemProfileService
             .OrderBy(s => s.SubmittedAt)
             .ToListAsync(cancellationToken);
 
-        return pendingSections.Select(s => new PendingReviewItem
+        var result = pendingSections.Select(s => new PendingReviewItem
         {
             SystemId = s.RegisteredSystemId,
             SystemName = s.RegisteredSystem.Name,
             SectionType = s.SectionType,
+            ReviewScope = s.SectionType == ProfileSectionType.UsersAndAccess ? "AccessContext" : "Section",
             SubmittedBy = s.SubmittedBy ?? "unknown",
             SubmittedAt = s.SubmittedAt ?? DateTime.UtcNow
         }).ToList();
+        var pendingRows = await db.UserCategories
+            .Where(c => c.GovernanceStatus == SspSectionStatus.UnderReview &&
+                issmSystemIds.Contains(c.SystemProfileSection.RegisteredSystemId))
+            .Include(c => c.SystemProfileSection).ThenInclude(s => s.RegisteredSystem)
+            .ToListAsync(cancellationToken);
+        result.AddRange(pendingRows.Select(c => new PendingReviewItem
+        {
+            SystemId = c.SystemProfileSection.RegisteredSystemId,
+            SystemName = c.SystemProfileSection.RegisteredSystem.Name,
+            SectionType = ProfileSectionType.UsersAndAccess,
+            ReviewScope = "UserCategory", UserCategoryId = c.Id, Revision = c.Revision,
+            SubmittedBy = c.SubmittedBy ?? "unknown", SubmittedAt = c.SubmittedAt ?? DateTime.UtcNow
+        }));
+        return result.OrderBy(item => item.SubmittedAt).ToList();
     }
 
     // ─── Business Context ────────────────────────────────────────────────

@@ -37,6 +37,11 @@ public static partial class DashboardEndpoints
     /// <summary>ISSM request to flag or unflag a control for owner input.</summary>
     private sealed record SetBusinessContextFlagBody(string? ControlId, bool? IsFlagged);
 
+    private sealed record ReviewUserCategoryBody(string Action, int ExpectedRevision, string? Comments);
+
+    private sealed record UserCategoryReviewReceipt(
+        string CategoryId, string Action, int Revision, string GovernanceStatus, bool PendingDeletion);
+
     private static async Task<IResult?> ValidateBusinessContextTargetAsync(
         AtoCopilotContext db, string systemId, string? controlId, CancellationToken ct)
     {
@@ -60,6 +65,78 @@ public static partial class DashboardEndpoints
             "CONCURRENCY_CONFLICT" => StatusCodes.Status409Conflict,
             _ => null
         };
+
+    // SQL datetime columns discard DateTime.Kind; profile edit/review clocks are UTC.
+    private static string? ProfileTimestamp(DateTime? value) =>
+        value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc).ToString("O") : null;
+
+    private static object ToProfileSectionResponse(SystemProfileSection result, bool canEditProfile,
+        UserCategoryReviewPermissions? permissions = null, UserCategoryReviewReceipt? reviewResult = null) => new
+    {
+        id = result.Id,
+        canEditProfile,
+        sectionType = result.SectionType.ToString(),
+        governanceStatus = result.GovernanceStatus.ToString(),
+        draftContent = result.DraftContent,
+        approvedContent = result.ApprovedContent,
+        completionPercentage = result.CompletionPercentage,
+        lastEditedBy = result.LastEditedBy,
+        lastEditedAt = ProfileTimestamp(result.LastEditedAt),
+        submittedBy = result.SubmittedBy,
+        submittedAt = ProfileTimestamp(result.SubmittedAt),
+        reviewedBy = result.ReviewedBy,
+        reviewedAt = ProfileTimestamp(result.ReviewedAt),
+        reviewerComments = result.ReviewerComments,
+        reviewScope = result.SectionType == ProfileSectionType.UsersAndAccess ? "AccessContext" : "Section",
+        reviewResult,
+        userCategoriesReview = new
+        {
+            activeCount = result.UserCategories.Count(c => !c.PendingDeletion),
+            approvedCount = result.UserCategories.Count(c => !c.PendingDeletion && c.GovernanceStatus == SspSectionStatus.Approved),
+            draftCount = result.UserCategories.Count(c => c.GovernanceStatus == SspSectionStatus.Draft),
+            underReviewCount = result.UserCategories.Count(c => c.GovernanceStatus == SspSectionStatus.UnderReview),
+            needsRevisionCount = result.UserCategories.Count(c => c.GovernanceStatus == SspSectionStatus.NeedsRevision),
+            pendingDeletionCount = result.UserCategories.Count(c => c.PendingDeletion && c.GovernanceStatus != SspSectionStatus.Approved),
+            isComplete = result.GovernanceStatus == SspSectionStatus.Approved &&
+                result.UserCategories.Any(c => !c.PendingDeletion) &&
+                result.UserCategories.All(c => c.GovernanceStatus == SspSectionStatus.Approved)
+        },
+        userCategories = result.UserCategories
+            .Where(c => !(c.PendingDeletion && c.GovernanceStatus == SspSectionStatus.Approved))
+            .OrderBy(c => c.SortOrder).ThenBy(c => c.Id).Select(c => new
+        {
+            c.Id, categoryName = c.CategoryName, description = c.Description,
+            approximateCount = c.ApproximateCount, accessMethod = c.AccessMethod,
+            dataSensitivityLevel = c.DataSensitivityLevel, sortOrder = c.SortOrder,
+            governanceStatus = c.GovernanceStatus.ToString(), revision = c.Revision,
+            submittedBy = c.SubmittedBy, submittedAt = ProfileTimestamp(c.SubmittedAt),
+            reviewedBy = c.ReviewedBy, reviewedAt = ProfileTimestamp(c.ReviewedAt),
+            reviewerComments = c.ReviewerComments, approvedSnapshotId = c.ApprovedSnapshotId,
+            pendingDeletion = c.PendingDeletion,
+            canSubmit = permissions?.CanSubmit == true && c.GovernanceStatus is SspSectionStatus.Draft or SspSectionStatus.NeedsRevision,
+            canWithdraw = permissions?.CanSubmit == true && c.GovernanceStatus == SspSectionStatus.UnderReview,
+            canReview = permissions?.CanReview == true && c.GovernanceStatus == SspSectionStatus.UnderReview,
+        }),
+        dataTypeEntries = result.DataTypeEntries.OrderBy(d => d.SortOrder).ThenBy(d => d.Id).Select(d => new
+        {
+            d.Id, dataTypeName = d.DataTypeName, description = d.Description,
+            sensitivityClassification = d.SensitivityClassification,
+            source = d.Source, destination = d.Destination,
+            applicableRegulations = d.ApplicableRegulations, sortOrder = d.SortOrder,
+        }),
+        ppsEntries = result.PpsEntries.OrderBy(p => p.SortOrder).ThenBy(p => p.Id).Select(p => new
+        {
+            p.Id, portOrRange = p.PortOrRange, protocol = p.Protocol,
+            serviceName = p.ServiceName, direction = p.Direction,
+            justification = p.Justification, sortOrder = p.SortOrder,
+        }),
+        leveragedAuthorizations = result.LeveragedAuthorizations.OrderBy(l => l.SortOrder).ThenBy(l => l.Id).Select(l => new
+        {
+            l.Id, providerName = l.ProviderName, authorizationType = l.AuthorizationType,
+            authorizationDate = l.AuthorizationDate, coveredControlFamilies = l.CoveredControlFamilies,
+            sortOrder = l.SortOrder,
+        }),
+    };
 
     private static void MapProfileRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
@@ -201,6 +278,13 @@ public static partial class DashboardEndpoints
                         reviewedBy = (string?)null,
                         reviewedAt = (string?)null,
                         reviewerComments = (string?)null,
+                        reviewScope = parsedType == ProfileSectionType.UsersAndAccess ? "AccessContext" : "Section",
+                        reviewResult = (UserCategoryReviewReceipt?)null,
+                        userCategoriesReview = new
+                        {
+                            activeCount = 0, approvedCount = 0, draftCount = 0, underReviewCount = 0,
+                            needsRevisionCount = 0, pendingDeletionCount = 0, isComplete = false
+                        },
                         userCategories = Array.Empty<object>(),
                         dataTypeEntries = Array.Empty<object>(),
                         ppsEntries = Array.Empty<object>(),
@@ -208,48 +292,9 @@ public static partial class DashboardEndpoints
                     });
                 }
 
-                return Results.Ok(new
-                {
-                    id = result.Id,
-                    canEditProfile,
-                    sectionType = result.SectionType.ToString(),
-                    governanceStatus = result.GovernanceStatus.ToString(),
-                    draftContent = result.DraftContent,
-                    approvedContent = result.ApprovedContent,
-                    completionPercentage = result.CompletionPercentage,
-                    lastEditedBy = result.LastEditedBy,
-                    lastEditedAt = result.LastEditedAt?.ToString("O"),
-                    submittedBy = result.SubmittedBy,
-                    submittedAt = result.SubmittedAt?.ToString("O"),
-                    reviewedBy = result.ReviewedBy,
-                    reviewedAt = result.ReviewedAt?.ToString("O"),
-                    reviewerComments = result.ReviewerComments,
-                    userCategories = result.UserCategories.OrderBy(c => c.SortOrder).Select(c => new
-                    {
-                        c.Id, categoryName = c.CategoryName, description = c.Description,
-                        approximateCount = c.ApproximateCount, accessMethod = c.AccessMethod,
-                        dataSensitivityLevel = c.DataSensitivityLevel, sortOrder = c.SortOrder,
-                    }),
-                    dataTypeEntries = result.DataTypeEntries.OrderBy(d => d.SortOrder).Select(d => new
-                    {
-                        d.Id, dataTypeName = d.DataTypeName, description = d.Description,
-                        sensitivityClassification = d.SensitivityClassification,
-                        source = d.Source, destination = d.Destination,
-                        applicableRegulations = d.ApplicableRegulations, sortOrder = d.SortOrder,
-                    }),
-                    ppsEntries = result.PpsEntries.OrderBy(p => p.SortOrder).Select(p => new
-                    {
-                        p.Id, portOrRange = p.PortOrRange, protocol = p.Protocol,
-                        serviceName = p.ServiceName, direction = p.Direction,
-                        justification = p.Justification, sortOrder = p.SortOrder,
-                    }),
-                    leveragedAuthorizations = result.LeveragedAuthorizations.OrderBy(l => l.SortOrder).Select(l => new
-                    {
-                        l.Id, providerName = l.ProviderName, authorizationType = l.AuthorizationType,
-                        authorizationDate = l.AuthorizationDate, coveredControlFamilies = l.CoveredControlFamilies,
-                        sortOrder = l.SortOrder,
-                    }),
-                });
+                return Results.Ok(ToProfileSectionResponse(result, canEditProfile,
+                    await profileService.GetUserCategoryReviewPermissionsAsync(
+                        systemId, currentUser.CurrentUserId, ResolveSimulatedRmfRole(httpContext), ct)));
             })
             .WithName("GetProfileSection");
 
@@ -272,30 +317,12 @@ public static partial class DashboardEndpoints
                 var simulatedRole = ResolveSimulatedRmfRole(httpContext);
                 try
                 {
-                    var result = await profileService.SaveDraftAsync(
-                        systemId, parsedType, body.Content, userId, simulatedRole, ct);
+                    var result = await profileService.SaveDraftWithChildrenAsync(
+                        systemId, parsedType, body.Content, body.ChildItems, userId, simulatedRole, ct);
 
-                    return Results.Ok(new
-                    {
-                        id = result.Id,
-                        canEditProfile = await profileService.CanEditProfileAsync(systemId, userId, simulatedRole, ct),
-                        sectionType = result.SectionType.ToString(),
-                        governanceStatus = result.GovernanceStatus.ToString(),
-                        draftContent = result.DraftContent,
-                        approvedContent = result.ApprovedContent,
-                        completionPercentage = result.CompletionPercentage,
-                        lastEditedBy = result.LastEditedBy,
-                        lastEditedAt = result.LastEditedAt?.ToString("O"),
-                        submittedBy = result.SubmittedBy,
-                        submittedAt = result.SubmittedAt?.ToString("O"),
-                        reviewedBy = result.ReviewedBy,
-                        reviewedAt = result.ReviewedAt?.ToString("O"),
-                        reviewerComments = result.ReviewerComments,
-                        userCategories = Array.Empty<object>(),
-                        dataTypeEntries = Array.Empty<object>(),
-                        ppsEntries = Array.Empty<object>(),
-                        leveragedAuthorizations = Array.Empty<object>(),
-                    });
+                    return Results.Ok(ToProfileSectionResponse(result,
+                        await profileService.CanEditProfileAsync(systemId, userId, simulatedRole, ct),
+                        await profileService.GetUserCategoryReviewPermissionsAsync(systemId, userId, simulatedRole, ct)));
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -304,12 +331,45 @@ public static partial class DashboardEndpoints
                     {
                         "UNAUTHORIZED" => StatusCodes.Status403Forbidden,
                         "SYSTEM_NOT_FOUND" => StatusCodes.Status404NotFound,
+                        "CONCURRENCY_CONFLICT" => StatusCodes.Status409Conflict,
                         _ => StatusCodes.Status400BadRequest,
                     };
                     return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: statusCode);
                 }
             })
             .WithName("SaveProfileSection")
+            .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
+
+        group.MapPost("/systems/{systemId}/profile/UsersAndAccess/user-categories/{categoryId}/review", async (
+                string systemId, string categoryId, ReviewUserCategoryBody body, HttpContext httpContext,
+                ISystemProfileService profileService, CancellationToken ct) =>
+            {
+                var userId = currentUser.CurrentUserId;
+                var simulatedRole = ResolveSimulatedRmfRole(httpContext);
+                try
+                {
+                    var result = await profileService.ReviewUserCategoryAsync(systemId, categoryId, body.Action,
+                        body.ExpectedRevision, userId, body.Comments, simulatedRole, ct);
+                    var row = result.UserCategories.Single(c => c.Id == categoryId);
+                    return Results.Ok(ToProfileSectionResponse(result,
+                        await profileService.CanEditProfileAsync(systemId, userId, simulatedRole, ct),
+                        await profileService.GetUserCategoryReviewPermissionsAsync(systemId, userId, simulatedRole, ct),
+                        new UserCategoryReviewReceipt(row.Id, body.Action, row.Revision,
+                            row.GovernanceStatus.ToString(), row.PendingDeletion)));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var code = ex.Message.Split(':', 2)[0];
+                    return Results.Json(new ErrorResponse { Error = ex.Message, ErrorCode = code }, statusCode: code switch
+                    {
+                        "UNAUTHORIZED" => StatusCodes.Status403Forbidden,
+                        "SYSTEM_NOT_FOUND" or "CATEGORY_NOT_FOUND" => StatusCodes.Status404NotFound,
+                        "CONCURRENCY_CONFLICT" => StatusCodes.Status409Conflict,
+                        _ => StatusCodes.Status400BadRequest
+                    });
+                }
+            })
+            .WithName("ReviewUserCategory")
             .WithMetadata(new Ato.Copilot.Mcp.Authorization.WorkspaceAuthorizedEndpoint());
 
         group.MapPost("/systems/{systemId}/profile/submit", async (
@@ -390,6 +450,7 @@ public static partial class DashboardEndpoints
                     return Results.Ok(new
                     {
                         sectionType = result.SectionType.ToString(),
+                        reviewScope = result.SectionType == ProfileSectionType.UsersAndAccess ? "AccessContext" : "Section",
                         newStatus = result.GovernanceStatus.ToString(),
                         reviewedBy = result.ReviewedBy,
                         reviewedAt = result.ReviewedAt?.ToString("O"),
@@ -425,6 +486,7 @@ public static partial class DashboardEndpoints
                     {
                         approvedSections = result.ApprovedSections.Select(s => s.ToString()),
                         approvedCount = result.ApprovedCount,
+                        userCategoryApprovalsIncluded = false,
                         reviewedBy = result.ReviewedBy,
                         reviewedAt = result.ReviewedAt.ToString("O"),
                     });

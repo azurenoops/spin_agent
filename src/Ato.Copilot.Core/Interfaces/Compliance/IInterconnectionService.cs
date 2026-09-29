@@ -73,6 +73,8 @@ public interface IInterconnectionService
     /// <param name="status">Updated status.</param>
     /// <param name="statusReason">Reason for suspension/termination (required for Suspended/Terminated).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="targetSystemOwner">Updated owner; null leaves unchanged, empty clears.</param>
+    /// <param name="targetSystemAcronym">Updated acronym; null leaves unchanged, empty clears.</param>
     /// <returns>Updated interconnection result.</returns>
     Task<InterconnectionResult> UpdateInterconnectionAsync(
         string interconnectionId,
@@ -87,7 +89,9 @@ public interface IInterconnectionService
         string? authenticationMethod = null,
         InterconnectionStatus? status = null,
         string? statusReason = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? targetSystemOwner = null,
+        string? targetSystemAcronym = null);
 
     /// <summary>
     /// Generate an ISA document using NIST 800-47 7-section structure.

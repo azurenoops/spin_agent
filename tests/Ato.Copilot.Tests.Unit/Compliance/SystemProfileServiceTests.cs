@@ -627,15 +627,23 @@ public class SystemProfileServiceTests : IDisposable
     [Fact]
     public async Task Completeness_AllMandatoryApproved_100Percent()
     {
+        // Arrange
         var system = await SeedSystemWithRolesAsync();
         await SeedSectionAsync(system.Id, ProfileSectionType.MissionAndPurpose, SspSectionStatus.Approved);
-        await SeedSectionAsync(system.Id, ProfileSectionType.UsersAndAccess, SspSectionStatus.Approved);
+        var users = await SeedSectionAsync(system.Id, ProfileSectionType.UsersAndAccess, SspSectionStatus.Approved);
+        var category = new UserCategory { SystemProfileSectionId = users.Id, CategoryName = "Operators" };
+        _db.UserCategories.Add(category);
+        await _db.SaveChangesAsync();
+        await _service.ReviewUserCategoryAsync(system.Id, category.Id, "submit", 1, MoUserId);
+        await _service.ReviewUserCategoryAsync(system.Id, category.Id, "approve", 2, IssmUserId);
         await SeedSectionAsync(system.Id, ProfileSectionType.EnvironmentAndDeployment, SspSectionStatus.Approved);
         await SeedSectionAsync(system.Id, ProfileSectionType.DataTypes, SspSectionStatus.Approved);
         await SeedSectionAsync(system.Id, ProfileSectionType.PortsProtocolsAndServices, SspSectionStatus.Approved);
 
+        // Act
         var result = await _service.GetCompletenessAsync(system.Id);
 
+        // Assert
         result.ApprovedPercentage.Should().Be(100);
         result.IsProfileComplete.Should().BeTrue();
         result.IncompleteSections.Should().BeEmpty();

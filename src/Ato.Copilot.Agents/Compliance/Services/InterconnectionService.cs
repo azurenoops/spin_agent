@@ -140,7 +140,9 @@ public class InterconnectionService : IInterconnectionService
         string? authenticationMethod = null,
         InterconnectionStatus? status = null,
         string? statusReason = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? targetSystemOwner = null,
+        string? targetSystemAcronym = null)
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
@@ -160,6 +162,8 @@ public class InterconnectionService : IInterconnectionService
 
         // Apply updates
         if (targetSystemName is not null) interconnection.TargetSystemName = targetSystemName;
+        if (targetSystemOwner is not null) interconnection.TargetSystemOwner = targetSystemOwner;
+        if (targetSystemAcronym is not null) interconnection.TargetSystemAcronym = targetSystemAcronym;
         if (interconnectionType.HasValue) interconnection.InterconnectionType = interconnectionType.Value;
         if (dataFlowDirection.HasValue) interconnection.DataFlowDirection = dataFlowDirection.Value;
         if (dataClassification is not null) interconnection.DataClassification = dataClassification;
