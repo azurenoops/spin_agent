@@ -29,14 +29,24 @@ public sealed class ControlValidationLinkService(
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<ControlValidationLink> AddLinkAsync(
+    public Task<ControlValidationLink> AddEvidenceLinkAsync(string systemId, string controlId, string evidenceId,
+        string expectedHash, string addedBy, CancellationToken cancellationToken = default) =>
+        AddLinkCoreAsync(systemId, controlId, ControlValidationLinkType.EvidenceArtifact,
+            evidenceId, null, addedBy, expectedHash, cancellationToken);
+
+    public Task<ControlValidationLink> AddLinkAsync(
         string systemId,
         string controlId,
         ControlValidationLinkType linkType,
         string linkTarget,
         string? description,
         string addedBy,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        AddLinkCoreAsync(systemId, controlId, linkType, linkTarget, description, addedBy, null, cancellationToken);
+
+    private async Task<ControlValidationLink> AddLinkCoreAsync(string systemId, string controlId,
+        ControlValidationLinkType linkType, string linkTarget, string? description, string addedBy,
+        string? expectedHash, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var tenantId = GetTenantId();
@@ -44,10 +54,26 @@ public sealed class ControlValidationLinkService(
         var implementation = await FindImplementationAsync(context, tenantId, systemId, controlId, cancellationToken)
             ?? throw new ControlImplementationNotFoundException(systemId, controlId);
 
+        // Validate the linked artifact, not merely the parent control. Touch its concurrency token
+        // in the same SaveChanges transaction so replacement/deletion cannot race link creation.
+        if (linkType == ControlValidationLinkType.EvidenceArtifact)
+        {
+            var artifactId = target.StartsWith("evidence://", StringComparison.Ordinal) ? target["evidence://".Length..]
+                : target.StartsWith("artifact:", StringComparison.Ordinal) ? target["artifact:".Length..] : target;
+            var artifact = await context.EvidenceArtifacts.SingleOrDefaultAsync(a =>
+                a.Id == artifactId && a.RegisteredSystemId == systemId && a.TenantId == tenantId && !a.IsDeleted, cancellationToken)
+                ?? throw new KeyNotFoundException("Evidence not found in this system.");
+            if (expectedHash is not null && artifact.ContentHash != expectedHash)
+                throw new DbUpdateConcurrencyException("Evidence changed. Reload before linking.");
+            target = artifact.Id;
+            context.Entry(artifact).Property(a => a.ContentHash).IsModified = true;
+        }
+
         var exists = await context.ControlValidationLinks.AnyAsync(
             link => link.TenantId == tenantId
                 && link.ControlImplementationId == implementation.Id
-                && link.LinkTarget == target,
+                && (link.LinkTarget == target || (linkType == ControlValidationLinkType.EvidenceArtifact
+                    && (link.LinkTarget == "evidence://" + target || link.LinkTarget == "artifact:" + target))),
             cancellationToken);
         if (exists)
             throw new DuplicateControlValidationLinkException(target);

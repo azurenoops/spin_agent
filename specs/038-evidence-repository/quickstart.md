@@ -65,12 +65,51 @@ docker compose -f docker-compose.mcp.yml up -d --force-recreate
 
 ### 2. Evidence Repository Page
 
-1. Navigate to a system → **Evidence** (in sidebar, after Remediation)
-2. Verify the summary bar shows total count, manual vs. automated breakdown, and coverage %
-3. Verify all evidence across all controls appears in the table
-4. Type "AC" in the search bar → verify filtering works
-5. Click a row → verify the slide-over detail panel opens with metadata and preview
-6. Click a Control ID link → verify navigation to the control narrative
+1. Navigate to an authorized system → **Controls & evidence → Evidence**.
+2. Verify the heading/description, single catalog, source tabs, and counts.
+3. Search by a name/control and exercise family, category, source, date, and sort
+   filters. Confirm counts reflect those filters.
+4. Open **View evidence**. Check Overview, Linked controls, and History; size,
+   uploader, dates, hashes, and retained versions belong in details.
+5. Refresh the URL, use Back, then reopen and close with Escape. Confirm search,
+   page, list position, and keyboard focus survive. Test mobile width and themes.
+6. Open a linked control to inspect its narrative. Linking does not imply an
+   assessment pass.
+7. Select an empty **Provider shared** tab. Confirm the exact empty copy, Refresh
+   access, Sharing guidance, no second catalog, and no empty pagination.
+8. With an approved provider summary, confirm summary-only access and no private
+   file action. Revoke sharing through an authorized provider workflow and verify
+   content access is denied and previously loaded protected detail is cleared.
+9. Using authorized management/link accounts, test upload to a real system
+   control, replacement, retained downloads, collection, deletion, and control
+   linking. With a read-only account, confirm unavailable actions are explained.
+10. Simulate a source failure in the browser tests. Confirm partial availability,
+    unavailable counts, and retry, rather than misleading zero/empty results.
+
+#### September 28 local session
+
+- Dashboard: `http://127.0.0.1:5197`
+- API: `http://127.0.0.1:3002`
+- Target route:
+  `/workspaces/organizations/ef3a19e6-858f-48f8-ab35-d0ab88b54d39/systems/09d6774b-e8a1-48db-b71f-5873e27163c4/evidence`
+- Select an authorized organization workspace at `/login/select-tenant`.
+  The currently shared account offers only the Flankspeed provider workspace and
+  is correctly denied the target organization. Do not bypass that access check.
+- The API remains Compose-managed with its existing runtime settings and volumes,
+  using a local image override for `ato-copilot-mcp:evidence-catalog-20260928`.
+  The previous image `ato-copilot-mcp:role-next-actions-20260928` remains available
+  for rollback; no data volume was removed.
+
+```bash
+# Frontend static checks and production build
+cd src/Ato.Copilot.Dashboard
+npx tsc -b
+npm run build
+
+# Browser verification against the actual local dev-server port
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:5197 \
+  npx playwright test e2e/tests/evidence-catalog.spec.ts --reporter=line
+```
 
 ### 3. Automated Evidence Collection
 

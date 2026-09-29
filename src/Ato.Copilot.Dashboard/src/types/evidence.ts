@@ -111,6 +111,7 @@ export interface EvidenceReplaceParams {
   evidenceId: string;
   file: File;
   description?: string;
+  expectedHash?: string;
 }
 
 export interface CollectEvidenceResult {

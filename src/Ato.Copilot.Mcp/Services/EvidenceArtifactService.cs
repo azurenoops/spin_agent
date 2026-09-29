@@ -73,6 +73,16 @@ public class EvidenceArtifactService : IEvidenceArtifactService
 
         await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
+        if (!await _context.RegisteredSystems.AnyAsync(s => s.Id == registeredSystemId, cancellationToken))
+            throw new KeyNotFoundException("System not found.");
+        if (controlImplementationId is not null && !await _context.ControlImplementations.AnyAsync(c =>
+                c.Id == controlImplementationId && c.RegisteredSystemId == registeredSystemId, cancellationToken))
+            throw new KeyNotFoundException("Control implementation not found in this system.");
+        if (securityCapabilityId is not null && !await _context.SecurityCapabilities.AnyAsync(c =>
+                c.Id == securityCapabilityId && _context.CapabilityControlMappings.Any(m =>
+                    m.SecurityCapabilityId == c.Id && m.RegisteredSystemId == registeredSystemId), cancellationToken))
+            throw new KeyNotFoundException("Capability not found in this system.");
+
         var artifactId = Guid.NewGuid().ToString();
         var sanitizedFileName = Path.GetFileName(fileName);
         var storagePath = $"evidence/{registeredSystemId}/{artifactId}/{sanitizedFileName}";
@@ -211,10 +221,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var automatedCount = systemControlIds.Count > 0
-            ? await _context.Evidence
-                .CountAsync(e => systemControlIds.Contains(e.ControlId), cancellationToken)
-            : 0;
+        var automated = EvidenceCatalogService.ScopedAutomated(_context, registeredSystemId);
+        var automatedCount = await automated.CountAsync(cancellationToken);
 
         var controlsWithManualEvidence = await _context.EvidenceArtifacts
             .Where(e => e.RegisteredSystemId == registeredSystemId && !e.IsDeleted && e.ControlImplementationId != null)
@@ -223,7 +231,7 @@ public class EvidenceArtifactService : IEvidenceArtifactService
             .CountAsync(cancellationToken);
 
         var controlsWithAutomatedEvidence = systemControlIds.Count > 0
-            ? await _context.Evidence
+            ? await automated
                 .Where(e => systemControlIds.Contains(e.ControlId))
                 .Select(e => e.ControlId)
                 .Distinct()
@@ -270,17 +278,26 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     }
 
     /// <inheritdoc />
-    public async Task<bool> DeleteAsync(string evidenceId, string deletedBy, CancellationToken cancellationToken = default)
+    public Task<bool> DeleteAsync(string evidenceId, string deletedBy, CancellationToken cancellationToken = default) =>
+        DeleteCoreAsync(null, evidenceId, deletedBy, null, cancellationToken);
+
+    public Task<bool> DeleteScopedAsync(string systemId, string evidenceId, string deletedBy,
+        string? expectedHash, CancellationToken cancellationToken = default) =>
+        DeleteCoreAsync(systemId, evidenceId, deletedBy, expectedHash, cancellationToken);
+
+    private async Task<bool> DeleteCoreAsync(string? systemId, string evidenceId, string deletedBy,
+        string? expectedHash, CancellationToken cancellationToken)
     {
         await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var artifact = await _context.EvidenceArtifacts
-            .Where(e => e.Id == evidenceId && !e.IsDeleted)
+            .Where(e => e.Id == evidenceId && !e.IsDeleted && (systemId == null || e.RegisteredSystemId == systemId))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (artifact == null)
             return false;
 
+        CheckHash(artifact, expectedHash);
         artifact.IsDeleted = true;
         artifact.DeletedBy = deletedBy;
         artifact.DeletedAt = DateTime.UtcNow;
@@ -292,7 +309,7 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     }
 
     /// <inheritdoc />
-    public async Task<EvidenceArtifact> ReplaceAsync(
+    public Task<EvidenceArtifact> ReplaceAsync(
         string evidenceId,
         string fileName,
         string contentType,
@@ -300,17 +317,34 @@ public class EvidenceArtifactService : IEvidenceArtifactService
         string replacedBy,
         int retentionDays = 365,
         string? description = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ReplaceCoreAsync(null, evidenceId, fileName, contentType, content, replacedBy, null,
+            retentionDays, description, cancellationToken);
+
+    public Task<EvidenceArtifact> ReplaceScopedAsync(string systemId, string evidenceId, string fileName,
+        string contentType, Stream content, string replacedBy, string? expectedHash, int retentionDays = 365,
+        string? description = null, CancellationToken cancellationToken = default) =>
+        ReplaceCoreAsync(systemId, evidenceId, fileName, contentType, content, replacedBy, expectedHash,
+            retentionDays, description, cancellationToken);
+
+    private async Task<EvidenceArtifact> ReplaceCoreAsync(string? systemId, string evidenceId, string fileName,
+        string contentType, Stream content, string replacedBy, string? expectedHash, int retentionDays,
+        string? description, CancellationToken cancellationToken)
     {
         ValidateFile(fileName, contentType, content.Length);
 
         await using var _context = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var artifact = await _context.EvidenceArtifacts
-            .Where(e => e.Id == evidenceId && !e.IsDeleted)
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException($"Evidence artifact {evidenceId} not found.");
+            .Where(e => e.Id == evidenceId && !e.IsDeleted && (systemId == null || e.RegisteredSystemId == systemId))
+            .FirstOrDefaultAsync(cancellationToken);
+        if (artifact is null)
+        {
+            if (systemId is not null) throw new KeyNotFoundException("Evidence artifact not found in this system.");
+            throw new InvalidOperationException($"Evidence artifact {evidenceId} not found.");
+        }
 
+        CheckHash(artifact, expectedHash);
         // Create version snapshot of the old file
         var version = new EvidenceVersion
         {
@@ -328,7 +362,8 @@ public class EvidenceArtifactService : IEvidenceArtifactService
 
         // Upload new file
         var sanitizedFileName = Path.GetFileName(fileName);
-        var newStoragePath = $"evidence/{artifact.RegisteredSystemId}/{artifact.Id}/{sanitizedFileName}";
+        // Immutable object keys keep same-name replacements and concurrent writers from overwriting retained bytes.
+        var newStoragePath = $"evidence/{artifact.RegisteredSystemId}/{artifact.Id}/{Guid.NewGuid():N}/{sanitizedFileName}";
         var newHash = await ComputeStreamHashAsync(content, cancellationToken);
         content.Position = 0;
 
@@ -353,6 +388,12 @@ public class EvidenceArtifactService : IEvidenceArtifactService
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────────────
+
+    private static void CheckHash(EvidenceArtifact artifact, string? expectedHash)
+    {
+        if (expectedHash is not null && !string.Equals(artifact.ContentHash, expectedHash, StringComparison.Ordinal))
+            throw new DbUpdateConcurrencyException("Evidence changed. Reload before applying this operation.");
+    }
 
     private static void ValidateTargetIds(string? controlImplementationId, string? securityCapabilityId)
     {

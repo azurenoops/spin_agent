@@ -128,6 +128,7 @@ public class EvidenceArtifact
 
     /// <summary>SHA-256 hex digest for integrity verification.</summary>
     [Required]
+    [ConcurrencyCheck]
     [MaxLength(64)]
     public string ContentHash { get; set; } = string.Empty;
 
@@ -140,6 +141,7 @@ public class EvidenceArtifact
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Soft-delete flag.</summary>
+    [ConcurrencyCheck]
     public bool IsDeleted { get; set; }
 
     /// <summary>Identity of the user who deleted this evidence.</summary>

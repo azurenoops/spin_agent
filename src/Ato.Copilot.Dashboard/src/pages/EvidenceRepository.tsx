@@ -1,504 +1,222 @@
-import { useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { usePolling } from '../hooks/usePolling';
-import { listEvidence, getEvidenceSummary, downloadEvidence, deleteEvidence, collectEvidence } from '../api/evidence';
-import type { EvidenceArtifactDto, EvidenceSummaryDto, ArtifactCategory, EvidenceSource } from '../types/evidence';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowRight, FileText, Info, Plus, RefreshCw, Search, SlidersHorizontal, UsersRound } from 'lucide-react';
+import { evidenceError, getEvidenceCatalog, type EvidenceCatalog, type EvidenceCatalogItem, type EvidenceCatalogQuery, type EvidenceView } from '../api/evidenceCatalog';
 import EvidenceUploadDialog from '../components/EvidenceUploadDialog';
-import EvidenceDetailPanel from '../components/EvidenceDetailPanel';
-import { useSystemMutationPermission } from '../components/permissions/useSystemMutationPermission';
-import { ProviderEvidencePanel } from '../features/provider-authorizations/ProviderEvidencePanel';
-import { SystemTaskHeading, systemPrimaryAction } from '../features/systems/SystemTaskPresentation';
+import EvidenceCatalogDrawer from '../features/evidence/EvidenceCatalogDrawer';
+import '../features/evidence/EvidenceCatalog.css';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDate(dt: string): string {
-  return new Date(dt).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  Screenshot: 'bg-purple-100 text-purple-700',
-  ScanResult: 'bg-indigo-100 text-indigo-700',
-  ConfigurationExport: 'bg-teal-100 text-teal-700',
-  PolicyDocument: 'bg-amber-100 text-amber-700',
-  AuditLog: 'bg-gray-100 text-gray-700',
-  TestResult: 'bg-green-100 text-green-700',
-  Other: 'bg-gray-100 text-gray-600',
-};
-
-const CATEGORIES: { value: ArtifactCategory | ''; label: string }[] = [
-  { value: '', label: 'All Categories' },
-  { value: 'Screenshot', label: 'Screenshot' },
-  { value: 'ScanResult', label: 'Scan Result' },
-  { value: 'ConfigurationExport', label: 'Config Export' },
-  { value: 'PolicyDocument', label: 'Policy Document' },
-  { value: 'AuditLog', label: 'Audit Log' },
-  { value: 'TestResult', label: 'Test Result' },
-  { value: 'Other', label: 'Other' },
+const views: { id: EvidenceView; label: string }[] = [
+  { id: 'all', label: 'All evidence' }, { id: 'system', label: 'System evidence' }, { id: 'provider', label: 'Provider shared' },
 ];
-
-const SOURCES: { value: EvidenceSource | ''; label: string }[] = [
-  { value: '', label: 'All Sources' },
-  { value: 'Manual', label: 'Manual' },
-  { value: 'Automated', label: 'Automated' },
-];
-
-// ─── Component ──────────────────────────────────────────────────────────────
+const families = ['AC', 'AT', 'AU', 'CA', 'CM', 'CP', 'IA', 'IR', 'MA', 'MP', 'PE', 'PL', 'PM', 'PS', 'PT', 'RA', 'SA', 'SC', 'SI', 'SR'];
+const categories = ['Screenshot', 'ScanResult', 'ConfigurationExport', 'PolicyDocument', 'AuditLog', 'TestResult', 'Other',
+  'Configuration', 'PolicyCompliance', 'ResourceCompliance', 'SecurityAssessment', 'ActivityLog', 'Inventory'];
+export function evidenceDate(value: string | null, exact = false): string {
+  if (!value) return 'Date not recorded';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return 'Date unavailable';
+  return exact ? date.toLocaleString() : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function EvidenceRepository() {
-  const { id: systemId } = useParams<{ id: string }>();
-  const canManageEvidence = useSystemMutationPermission(systemId, 'canManageEvidence');
-  const [mutationError, setMutationError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
-  const [familyFilter, setFamilyFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState('uploadedAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [showUpload, setShowUpload] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // T282: Collect Evidence — track busy state per controlId
-  const [collectingControlId, setCollectingControlId] = useState<string | null>(null);
-  const [collectError, setCollectError] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-
-  const PAGE_SIZE = 50;
-
-  const fetchEvidence = useCallback(async () => {
-    if (!systemId) return { items: [], totalCount: 0, page: 1, pageSize: PAGE_SIZE };
-    return listEvidence({
-      systemId,
-      page,
-      pageSize: PAGE_SIZE,
-      search: search || undefined,
-      controlFamily: familyFilter || undefined,
-      category: (categoryFilter as ArtifactCategory) || undefined,
-      source: (sourceFilter as EvidenceSource) || undefined,
-      sortBy: sortBy as 'uploadedAt' | 'fileName' | 'controlId' | 'category',
-      sortOrder,
-    });
-  }, [systemId, page, search, familyFilter, categoryFilter, sourceFilter, sortBy, sortOrder]);
-
-  const { data: evidenceData, loading: evidenceLoading, error: evidenceError, refresh } = usePolling(fetchEvidence, 30000);
-
-  const fetchSummary = useCallback(async () => {
-    if (!systemId) return null;
-    return getEvidenceSummary(systemId);
-  }, [systemId]);
-
-  // T282: usePolling with 30s refresh; manual refresh after upload/collection
-  const { data: summary, error: summaryError, refresh: refreshSummary } = usePolling<EvidenceSummaryDto | null>(fetchSummary, 30000);
-
-  // T282: Collect Evidence handler — calls POST .../controls/{controlId}/collect-evidence
-  const handleCollectEvidence = useCallback(
-    async (controlId: string) => {
-      if (!canManageEvidence) {
-        setCollectError('You do not have permission to collect evidence in this workspace.');
-        return;
-      }
-      if (!systemId) return;
-      setCollectingControlId(controlId);
-      setCollectError(null);
-      try {
-        await collectEvidence(systemId, controlId);
-        // Refresh both evidence list and summary after collection
-        refresh();
-        refreshSummary();
-      } catch (e: unknown) {
-        setCollectError((e as Error).message ?? 'Evidence collection failed.');
-      } finally {
-        setCollectingControlId(null);
-      }
-    },
-    [systemId, canManageEvidence, refresh, refreshSummary],
-  );
-
-  const items: EvidenceArtifactDto[] = evidenceData?.items ?? [];
-  const totalCount = evidenceData?.totalCount ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
-  const handleSort = (col: string) => {
-    if (sortBy === col) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(col);
-      setSortOrder('desc');
-    }
-    setPage(1);
-  };
-
-  const SortIcon = ({ col }: { col: string }) => {
-    if (sortBy !== col) return null;
-    return (
-      <svg className="ml-1 inline h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d={sortOrder === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
-      </svg>
-    );
-  };
-
-  const handleDownload = async (item: EvidenceArtifactDto) => {
-    if (!systemId || !item.fileName) return;
-    try {
-      const blob = await downloadEvidence(systemId, item.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = item.fileName;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      a.remove();
-    } catch {
-      setDownloadError('Download failed. Please try again.');
-    }
-  };
-
-  if (!systemId) return null;
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <SystemTaskHeading title="Evidence for control assessment"
-        description="Link artifacts to the controls they support and review their currency and relevance."
-        action={<button
-          onClick={() => {
-            if (!canManageEvidence) {
-              setMutationError('You do not have permission to upload evidence in this workspace.');
-              return;
-            }
-            setMutationError(null);
-            setShowUpload(true);
-          }}
-          disabled={!canManageEvidence}
-          title={!canManageEvidence ? 'You do not have permission to upload evidence' : undefined}
-          className={systemPrimaryAction}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Upload Evidence
-        </button>} />
-      <p className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm leading-relaxed text-indigo-900">
-        Contributes to assessment evidence and SSP supporting references. Availability, provider sharing approval and control assessment are distinct.
-        Inspect the retained source and version; this catalog does not declare a control satisfied.
-      </p>
-
-      <ProviderEvidencePanel key={systemId} systemId={systemId} />
-
-      <section aria-labelledby="mission-evidence-heading" className="min-w-0 space-y-4">
-        <div>
-          <h2 id="mission-evidence-heading" className="text-lg font-semibold">Mission evidence</h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Retained uploads and automated artifacts for this system. Review workload-specific evidence separately from provider-approved summaries.</p>
-        </div>
-      {mutationError && <p role="alert" className="text-sm text-red-700">{mutationError}</p>}
-      {evidenceLoading && !evidenceData && <p role="status" className="text-sm text-slate-500">Loading retained evidence records…</p>}
-      {evidenceError && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-        <p role="alert">{evidenceError.message}</p>
-        {evidenceData && <p className="mt-2">Previously loaded records are shown. Open a record to recheck its current state.</p>}
-        <button type="button" className="mt-3 rounded border px-3 py-2" onClick={refresh}>Retry evidence records</button>
-      </div>}
-      {summaryError && <div className="text-sm text-amber-900"><p role="alert">Evidence summary is unavailable: {summaryError.message}</p>
-        <button type="button" className="mt-2 underline" onClick={refreshSummary}>Retry evidence summary</button>
-      </div>}
-
-      {/* T282: Collect Evidence inline error */}
-      {collectError && (
-        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Collection failed: {collectError}
-          <button onClick={() => setCollectError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
-        </div>
-      )}
-      {downloadError && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {downloadError}
-          <button onClick={() => setDownloadError(null)} className="ml-2 text-red-500 hover:text-red-700">✕</button>
-        </div>
-      )}
-
-      {/* Summary Bar */}
-      {summary && (
-        <details className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <summary className="cursor-pointer text-sm font-semibold">Mission evidence summary</summary>
-          <p className="mt-2 text-xs text-slate-500">These counts describe mission evidence records only, not provider summaries or assessment sufficiency.</p>
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <SummaryCard label="Mission records" value={summary.totalCount} />
-          <SummaryCard label="Manual" value={summary.manualCount} color="blue" />
-          <SummaryCard label="Automated" value={summary.automatedCount} color="green" />
-          <SummaryCard label="Controls Covered" value={`${summary.controlsWithEvidence}/${summary.totalControls}`} />
-          <SummaryCard label="Coverage" value={`${summary.coveragePercentage.toFixed(1)}%`} color={summary.coveragePercentage >= 80 ? 'green' : summary.coveragePercentage >= 50 ? 'amber' : 'red'} />
-        </div>
-        </details>
-      )}
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            aria-label="Search evidence records"
-            type="text"
-            placeholder="Search by filename, control, or description..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-        <input
-          aria-label="Filter evidence by control family"
-          type="text"
-          placeholder="Family (e.g., AC)"
-          value={familyFilter}
-          onChange={(e) => { setFamilyFilter(e.target.value.toUpperCase()); setPage(1); }}
-          className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-        />
-        <select
-          aria-label="Filter evidence by category"
-          value={categoryFilter}
-          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Filter evidence by source"
-          value={sourceFilter}
-          onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-        >
-          {SOURCES.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="relative overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <table aria-label="Mission evidence records" className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th aria-sort={sortBy === 'fileName' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                <button type="button" onClick={() => handleSort('fileName')}>File <SortIcon col="fileName" /></button>
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Source</th>
-              <th aria-sort={sortBy === 'category' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                <button type="button" onClick={() => handleSort('category')}>Category <SortIcon col="category" /></button>
-              </th>
-              <th aria-sort={sortBy === 'controlId' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                <button type="button" onClick={() => handleSort('controlId')}>Control <SortIcon col="controlId" /></button>
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Size</th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Uploader</th>
-              <th aria-sort={sortBy === 'uploadedAt' ? sortOrder === 'asc' ? 'ascending' : 'descending' : undefined} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                <button type="button" onClick={() => handleSort('uploadedAt')}>Date <SortIcon col="uploadedAt" /></button>
-              </th>
-              <th className="px-4 py-3 w-10" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {items.length === 0 ? (!evidenceLoading && !evidenceError && evidenceData && (
-              <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
-                  No evidence found. Upload evidence or adjust your filters.
-                </td>
-              </tr>
-            )) : items.map((item) => (
-              <tr
-                key={item.id}
-                className={`hover:bg-gray-50 cursor-pointer ${selectedId === item.id ? 'bg-indigo-50' : ''}`}
-                onClick={() => setSelectedId(item.id)}
-              >
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
-                  <button type="button" aria-label={`Review evidence ${item.fileName ?? item.controlId ?? item.id}`}
-                    className="text-left text-indigo-700 underline-offset-4 hover:underline dark:text-indigo-300"
-                    onClick={event => { event.stopPropagation(); setSelectedId(item.id); }}>
-                    {item.fileName ?? 'Automated artifact'}
-                  </button>
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                    item.source === 'Automated' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
-                  }`}>
-                    {item.source}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                    CATEGORY_COLORS[item.artifactCategory] ?? 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {item.artifactCategory.replace(/([A-Z])/g, ' $1').trim()}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-600">
-                  {item.controlId ?? '—'}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-500">
-                  {formatBytes(item.fileSizeBytes)}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-500">{item.uploadedBy}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-gray-500">{formatDate(item.uploadedAt)}</td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    {item.fileName && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDownload(item); }}
-                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                        title="Download"
-                      >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                      </button>
-                    )}
-                    {/* T282: Collect Evidence button — only for items with a controlId */}
-                    {item.controlId && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleCollectEvidence(item.controlId!);
-                        }}
-                        disabled={!canManageEvidence || collectingControlId === item.controlId}
-                        className="rounded p-1 text-gray-400 hover:bg-emerald-100 hover:text-emerald-600 disabled:opacity-50"
-                        title="Collect Evidence"
-                        aria-label="Collect automated evidence for this control"
-                      >
-                        {collectingControlId === item.controlId ? (
-                          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-                        ) : (
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
-                          </svg>
-                        )}
-                      </button>
-                    )}
-                    {item.source === 'Manual' && (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (!canManageEvidence) {
-                            setMutationError('You do not have permission to delete evidence in this workspace.');
-                            return;
-                          }
-                          if (!confirm(`Delete "${item.fileName ?? 'this evidence'}"?`)) return;
-                          setMutationError(null);
-                          try {
-                            await deleteEvidence(systemId, item.id);
-                            refresh();
-                            refreshSummary();
-                          } catch {
-                            setMutationError('Failed to delete evidence. Please try again.');
-                          }
-                        }}
-                        disabled={!canManageEvidence}
-                        className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
-                        title="Delete"
-                      >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3">
-            <p className="text-sm text-gray-500">
-              Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="rounded-md border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="rounded-md border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      </section>
-
-      {/* Upload Dialog */}
-      {showUpload && (
-        <EvidenceUploadDialog
-          systemId={systemId}
-          onClose={() => setShowUpload(false)}
-          onUploaded={() => {
-            setShowUpload(false);
-            refresh();
-            // T282: refresh summary after upload so widget updates
-            refreshSummary();
-          }}
-        />
-      )}
-
-      {/* Detail Panel */}
-      {selectedId && (
-        <EvidenceDetailPanel
-          systemId={systemId}
-          evidenceId={selectedId}
-          onClose={() => setSelectedId(null)}
-          onActionComplete={() => {
-            setSelectedId(null);
-            refresh();
-          }}
-        />
-      )}
-    </div>
-  );
+  const { id } = useParams<{ id: string }>();
+  return id ? <EvidenceCatalogPage key={id} systemId={id} /> : <p role="alert">Select a system to view evidence.</p>;
 }
 
-// ─── Summary Card ───────────────────────────────────────────────────────────
+function EvidenceCatalogPage({ systemId }: { systemId: string }) {
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const [data, setData] = useState<EvidenceCatalog | null>(null);
+  const [loadedQuery, setLoadedQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
+  const [showUpload, setShowUpload] = useState(false);
+  const [guidance, setGuidance] = useState(false);
+  const [filters, setFilters] = useState(false);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const contribution = useRef<HTMLDetailsElement>(null);
+  const selected = params.get('evidence');
+  const view: EvidenceView = params.get('view') === 'provider' ? 'provider' : params.get('view') === 'system' ? 'system' : 'all';
+  const query: EvidenceCatalogQuery = {
+    view, search: params.get('search') ?? '', family: params.get('family') ?? '',
+    category: params.get('category') ?? '', source: params.get('source') ?? '',
+    dateFrom: params.get('dateFrom') ?? '', dateTo: params.get('dateTo') ?? '',
+    sortBy: params.get('sortBy') ?? 'uploadedAt', sortOrder: params.get('sortOrder') === 'asc' ? 'asc' : 'desc',
+    page: Math.max(1, Number(params.get('page')) || 1), pageSize: 25,
+  };
+  const queryKey = JSON.stringify(query);
+  const current = loadedQuery === queryKey ? data : null;
+  const refresh = useCallback(() => setRevision(value => value + 1), []);
 
-function SummaryCard({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number | string;
-  color?: 'blue' | 'green' | 'amber' | 'red';
-}) {
-  const textColor = color === 'green' ? 'text-green-600'
-    : color === 'blue' ? 'text-indigo-600'
-    : color === 'amber' ? 'text-amber-600'
-    : color === 'red' ? 'text-red-600'
-    : 'text-gray-900';
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    setData(null);
+    const requestQuery: EvidenceCatalogQuery = JSON.parse(queryKey);
+    getEvidenceCatalog(systemId, requestQuery, controller.signal)
+      .then(value => {
+        if (!controller.signal.aborted) { setData(value); setLoadedQuery(queryKey); }
+      })
+      .catch(reason => { if (!controller.signal.aborted) setError(evidenceError(reason)); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [systemId, queryKey, revision]);
 
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-      <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
-      <p className={`mt-1 text-xl font-semibold ${textColor}`}>{value}</p>
+  const change = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    if (key !== 'page') next.delete('page');
+    setParams(next, { replace: key === 'search' });
+  };
+  const open = (item: EvidenceCatalogItem, target?: HTMLElement, tab = 'overview') => {
+    returnFocus.current = target ?? heading.current;
+    const next = new URLSearchParams(params);
+    next.set('evidence', item.id);
+    next.set('detailTab', tab);
+    setParams(next);
+  };
+  const close = useCallback(() => {
+    const next = new URLSearchParams(location.search);
+    next.delete('evidence'); next.delete('detailTab');
+    setParams(next, { replace: true });
+  }, [location.search, setParams]);
+  const priorSelected = useRef(selected);
+  useEffect(() => {
+    if (priorSelected.current && !selected) (returnFocus.current?.isConnected ? returnFocus.current : heading.current)?.focus();
+    priorSelected.current = selected;
+  }, [selected]);
+
+  const missing = current?.items.find(item => item.linksKnown && item.controls.length === 0 && item.source !== 'Provider');
+  const activeSources = current?.sources.filter(source => view === 'all' || source.source === view) ?? [];
+  const unavailable = activeSources.some(source => source.state !== 'available');
+  const hasFilters = Boolean(query.search || query.family || query.category || query.source || query.dateFrom || query.dateTo);
+  const totalPages = current ? Math.ceil(current.availableCount / query.pageSize) : 0;
+  const canUpload = current?.permissions.canUpload === true && !loading;
+
+  return <section className={`ew-page${selected ? ' ew-open' : ''}`} aria-labelledby="evidence-heading">
+    <header className="ew-heading">
+      <div><h1 id="evidence-heading" ref={heading} tabIndex={-1}>Evidence</h1>
+        <p>Find supporting records and see what still needs attention.</p></div>
+      <div className="ew-heading-actions">
+        <button type="button" className="ew-text-button" onClick={() => {
+          if (contribution.current) { contribution.current.open = true; contribution.current.scrollIntoView({ block: 'nearest' }); }
+        }}>About evidence</button>
+        <button type="button" className="ew-primary" disabled={!canUpload} onClick={() => { if (canUpload) setShowUpload(true); }}>
+          <Plus size={15} /> Upload evidence
+        </button>
+        {!canUpload && <small>{current?.permissions.uploadReason ?? (loading ? 'Checking upload access…' : 'Upload access unavailable')}</small>}
+      </div>
+    </header>
+    {missing && (current?.counts.missingLinks ?? 0) > 0 && <div className="ew-attention">
+      <Info size={17} /><span>{current?.counts.missingLinks} {current?.counts.missingLinks === 1 ? 'record needs' : 'records need'} a control link</span>
+      <button type="button" className="ew-text-button" onClick={event => open(missing, event.currentTarget, 'controls')}>View record <ArrowRight size={15} /></button>
+    </div>}
+    <div className="ew-catalog">
+      <div className="ew-tabs" role="tablist" aria-label="Evidence sources">
+        {views.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={view === tab.id}
+          onClick={() => change('view', tab.id)}>
+          {tab.label} ({current ? current.counts[tab.id] ?? 'unavailable' : loading ? 'loading…' : 'unavailable'})
+        </button>)}
+      </div>
+      <div className="ew-toolbar">
+        <label className="ew-search"><Search size={17} aria-hidden="true" />
+          <input aria-label="Search evidence or control" placeholder="Search evidence or control…" value={query.search}
+            onChange={event => change('search', event.target.value)} /></label>
+        <button type="button" aria-expanded={filters} aria-controls="evidence-filters" onClick={() => setFilters(value => !value)}>
+          <SlidersHorizontal size={16} /> Filters{hasFilters ? ' · active' : ''}
+        </button>
+        <button type="button" aria-label="Refresh evidence" title="Refresh" disabled={loading} onClick={refresh}><RefreshCw size={17} /></button>
+      </div>
+      {filters && <div id="evidence-filters" className="ew-filters">
+        <label>Control family<select value={query.family} onChange={e => change('family', e.target.value)}>
+          <option value="">All families</option>{families.map(f => <option key={f}>{f}</option>)}</select></label>
+        <label>Category<select value={query.category} onChange={e => change('category', e.target.value)}>
+          <option value="">All categories</option>{categories.map(c => <option key={c} value={c}>{c.replace(/([a-z])([A-Z])/g, '$1 $2')}</option>)}</select></label>
+        <label>Source<select value={query.source} onChange={e => change('source', e.target.value)}>
+          <option value="">All sources</option><option value="Manual">System upload</option><option value="Automated">Automated collection</option>
+          <option value="Provider">Provider shared</option></select></label>
+        <label>From date<input type="date" value={query.dateFrom} onChange={e => change('dateFrom', e.target.value)} /></label>
+        <label>Through date<input type="date" value={query.dateTo} onChange={e => change('dateTo', e.target.value)} /></label>
+        <label>Sort by<select value={query.sortBy} onChange={e => change('sortBy', e.target.value)}>
+          <option value="uploadedAt">Record date</option><option value="fileName">Evidence name</option>
+          <option value="controlId">Control</option><option value="category">Category</option></select></label>
+        <label>Order<select value={query.sortOrder} onChange={e => change('sortOrder', e.target.value)}>
+          <option value="desc">Descending</option><option value="asc">Ascending</option></select></label>
+        <button type="button" onClick={() => {
+          const next = new URLSearchParams(params);
+          ['search', 'family', 'category', 'source', 'dateFrom', 'dateTo', 'sortBy', 'sortOrder', 'page'].forEach(key => next.delete(key));
+          setParams(next);
+        }}>Clear filters</button>
+      </div>}
+      {error && <div className="ew-error" role="alert"><p>{error}</p><button type="button" onClick={refresh}>Retry evidence</button></div>}
+      {current?.sources.filter(source => source.state !== 'available').map(source => <div className="ew-error" role="alert" key={source.source}>
+        <p>{source.message ?? `${source.source === 'provider' ? 'Provider' : 'System'} evidence ${source.state === 'denied' ? 'access denied' : 'unavailable'}.`}
+          {' '}Totals for this source are unavailable.</p><button type="button" onClick={refresh}>Retry {source.source} evidence</button>
+      </div>)}
+      {loading && <p className="ew-state" role="status">Loading evidence…</p>}
+      {!loading && current && current.items.length > 0 && <>
+        <div className="ew-table-scroll"><table aria-label="Evidence catalog"><thead><tr>
+          <th>Evidence</th><th>Source</th><th>Linked controls</th><th>Next step</th>
+        </tr></thead><tbody>{current.items.map(item => <tr key={item.id} className={selected === item.id ? 'ew-selected' : ''}>
+          <td><button type="button" className="ew-record" aria-label={`View evidence ${item.name}`} onClick={e => open(item, e.currentTarget)}>
+            <FileText size={24} aria-hidden="true" /><span><strong>{item.name}</strong>
+              <small>{item.source === 'Automated' ? 'Collected' : item.source === 'Provider' ? 'Shared' : 'Uploaded'} {evidenceDate(item.recordedAt)}</small></span>
+          </button></td>
+          <td>{item.sourceLabel}</td>
+          <td><div className="ew-control-tags">{item.controls.slice(0, 2).map(control => <span key={control.controlId} className="ew-tag">{control.controlId}</span>)}
+            {item.controls.length > 2 && <span className="ew-tag">+{item.controls.length - 2}</span>}
+            {!item.controls.length && <span className={item.linksKnown ? 'ew-unlinked' : 'ew-muted'}>{item.linksKnown ? 'Not linked' : 'Not shared'}</span>}</div></td>
+          <td><button type="button" className="ew-text-button" onClick={e => open(item, e.currentTarget, item.linksKnown && !item.controls.length ? 'controls' : 'overview')}>
+            {item.linksKnown && !item.controls.length ? 'View linking gap' : 'View evidence'} <ArrowRight size={15} /></button></td>
+        </tr>)}</tbody></table></div>
+        <div className="ew-record-footer">
+          <small>{current.totalCount === null
+            ? `${current.availableCount} available ${current.availableCount === 1 ? 'record' : 'records'} · partial results`
+            : `${current.totalCount} ${current.totalCount === 1 ? 'record' : 'records'}`}</small>
+          {totalPages > 1 && <nav aria-label="Evidence pages">
+            <button type="button" disabled={query.page <= 1} onClick={() => change('page', String(query.page - 1))}>Previous</button>
+            <span>{query.page} of {totalPages}</span>
+            <button type="button" disabled={query.page >= totalPages} onClick={() => change('page', String(query.page + 1))}>Next</button>
+          </nav>}
+        </div>
+      </>}
+      {!loading && current && !current.items.length && !unavailable && <div className="ew-empty">
+        {current.availableCount > 0 ? <><h2>No records on this page.</h2>
+          <p>The catalog may have changed since this page was selected.</p>
+          <button type="button" onClick={() => change('page', '1')}>Return to first page</button>
+        </> : view === 'provider' && !hasFilters ? <>
+          <UsersRound size={30} /><h2>No provider evidence shared yet.</h2>
+          <p>Only records explicitly shared with this system appear here.</p>
+          <div><button type="button" className="ew-primary" onClick={refresh}><RefreshCw size={15} />Refresh access</button>
+            <button type="button" onClick={() => setGuidance(true)}>Sharing guidance</button></div>
+        </> : <><FileText size={30} /><h2>{hasFilters ? 'No matching evidence.' : 'No evidence yet.'}</h2>
+          <p>{hasFilters ? 'Try another search or clear your filters.' : 'Upload a supporting record or collect evidence through an authorized control workflow.'}</p></>}
+      </div>}
+      {guidance && <section className="ew-guidance" aria-label="Sharing guidance"><h2>Sharing guidance</h2>
+        <p>A provider must explicitly approve a retained summary for this organization and system through an active provider relationship.
+          Refresh access after that approval. Private attachments remain restricted; sharing is not assessment acceptance.</p>
+        <button type="button" onClick={() => setGuidance(false)}>Close guidance</button></section>}
+      <details className="ew-contribution" ref={contribution}>
+        <summary>How evidence supports your SSP and assessment</summary>
+        <p>Evidence documents how a control operates; assessors still review its currency, relevance, and sufficiency.
+          File availability and provider sharing approval do not establish that a control passed assessment.</p>
+        <p>SSP exports can retain approved provider-summary references and version hashes. Authorization-package preparation can
+          include uploaded artifact manifests and files. Assessment snapshots separately retain automated evidence hashes and human determinations.</p>
+        <p>Catalog control links are not automatically SSP supporting citations. These sources do not yet share one complete
+          evidence-version path through every SSP, assessment, and eMASS output. Uploading or linking evidence does not establish package readiness,
+          eMASS submission, or an authorization decision.</p>
+      </details>
     </div>
-  );
+    <p className="ew-footnote"><Info size={16} />Provider records show sharing scope and whether a file or only a summary is available.</p>
+    {selected && <EvidenceCatalogDrawer key={`${systemId}:${selected}`} systemId={systemId} id={selected}
+      tab={params.get('detailTab') ?? 'overview'} onTab={tab => {
+        const next = new URLSearchParams(params); next.set('detailTab', tab); setParams(next, { replace: true });
+      }} onClose={close} onChanged={refresh} />}
+    {showUpload && <EvidenceUploadDialog key={systemId} systemId={systemId} onClose={() => setShowUpload(false)}
+      onUploaded={() => { setShowUpload(false); refresh(); }} />}
+  </section>;
 }

@@ -148,6 +148,23 @@ public sealed class ControlValidationEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DeleteLink_WrongSystemRouteDoesNotDeleteExistingAssociation()
+    {
+        // Arrange
+        var root = $"/api/systems/{SystemId}/controls/{ControlId}/validation";
+        var created = await _client.PostAsJsonAsync(root, new
+            { linkType = "ExternalUrl", linkTarget = "https://example.test/scoped" });
+        var linkId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/systems/other-system/controls/{ControlId}/validation/{linkId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await _client.GetFromJsonAsync<JsonElement>(root)).GetProperty("total").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
     public async Task ValidationRoutes_ViewerCanReadButCannotMutate()
     {
         // Arrange

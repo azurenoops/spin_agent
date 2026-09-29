@@ -125,9 +125,23 @@ public sealed class ProviderEvidenceSharingHttpTests : IClassFixture<WorkspaceMe
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
         using var anonymous = _factory.CreateClient();
         (await anonymous.GetAsync(missionRoot)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var catalogRoot = $"/api/dashboard/systems/{system}/evidence-catalog";
+        var catalog = await mission.GetFromJsonAsync<JsonElement>(catalogRoot + "?view=provider");
+        catalog.GetProperty("totalCount").GetInt32().Should().Be(1);
+        catalog.GetProperty("items")[0].GetProperty("linksKnown").GetBoolean().Should().BeFalse();
+        var catalogDetail = await mission.GetFromJsonAsync<JsonElement>(catalogRoot + $"/provider:{grant.ShareId}");
+        catalogDetail.GetProperty("availability").GetString().Should().Be("SummaryOnly");
+        catalogDetail.GetProperty("owner").ValueKind.Should().Be(JsonValueKind.Null);
+        catalogDetail.GetProperty("permissions").GetProperty("canLink").GetBoolean().Should().BeFalse();
+        catalogDetail.GetProperty("permissions").GetProperty("canDownload").GetBoolean().Should().BeTrue();
+        catalogDetail.GetRawText().Should().NotContain("private-source.txt").And.NotContain("Private evidence description")
+            .And.NotContain(privateText).And.NotContain("storagePath");
+        (await other.GetAsync($"/api/dashboard/systems/{otherSystem}/evidence-catalog/provider:{grant.ShareId}"))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
         await Post<ProviderEvidenceShareResponse>(provider, root + $"/evidence-shares/{grant.ShareId}/revoke",
             new RevokeProviderEvidenceShareRequest(grant.Revision, "Provider withdrawal"));
         (await mission.GetAsync(missionRoot + $"/{grant.ShareId}/content")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await mission.GetAsync(catalogRoot + $"/provider:{grant.ShareId}")).StatusCode.Should().Be(HttpStatusCode.NotFound);
         var replacement = await Post<ProviderEvidenceShareResponse>(provider, root + $"/evidence/{evidence.EvidenceId}/shares",
             body with { PreviousVersionId = grant.ShareId, Version = 2 });
         await using (var services = _factory.Services.CreateAsyncScope())

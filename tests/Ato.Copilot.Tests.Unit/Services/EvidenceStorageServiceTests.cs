@@ -259,21 +259,36 @@ public class EvidenceStorageServiceTests : IDisposable
     // ─── Error Handling ──────────────────────────────────────────────────
 
     [Fact]
-    public async Task CollectEvidence_WhenServiceFails_StillPersistsErrorSnapshot()
+    public async Task CollectEvidence_WhenServiceFails_DoesNotPersistErrorAsEvidence()
     {
+        // Arrange
         _policyService
             .Setup(p => p.GetComplianceSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Connection failed"));
+            .ThrowsAsync(new HttpRequestException("Connection failed"));
 
-        var evidence = await _sut.CollectEvidenceAsync("AC-2", "sub-1");
+        // Act
+        var act = () => _sut.CollectEvidenceAsync("AC-2", "sub-1");
 
-        evidence.Should().NotBeNull();
-        evidence.Content.Should().Contain("Connection failed");
-        evidence.Content.Should().Contain("Manual evidence collection may be required");
-
-        // Still persisted
+        // Assert
+        await act.Should().ThrowAsync<HttpRequestException>();
         await using var db = await _dbFactory.CreateDbContextAsync();
-        (await db.Evidence.FindAsync(evidence.Id)).Should().NotBeNull();
+        (await db.Evidence.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CollectEvidence_CancellationPropagatesWithoutPersistence()
+    {
+        // Arrange
+        _policyService.Setup(p => p.GetComplianceSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        // Act
+        var act = () => _sut.CollectEvidenceAsync("AC-2", "sub-1");
+
+        // Assert
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        (await db.Evidence.CountAsync()).Should().Be(0);
     }
 
     // ─── Helper ────────────────────────────────────────────────────────────

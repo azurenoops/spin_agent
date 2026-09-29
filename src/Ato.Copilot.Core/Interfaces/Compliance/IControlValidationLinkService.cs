@@ -4,6 +4,9 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 
 public interface IControlValidationLinkService
 {
+    Task<ControlValidationLink> AddEvidenceLinkAsync(string systemId, string controlId, string evidenceId,
+        string expectedHash, string addedBy, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<ControlValidationLink>> GetLinksAsync(
         string systemId,
         string controlId,

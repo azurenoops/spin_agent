@@ -67,8 +67,14 @@ public sealed class ProviderEvidenceDocumentTests
                     new("AU-2", "Shared", "DEMO provider", "Review events and retain customer evidence"),
                     "Shared", "CspSubscription", true, "PRIVATE RAW SOURCE MUST NOT LEAK", null)
             ], []));
+        // Exercise retained approved-source evidence exports, not promotion of working profile previews.
+        var approvedProducer = new OscalSspExportService(factory, NullLogger<OscalSspExportService>.Instance);
+        var legacyApprovedPreview = new Mock<IOscalSspExportService>();
+        legacyApprovedPreview.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
+            .Returns((string system, bool backMatter, bool pretty, CancellationToken ct) =>
+                approvedProducer.ExportAsync(system, backMatter, pretty, ct));
         var exporter = new SspExportService(factory, Mock.Of<ISspService>(), Mock.Of<IDocumentTemplateService>(),
-            new OscalSspExportService(factory, NullLogger<OscalSspExportService>.Instance),
+            legacyApprovedPreview.Object,
             schema.Object, Mock.Of<ISspExportNotifier>(),
             NullLogger<SspExportService>.Instance, Options.Create(new ExportSettings { DataPath = output.Path }),
             channel, service.Object, responsibilities.Object);

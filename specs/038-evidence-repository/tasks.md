@@ -11,6 +11,30 @@
 
 ---
 
+## US7 - September 28, 2026 Evidence catalog redesign
+
+Parent: [azurenoops/spin_agent#216](https://github.com/azurenoops/spin_agent/issues/216).
+User-story issue creation and parent linkage await explicit external-write
+approval. The checklist below must be mirrored in that issue.
+
+- [ ] T057 [US7] Approve/create the catalog user-story issue and attach it to the existing feature parent; record the issue in spec/plan/tasks.
+- [X] T058 [US7] Add failing backend catalog/scope/file/link tests under `tests/Ato.Copilot.Tests.Integration/Evidence/` and `tests/Ato.Copilot.Tests.Integration/Tenancy/`.
+- [X] T059 [US7] Implement scoped catalog/detail projections in `src/Ato.Copilot.Mcp/Endpoints/Dashboard/` using existing stores/services, globally consistent filters/counts/paging, qualified IDs, and explicit source failures.
+- [X] T060 [US7] Preserve and validate protected file/version access, upload targets, collection, replacement/deletion, and control linking; add stale/revoked/wrong-system regressions.
+- [X] T061 [US7] Add failing catalog/drawer/permission/navigation tests under `src/Ato.Copilot.Dashboard/src/__tests__/`.
+- [X] T062 [US7] Implement the mock-aligned `EvidenceRepository.tsx`, typed API projection, and Overview/Linked controls/History drawer, reusing existing protected actions.
+- [X] T063 [US7] Verify loading, exact provider empty copy, search misses, partial failure, summary-only access, retries, and permission explanations; cancel stale scoped reads.
+- [X] T064 [US7] Run dashboard typecheck/build, relevant backend/frontend tests, and browser checks for responsive layouts, themes, focus, history, refresh, and retained list state.
+- [ ] T065 [US7] Update evidence docs with verified SSP/assessment/package consumers and gaps; supply local acceptance steps, actual results, and an approved issue-checklist update. Do not push.
+
+T057 and the external portion of T065 remain pending explicit GitHub approval.
+Local documentation and acceptance steps are complete in `quickstart.md`,
+`contracts/evidence-catalog.md`, and the dashboard guide. Whole-solution/unit
+compilation is blocked by unrelated responsibility DTO constructor mismatches;
+the 44-test Evidence integration suite and production API build pass. Manual
+organization acceptance requires an authorized organization account; the current
+browser account exposes only a provider workspace.
+
 ## Phase 1: Setup
 
 **Purpose**: Project initialization — no user story work yet

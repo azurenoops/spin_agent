@@ -36,6 +36,16 @@ public class EvidenceArtifactServiceTests : IDisposable
             .Options;
         var factory = new TestDbContextFactory(_dbOptions);
         _db = factory.Context;
+        foreach (var suffix in new[] { "1", "hash", "h1", "h2" })
+        {
+            _db.RegisteredSystems.Add(new RegisteredSystem { Id = $"sys-{suffix}", Name = $"System {suffix}" });
+            _db.ControlImplementations.Add(new ControlImplementation
+                { Id = $"ci-{suffix}", RegisteredSystemId = $"sys-{suffix}", ControlId = "AC-1" });
+        }
+        _db.SecurityCapabilities.Add(new SecurityCapability { Id = "cap-1", Name = "Test capability" });
+        _db.CapabilityControlMappings.Add(new CapabilityControlMapping
+            { SecurityCapabilityId = "cap-1", RegisteredSystemId = "sys-1", ControlId = "AC-1" });
+        _db.SaveChanges();
 
         _sut = new EvidenceArtifactService(
             factory,
@@ -400,6 +410,48 @@ public class EvidenceArtifactServiceTests : IDisposable
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ReplaceSameFilename_PreservesOldObjectAndRejectsStaleHash()
+    {
+        // Arrange
+        using var original = MakeStream("original");
+        var artifact = await _sut.UploadAsync("sys-1", "same.txt", "text/plain", original,
+            ArtifactCategory.Other, "uploader", controlImplementationId: "ci-1");
+        var oldPath = artifact.StoragePath;
+        var oldHash = artifact.ContentHash;
+        using var replacement = MakeStream("replacement");
+
+        // Act
+        var updated = await _sut.ReplaceScopedAsync("sys-1", artifact.Id, "same.txt", "text/plain",
+            replacement, "replacer", oldHash);
+
+        // Assert
+        updated.StoragePath.Should().NotBe(oldPath);
+        var version = await _db.EvidenceVersions.SingleAsync(v => v.EvidenceArtifactId == artifact.Id);
+        version.StoragePath.Should().Be(oldPath);
+        version.ContentHash.Should().Be(oldHash);
+        version.ReplacedBy.Should().Be("replacer");
+        var staleDelete = () => _sut.DeleteScopedAsync("sys-1", artifact.Id, "deleter", oldHash);
+        await staleDelete.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        (await _sut.DeleteScopedAsync("sys-h1", artifact.Id, "deleter", updated.ContentHash)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Upload_ForeignControlTargetDoesNotWriteStorage()
+    {
+        // Arrange
+        using var stream = MakeStream();
+
+        // Act
+        var act = () => _sut.UploadAsync("sys-1", "wrong.txt", "text/plain", stream,
+            ArtifactCategory.Other, "uploader", controlImplementationId: "ci-h1");
+
+        // Assert
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+        _storageProvider.Verify(s => s.SaveAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
 
     private static EvidenceArtifact CreateArtifact(string id, string systemId = "sys-1")
         => new()
