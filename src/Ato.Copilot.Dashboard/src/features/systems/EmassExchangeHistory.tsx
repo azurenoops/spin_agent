@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getExchangeExports, getExchangeHistory, recordExchange } from '../../api/emass-exchanges';
 import type { ExchangeExport, ExchangeHistory, ExchangeOutcome } from '../../api/emass-exchanges';
+import SetupDialog from '../workspace-operations/SetupDialog';
 
 const outcomes: Record<ExchangeOutcome, string> = {
   TransferRecorded: 'Transfer recorded', ReceiptRecorded: 'Receipt recorded',
@@ -27,6 +28,7 @@ function ExchangeHistoryForSystem({ systemId }: { systemId: string }) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [open, setOpen] = useState(false);
   const [packageId, setPackageId] = useState('');
   const [outcome, setOutcome] = useState<ExchangeOutcome>('ReceiptRecorded');
   const [workflow, setWorkflow] = useState('');
@@ -79,6 +81,7 @@ function ExchangeHistoryForSystem({ systemId }: { systemId: string }) {
       await recordExchange(systemId, { ...body, idempotencyKey: retry.current.key });
       if (!mounted.current) return;
       setSaved(true);
+      setOpen(false);
       setReference('');
       setEventTime('');
       setNotes('');
@@ -98,10 +101,10 @@ function ExchangeHistoryForSystem({ systemId }: { systemId: string }) {
       This records human-observed external outcomes; it does not connect to eMASS. Export, download and workbook comparison
       do not prove receipt, import acceptance or authorization. The authenticated recorder is retained automatically.
     </p>
-    {error && <div role="alert" className="mt-3 text-sm text-red-700">{error}</div>}
-    <button type="button" disabled={busy || loading} onClick={() => void load()} className="mt-3 text-sm text-indigo-700 underline dark:text-indigo-300">
+    {error && !open && <div role="alert" className="mt-3 text-sm text-red-700">{error}</div>}
+    {!open && <button type="button" disabled={busy || loading} onClick={() => void load()} className="mt-3 text-sm text-indigo-700 underline dark:text-indigo-300">
       Reload exchange history
-    </button>
+    </button>}
     {loading && <p role="status" className="mt-3 text-sm">Loading manual exchange history…</p>}
     {saved && <p role="status" className="mt-3 text-sm text-green-700">Manual observation recorded. No authorization decision was changed.</p>}
     {history?.items.length === 0 && <p className="mt-4 text-sm text-slate-500">No manual exchange observations recorded.</p>}
@@ -121,10 +124,17 @@ function ExchangeHistoryForSystem({ systemId }: { systemId: string }) {
         </tr>)}</tbody>
       </table>
     </div>}
-    {history?.canRecord && <form onSubmit={event => void submit(event)} className="mt-5 space-y-4 border-t pt-5">
-      <h3 className="font-semibold">Record an external observation</h3>
+    {history?.canRecord && <button type="button" disabled={busy || loading} onClick={() => { setError(null); setSaved(false); setOpen(true); }}
+      className="ml-4 mt-3 rounded bg-indigo-600 px-4 py-2 text-sm text-white disabled:opacity-50">Record external observation</button>}
+    {open && history && <SetupDialog title="Record external observation" busy={busy || loading} onClose={() => setOpen(false)}
+      description="Record a human-observed outcome against an exact retained export. This does not send anything to eMASS or issue authorization.">
+    <form onSubmit={event => void submit(event)} className="space-y-4">
+      {error && <div className="space-y-2 text-sm text-red-700"><p role="alert">{error}</p>
+        <button type="button" disabled={busy || loading} className="underline" onClick={() => void load()}>Reload exchange history</button>
+      </div>}
       {!exports.length && <p className="text-sm text-amber-800">No completed package with a retained hash is available. Generate a package first.</p>}
-      <fieldset disabled={busy || loading || !exports.length} className="grid gap-4 sm:grid-cols-2">
+      {!history.canRecord && <p role="alert">Recording permission is no longer available. Your entered values have not been saved.</p>}
+      <fieldset disabled={busy || loading || !exports.length || !history.canRecord} className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm">Retained export<select required aria-label="Retained export" className={inputClass} value={packageId}
           onChange={event => { setPackageId(event.target.value); setSupersedesId(''); }}>
           <option value="">Select a retained package</option>
@@ -155,6 +165,9 @@ function ExchangeHistoryForSystem({ systemId }: { systemId: string }) {
           {busy ? 'Recording observation…' : 'Record observation'}
         </button>
       </fieldset>
-    </form>}
+      <div className="flex justify-end"><button type="button" disabled={busy || loading} onClick={() => setOpen(false)}
+        className="rounded border px-4 py-2 text-sm">Cancel</button></div>
+    </form>
+    </SetupDialog>}
   </section>;
 }

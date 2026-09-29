@@ -14,7 +14,7 @@ vi.mock('../../api/exports', () => ({
 vi.mock('../../api/package', () => ({ listPackages: vi.fn(), downloadPackageUrl: vi.fn(), validatePackage: vi.fn() }));
 vi.mock('../../components/ExportSspDialog', () => ({ default: ({ systemId }: { systemId: string }) => <div role="dialog">SSP export for {systemId}</div> }));
 vi.mock('../../components/TemplateManagementDialog', () => ({ default: () => <div role="dialog">Template management</div> }));
-vi.mock('../../components/PackageGenerationDialog', () => ({ default: ({ systemId }: { systemId: string }) => <div role="dialog">Package generation for {systemId}</div> }));
+vi.mock('../../components/PackageGenerationDialog', () => ({ default: ({ systemId, initialPurpose }: { systemId: string; initialPurpose?: string }) => <div role="dialog">Package generation for {systemId} · {initialPurpose}</div> }));
 
 const catalog: SystemDocumentsResponse = {
   systemId: 'a', systemName: 'Mission Alpha', currentPhase: 'Prepare',
@@ -29,6 +29,16 @@ function mount(url: string) {
 }
 
 describe('System document tasks', () => {
+  it('preserves the overview initial-submission intent through validation and generation', async () => {
+    // Arrange
+    mount('/systems/a/documents?tab=exports&purpose=InitialSubmission');
+    // Act
+    await screen.findByRole('heading', { name: 'Generate & export a package' });
+    // Assert
+    expect(screen.getByRole('combobox', { name: 'Package purpose' })).toHaveValue('InitialSubmission');
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Package' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('InitialSubmission');
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSystemDocuments).mockResolvedValue(catalog);
@@ -50,7 +60,7 @@ describe('System document tasks', () => {
 
   it('keeps catalog status distinct from an evaluated submission-readiness verdict', async () => {
     // Arrange / Act
-    mount('/systems/a/documents');
+    mount('/systems/a/documents?tab=records');
     // Assert
     expect(await screen.findByText(/does not determine submission readiness/)).toBeVisible();
     expect(screen.getByRole('link', { name: 'Review responsibilities' })).toHaveAttribute('href', '/systems/a/inheritance/subscriptions');
@@ -75,7 +85,7 @@ describe('System document tasks', () => {
       isValid: false, errorCount: 1, warningCount: 0, validatedAt: '2026-09-26T12:00:00Z',
       findings: [{ severity: 'Error', category: 'Sources', artifactType: 'SSP', description: 'Reviewed mission source is missing.', remediation: 'Review mission purpose.' }],
     });
-    mount('/systems/a/documents');
+    mount('/systems/a/documents?tab=exports');
     // Act
     fireEvent.click(await screen.findByRole('button', { name: 'Validate current package' }));
     // Assert
@@ -101,7 +111,7 @@ describe('System document tasks', () => {
       isValid: false, errorCount: 1, warningCount: 0, validatedAt: '2026-09-26T12:00:00Z',
       findings: [{ severity: 'error', category: 'ssp', artifactType: 'SSP', description: 'Approved SSP required.', remediation: null }],
     });
-    mount('/systems/a/documents');
+    mount('/systems/a/documents?tab=exports');
     await screen.findByRole('button', { name: 'Validate current package' });
     // Act
     fireEvent.change(screen.getByRole('combobox', { name: 'Package purpose' }), { target: { value: 'InitialSubmission' } });

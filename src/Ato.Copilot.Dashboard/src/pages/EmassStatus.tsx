@@ -15,9 +15,9 @@ import type {
 import SystemEmassConflictReview from '../features/systems/SystemEmassConflictReview';
 import EmassExchangeHistory from '../features/systems/EmassExchangeHistory';
 import { useSystemContext } from '../components/layout/SystemLayout';
-import { Link } from '../features/workspaces/workspaceNavigation';
+import { Link, useLocation } from '../features/workspaces/workspaceNavigation';
 import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport } from '../features/systems/SystemTaskPresentation';
-import SystemPackageValidation from '../features/systems/SystemPackageValidation';
+import { packagePurposeFromSearch, packagePurposeLabels } from '../features/systems/packageReadinessNavigation';
 
 function formatStatus(value: string): string {
   return value
@@ -44,6 +44,11 @@ export default function EmassStatusPage() {
 }
 
 function SystemEmassTask({ systemId }: { systemId: string }) {
+  const location = useLocation();
+  const selectedPurpose = packagePurposeFromSearch(location.search);
+  const readinessQuery = new URLSearchParams(location.search);
+  readinessQuery.delete('tab');
+  readinessQuery.delete('check');
   const [status, setStatus] = useState<EmassWorkflowStatus | null>(null);
   const [readiness, setReadiness] = useState<EmassExportReadinessResult | null>(null);
   const [conflicts, setConflicts] = useState<EmassConflict[]>([]);
@@ -151,7 +156,14 @@ function SystemEmassTask({ systemId }: { systemId: string }) {
           </ul>
         </section>
       ) : null}
-      <SystemPackageValidation systemId={systemId} />
+      <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="font-semibold">Authoritative package readiness</h2>
+        <p className="mt-2 text-slate-500">Exchange observations and reconciliation do not establish submission readiness or authorization.
+          {selectedPurpose && ` Selected purpose: ${packagePurposeLabels[selectedPurpose]}.`}</p>
+        {selectedPurpose ? <Link className="mt-3 inline-block text-indigo-700 underline dark:text-indigo-300"
+          to={`/systems/${systemId}/documents${readinessQuery.size ? `?${readinessQuery}` : ''}`}>View current package validation</Link>
+          : <p role="alert" className="mt-2">Unsupported package purpose. Select a supported purpose on the readiness page.</p>}
+      </section>
 
       {status ? (
         <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">

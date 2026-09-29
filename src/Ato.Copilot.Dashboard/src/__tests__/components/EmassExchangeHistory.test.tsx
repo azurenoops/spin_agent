@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EmassExchangeHistory from '../../features/systems/EmassExchangeHistory';
 import * as api from '../../api/emass-exchanges';
+import '../helpers/dialog';
 
 vi.mock('../../api/emass-exchanges');
 const exported = { packageId: 'package-1', packageHash: 'abc123', exportGeneratedAt: '2026-09-20T12:00:00Z', purpose: 'InitialSubmission' };
@@ -22,6 +23,9 @@ describe('manual eMASS exchange history', () => {
     render(<EmassExchangeHistory systemId="system-1" />);
     // Act
     await screen.findByText('No manual exchange observations recorded.');
+    expect(screen.queryByLabelText('Retained export')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Record external observation' }));
+    expect(screen.getByRole('dialog', { name: 'Record external observation' })).toBeVisible();
     fireEvent.change(screen.getByLabelText('Retained export'), { target: { value: 'package-1' } });
     fireEvent.change(screen.getByLabelText('Receiving workflow'), { target: { value: 'Receiving workflow' } });
     fireEvent.change(screen.getByLabelText('External reference'), { target: { value: 'REF-123' } });
@@ -57,6 +61,7 @@ describe('manual eMASS exchange history', () => {
     vi.mocked(api.recordExchange).mockRejectedValue({ errors: [{ message: 'Exchange history changed. Reload and review.' }] });
     render(<EmassExchangeHistory systemId="system-1" />);
     await screen.findByText('No manual exchange observations recorded.');
+    fireEvent.click(screen.getByRole('button', { name: 'Record external observation' }));
     // Act
     fireEvent.change(screen.getByLabelText('Retained export'), { target: { value: 'package-1' } });
     fireEvent.change(screen.getByLabelText('Receiving workflow'), { target: { value: 'Workflow' } });
@@ -80,6 +85,7 @@ describe('manual eMASS exchange history', () => {
     vi.mocked(api.recordExchange).mockRejectedValueOnce(new Error('Response interrupted'));
     render(<EmassExchangeHistory systemId="system-1" />);
     await screen.findByText('REF-123');
+    fireEvent.click(screen.getByRole('button', { name: 'Record external observation' }));
     // Act
     fireEvent.change(screen.getByLabelText('Retained export'), { target: { value: 'package-1' } });
     fireEvent.change(screen.getByLabelText('Observed outcome'), { target: { value: 'ImportRejected' } });
@@ -101,5 +107,39 @@ describe('manual eMASS exchange history', () => {
     expect(retried).toMatchObject({ supersedesId: 'receipt-1', expectedVersion: 1, outcome: 'ImportRejected',
       notes: 'Receipt was a rejection notice.' });
     expect(screen.getByText('Receipt recorded', { selector: 'strong' })).toBeVisible();
+  });
+  it('cancels the dialog without recording an observation', async () => {
+    // Arrange
+    render(<EmassExchangeHistory systemId="system-1" />);
+    const open = await screen.findByRole('button', { name: 'Record external observation' });
+    // Act
+    open.focus();
+    fireEvent.click(open);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    // Assert
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(open).toHaveFocus();
+    expect(api.recordExchange).not.toHaveBeenCalled();
+  });
+  it('blocks dismissal and duplicate observation writes while recording', async () => {
+    // Arrange
+    let finish!: (value: typeof receipt) => void;
+    vi.mocked(api.recordExchange).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    render(<EmassExchangeHistory systemId="system-1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Record external observation' }));
+    fireEvent.change(screen.getByLabelText('Retained export'), { target: { value: 'package-1' } });
+    fireEvent.change(screen.getByLabelText('Receiving workflow'), { target: { value: 'Workflow' } });
+    fireEvent.change(screen.getByLabelText('External reference'), { target: { value: 'REF-123' } });
+    fireEvent.change(screen.getByLabelText('Event time'), { target: { value: '2026-09-21T12:00' } });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Record observation' }));
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+    expect(screen.getByRole('dialog')).toBeVisible();
+    expect(api.recordExchange).toHaveBeenCalledTimes(1);
+    await act(async () => finish(receipt));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

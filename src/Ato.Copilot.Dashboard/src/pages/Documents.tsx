@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Link, useLocation } from '../features/workspaces/workspaceNavigation';
+import { Link, useLocation, useNavigate } from '../features/workspaces/workspaceNavigation';
 import { useParams } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { getSystemDocuments } from '../api/documents';
@@ -18,6 +18,7 @@ import { listPackages, downloadPackageUrl } from '../api/package';
 import type { PackageSummary } from '../api/package';
 import AuthenticatedDownload from '../components/AuthenticatedDownload';
 import SystemPackageValidation from '../features/systems/SystemPackageValidation';
+import PackageReadinessExperience from '../features/systems/PackageReadinessExperience';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ function DocRow({
 
 function AuthPackageSection({ data }: { data: SystemDocumentsResponse }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div id="ssp-sections" className="scroll-mt-6 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
       <SectionHeader icon="📦" title="Authorization Package" />
       <div className="divide-y divide-gray-100">
         <DocRow
@@ -758,12 +759,21 @@ function PackageHistorySection({
 
 export default function Documents() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const tab = new URLSearchParams(location.search).get('tab');
+  if (id && tab !== 'exports' && tab !== 'records')
+    return <PackageReadinessExperience key={id} systemId={id} />;
   return <SystemDocuments key={id} systemId={id} />;
 }
 
 function SystemDocuments({ systemId: id }: { systemId?: string }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const requested = new URLSearchParams(location.search).get('purpose');
+  const purpose = requested === 'InitialSubmission' || requested === 'AuthorizedBaselineArchive' || requested === 'ChangeSubmission' ? requested : 'Legacy';
+  const invalidPurpose = requested !== null && requested !== 'Legacy' && purpose === 'Legacy';
   const exportsView = new URLSearchParams(location.search).get('tab') === 'exports';
+  const exportQuery = new URLSearchParams({ tab: 'exports', ...(requested && !invalidPurpose ? { purpose } : {}) });
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [showPackageDialog, setShowPackageDialog] = useState(false);
@@ -785,12 +795,13 @@ function SystemDocuments({ systemId: id }: { systemId?: string }) {
       </div>
     );
   }
+  if (invalidPurpose) return <p role="alert" className="rounded border border-amber-200 p-4 text-sm">Unsupported package purpose. <Link className="underline" to={`/systems/${id}/documents`}>Choose a supported package purpose</Link>.</p>;
 
   return (
     <>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{exportsView ? 'Generate & export a package' : 'Readiness checklist'}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{exportsView ? 'Generate & export a package' : 'Document and supporting-record catalog'}</h1>
         <p className="mt-1 text-sm text-gray-500">
           {exportsView ? 'Generate retained artifacts with the existing export and validation services. Review recorded status before downloading.'
             : 'Review current package records and follow each task to its authoritative source.'}
@@ -801,13 +812,16 @@ function SystemDocuments({ systemId: id }: { systemId?: string }) {
             <Link className="underline" to={`/systems/${id}/inheritance/subscriptions`}>Review responsibilities</Link>
             <Link className="underline" to={`/systems/${id}/narratives`}>Review narratives</Link>
             <Link className="underline" to={`/systems/${id}/evidence`}>Review evidence</Link>
-            <Link className="underline" to={`/systems/${id}/documents?tab=exports`}>Generate & export a package</Link>
+            <Link className="underline" to={`/systems/${id}/documents?${exportQuery}`}>Generate & export a package</Link>
           </nav>
         </div>}
       </div>
 
       {/* Phase indicator */}
-      <SystemPackageValidation systemId={data.systemId} />
+      <SystemPackageValidation systemId={data.systemId} initialPurpose={purpose} onPurposeChange={value => {
+        const query = new URLSearchParams(location.search); query.set('purpose', value);
+        navigate(`${location.pathname}?${query}`);
+      }} />
       <div className="mb-6 flex items-center gap-2">
         <span className="text-xs text-gray-500">Current Phase:</span>
         <StatusBadge status={data.currentPhase} variant="blue" />
@@ -867,6 +881,7 @@ function SystemDocuments({ systemId: id }: { systemId?: string }) {
       {showPackageDialog && (
         <PackageGenerationDialog
           systemId={data.systemId}
+          initialPurpose={purpose}
           onClose={() => setShowPackageDialog(false)}
           onPackageComplete={() => setPackageRefreshKey((k) => k + 1)}
         />

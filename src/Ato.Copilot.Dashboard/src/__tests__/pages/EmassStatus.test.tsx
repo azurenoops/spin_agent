@@ -71,7 +71,8 @@ describe('EmassStatusPage', () => {
     expect(screen.getByText('Has conflicts')).toBeInTheDocument();
     expect(screen.getByText('Register the eMASS ID.')).toBeInTheDocument();
     expect(screen.getByText('Partially Implemented')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Current package validation' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Authoritative package readiness' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'View current package validation' })).toHaveAttribute('href', '/systems/system-1/documents');
     expect(screen.getByRole('heading', { name: 'eMASS identifier and exchange advisories' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'SPIN exported value' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Returned eMASS value' })).toBeVisible();

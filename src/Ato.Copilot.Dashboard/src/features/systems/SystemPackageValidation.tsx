@@ -3,9 +3,12 @@ import { validatePackage, type ReadinessResult, type PackagePurpose, type Retain
 import PackagePurposeSelect from '../../components/PackagePurposeSelect';
 import RetainedPackageContext from '../../components/RetainedPackageContext';
 
-export default function SystemPackageValidation({ systemId, initialPurpose = 'Legacy' }: {
+export default function SystemPackageValidation({ systemId, initialPurpose = 'Legacy', summaryOnly = false, onResult, onPurposeChange }: {
   systemId: string;
   initialPurpose?: PackagePurpose;
+  summaryOnly?: boolean;
+  onResult?: (result: ReadinessResult | null) => void;
+  onPurposeChange?: (purpose: PackagePurpose) => void;
 }) {
   const [result, setResult] = useState<ReadinessResult | null>(null);
   const [pending, setPending] = useState(false);
@@ -31,12 +34,13 @@ export default function SystemPackageValidation({ systemId, initialPurpose = 'Le
     setPending(true);
     setError(null);
     setResult(null);
+    onResult?.(null);
     try {
       const next = purpose === 'Legacy'
         ? await validatePackage(systemId, controller.signal)
         : retainedContext ? await validatePackage(systemId, controller.signal, purpose, retainedContext)
           : await validatePackage(systemId, controller.signal, purpose);
-      if (!controller.signal.aborted) setResult(next);
+      if (!controller.signal.aborted) { setResult(next); onResult?.(next); }
     } catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Package validation is unavailable. Retry when access and connectivity are restored.');
     } finally {
@@ -47,6 +51,17 @@ export default function SystemPackageValidation({ systemId, initialPurpose = 'Le
     }
   };
 
+  if (summaryOnly) return <section aria-label="Initial submission readiness status" className="mb-[22px]">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dedaf5] bg-[#f1effc] px-[17px] py-3 text-xs dark:border-indigo-900 dark:bg-indigo-950">
+      <span role="status">{pending ? 'Initial submission · Checking requirements…' : error ? 'Initial submission · Readiness unavailable'
+        : result ? result.isValid ? 'Initial submission · No blocking requirements returned'
+          : `Initial submission · ${result.errorCount} blocking requirement${result.errorCount === 1 ? ' remains' : 's remain'}` : 'Initial submission · Not checked'}</span>
+      <button type="button" disabled={pending} className="font-semibold text-indigo-700 disabled:opacity-50 dark:text-indigo-200"
+        onClick={() => void validate()}>Check readiness</button>
+    </div>
+    {error && <p role="alert" className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
+    {result && <p className="mt-2 text-xs text-slate-500">{result.warningCount} warnings · Checked {result.validatedAt}. Recheck after changing source records.</p>}
+  </section>;
   return <section aria-labelledby="package-validation-title" className="mb-6 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -58,6 +73,8 @@ export default function SystemPackageValidation({ systemId, initialPurpose = 'Le
         setRetainedContext(null);
         setResult(null);
         setError(null);
+        onResult?.(null);
+        onPurposeChange?.(value);
       }} />
       {requiresContext && <RetainedPackageContext key={`${systemId}:${purpose}`} systemId={systemId} purpose={purpose}
         disabled={pending} onChange={selection => { setRetainedContext(selection); setResult(null); setError(null); }} />}

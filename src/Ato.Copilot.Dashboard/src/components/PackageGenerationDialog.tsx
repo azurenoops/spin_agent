@@ -13,11 +13,13 @@ import { isProgressEvent, progressError, useJobProgress, useProgressSession, typ
 import ProgressTransportNotice from './ProgressTransportNotice';
 import SetupDialog from '../features/workspace-operations/SetupDialog';
 import RetainedPackageContext from './RetainedPackageContext';
+import { getCategoryRoute } from '../features/systems/packageReadiness';
 
 interface PackageGenerationDialogProps {
   systemId: string;
   onClose: () => void;
   onPackageComplete?: () => void;
+  initialPurpose?: PackagePurpose;
 }
 
 type DialogPhase = 'readiness' | 'configure' | 'generating' | 'completed' | 'failed';
@@ -36,35 +38,6 @@ const ARTIFACT_SEQUENCE = [
   { type: 'EvidenceManifest', label: 'Evidence Bundle' },
 ];
 
-/** Maps validation finding category to a dashboard route suffix and label */
-function getCategoryRoute(category: string, artifactType?: string | null): { path: string; label: string } | null {
-  switch (category) {
-    case 'authorization-decision':
-      return { path: 'authorize', label: 'Authorize' };
-    case 'boundary':
-      return { path: 'boundaries', label: 'Boundaries' };
-    case 'ssp':
-      return { path: 'narratives', label: 'Narratives' };
-    case 'sar':
-      return { path: 'assessments', label: 'Assessments' };
-    case 'sap':
-      return { path: 'assessments', label: 'Assessments' };
-    case 'poam':
-    case 'cross-reference':
-      return { path: 'poam', label: 'POA&M' };
-    case 'schema':
-      if (artifactType === 'ssp') return { path: 'narratives', label: 'Narratives' };
-      if (artifactType === 'poam') return { path: 'poam', label: 'POA&M' };
-      if (artifactType === 'assessment-results' || artifactType === 'assessment-plan')
-        return { path: 'assessments', label: 'Assessments' };
-      return null;
-    case 'evidence':
-      return { path: 'evidence', label: 'Evidence' };
-    default:
-      return null;
-  }
-}
-
 function RemediationText({
   finding,
   systemId,
@@ -76,7 +49,7 @@ function RemediationText({
 }) {
   if (!finding.remediation) return null;
 
-  const route = getCategoryRoute(finding.category, finding.artifactType);
+  const route = getCategoryRoute(finding.category, finding.artifactType, finding.description);
 
   return (
     <p className="text-xs text-red-600 mt-1">
@@ -110,9 +83,10 @@ function PackageGenerationContent({
   onClose,
   onPackageComplete,
   session,
+  initialPurpose = 'Legacy',
 }: PackageGenerationDialogProps & { session: ProgressSession }) {
   const [phase, setPhase] = useState<DialogPhase>('readiness');
-  const [purpose, setPurpose] = useState<PackagePurpose>('Legacy');
+  const [purpose, setPurpose] = useState<PackagePurpose>(initialPurpose);
   const [retainedContext, setRetainedContext] = useState<RetainedPackageSelection | null>(null);
   const [validatedSourceHash, setValidatedSourceHash] = useState<string | null>(null);
   const requiresContext = purpose === 'AuthorizedBaselineArchive' || purpose === 'ChangeSubmission';
@@ -307,7 +281,7 @@ function PackageGenerationContent({
                         <div key={i} className="p-2 rounded-lg bg-amber-50 border border-amber-200">
                           <p className="text-sm text-amber-800">{f.description}</p>
                           {f.remediation && (() => {
-                            const route = getCategoryRoute(f.category, f.artifactType);
+                            const route = getCategoryRoute(f.category, f.artifactType, f.description);
                             return (
                               <p className="text-xs text-amber-600 mt-1">
                                 {f.remediation}

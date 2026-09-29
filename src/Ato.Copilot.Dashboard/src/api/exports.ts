@@ -35,6 +35,7 @@ export interface DocumentSourceManifest {
   providerSources: DocumentSourceReference[];
   narratives: DocumentSourceReference[];
   otherSources: string;
+  previewOnly?: boolean;
 }
 
 export interface SspPreview {
@@ -49,6 +50,52 @@ export interface SspPreview {
   sourceGaps: { code: string; message: string }[];
   isPreview: true;
   sourceState: 'CurrentWorkingData';
+  canGenerate?: boolean;
+}
+
+export type AdditionalDocumentType = 'sap' | 'sar' | 'poam';
+export type DocumentRecordReference = Omit<DocumentSourceReference, 'versionId'> & { versionId: string | null };
+
+export interface AdditionalDocumentPreview extends SspPreview {
+  documentType: AdditionalDocumentType;
+  systemName: string;
+  available: true;
+  documentStatus?: string | null;
+  sourceRecords?: DocumentRecordReference[];
+}
+
+export interface UnavailableDocumentPreview {
+  systemId: string;
+  systemName: string;
+  documentType: AdditionalDocumentType;
+  available: false;
+  reasonCode: string;
+  message: string;
+}
+
+export async function getAdditionalDocumentPreview(
+  systemId: string, documentType: AdditionalDocumentType, signal?: AbortSignal,
+): Promise<AdditionalDocumentPreview | UnavailableDocumentPreview> {
+  const { data } = await apiClient.get<AdditionalDocumentPreview | UnavailableDocumentPreview>(
+    `/systems/${encodeURIComponent(systemId)}/documents/${documentType}/preview`, { signal },
+  );
+  if (!data || data.systemId !== systemId || data.documentType !== documentType || typeof data.systemName !== 'string') {
+    throw new Error('The server returned a differently scoped document preview.');
+  }
+  if (data.available === false) {
+    if (typeof data.reasonCode !== 'string' || !data.reasonCode || typeof data.message !== 'string' || !data.message.trim()) {
+      throw new Error('The server returned an incomplete document preview availability state.');
+    }
+    return data;
+  }
+  if (data.available !== true || data.canGenerate !== false) throw new Error('The server returned an invalid read-only document preview.');
+  checkedPreview(data, systemId);
+  if (data.sourceRecords !== undefined && (!Array.isArray(data.sourceRecords) || data.sourceRecords.some(item =>
+    !item || typeof item.kind !== 'string' || typeof item.recordId !== 'string'
+      || item.versionId !== null && typeof item.versionId !== 'string' || typeof item.contentHash !== 'string'))) {
+    throw new Error('The server returned invalid document preview source records.');
+  }
+  return data;
 }
 
 export async function getSspPreview(systemId: string, signal?: AbortSignal): Promise<SspPreview> {
@@ -73,6 +120,10 @@ function checkedPreview(data: SspPreview, systemId: string): SspPreview {
       .some(item => !item || typeof item.kind !== 'string' || typeof item.recordId !== 'string'
         || typeof item.versionId !== 'string' || typeof item.contentHash !== 'string'))) {
     throw new Error('The server returned an invalid document source manifest.');
+  }
+  if (data.canGenerate !== undefined && typeof data.canGenerate !== 'boolean'
+    || data.sourceManifest?.scope === 'WorkingProfilePreview' && (data.sourceManifest.previewOnly !== true || data.canGenerate !== false)) {
+    throw new Error('The server returned an invalid working-preview export authority.');
   }
   return data;
 }

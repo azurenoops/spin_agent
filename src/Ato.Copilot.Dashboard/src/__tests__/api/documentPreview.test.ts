@@ -11,6 +11,16 @@ const response = {
 beforeEach(() => vi.resetAllMocks());
 
 describe('source-backed preview API boundary', () => {
+  it('requires explicit review-only authority for working-profile previews', async () => {
+    // Arrange
+    const working = { ...response, sourceManifest: { ...response.sourceManifest, scope: 'WorkingProfilePreview', previewOnly: true } };
+    vi.mocked(api.get).mockResolvedValueOnce({ data: { ...working, canGenerate: true } })
+      .mockResolvedValueOnce({ data: { ...working, canGenerate: false } });
+    // Act / Assert
+    await expect(getSspPreview('system-a')).rejects.toThrow('working-preview export authority');
+    expect((await getSspPreview('system-a')).canGenerate).toBe(false);
+  });
+
   it('rejects a response belonging to a different system', async () => {
     // Arrange
     vi.mocked(api.get).mockResolvedValue({ data: { ...response, systemId: 'foreign-system' } });
