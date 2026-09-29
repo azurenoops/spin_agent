@@ -79,8 +79,10 @@ public class EvidenceArtifactService : IEvidenceArtifactService
                 c.Id == controlImplementationId && c.RegisteredSystemId == registeredSystemId, cancellationToken))
             throw new KeyNotFoundException("Control implementation not found in this system.");
         if (securityCapabilityId is not null && !await _context.SecurityCapabilities.AnyAsync(c =>
-                c.Id == securityCapabilityId && _context.CapabilityControlMappings.Any(m =>
-                    m.SecurityCapabilityId == c.Id && m.RegisteredSystemId == registeredSystemId), cancellationToken))
+                c.Id == securityCapabilityId && (_context.SystemCapabilityLinks.Any(link =>
+                    link.SecurityCapabilityId == c.Id && link.RegisteredSystemId == registeredSystemId)
+                    || _context.CapabilityControlMappings.Any(m =>
+                        m.SecurityCapabilityId == c.Id && m.RegisteredSystemId == registeredSystemId)), cancellationToken))
             throw new KeyNotFoundException("Capability not found in this system.");
 
         var artifactId = Guid.NewGuid().ToString();

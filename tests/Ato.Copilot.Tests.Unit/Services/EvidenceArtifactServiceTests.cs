@@ -104,6 +104,35 @@ public class EvidenceArtifactServiceTests : IDisposable
         result.ControlImplementationId.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("sys-1", true)]
+    [InlineData("sys-hash", false)]
+    public async Task Upload_AppliedCapabilityWithoutControlMapping_RequiresExactSystemLink(string targetSystem, bool allowed)
+    {
+        // Arrange
+        _db.SecurityCapabilities.Add(new SecurityCapability { Id = "applied-cap", Name = "Applied without mappings" });
+        _db.SystemCapabilityLinks.Add(new SystemCapabilityLink
+        {
+            RegisteredSystemId = "sys-1", SecurityCapabilityId = "applied-cap", LinkedBy = "test"
+        });
+        await _db.SaveChangesAsync();
+        using var content = MakeStream();
+
+        // Act
+        var upload = () => _sut.UploadAsync(targetSystem, "proof.txt", "text/plain", content,
+            ArtifactCategory.Other, "test", securityCapabilityId: "applied-cap");
+
+        // Assert
+        if (allowed)
+            (await upload()).SecurityCapabilityId.Should().Be("applied-cap");
+        else
+        {
+            await upload.Should().ThrowAsync<KeyNotFoundException>();
+            _storageProvider.Verify(s => s.SaveAsync(It.IsAny<string>(), It.IsAny<Stream>(),
+                It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+    }
+
     [Fact]
     public async Task Upload_WithNarrativeType_PersistsClassification()
     {

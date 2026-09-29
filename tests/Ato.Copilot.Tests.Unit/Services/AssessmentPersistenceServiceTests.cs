@@ -91,6 +91,26 @@ public class AssessmentPersistenceServiceTests : IDisposable
     // ─── SaveAssessment (Insert) ────────────────────────────────────────
 
     [Fact]
+    public async Task SaveAndReload_WithProductionSizeLimitedCache_PreservesAssessment()
+    {
+        // Arrange
+        using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 10 });
+        var service = new AssessmentPersistenceService(_dbFactory, cache,
+            Mock.Of<ILogger<AssessmentPersistenceService>>());
+        var assessment = CreateAssessment();
+
+        // Act
+        await service.SaveAssessmentAsync(assessment);
+        cache.Compact(1);
+        var reloaded = await service.GetLatestAssessmentAsync(assessment.SubscriptionId);
+
+        // Assert
+        reloaded.Should().NotBeNull();
+        reloaded!.Id.Should().Be(assessment.Id);
+        reloaded.Findings.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task SaveAssessmentAsync_Insert_SavesNewAssessment()
     {
         var assessment = CreateAssessment();

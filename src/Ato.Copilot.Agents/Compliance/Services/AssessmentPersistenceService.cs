@@ -108,7 +108,11 @@ public class AssessmentPersistenceService : IAssessmentPersistenceService
 
             // Invalidate latest assessment cache for this subscription
             var cacheKey = $"latest-assessment:{assessment.SubscriptionId}";
-            _cache.Set(cacheKey, assessment, LatestAssessmentCacheTtl);
+            _cache.Set(cacheKey, assessment, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = LatestAssessmentCacheTtl,
+                Size = 1
+            });
 
             _logger.LogInformation("Saved assessment {Id} for Sub={Sub} (Score: {Score}%)",
                 assessment.Id, assessment.SubscriptionId, assessment.ComplianceScore);
@@ -162,7 +166,11 @@ public class AssessmentPersistenceService : IAssessmentPersistenceService
 
             if (latest is not null)
             {
-                _cache.Set(cacheKey, latest, LatestAssessmentCacheTtl);
+                _cache.Set(cacheKey, latest, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = LatestAssessmentCacheTtl,
+                    Size = 1
+                });
             }
 
             return latest;
