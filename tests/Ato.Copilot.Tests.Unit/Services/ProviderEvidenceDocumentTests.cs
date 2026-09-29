@@ -60,9 +60,9 @@ public sealed class ProviderEvidenceDocumentTests
         var channel = Channel.CreateUnbounded<SspExportJob>();
         var responsibilities = new Mock<ICapabilityResponsibilityService>();
         responsibilities.Setup(s => s.PreviewAsync("mission", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CapabilityResponsibilityResponse("mission", "baseline-v1", false,
+            .ReturnsAsync(new CapabilityResponsibilityResponse("mission", "baseline-v1", null, false,
             [
-                new("subscription", Guid.NewGuid(), null, null, "AU-2", "source-v1", "review-v1", "Shared",
+                new("subscription", Guid.NewGuid(), null, null, null, "AU-2", "source-v1", "review-v1", "Shared",
                     "source-v1", "issm", DateTimeOffset.UtcNow,
                     new("AU-2", "Shared", "DEMO provider", "Review events and retain customer evidence"),
                     "Shared", "CspSubscription", true, "PRIVATE RAW SOURCE MUST NOT LEAK", null)

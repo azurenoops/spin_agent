@@ -9,8 +9,10 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Storage;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services.ProviderAuthorizations;
+using Ato.Copilot.Core.Services.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -134,11 +136,18 @@ public sealed class RetainedPackageTests
         }
 
         // Act
+        var revalidated = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
         var final = () => fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
 
         // Assert
-        await final.Should().ThrowAsync<InvalidOperationException>().WithMessage("*source context changed*");
+        revalidated.IsValid.Should().BeFalse();
+        revalidated.Findings.Should().Contain(f => f.Description.Contains("source context changed"));
+        await final.Should().ThrowAsync<DbUpdateConcurrencyException>().WithMessage("READINESS_CONTEXT_MISMATCH:*");
         fixture.Channel.Reader.TryRead(out _).Should().BeFalse();
+        using var verification = fixture.Services.CreateScope();
+        var dbAfter = verification.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await dbAfter.PackageReadinessRuns.SingleAsync()).Outcome.Should().Be("Failed");
+        (await dbAfter.AuthorizationPackages.CountAsync()).Should().Be(1);
     }
 
     [Theory]
@@ -194,8 +203,12 @@ public sealed class RetainedPackageTests
 
         // Assert
         validate.IsValid.Should().BeFalse();
-        await enqueue.Should().ThrowAsync<InvalidOperationException>();
+        await enqueue.Should().ThrowAsync<DbUpdateConcurrencyException>().WithMessage("READINESS_CONTEXT_MISMATCH:*");
         fixture.Channel.Reader.TryRead(out _).Should().BeFalse();
+        using var verification = fixture.Services.CreateScope();
+        var dbAfter = verification.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await dbAfter.PackageReadinessRuns.SingleAsync()).Outcome.Should().Be("Failed");
+        (await dbAfter.AuthorizationPackages.CountAsync()).Should().Be(1);
     }
 
     [Fact]
@@ -207,17 +220,17 @@ public sealed class RetainedPackageTests
         var original = await File.ReadAllBytesAsync(fixture.BaselinePath);
         var archived = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
         fixture.Channel.Reader.TryRead(out var job).Should().BeTrue();
+
+        // Act
+        await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
+        var result = await fixture.Service.GetPackageAsync(archived.Id);
+        var originalArchiveHash = result!.ContentHash;
         using (var scope = fixture.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
             (await db.AuthorizationDecisions.SingleAsync()).TermsAndConditions = "Later draft must not replace pinned decision.";
             await db.SaveChangesAsync();
         }
-
-        // Act
-        await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
-        var result = await fixture.Service.GetPackageAsync(archived.Id);
-        var originalArchiveHash = result!.ContentHash;
         await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
         (await fixture.Service.GetPackageAsync(archived.Id))!.ContentHash.Should().Be(originalArchiveHash);
 
@@ -368,15 +381,25 @@ public sealed class RetainedPackageTests
         validation.Findings.Should().Contain(f => f.Description.Contains("Working profile previews are review-only"));
     }
 
-    [Fact]
-    public async Task Archive_SourceChangedAfterQueue_FailsWithoutRegeneration()
+    [Theory]
+    [InlineData("BaselineBytes")]
+    [InlineData("Decision")]
+    public async Task Archive_SourceChangedAfterQueue_FailsWithoutRegeneration(string source)
     {
         // Arrange
         using var fixture = new Fixture();
         var selection = await fixture.SeedAsync();
         var package = await fixture.Service.EnqueueRetainedPackageAsync("mission", PackagePurpose.AuthorizedBaselineArchive, selection);
         fixture.Channel.Reader.TryRead(out var job).Should().BeTrue();
-        await File.WriteAllTextAsync(fixture.BaselinePath, "source changed after selection");
+        if (source == "BaselineBytes")
+            await File.WriteAllTextAsync(fixture.BaselinePath, "source changed after selection");
+        else
+        {
+            using var scope = fixture.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.AuthorizationDecisions.SingleAsync()).TermsAndConditions = "Decision changed after queueing";
+            await db.SaveChangesAsync();
+        }
 
         // Act
         await fixture.Worker.ProcessJobAsync(job!, CancellationToken.None);
@@ -448,13 +471,19 @@ public sealed class RetainedPackageTests
             Directory.CreateDirectory(DirectoryPath);
             var database = Guid.NewGuid().ToString();
             Services = new ServiceCollection().AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(database))
+                .AddLogging()
+                .AddSingleton<ITenantContextAccessor, TenantContextAccessor>()
                 .AddSingleton(Options.Create(new ExportSettings { DataPath = DirectoryPath }))
                 .AddSingleton<IOscalSchemaValidationService>(new OscalSchemaValidationService(
                     Mock.Of<IEmassExportService>(), Mock.Of<IOscalSapExportService>(), NullLogger<OscalSchemaValidationService>.Instance))
+                .AddSingleton<PackageReadinessService>()
+                .AddSingleton<IAuthorizationPackageService>(services => new AuthorizationPackageService(
+                    services.GetRequiredService<IServiceScopeFactory>(), Mock.Of<IEvidenceArtifactService>(),
+                    Mock.Of<IFileStorageProvider>(), Mock.Of<IPackageValidationService>(), Channel,
+                    NullLogger<AuthorizationPackageService>.Instance))
                 .BuildServiceProvider();
             var scopes = Services.GetRequiredService<IServiceScopeFactory>();
-            Service = new(scopes, Mock.Of<IEvidenceArtifactService>(), Mock.Of<IFileStorageProvider>(),
-                Mock.Of<IPackageValidationService>(), Channel, NullLogger<AuthorizationPackageService>.Instance);
+            Service = (AuthorizationPackageService)Services.GetRequiredService<IAuthorizationPackageService>();
             Worker = new(Channel, scopes, Mock.Of<IPackageExportNotifier>(), NullLogger<PackageBackgroundService>.Instance);
         }
 

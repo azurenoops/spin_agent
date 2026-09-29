@@ -715,8 +715,9 @@ public class AtoComplianceEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task AssessControlFamily_StigFailure_StillReturnsResults()
+    public async Task AssessControlFamily_StigFailure_MarksFailedAndRetainsScannerResults()
     {
+        // Arrange
         var mockScanner = CreateMockScanner("AC", 3, 1);
         _scannerRegistryMock.Setup(x => x.GetScanner("AC")).Returns(mockScanner.Object);
         SetupNistForFamily("AC", 3);
@@ -726,10 +727,21 @@ public class AtoComplianceEngineTests : IDisposable
             .ThrowsAsync(new Exception("STIG service down"));
 
         var engine = CreateEngine();
+
+        // Act
         var result = await engine.AssessControlFamilyAsync("AC", "test-sub");
 
-        // Should still complete with scanner results despite STIG failure
-        result.Status.Should().Be(FamilyAssessmentStatus.Completed);
+        // Assert
+        result.Status.Should().Be(FamilyAssessmentStatus.Failed);
+        result.ErrorMessage.Should().Be("STIG validation failed; scanner observations retained.");
+        result.Findings.Should().ContainSingle()
+            .Which.Should().Match<ComplianceFinding>(f =>
+                f.ControlFamily == "AC" && f.Title == "Finding 1" && f.Severity == FindingSeverity.Medium);
+        result.TotalControls.Should().Be(3);
+        result.PassedControls.Should().Be(2);
+        result.FailedControls.Should().Be(1);
+        result.ComplianceScore.Should().BeApproximately(2.0 / 3 * 100, 0.001);
+        result.ScannerName.Should().Be("MockScanner");
     }
 
     [Fact]

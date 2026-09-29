@@ -183,18 +183,29 @@ public class EvidenceStorageServiceTests : IDisposable
     [Fact]
     public async Task GetEvidence_ReturnsMatchingByControlId()
     {
+        // Arrange
         _policyService
             .Setup(p => p.GetComplianceSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("{\"data\": []}");
+        _defenderService
+            .Setup(d => d.GetAssessmentsAsync("sub-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"assessments\": []}");
+        _defenderService
+            .Setup(d => d.GetSecureScoreAsync("sub-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"score\": 80}");
 
         await _sut.CollectEvidenceAsync("AC-2", "sub-1");
         await _sut.CollectEvidenceAsync("AC-2", "sub-2");
-        await _sut.CollectEvidenceAsync("SC-7", "sub-1");
+        var otherControlEvidence = await _sut.CollectEvidenceAsync("SC-7", "sub-1");
 
+        // Act
         var results = await _sut.GetEvidenceAsync("AC-2");
 
+        // Assert
         results.Should().HaveCount(2);
         results.Should().OnlyContain(e => e.ControlId == "AC-2");
+        results.Select(e => e.SubscriptionId).Should().BeEquivalentTo("sub-1", "sub-2");
+        results.Should().NotContain(e => e.Id == otherControlEvidence.Id);
     }
 
     [Fact]

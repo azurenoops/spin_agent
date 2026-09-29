@@ -144,12 +144,16 @@ public class AssessmentPersistenceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAssessmentAsync_Upsert_ReplacesFindings()
+    public async Task SaveAssessmentAsync_Upsert_RetainsExistingFindingsAndAddsNewObservations()
     {
+        // Arrange
         var assessment = CreateAssessment();
+        var retainedFinding = assessment.Findings.Single();
+        retainedFinding.ImportRecordId = "retained-import";
+        retainedFinding.DeviationId = "retained-deviation";
+        retainedFinding.RemediationTrackingStatus = RemediationTrackingStatus.InProgress;
         await _service.SaveAssessmentAsync(assessment);
 
-        // Replace with 2 new findings
         assessment.Findings = new List<ComplianceFinding>
         {
             new()
@@ -169,11 +173,56 @@ public class AssessmentPersistenceServiceTests : IDisposable
                 Status = FindingStatus.Open
             }
         };
+
+        // Act
         await _service.SaveAssessmentAsync(assessment);
 
+        // Assert
         var result = await _service.GetAssessmentAsync(assessment.Id);
-        result!.Findings.Should().HaveCount(2);
-        result.Findings.Select(f => f.ControlId).Should().Contain("ia-1");
+        result.Should().NotBeNull();
+        result!.Findings.Should().HaveCount(3);
+        result.Findings.Select(f => f.Id).Should().BeEquivalentTo(
+            retainedFinding.Id, "new-finding-1", "new-finding-2");
+        result.Findings.Select(f => f.ControlId).Should().BeEquivalentTo("ac-1", "ia-1", "sc-1");
+        result.Findings.Single(f => f.Id == retainedFinding.Id).Should().BeEquivalentTo(retainedFinding);
+    }
+
+    [Fact]
+    public async Task SaveAssessmentAsync_Upsert_UpdatesMatchingFindingWithoutDuplicatingIdentity()
+    {
+        // Arrange
+        var assessment = CreateAssessment();
+        var finding = assessment.Findings.Single();
+        finding.ImportRecordId = "retained-import";
+        finding.DeviationId = "retained-deviation";
+        await _service.SaveAssessmentAsync(assessment);
+        assessment.Findings = new List<ComplianceFinding>
+        {
+            new()
+            {
+                Id = finding.Id,
+                AssessmentId = assessment.Id,
+                ControlId = "AC-1",
+                Severity = FindingSeverity.Low,
+                Status = FindingStatus.Remediated,
+                ImportRecordId = finding.ImportRecordId,
+                DeviationId = finding.DeviationId
+            }
+        };
+
+        // Act
+        await _service.SaveAssessmentAsync(assessment);
+
+        // Assert
+        var result = await _service.GetAssessmentAsync(assessment.Id);
+        result.Should().NotBeNull();
+        var updated = result!.Findings.Should().ContainSingle().Which;
+        updated.Id.Should().Be(finding.Id);
+        updated.ControlId.Should().Be("ac-1");
+        updated.Severity.Should().Be(FindingSeverity.Low);
+        updated.Status.Should().Be(FindingStatus.Remediated);
+        updated.ImportRecordId.Should().Be("retained-import");
+        updated.DeviationId.Should().Be("retained-deviation");
     }
 
     // ─── GetAssessmentAsync ─────────────────────────────────────────────

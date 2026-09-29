@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Models.Tenancy;
@@ -53,6 +54,7 @@ public partial class NotificationHubIsolationTests : IAsyncDisposable
         services.AddSingleton(factory.Object);
         services.AddScoped(provider => provider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>().CreateDbContext());
         services.AddSingleton<ITenantContextAccessor>(accessor);
+        services.AddScoped<ITenantContext>(_ => accessor.Current ?? new TenantContext());
         services.AddSingleton(Mock.Of<ICspProfileService>());
         _support.SetupGet(s => s.CookieName).Returns("ato-impersonate");
         services.AddSingleton(_support.Object);
@@ -64,6 +66,11 @@ public partial class NotificationHubIsolationTests : IAsyncDisposable
         services.AddScoped<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
         services.AddSingleton<ScanImportStatusTracker>();
         services.AddSingleton<ScanImportQueue>();
+        services.AddScoped<AssessmentResultsWorkspaceService>();
+        services.AddSingleton(new Mock<IAssessmentEnvironmentService>(MockBehavior.Strict).Object);
+        services.AddSingleton(new Mock<IAssessmentArtifactService>(MockBehavior.Strict).Object);
+        services.AddSingleton(new Mock<IAtoComplianceEngine>(MockBehavior.Strict).Object);
+        services.AddSingleton(new Mock<ISecurityAssessmentReportService>(MockBehavior.Strict).Object);
         services.AddLogging();
         services.AddSignalR();
         services.AddWorkspaceNotifications();

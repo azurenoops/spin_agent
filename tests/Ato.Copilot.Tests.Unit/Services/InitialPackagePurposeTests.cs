@@ -128,12 +128,10 @@ public sealed class InitialPackagePurposeTests
         // Arrange
         using var fixture = new Fixture();
         await fixture.SeedAsync();
-        var validation = new Mock<IPackageValidationService>();
-        validation.Setup(x => x.ValidateAsync("mission", PackagePurpose.InitialSubmission, "demo-user", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PackageValidationResult { IsValid = true });
+        await fixture.SeedReviewedArtifactsAsync();
         var channel = Channel.CreateUnbounded<PackageExportJob>();
         var service = new AuthorizationPackageService(fixture.Services.GetRequiredService<IServiceScopeFactory>(),
-            fixture.Evidence.Object, Mock.Of<IFileStorageProvider>(), validation.Object, channel,
+            fixture.Evidence.Object, Mock.Of<IFileStorageProvider>(), fixture.Validator, channel,
             NullLogger<AuthorizationPackageService>.Instance);
 
         // Act
@@ -146,7 +144,13 @@ public sealed class InitialPackagePurposeTests
         persisted!.Purpose.Should().Be(PackagePurpose.InitialSubmission);
         job.Purpose.Should().Be(PackagePurpose.InitialSubmission);
         persisted.Status.Should().Be(PackageStatus.Pending);
-        validation.VerifyAll();
+        using var scope = fixture.Services.CreateScope();
+        var run = await scope.ServiceProvider.GetRequiredService<AtoCopilotContext>().PackageReadinessRuns.SingleAsync();
+        run.Id.Should().Be(persisted.ReadinessRunId);
+        run.Purpose.Should().Be(PackagePurpose.InitialSubmission);
+        run.EvaluatedBy.Should().Be("demo-user");
+        run.Outcome.Should().Be("Ready");
+        run.SourceHash.Should().Be(persisted.ReadinessSourceHash);
     }
 
     [Fact]
@@ -172,13 +176,20 @@ public sealed class InitialPackagePurposeTests
         public Fixture()
         {
             var name = Guid.NewGuid().ToString();
-            Services = new ServiceCollection().AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(name)).BuildServiceProvider();
+            Services = new ServiceCollection()
+                .AddLogging()
+                .AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(name))
+                .AddSingleton(Schema.Object)
+                .AddSingleton(Evidence.Object)
+                .AddSingleton<IInterconnectionService, InterconnectionService>()
+                .AddSingleton<IPackageValidationService, PackageValidationService>()
+                .AddSingleton<PackageReadinessService>()
+                .BuildServiceProvider();
             Schema.Setup(x => x.ValidateForSystemAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true });
             Evidence.Setup(x => x.GetSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new EvidenceSummary { CoveragePercentage = 100 });
-            Validator = new(Services.GetRequiredService<IServiceScopeFactory>(), Schema.Object, Evidence.Object,
-                NullLogger<PackageValidationService>.Instance);
+            Validator = (PackageValidationService)Services.GetRequiredService<IPackageValidationService>();
         }
 
         public async Task SeedAsync()
@@ -195,7 +206,8 @@ public sealed class InitialPackagePurposeTests
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
             db.AddRange(new AuthorizationBoundaryDefinition { RegisteredSystemId = "mission", Name = "DEMO boundary" },
                 new SecurityAssessmentReport { RegisteredSystemId = "mission", Status = SarStatus.Approved, Title = "DEMO SAR" },
-                new SecurityAssessmentPlan { RegisteredSystemId = "mission", Status = SapStatus.Finalized, Title = "DEMO SAP" });
+                new SecurityAssessmentPlan { RegisteredSystemId = "mission", Status = SapStatus.Finalized, Title = "DEMO SAP" },
+                new PrivacyThresholdAnalysis { RegisteredSystemId = "mission", Determination = PtaDetermination.PiaNotRequired });
             foreach (var number in Enumerable.Range(1, 13))
                 db.Add(new SspSection { RegisteredSystemId = "mission", SectionNumber = number,
                     SectionTitle = $"DEMO section {number}", Status = SspSectionStatus.Approved, Content = "DEMO reviewed content" });

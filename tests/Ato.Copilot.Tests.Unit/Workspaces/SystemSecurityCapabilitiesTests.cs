@@ -595,11 +595,11 @@ public sealed class SystemSecurityCapabilitiesTests
         }
         var responsibilities = new Mock<ICapabilityResponsibilityService>(MockBehavior.Strict);
         responsibilities.Setup(x => x.PreviewAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string system, CancellationToken _) => new CapabilityResponsibilityResponse(system, null, false, [], []));
+            .ReturnsAsync((string system, CancellationToken _) => new CapabilityResponsibilityResponse(system, null, null, false, [], []));
         responsibilities.Setup(x => x.ReconcileSetupAsync(It.IsAny<AtoCopilotContext>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AtoCopilotContext _, string system, string _, CancellationToken _) =>
-                new CapabilityResponsibilityResponse(system, null, false, [], []));
+                new CapabilityResponsibilityResponse(system, null, null, false, [], []));
         var changes = new Mock<INarrativeChangeImpactService>(MockBehavior.Strict);
         changes.Setup(x => x.QueueAsync(It.IsAny<NarrativeChangeImpactRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NarrativeChangeImpactResult([]));
@@ -672,12 +672,12 @@ public sealed class SystemSecurityCapabilitiesTests
             await db.SaveChangesAsync();
         }
         var snapshot = """{"References":["https://secret.invalid/token"],"Capability":{"Description":"Provider coverage","Component":{"SourceArtifactReference":"private/container/file"}}}""";
-        var preview = new CapabilityResponsibilityResponse("one", null, true,
+        var preview = new CapabilityResponsibilityResponse("one", null, null, true,
         [
-            new("subscription", capabilityId, componentId, profileId, "AC-1", "available", "review1", "Applied",
+            new("subscription", capabilityId, componentId, profileId, null, "AC-1", "available", "review1", "Applied",
                 "confirmed", "reviewer", DateTimeOffset.UtcNow, new("AC-1", "Shared", "Provider", "Customer integration"),
                 "Shared", "CapabilitySubscription", true, snapshot, snapshot),
-            new("subscription", capabilityId, componentId, profileId, "AC-2", "available", "review2", "PreservedOverride",
+            new("subscription", capabilityId, componentId, profileId, null, "AC-2", "available", "review2", "PreservedOverride",
                 "confirmed", "reviewer", DateTimeOffset.UtcNow, new("AC-2", "Customer", null, "Customer operation"),
                 "Customer", "Manual", true, snapshot, snapshot)
         ], []);
