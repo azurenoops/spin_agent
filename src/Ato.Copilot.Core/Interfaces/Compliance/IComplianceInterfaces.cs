@@ -42,6 +42,10 @@ public interface IAtoComplianceEngine
         IProgress<AssessmentProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
+    Task<ComplianceAssessment> RunRetainedAssessmentAsync(ComplianceAssessment assessment,
+        IProgress<AssessmentProgress>? progress = null, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("This executor does not support retained collection.");
+
     /// <summary>
     /// Streams compliance findings incrementally as each control family completes.
     /// Yields individual <see cref="ComplianceFinding"/> items without buffering the entire result set.
@@ -634,6 +638,9 @@ public interface IDefenderForCloudService
 /// </summary>
 public interface IEvidenceStorageService
 {
+    Task<ComplianceEvidence> CollectForAssessmentAsync(string systemId, string assessmentId,
+        string controlId, string subscriptionId, CancellationToken cancellationToken = default);
+
     Task<ComplianceEvidence> CollectEvidenceAsync(
         string controlId,
         string subscriptionId,

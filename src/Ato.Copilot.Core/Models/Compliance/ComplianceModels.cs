@@ -796,6 +796,11 @@ public class DocumentMetadata
 [TenantScoped]
 public class ComplianceAssessment
 {
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public string? WorkspaceOperationKey { get; set; }
+    [System.ComponentModel.DataAnnotations.ConcurrencyCheck]
+    public string? ResultProvenanceJson { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

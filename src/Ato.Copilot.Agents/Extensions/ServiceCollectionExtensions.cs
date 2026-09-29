@@ -424,6 +424,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IOscalSchemaValidationService, OscalSchemaValidationService>();
         services.AddSingleton<IAuthorizationPackageService, AuthorizationPackageService>();
         services.AddSingleton<IPackageValidationService, PackageValidationService>();
+        services.AddSingleton<PackageReadinessService>();
 
         services.AddSingleton<IssueAuthorizationTool>();
         services.AddSingleton<AcceptRiskTool>();

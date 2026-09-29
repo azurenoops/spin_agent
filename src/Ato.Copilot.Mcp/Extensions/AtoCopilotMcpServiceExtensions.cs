@@ -202,8 +202,10 @@ public static class AtoCopilotMcpServiceExtensions
 
         // POA&M Management services (Feature 039)
         services.AddScoped<Ato.Copilot.Core.Services.PoamService>();
+        services.AddScoped<Ato.Copilot.Core.Services.WorkingDocumentPreviewService>();
         services.AddScoped<Ato.Copilot.Core.Services.PoamSyncService>();
         services.AddScoped<Ato.Copilot.Core.Services.TicketingService>();
+        Ato.Copilot.Core.Services.Ticketing.TaskTicketServiceExtensions.AddTaskTicketing(services);
         services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.JiraProvider>();
         services.AddScoped<Ato.Copilot.Core.Services.Ticketing.ITicketingProvider, Ato.Copilot.Core.Services.Ticketing.ServiceNowProvider>();
 
