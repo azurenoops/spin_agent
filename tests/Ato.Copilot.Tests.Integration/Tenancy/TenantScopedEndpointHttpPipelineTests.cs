@@ -47,14 +47,65 @@ public class TenantScopedEndpointHttpPipelineTests
         _tenantB = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
 
         // Default context: active, non-impersonated Tenant-A user.
-        var ctx = factory.GetActiveContext();
-        ctx.TenantId = _tenantA;
-        ctx.IsCspAdmin = false;
-        ctx.ImpersonatedTenantId = null;
-        ctx.Status = TenantStatus.Active;
+        SetTenant(_tenantA, isCspAdmin: false);
     }
 
     // ─── Tests ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void LegacyFixtureInitialization_DoesNotRetainWorkspaceIdentity()
+    {
+        // Arrange
+        var context = _factory.GetActiveContext();
+        context.TenantId = _tenantB;
+        context.OrganizationId = Guid.NewGuid();
+        context.PersonId = Guid.NewGuid();
+        context.IsWorkspaceRequest = true;
+        context.IsCspAdmin = true;
+        context.ImpersonatedTenantId = _tenantB;
+        context.Status = TenantStatus.Disabled;
+
+        // Act
+        var initialized = new TenantScopedEndpointHttpPipelineTests(_factory);
+        using var client = initialized._client;
+
+        // Assert
+        context.TenantId.Should().Be(_tenantA);
+        context.OrganizationId.Should().BeNull();
+        context.PersonId.Should().BeNull();
+        context.IsWorkspaceRequest.Should().BeFalse();
+        context.IsCspAdmin.Should().BeFalse();
+        context.ImpersonatedTenantId.Should().BeNull();
+        context.Status.Should().Be(TenantStatus.Active);
+    }
+
+    [Fact]
+    public async Task GetSystems_WithOpaqueIdentifiers_PreservesTenantIsolation()
+    {
+        // Arrange
+        var systemA = $"sys-a-{Guid.NewGuid():N}";
+        var systemB = $"sys-b-{Guid.NewGuid():N}";
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.RegisteredSystems.AddRange(
+            new RegisteredSystem { Id = systemA, TenantId = _tenantA, Name = "Opaque A", CreatedBy = "test" },
+            new RegisteredSystem { Id = systemB, TenantId = _tenantB, Name = "Opaque B", CreatedBy = "test" });
+        await db.SaveChangesAsync();
+
+        // Act
+        var response = await _client.GetAsync("/api/dashboard/systems?pageSize=100");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var tenantBIds = await GetSystemIdsForTenantAsync(_tenantB);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var items = body.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+            ? data.GetProperty("items")
+            : body.GetProperty("items");
+        var visibleIds = items.EnumerateArray().Select(item => item.GetProperty("systemId").GetString()).ToList();
+        visibleIds.Should().Contain(systemA).And.NotContain(systemB);
+        tenantBIds.Should().Contain(systemB).And.NotContain(systemA);
+    }
 
     [Theory]
     [InlineData(RmfRole.MissionOwner, "MissionAndPurpose")]
@@ -390,7 +441,7 @@ public class TenantScopedEndpointHttpPipelineTests
         var tenantBSystemIds = await GetSystemIdsForTenantAsync(_tenantB);
         foreach (var bId in tenantBSystemIds)
         {
-            ids.Should().NotContain(bId.ToString(),
+            ids.Should().NotContain(bId,
                 because: $"Tenant-B system {bId} must NOT be visible to Tenant-A user");
         }
     }
@@ -427,7 +478,7 @@ public class TenantScopedEndpointHttpPipelineTests
         var tenantASystemIds = await GetSystemIdsForTenantAsync(_tenantA);
         foreach (var aId in tenantASystemIds)
         {
-            ids.Should().NotContain(aId.ToString(),
+            ids.Should().NotContain(aId,
                 because: $"Tenant-A system {aId} must NOT be visible to Tenant-B user");
         }
     }
@@ -503,6 +554,11 @@ public class TenantScopedEndpointHttpPipelineTests
     {
         var ctx = _factory.GetActiveContext();
         ctx.TenantId = tenantId;
+        // This collection shares a mutable context with workspace tests.
+        // These legacy HTTP tests must not inherit their person-scoped authorization mode.
+        ctx.OrganizationId = null;
+        ctx.PersonId = null;
+        ctx.IsWorkspaceRequest = false;
         ctx.IsCspAdmin = isCspAdmin;
         ctx.ImpersonatedTenantId = impersonatedTenantId;
         ctx.Status = TenantStatus.Active;
@@ -529,14 +585,14 @@ public class TenantScopedEndpointHttpPipelineTests
         return id;
     }
 
-    private async Task<List<Guid>> GetSystemIdsForTenantAsync(Guid tenantId)
+    private async Task<List<string>> GetSystemIdsForTenantAsync(Guid tenantId)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         return await db.RegisteredSystems
             .IgnoreQueryFilters()
             .Where(s => s.TenantId == tenantId)
-            .Select(s => Guid.Parse(s.Id))
+            .Select(s => s.Id)
             .ToListAsync();
     }
 }
