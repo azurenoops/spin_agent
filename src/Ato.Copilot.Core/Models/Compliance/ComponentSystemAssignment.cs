@@ -42,6 +42,25 @@ public class ComponentSystemAssignment
     [MaxLength(200)]
     public string CreatedBy { get; set; } = string.Empty;
 
+    [MaxLength(500)]
+    public string? PolicyRationale { get; set; }
+
+    public string? PolicySourceSnapshotJson { get; set; }
+
+    [MaxLength(64)]
+    public string? PolicySourceRevision { get; set; }
+
+    public DateTime? PolicySourceCapturedAt { get; set; }
+
+    public DateTime? PolicySourceModifiedAt { get; set; }
+
+    [ConcurrencyCheck]
+    public int PolicyRevision { get; set; }
+
+    // Only retained policy references populate this key; existing component/boundary rows are untouched.
+    [MaxLength(73)]
+    public string? PolicyReferenceKey { get; set; }
+
     // ─── Navigation ──────────────────────────────────────────────────────────
 
     public SystemComponent SystemComponent { get; set; } = null!;

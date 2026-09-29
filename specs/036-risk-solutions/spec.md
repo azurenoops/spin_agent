@@ -7,6 +7,55 @@
 
 ## User Scenarios & Testing *(mandatory)*
 
+### User Story 6 - Policies for this system (Priority: P1)
+
+September 28, 2026 amendment. Related tracking:
+[azurenoops/spin_agent#218](https://github.com/azurenoops/spin_agent/issues/218),
+[azurenoops/spin_agent#973](https://github.com/azurenoops/spin_agent/issues/973).
+New story linkage and external issue changes require explicit approval; local
+implementation is requested. This amendment extends the historical library
+scope to retain system-specific policy-reference metadata without a new library.
+
+An authorized system user chooses a policy from the organization library,
+explains why it applies, and retains that source revision without changing the
+shared policy or claiming applicability approval.
+
+1. Use "Policies for this system" and "Keep the policies you rely on and explain
+   why they apply." Preserve the existing workspace shell and section navigation.
+2. Empty state has one Add policy action, one organization-library link, no empty
+   table/search/pagination, and collapsed SSP contribution guidance.
+3. Add policy consolidates existing assignment, common suggestions, and authorized
+   library creation. Show Choose policy and Explain & add one step at a time.
+4. Search authorized library records by name/topic; show already-linked records,
+   source status, actual source revision metadata, and authorized View source.
+5. Common references are suggestions. A missing suggested source must be explicitly
+   created in the shared library by an authorized author before selection. Library
+   creation returns to selection, never auto-assigns, and explains its persistence.
+6. Explain & add shows the system, selected source/revision, a required rationale
+   (maximum 500 characters), a live character count, and an exact save preview.
+   Related controls are disclosed when backed by existing capability links;
+   unsupported reference fields/review states are not invented.
+7. Assignments retain source identity and an immutable source snapshot. Source
+   changes are flagged; editing the rationale never silently replaces the snapshot.
+   Legacy references without snapshots are labeled unretained, not backfilled on read.
+8. Populated state offers search, source status/change filters, accurate totals,
+   paging, and state-preserving details with source, rationale, links, and history.
+9. Unlink removes only the exact system assignment after impact disclosure. The
+   organization policy and other assignments remain. Indirect capability membership
+   is explained and cannot be removed by pretending it is a direct assignment.
+10. Every read/write validates tenant, system, source, assignment, and operation.
+    Duplicate and stale-revision requests return explicit conflicts. Abort stale
+    reads and clear scoped state on navigation. Preserve audit events on unlink.
+11. Source Active does not mean applicability reviewed. No applicability review
+    workflow exists in the current assignment model; show that gap without adding
+    a fake approval action. Linking does not satisfy controls or grant an ATO.
+12. Test empty/loading/denied/unavailable/search states, creation and return,
+    duplicate/concurrent/stale saves, retention, isolation, unlink semantics, and
+    responsive/theme/keyboard behavior. Verify downstream document consumers and
+    disclose incomplete connections.
+
+Contract: [system-policy-workspace.md](contracts/system-policy-workspace.md).
+
 ### User Story 1 — Context-Aware Narrative Generation (Priority: P1)
 
 As an ISSO, when I map a capability (e.g., "Multi-Factor Authentication") to a control (e.g., IA-2), the system auto-generates a narrative that references the actual components delivering that capability, the boundary they operate within, and the responsible personnel — not just a generic template sentence.

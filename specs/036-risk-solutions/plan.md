@@ -5,6 +5,41 @@
 
 ## Summary
 
+### September 28 amendment - system policy workspace
+
+- Reuse `SystemComponent` Policy library and `ComponentSystemAssignment`; do not
+  create a parallel policy store. Existing assignment fields contain neither a
+  rationale nor a retained source version nor applicability review state.
+- Add nullable assignment metadata for rationale, retained source snapshot and
+  optimistic revision. Ship additive SQLite/SQL Server schema support using the
+  repository's schema-addition pattern. Legacy rows remain explicitly unretained.
+- Extend the existing component service with policy-specific scoped operations
+  and projections. Snapshot source name/description/topic/status/owner and its
+  content fingerprint at assignment, using an explicit source precondition.
+- Keep library creation explicit and separate from system assignment. Common
+  suggestions prefill the existing name/topic/description creation fields and
+  return to selection after save; never silently create on selection or Cancel.
+- Scope read/action permissions on the server. System-management authority does
+  not grant organization-library authorship. Preserve duplicate and concurrent
+  mutation protections, retained snapshots, and durable audit history.
+- Replace only the LegalRegulatory page composition with the mock's empty state,
+  two-step Add policy drawer, populated catalog and reference detail drawer.
+  Keep the workspace-aware organization library link and existing navigation.
+- Do not add a pretend review workflow or unsupported numeric library version.
+  Use actual captured/modified timestamps and opaque revision tokens, labeled
+  as retained snapshots. Detailed hashes remain provenance, not primary labels.
+- Read-only related controls come from existing capability relationships.
+  Additional supporting-reference authoring is not currently an assignment field.
+- TDD with AAA tests, targeted production-route integration tests, dashboard
+  typecheck/build, and browser checks are required before delivery.
+
+**Constitution gate**: existing models/services reused; no new tool/agent or
+package dependency; schema extension is required to persist the requested
+system rationale and retention (UI-only state cannot satisfy it). External issue
+creation/linkage awaits explicit approval. No GitHub write or push is implicit.
+
+See [the proposed contract](contracts/system-policy-workspace.md).
+
 Enrich the SSP narrative generation engine to produce 3PAO-ready narratives by embedding linked component names (People, Places, Things), boundary context, and responsible personnel into auto-generated text. Refactor SystemComponent from system-scoped to org-wide with a new ComponentSystemAssignment join entity for multi-system reuse. Enable cascade narrative regeneration with per-system transactional integrity, NarrativeVersion audit trail, and impact preview.
 
 ## Technical Context
