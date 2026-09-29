@@ -22,6 +22,7 @@ public partial class PackageBackgroundService
         try
         {
             var package = await db.AuthorizationPackages.SingleAsync(p => p.Id == job.PackageId && p.RegisteredSystemId == job.SystemId, ct);
+            var run = await services.GetRequiredService<PackageReadinessService>().RequirePackageSourceAsync(package, ct);
             if (package.Purpose != job.Purpose || package.RetainedContextJson == null ||
                 ApprovedProfileDocumentData.Hash(package.RetainedContextJson) != package.RetainedContextHash)
                 throw new InvalidOperationException("Retained package context integrity check failed.");
@@ -33,6 +34,11 @@ public partial class PackageBackgroundService
                 manifest.BaselinePackageId, manifest.BaselineContentHash, ct);
             using (var archive = ZipFile.Open(output, ZipArchiveMode.Create))
             {
+                await WriteZipEntryAsync(archive, "package-metadata.json", System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    packageId = package.Id, systemId = job.SystemId, purpose = job.Purpose.ToString(),
+                    receivingWorkflowOutcome = "NotRecorded", readiness = ReadinessMetadata(run)
+                }));
                 var size = await CopyPinnedEntryAsync(archive, "retained-baseline.zip", baseline.FilePath!, manifest.BaselineContentHash, ct);
                 AddRetainedArtifact(db, package, PackageArtifactType.RetainedBaseline, "retained-baseline.zip", "zip", size, manifest.BaselineContentHash);
                 if (job.Purpose == PackagePurpose.ChangeSubmission)

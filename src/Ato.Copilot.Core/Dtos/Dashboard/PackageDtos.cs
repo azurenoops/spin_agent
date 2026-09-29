@@ -35,7 +35,9 @@ public record PackageExportJob(
     string SystemId,
     EvidenceMode EvidenceMode,
     string GeneratedBy,
-    PackagePurpose Purpose = PackagePurpose.Legacy
+    PackagePurpose Purpose = PackagePurpose.Legacy,
+    Guid? TenantId = null,
+    Guid? PersonId = null
 );
 
 /// <summary>
@@ -43,6 +45,8 @@ public record PackageExportJob(
 /// </summary>
 public record GeneratePackageRequest
 {
+    public string? ReadinessRunId { get; init; }
+    public string? ExpectedSourceHash { get; init; }
     public RetainedPackageSelection? RetainedContext { get; init; }
     public PackagePurpose Purpose { get; init; } = PackagePurpose.Legacy;
     public EvidenceMode EvidenceMode { get; init; }
@@ -54,6 +58,8 @@ public record GeneratePackageRequest
 /// </summary>
 public record PackageResponse
 {
+    public string? ReadinessRunId { get; init; }
+    public string? SourceHash { get; init; }
     public string Purpose { get; init; } = nameof(PackagePurpose.Legacy);
     public string PackageId { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
@@ -84,6 +90,8 @@ public record PackageListResponse
 /// </summary>
 public record PackageDetailResponse
 {
+    public string? ReadinessRunId { get; init; }
+    public string? SourceHash { get; init; }
     public string? SourceContextHash { get; init; }
     public RetainedPackageManifest? RetainedContext { get; init; }
     public string? RetainedContextHash { get; init; }

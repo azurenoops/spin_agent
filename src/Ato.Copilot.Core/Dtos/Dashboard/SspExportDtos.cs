@@ -5,6 +5,11 @@ public sealed record DocumentSourceReference(string Kind, string RecordId, strin
 public sealed record DocumentSourceManifest(string Scope, IReadOnlyList<DocumentSourceReference> Profiles,
     IReadOnlyList<DocumentSourceReference> ProviderSources)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PreviewOnly { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasWorkingProfileSources => PreviewOnly || Scope == "WorkingProfilePreview" ||
+        Profiles.Any(p => p.Kind == "WorkingProfile");
     public IReadOnlyList<DocumentSourceReference> Narratives { get; init; } = [];
     public string OtherSources => "CurrentWorkingDataAtGeneration";
     public IReadOnlyList<DocumentEvidenceReference> Evidence { get; init; } = [];
@@ -41,6 +46,8 @@ public sealed record DocumentPreviewDto(
     public DocumentSourceManifest? SourceManifest { get; init; }
     public bool IsPreview => true;
     public string SourceState => "CurrentWorkingData";
+    public bool CanGenerate => SourceManifest is not null && !SourceManifest.HasWorkingProfileSources &&
+        SourceGaps.All(gap => gap.Code == "OSCAL_SOURCE_WARNING");
 }
 
 /// <summary>A diagnostic emitted by the generator, not a browser-derived readiness conclusion.</summary>

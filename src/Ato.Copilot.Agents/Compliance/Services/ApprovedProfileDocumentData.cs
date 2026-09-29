@@ -24,8 +24,14 @@ internal static class ApprovedProfileDocumentData
     internal sealed record Section(string SectionId, string ApprovalId, string Hash, ProfileSectionType Type,
         string ReviewedBy, DateTime ReviewedAt, JsonElement Content);
 
-    internal static async Task CaptureAsync(AtoCopilotContext db, SystemProfileSection section, ProfileAuditEntry audit, CancellationToken ct)
+    internal static async Task CaptureAsync(AtoCopilotContext db, SystemProfileSection section, ProfileAuditEntry audit,
+        CancellationToken ct, bool scalarApproval = true)
     {
+        if (section.SectionType == ProfileSectionType.UsersAndAccess)
+        {
+            await CaptureUserCategoriesAsync(db, section, audit, scalarApproval, ct);
+            return;
+        }
         var users = await db.UserCategories.AsNoTracking().Where(x => x.SystemProfileSectionId == section.Id)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
             .Select(x => new { x.Id, x.CategoryName, x.Description, x.ApproximateCount, x.AccessMethod, x.DataSensitivityLevel, x.SortOrder }).ToListAsync(ct);
@@ -65,16 +71,76 @@ internal static class ApprovedProfileDocumentData
                 continue;
             }
             using var json = JsonDocument.Parse(audit.SnapshotJson);
+            if (section.SectionType == ProfileSectionType.UsersAndAccess)
+            {
+                if (!json.RootElement.TryGetProperty("individualUserCategoryReview", out var mode) || !mode.GetBoolean())
+                {
+                    gaps.Add("Profile UsersAndAccess: legacy section approval does not establish individual user-category approval; review each category.");
+                    continue;
+                }
+                if (!json.RootElement.GetProperty("accessContextApproved").GetBoolean())
+                    gaps.Add("Profile UsersAndAccess: scalar access context has not been independently approved.");
+                var rows = await db.UserCategories.AsNoTracking().Where(c => c.SystemProfileSectionId == section.Id).ToListAsync(ct);
+                if (!rows.Any(c => !c.PendingDeletion))
+                    gaps.Add("Profile UsersAndAccess: no active user categories are recorded.");
+                foreach (var row in rows.Where(c => c.ApprovedSnapshotId is null && !c.PendingDeletion))
+                    gaps.Add($"Profile UsersAndAccess: category {row.Id} has no independently approved baseline; its working revision is excluded.");
+            }
             result.Add(new(section.Id, audit.Id, audit.SnapshotHash!, section.SectionType, audit.PerformedBy, audit.PerformedAt, json.RootElement.Clone()));
         }
         return result;
     }
 
+    private static async Task CaptureUserCategoriesAsync(
+        AtoCopilotContext db, SystemProfileSection section, ProfileAuditEntry audit, bool scalarApproval, CancellationToken ct)
+    {
+        var rows = await db.UserCategories.Where(c => c.SystemProfileSectionId == section.Id)
+            .OrderBy(c => c.SortOrder).ThenBy(c => c.Id).ToListAsync(ct);
+        var users = new List<JsonElement>();
+        var approvalIds = new List<string>();
+        foreach (var row in rows.Where(c => c.ApprovedSnapshotId is not null))
+        {
+            var approved = await db.ProfileAuditEntries.FindAsync([row.ApprovedSnapshotId!], ct);
+            if (approved is null || approved.UserCategoryId != row.Id ||
+                approved.SystemProfileSectionId != section.Id || approved.Action != "UserCategoryApproved" ||
+                approved.SnapshotJson is null || Hash(approved.SnapshotJson) != approved.SnapshotHash)
+                throw new InvalidOperationException("INVALID_APPROVED_SNAPSHOT: Retained user-category approval cannot be verified.");
+            using var json = JsonDocument.Parse(approved.SnapshotJson);
+            approvalIds.Add(approved.Id);
+            if (!json.RootElement.GetProperty("PendingDeletion").GetBoolean())
+                users.Add(json.RootElement.Clone());
+        }
+        var contextApproved = scalarApproval || section.ApprovedContent is not null;
+        if (!contextApproved && section.ApprovedSnapshotId is not null)
+        {
+            var prior = await db.ProfileAuditEntries.FindAsync([section.ApprovedSnapshotId], ct);
+            if (prior?.SnapshotJson is not null && Hash(prior.SnapshotJson) == prior.SnapshotHash)
+            {
+                using var previous = JsonDocument.Parse(prior.SnapshotJson);
+                contextApproved = previous.RootElement.TryGetProperty("accessContextApproved", out var approved) && approved.GetBoolean();
+            }
+        }
+        audit.SnapshotJson = JsonSerializer.Serialize(new
+        {
+            scalarContent = scalarApproval ? section.DraftContent : section.ApprovedContent,
+            userCategories = users.OrderBy(c => c.GetProperty("SortOrder").GetInt32())
+                .ThenBy(c => c.GetProperty("Id").GetString()).ToArray(),
+            dataTypes = Array.Empty<object>(), portsProtocolsServices = Array.Empty<object>(),
+            leveragedAuthorizationReferences = Array.Empty<object>(), individualUserCategoryReview = true,
+            accessContextApproved = contextApproved,
+            userCategoryApprovalIds = approvalIds
+        });
+        audit.SnapshotHash = Hash(audit.SnapshotJson);
+        section.ApprovedSnapshotId = audit.Id;
+    }
+
     internal static string Render(Section section)
     {
         var text = new StringBuilder();
-        text.AppendLine($"### Approved profile: {section.Type}");
-        text.AppendLine($"Approval: {section.ApprovalId}; SHA-256: {section.Hash}");
+        text.AppendLine(section.Type == ProfileSectionType.UsersAndAccess
+            ? "### Retained UsersAndAccess baselines (independent category and access-context reviews)"
+            : $"### Approved profile: {section.Type}");
+        text.AppendLine($"{(section.Type == ProfileSectionType.UsersAndAccess ? "Source snapshot" : "Approval")}: {section.ApprovalId}; SHA-256: {section.Hash}");
         foreach (var property in section.Content.EnumerateObject())
         {
             if (property.Name == "scalarContent")
@@ -86,7 +152,7 @@ internal static class ApprovedProfileDocumentData
                     catch (JsonException) { text.AppendLine(scalar); }
                 }
             }
-            else if (property.Value.ValueKind == JsonValueKind.Array)
+            else if (property.Value.ValueKind == JsonValueKind.Array && property.Name != "userCategoryApprovalIds")
                 foreach (var row in property.Value.EnumerateArray()) { text.AppendLine(); AppendValues(text, row); }
         }
         return text.ToString();

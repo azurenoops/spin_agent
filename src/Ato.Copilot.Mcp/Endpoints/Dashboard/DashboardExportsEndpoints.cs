@@ -57,6 +57,23 @@ public static partial class DashboardEndpoints
 
     private static void MapExportRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
+        foreach (var documentType in new[] { "sap", "sar", "poam" })
+        {
+            group.MapGet($"/systems/{{systemId}}/documents/{documentType}/preview", async (
+                    string systemId, AtoCopilotContext db, WorkingDocumentPreviewService previews,
+                    HttpContext http, CancellationToken ct) =>
+                {
+                    http.Response.Headers.CacheControl = "no-store";
+                    var system = await db.RegisteredSystems.AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.Id == systemId && x.IsActive, ct);
+                    if (system == null)
+                        return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "NOT_FOUND" });
+                    return Results.Ok(await previews.PreviewAsync(system, documentType, ct));
+                })
+                .WithName($"Preview{documentType.ToUpperInvariant()}Document")
+                .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
+        }
+
         group.MapPost("/systems/{systemId}/documents/ssp/preview", async (
                 string systemId, AtoCopilotContext db, ISspExportService service, HttpContext http, CancellationToken ct) =>
             {
@@ -75,8 +92,19 @@ public static partial class DashboardEndpoints
                 {
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "VALIDATION_ERROR" });
                 }
+                catch (IOException ex)
+                {
+                    http.RequestServices.GetRequiredService<ILogger<SspExportService>>()
+                        .LogError(ex, "Retained SSP preview storage failed for system {SystemId}", systemId);
+                    return Results.Json(new ErrorResponse
+                    {
+                        Error = "Retained preview storage is unavailable. Contact an administrator to check the configured export directory.",
+                        ErrorCode = "DOCUMENT_STORAGE_UNAVAILABLE"
+                    }, statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
             })
             .WithName("RetainSspDocumentPreview")
+            .Produces<ErrorResponse>(StatusCodes.Status503ServiceUnavailable)
             .AddEndpointFilter(GuardDocumentEvidenceAccessAsync)
             .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
@@ -89,14 +117,8 @@ public static partial class DashboardEndpoints
             {
                 if (!await db.RegisteredSystems.AnyAsync(system => system.Id == systemId && system.IsActive, ct))
                     return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "NOT_FOUND" });
-                var result = await exportService.ExportAsync(systemId, true, true, ct);
-                var gaps = result.Warnings.Concat(result.ProviderProvenanceGaps).Concat(result.ProfileSourceGaps)
-                    .Distinct(StringComparer.Ordinal)
-                    .Select(message => new DocumentSourceGapDto(
-                        result.ProviderProvenanceGaps.Contains(message)
-                            ? "PROVIDER_PROVENANCE_UNVERIFIED" :
-                        result.ProfileSourceGaps.Contains(message) ? "PROFILE_APPROVAL_UNVERIFIED" : "OSCAL_SOURCE_WARNING", message))
-                    .ToArray();
+                var result = await exportService.PreviewAsync(systemId, true, true, ct);
+                var gaps = result.BuildPreviewSourceGaps();
                 http.Response.Headers.CacheControl = "no-store";
                 return Results.Ok(new DocumentPreviewDto(
                     systemId, "json", "application/json", result.OscalJson,

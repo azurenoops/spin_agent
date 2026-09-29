@@ -16,9 +16,12 @@ public sealed record RetainedPackageOptions(IReadOnlyList<BaselinePackageOption>
 /// <summary>Read-only selection metadata over existing retained records; generation revalidates the chosen pins.</summary>
 public static class AuthorizationPackageContextOptions
 {
-    /// <summary>Stable source fingerprint; capture time is envelope metadata, not a source revision.</summary>
+    /// <summary>Stable source fingerprint; capture time and requesting actor are envelope metadata, not source revisions.</summary>
     public static string SourceContextHash(RetainedPackageManifest context) =>
-        ApprovedProfileDocumentData.Hash(RetainedPackageContext.Serialize(context with { CapturedAt = DateTimeOffset.MinValue }));
+        ApprovedProfileDocumentData.Hash(RetainedPackageContext.Serialize(context with
+        {
+            CapturedAt = DateTimeOffset.MinValue, RequestedBy = "", RequestedPersonId = null
+        }));
 
     public static string SourceContextHash(string retainedContextJson) => SourceContextHash(RetainedPackageContext.Read(retainedContextJson));
 

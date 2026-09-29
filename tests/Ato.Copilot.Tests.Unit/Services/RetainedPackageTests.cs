@@ -310,6 +310,65 @@ public sealed class RetainedPackageTests
     }
 
     [Fact]
+    public async Task ChangeSubmission_SectionOnlyUserApprovalCannotSatisfyReviewedSourceGate()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync(), approveCategories: false);
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(f => f.Description.Contains("independently approved access context"));
+    }
+
+    [Fact]
+    public async Task ChangeSubmission_RemovingUnapprovedSiblingDoesNotRequireReapprovalOfUnchangedBaseline()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync(), removeDraftSiblingBeforeExport: true);
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeTrue(string.Join("; ", validation.Findings.Select(f => f.Description)));
+    }
+
+    [Fact]
+    public async Task ChangeSubmission_PartialUserCategoryPreviewCannotBypassSourceGapGate()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync(), includeUnreviewedSibling: true);
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(f => f.Description.Contains("unresolved source/approval gaps"));
+    }
+
+    [Fact]
+    public async Task ChangeSubmission_WorkingProfilePreviewCannotMasqueradeAsApprovedSource()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync(), workingProfilePreview: true);
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(f => f.Description.Contains("Working profile previews are review-only"));
+    }
+
+    [Fact]
     public async Task Archive_SourceChangedAfterQueue_FailsWithoutRegeneration()
     {
         // Arrange
@@ -425,7 +484,9 @@ public sealed class RetainedPackageTests
             return new(package.Id, hash, decision.Id);
         }
 
-        public async Task<RetainedPackageSelection> SeedReviewedChangeAsync(RetainedPackageSelection selection)
+        public async Task<RetainedPackageSelection> SeedReviewedChangeAsync(
+            RetainedPackageSelection selection, bool approveCategories = true, bool removeDraftSiblingBeforeExport = false,
+            bool includeUnreviewedSibling = false, bool workingProfilePreview = false)
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
@@ -457,13 +518,31 @@ public sealed class RetainedPackageTests
                 db.Add(new SystemProfileSection { TenantId = tenant, RegisteredSystemId = "mission", SectionType = type,
                     GovernanceStatus = SspSectionStatus.UnderReview, DraftContent = $"DEMO reviewed {type}" });
             await db.SaveChangesAsync();
-            await new SystemProfileService(Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<SystemProfileService>.Instance)
-                .BatchApproveSectionsAsync("mission", "reviewer", RmfRole.Issm);
+            var category = new UserCategory { TenantId = tenant, CategoryName = "DEMO reviewed operators",
+                SystemProfileSectionId = await db.SystemProfileSections
+                    .Where(s => s.SectionType == ProfileSectionType.UsersAndAccess).Select(s => s.Id).SingleAsync() };
+            db.UserCategories.Add(category);
+            if (removeDraftSiblingBeforeExport || includeUnreviewedSibling)
+                db.UserCategories.Add(new UserCategory { TenantId = tenant, CategoryName = "Disposable draft sibling",
+                    SystemProfileSectionId = category.SystemProfileSectionId, SortOrder = 1 });
+            await db.SaveChangesAsync();
+            var profile = new SystemProfileService(Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<SystemProfileService>.Instance);
+            await profile.BatchApproveSectionsAsync("mission", "reviewer", RmfRole.Issm);
+            if (approveCategories)
+            {
+                await profile.ReviewUserCategoryAsync("mission", category.Id, "submit", 1, "owner", simulatedRole: RmfRole.MissionOwner);
+                await profile.ReviewUserCategoryAsync("mission", category.Id, "approve", 2, "reviewer", simulatedRole: RmfRole.Issm);
+            }
+            if (removeDraftSiblingBeforeExport)
+                await profile.SaveDraftWithChildrenAsync("mission", ProfileSectionType.UsersAndAccess, "DEMO reviewed UsersAndAccess",
+                    [JsonSerializer.SerializeToElement(new { id = category.Id, revision = 3, categoryName = category.CategoryName })],
+                    "owner", RmfRole.MissionOwner);
             // The fixture has no stamping interceptor; retain the real owning tenant on newly created approval entries.
             foreach (var entry in await db.ProfileAuditEntries.ToListAsync()) entry.TenantId = tenant;
             await db.SaveChangesAsync();
-            var generated = await new OscalSspExportService(Services.GetRequiredService<IServiceScopeFactory>(),
-                NullLogger<OscalSspExportService>.Instance).ExportAsync("mission");
+            var generator = new OscalSspExportService(Services.GetRequiredService<IServiceScopeFactory>(),
+                NullLogger<OscalSspExportService>.Instance);
+            var generated = workingProfilePreview ? await generator.PreviewAsync("mission") : await generator.ExportAsync("mission");
             var exportDirectory = Path.Combine(DirectoryPath, "exports");
             Directory.CreateDirectory(exportDirectory);
             await File.WriteAllTextAsync(Path.Combine(exportDirectory, "reviewed-change.json"), generated.OscalJson);
@@ -472,7 +551,10 @@ public sealed class RetainedPackageTests
             {
                 SystemId = "mission", Format = "json", Status = "Preview", FilePath = "reviewed-change.json",
                 ContentHash = hash, SourceManifestJson = JsonSerializer.Serialize(generated.SourceManifest),
-                SourceGapsJson = "[]", ExpiresAt = DateTimeOffset.UtcNow.AddDays(10)
+                SourceGapsJson = includeUnreviewedSibling
+                    ? JsonSerializer.Serialize(generated.ProfileSourceGaps.Select(g => new DocumentSourceGapDto("PROFILE_APPROVAL_UNVERIFIED", g)))
+                    : "[]",
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(10)
             };
             db.Add(preview);
             await db.SaveChangesAsync();

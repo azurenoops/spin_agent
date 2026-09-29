@@ -29,7 +29,7 @@ public sealed partial class DocumentPreviewHttpTests : IClassFixture<WorkspaceMe
     public DocumentPreviewHttpTests(WorkspaceMembershipFactory factory) => this.factory = factory;
 
     [Fact]
-    public async Task RetainedMutationKeys_ReplayConcurrentRequests_AndRejectDifferentPreviewIntent()
+    public async Task RetainedWorkingPreviewKeys_ReplayConcurrentRequests_WithoutAllowingFinalExports()
     {
         // Arrange
         var fixture = await SeedAsync();
@@ -51,8 +51,6 @@ public sealed partial class DocumentPreviewHttpTests : IClassFixture<WorkspaceMe
         var exportsPath = $"/api/dashboard/systems/{fixture.System}/exports";
         var body = new { format = "json", sourcePreviewId = previewId };
         var exports = await Task.WhenAll(Post(exportsPath, "same-export", body), Post(exportsPath, "same-export", body));
-        var exported = await exports[0].Content.ReadFromJsonAsync<JsonElement>();
-        var exportedReplay = await exports[1].Content.ReadFromJsonAsync<JsonElement>();
         using var nextResponse = await Post(PreviewPath(fixture.System), "new-preview");
         var nextPreview = await nextResponse.Content.ReadFromJsonAsync<JsonElement>();
         using var changed = await Post(exportsPath, "same-export",
@@ -61,12 +59,12 @@ public sealed partial class DocumentPreviewHttpTests : IClassFixture<WorkspaceMe
         // Assert
         replay.GetProperty("previewId").GetGuid().Should().Be(previewId);
         replay.GetProperty("content").GetString().Should().Be(first.GetProperty("content").GetString());
-        exports.Should().OnlyContain(r => r.StatusCode == HttpStatusCode.Accepted);
-        exportedReplay.GetProperty("exportId").GetGuid().Should().Be(exported.GetProperty("exportId").GetGuid());
-        changed.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        exports.Should().OnlyContain(r => r.StatusCode == HttpStatusCode.BadRequest);
+        changed.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        first.GetProperty("canGenerate").GetBoolean().Should().BeFalse();
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-        (await db.SspExports.CountAsync(e => e.SystemId == fixture.System && e.SourcePreviewId == previewId)).Should().Be(1);
+        (await db.SspExports.CountAsync(e => e.SystemId == fixture.System && e.SourcePreviewId == previewId)).Should().Be(0);
         var settings = factory.Services.GetRequiredService<IOptions<ExportSettings>>().Value;
         foreach (var path in await db.SspExports.Where(e => e.SystemId == fixture.System && e.FilePath != null).Select(e => e.FilePath!).ToListAsync())
             File.Delete(Path.Combine(settings.ExportsPath, path));
@@ -95,7 +93,8 @@ public sealed partial class DocumentPreviewHttpTests : IClassFixture<WorkspaceMe
         var detail = await detailResponse.Content.ReadFromJsonAsync<JsonElement>();
         detail.GetProperty("status").GetString().Should().Be("Preview");
         detail.GetProperty("contentHash").GetString().Should().Be(preview.GetProperty("contentHash").GetString());
-        detail.GetProperty("sourceManifest").GetProperty("scope").GetString().Should().Be("GeneratedOscalContent");
+        detail.GetProperty("sourceManifest").GetProperty("scope").GetString().Should().Be("WorkingProfilePreview");
+        preview.GetProperty("canGenerate").GetBoolean().Should().BeFalse();
         wrongSystemResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();

@@ -28,6 +28,26 @@ public static class PackageEndpoints
         var currentUser = app.ServiceProvider.GetRequiredService<ICurrentUserService>();
         var systems = app.MapGroup("/api/v1/systems/{systemId}")
             .WithTags("AuthorizationPackage");
+        systems.AddEndpointFilter(async (invocation, next) =>
+        {
+            var http = invocation.HttpContext;
+            if (http.Request.Path.Value?.Contains("/sar", StringComparison.OrdinalIgnoreCase) != true)
+                return await next(invocation);
+            if (http.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+            var systemId = http.Request.RouteValues["systemId"]?.ToString();
+            var tenant = http.RequestServices.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>();
+            var access = await http.RequestServices.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService>()
+                .GetAccessAsync(tenant.EffectiveTenantId, tenant.PersonId, systemId!, tenant.IsCspAdmin, http.RequestAborted);
+            if (!access.Permissions.CanRead) return Results.NotFound();
+            if (http.Request.Method != "GET" && !access.Permissions.CanGenerateSar) return Results.Forbid();
+            if (http.Request.RouteValues["sarId"] is { } sarId)
+            {
+                var db = http.RequestServices.GetRequiredService<Ato.Copilot.Core.Data.Context.AtoCopilotContext>();
+                if (!await db.SecurityAssessmentReports.AnyAsync(x => x.Id == sarId.ToString()
+                    && x.RegisteredSystemId == systemId, http.RequestAborted)) return Results.NotFound();
+            }
+            return await next(invocation);
+        });
 
         // ─── SAR Endpoints ─────────────────────────────────────────────────
 
@@ -351,8 +371,22 @@ public static class PackageEndpoints
                 {
                     if (!Enum.IsDefined(request.Purpose))
                         return Results.BadRequest(new ErrorResponse { Error = "Use Legacy, InitialSubmission, AuthorizedBaselineArchive or ChangeSubmission.", ErrorCode = "INVALID_PACKAGE_PURPOSE" });
+                    if (!Enum.IsDefined(request.EvidenceMode) || !request.IncludeEvidence)
+                        return Results.BadRequest(new ErrorResponse { Error = "Use Embedded or ManifestOnly; required package evidence cannot be omitted.", ErrorCode = "INVALID_PACKAGE_EVIDENCE" });
                     AuthorizationPackage package;
-                    if (request.Purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
+                    if (request.ReadinessRunId != null || request.ExpectedSourceHash != null)
+                    {
+                        if (request.ReadinessRunId == null || request.ExpectedSourceHash == null || !request.IncludeEvidence)
+                            throw new ArgumentException("Supply the readiness run and source hash; package evidence cannot be silently omitted.");
+                        if (service is not Ato.Copilot.Agents.Compliance.Services.AuthorizationPackageService implementation)
+                            throw new InvalidOperationException("Readiness-bound package generation is unavailable.");
+                        var keys = httpRequest.Headers["Idempotency-Key"];
+                        if (keys.Count > 1) throw new ArgumentException("Supply one Idempotency-Key header.");
+                        package = await implementation.EnqueueFromReadinessAsync(systemId, new(request.Purpose, request.RetainedContext),
+                            request.ReadinessRunId, request.ExpectedSourceHash, request.EvidenceMode, currentUser.CurrentUserId, ct,
+                            keys.Count == 0 ? null : keys[0]);
+                    }
+                    else if (request.Purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
                     {
                         var keys = httpRequest.Headers["Idempotency-Key"];
                         if (keys.Count > 1) throw new ArgumentException("Supply one Idempotency-Key header.");
@@ -372,6 +406,9 @@ public static class PackageEndpoints
                         $"/api/v1/systems/{systemId}/packages/{package.Id}",
                         new
                         {
+                            systemId,
+                            readinessRunId = package.ReadinessRunId,
+                            sourceHash = package.ReadinessSourceHash,
                             packageId = package.Id,
                             purpose = package.Purpose.ToString(),
                             retainedContextHash = package.RetainedContextHash,
@@ -387,13 +424,15 @@ public static class PackageEndpoints
                 }
                 catch (DbUpdateConcurrencyException ex)
                 {
-                    return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "PACKAGE_REQUEST_CONFLICT" });
+                    var code = ex.Message.StartsWith("READINESS_", StringComparison.Ordinal) ? ex.Message.Split(':', 2)[0] : "PACKAGE_REQUEST_CONFLICT";
+                    return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = code, Suggestion = "Refresh the selected readiness context and revalidate." });
                 }
                 catch (ArgumentException ex)
                 {
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_RETAINED_CONTEXT" });
                 }
                 catch (UnauthorizedAccessException) { return Results.Forbid(); }
+                catch (KeyNotFoundException) { return Results.NotFound(); }
             })
             .WithName("GeneratePackage")
             .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
@@ -428,6 +467,7 @@ public static class PackageEndpoints
 
                 return Results.Ok(new PackageDetailResponse
                 {
+                    ReadinessRunId = package.ReadinessRunId, SourceHash = package.ReadinessSourceHash,
                     PackageId = package.Id,
                     Purpose = package.Purpose.ToString(),
                     RetainedContext = package.RetainedContextJson == null ? null :

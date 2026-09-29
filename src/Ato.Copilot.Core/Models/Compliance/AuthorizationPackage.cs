@@ -29,6 +29,8 @@ public class AuthorizationPackage
     public PackageStatus Status { get; set; } = PackageStatus.Pending;
 
     public PackagePurpose Purpose { get; set; } = PackagePurpose.Legacy;
+    [MaxLength(36)] public string? ReadinessRunId { get; set; }
+    [MaxLength(64)] public string? ReadinessSourceHash { get; set; }
     public string? RetainedContextJson { get; set; }
     [MaxLength(64)]
     public string? RetainedContextHash { get; set; }

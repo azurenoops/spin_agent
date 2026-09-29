@@ -1,11 +1,62 @@
 using System.Text.RegularExpressions;
+using System.Text;
+using Ato.Copilot.Core.Configuration;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Unit.Deployment;
 
 public class DockerPackageSourceContractTests
 {
+    [Fact]
+    public void Mcp_runtime_retains_documents_on_the_owned_persistent_data_volume()
+    {
+        // Arrange
+        var dockerfile = File.ReadAllText(Path.Combine(FindRepoRoot(), "Dockerfile"));
+        var compose = File.ReadAllText(Path.Combine(FindRepoRoot(), "docker-compose.mcp.yml"));
+
+        // Act
+        var runtime = Regex.Match(dockerfile, @"(?ms)^FROM [^\r\n]+ AS runtime\r?\n(?<runtime>.*)$");
+
+        // Assert
+        runtime.Success.Should().BeTrue();
+        runtime.Groups["runtime"].Value.Should().Contain("ENV ATO_ExportSettings__DataPath=/data");
+        runtime.Groups["runtime"].Value.Should().Contain("chown -R atocopilot:atocopilot /data");
+        runtime.Groups["runtime"].Value.Should().Contain("USER atocopilot");
+        compose.Should().Contain("ato-data:/data");
+    }
+
+    [Fact]
+    public void Mcp_runtime_storage_override_survives_the_production_json_reload()
+    {
+        // Arrange
+        var dockerfile = File.ReadAllText(Path.Combine(FindRepoRoot(), "Dockerfile"));
+        var setting = Regex.Match(dockerfile, @"(?mi)^ENV (?<key>\S*ExportSettings__DataPath)=(?<value>\S+)");
+        setting.Success.Should().BeTrue();
+        setting.Groups["key"].Value.Should().StartWith("ATO_");
+        var prefix = "TEST_EXPORT_STORAGE_" + Guid.NewGuid().ToString("N") + "_";
+        var isolatedVariable = prefix + setting.Groups["key"].Value["ATO_".Length..];
+        Environment.SetEnvironmentVariable(isolatedVariable, setting.Groups["value"].Value);
+        try
+        {
+            // Act
+            using var json = new MemoryStream(Encoding.UTF8.GetBytes("""{"ExportSettings":{"DataPath":"./data"}}"""));
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["ExportSettings:DataPath"] = "/host-default" })
+                .AddJsonStream(json)
+                .AddEnvironmentVariables(prefix)
+                .Build();
+
+            // Assert
+            configuration.GetSection(ExportSettings.SectionName).Get<ExportSettings>()!.DataPath.Should().Be("/data");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(isolatedVariable, null);
+        }
+    }
+
     [Fact]
     public void Mcp_compose_forwards_optional_entra_credentials_without_embedding_them()
     {

@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
@@ -18,17 +19,13 @@ public partial class SspExportService
         var requestScope = await SnapshotRequestScopeAsync(db, systemId, userId, "Preview", idempotencyKey, cancellationToken);
         var prior = await FindSnapshotRequestAsync(db, requestScope, cancellationToken);
         if (prior != null) return await PreviewResponseAsync(prior, cancellationToken);
-        var generated = await _oscalService.ExportAsync(systemId, true, true, cancellationToken);
+        var generated = await _oscalService.PreviewAsync(systemId, true, true, cancellationToken);
         generated = await AddResponsibilitiesAsync(systemId, generated, cancellationToken);
         generated = await AddProviderEvidenceAsync(systemId, generated, cancellationToken);
         var bytes = Encoding.UTF8.GetBytes(generated.OscalJson);
         if (bytes.Length > _settings.MaxExportSizeBytes)
             throw new InvalidOperationException("Preview exceeds the configured export size limit.");
-        var gaps = generated.Warnings.Concat(generated.ProviderProvenanceGaps).Concat(generated.ProfileSourceGaps).Concat(generated.EvidenceSourceGaps)
-            .Distinct(StringComparer.Ordinal).Select(message => new DocumentSourceGapDto(
-                generated.ProviderProvenanceGaps.Contains(message) ? "PROVIDER_PROVENANCE_UNVERIFIED" :
-                generated.ProfileSourceGaps.Contains(message) ? "PROFILE_APPROVAL_UNVERIFIED" :
-                generated.EvidenceSourceGaps.Contains(message) ? "EVIDENCE_PERMISSION_UNVERIFIED" : "OSCAL_SOURCE_WARNING", message)).ToArray();
+        var gaps = generated.BuildPreviewSourceGaps();
         var snapshot = new SspExport
         {
             SystemId = systemId, Format = "json", Status = "Preview", GeneratedBy = userId,
@@ -41,16 +38,23 @@ public partial class SspExportService
         };
         snapshot.FilePath = Path.Combine(systemId, $"{snapshot.Id}.json");
         var path = Path.Combine(_settings.ExportsPath, snapshot.FilePath);
-        EnsureDirectoryExists(path);
         try
         {
-            await File.WriteAllBytesAsync(path, bytes, cancellationToken);
+            try
+            {
+                EnsureDirectoryExists(path);
+                await File.WriteAllBytesAsync(path, bytes, cancellationToken);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw PreviewStorageUnavailable(ex);
+            }
             db.Add(snapshot);
             await db.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException) when (requestScope != null)
         {
-            File.Delete(path);
+            DeletePreviewFile(path);
             db.Entry(snapshot).State = EntityState.Detached;
             var winner = await FindSnapshotRequestAsync(db, requestScope, cancellationToken);
             if (winner == null) throw;
@@ -58,7 +62,7 @@ public partial class SspExportService
         }
         catch
         {
-            File.Delete(path);
+            DeletePreviewFile(path);
             throw;
         }
         return new(systemId, "json", "application/json", generated.OscalJson, snapshot.ContentHash, snapshot.GeneratedAt, gaps)
@@ -148,6 +152,9 @@ public partial class SspExportService
             x.Id == previewId && x.SystemId == systemId && x.Format == "json" && x.Status == "Preview", ct)
             ?? throw new ArgumentException("Preview not found for this system.");
         if (preview.ExpiresAt <= DateTimeOffset.UtcNow) throw new ArgumentException("Preview has expired; generate a new preview.");
+        var manifest = preview.SourceManifestJson is null ? null : JsonSerializer.Deserialize<DocumentSourceManifest>(preview.SourceManifestJson);
+        if (manifest?.HasWorkingProfileSources == true)
+            throw new ArgumentException("Working profile previews are review-only and cannot be promoted to final exports. Generate from approved sources instead.");
         var gaps = JsonSerializer.Deserialize<DocumentSourceGapDto[]>(preview.SourceGapsJson ?? "[]") ?? [];
         if (gaps.Any(x => x.Code is "PROVIDER_PROVENANCE_UNVERIFIED" or "PROFILE_APPROVAL_UNVERIFIED" or "EVIDENCE_PERMISSION_UNVERIFIED"))
             throw new ArgumentException("Preview has unresolved source/approval gaps; review source metadata and generate a new preview.");
@@ -157,8 +164,34 @@ public partial class SspExportService
     private async Task<byte[]> ReadPreviewBytesAsync(SspExport preview, CancellationToken ct)
     {
         if (preview.FilePath == null) throw new InvalidOperationException("Retained preview content is unavailable.");
-        var bytes = await File.ReadAllBytesAsync(Path.Combine(_settings.ExportsPath, preview.FilePath), ct);
+        byte[] bytes;
+        try
+        {
+            bytes = await File.ReadAllBytesAsync(Path.Combine(_settings.ExportsPath, preview.FilePath), ct);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw PreviewStorageUnavailable(ex);
+        }
         if (ComputeSha256(bytes) != preview.ContentHash) throw new InvalidOperationException("Retained preview content hash mismatch.");
         return bytes;
+    }
+
+    private void DeletePreviewFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw PreviewStorageUnavailable(ex);
+        }
+    }
+
+    private IOException PreviewStorageUnavailable(UnauthorizedAccessException exception)
+    {
+        _logger.LogError(exception, "Retained preview storage is inaccessible under {ExportDirectory}", _settings.ExportsPath);
+        return new IOException("Retained preview storage is unavailable. Check ExportSettings:DataPath and storage permissions.", exception);
     }
 }

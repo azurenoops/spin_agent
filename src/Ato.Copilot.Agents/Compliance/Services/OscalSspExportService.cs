@@ -51,11 +51,24 @@ public partial class OscalSspExportService : IOscalSspExportService
     }
 
     /// <inheritdoc />
-    public async Task<OscalExportResult> ExportAsync(
+    public Task<OscalExportResult> ExportAsync(
         string registeredSystemId,
         bool includeBackMatter = true,
         bool prettyPrint = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GenerateAsync(registeredSystemId, includeBackMatter, prettyPrint, workingProfiles: false, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<OscalExportResult> PreviewAsync(
+        string registeredSystemId,
+        bool includeBackMatter = true,
+        bool prettyPrint = true,
+        CancellationToken cancellationToken = default) =>
+        GenerateAsync(registeredSystemId, includeBackMatter, prettyPrint, workingProfiles: true, cancellationToken);
+
+    private async Task<OscalExportResult> GenerateAsync(
+        string registeredSystemId, bool includeBackMatter, bool prettyPrint, bool workingProfiles,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(registeredSystemId, nameof(registeredSystemId));
 
@@ -145,7 +158,10 @@ public partial class OscalSspExportService : IOscalSspExportService
         AppendModernComponents(systemImpl, modernComponents, componentMap);
         var providerGaps = new List<string>();
         var profileGaps = new List<string>();
-        var approvedProfiles = await ApprovedProfileDocumentData.LoadAsync(db, registeredSystemId, profileGaps, cancellationToken);
+        var approvedProfiles = workingProfiles ? [] :
+            await ApprovedProfileDocumentData.LoadAsync(db, registeredSystemId, profileGaps, cancellationToken);
+        var previewProfiles = workingProfiles
+            ? await WorkingProfileDocumentData.LoadAsync(db, registeredSystemId, profileGaps, cancellationToken) : [];
         warnings.AddRange(profileGaps);
         if (approvedProfiles.Count > 0)
         {
@@ -162,6 +178,25 @@ public partial class OscalSspExportService : IOscalSspExportService
                     })
                 });
             systemChars["props"] = profileProps;
+        }
+        if (workingProfiles)
+        {
+            metadata["title"] = $"{system.Name} System Security Plan - working profile preview";
+            var profileProps = systemChars.TryGetValue("props", out var existingProps)
+                ? (List<Dictionary<string, string>>)existingProps : new List<Dictionary<string, string>>();
+            foreach (var profile in previewProfiles)
+                profileProps.Add(new()
+                {
+                    ["name"] = "working-profile",
+                    ["ns"] = "https://ato-copilot.io/ns/profile",
+                    ["value"] = JsonSerializer.Serialize(new
+                    {
+                        sectionType = profile.Type.ToString(), sectionId = profile.SectionId,
+                        sourceState = "CurrentWorkingData", governanceStatus = profile.GovernanceStatus,
+                        reviewScope = profile.ReviewScope, contentHash = profile.Hash, content = profile.Content
+                    })
+                });
+            if (profileProps.Count > 0) systemChars["props"] = profileProps;
         }
         var providerSources = await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
         warnings.AddRange(providerGaps);
@@ -197,15 +232,17 @@ public partial class OscalSspExportService : IOscalSspExportService
         };
 
         var manifest = new DocumentSourceManifest(
-            "GeneratedOscalContent",
-            approvedProfiles.Select(p => new DocumentSourceReference("ApprovedProfile", p.SectionId, p.ApprovalId, p.Hash)).ToArray(),
+            workingProfiles ? "WorkingProfilePreview" : "GeneratedOscalContent",
+            workingProfiles
+                ? previewProfiles.Select(p => new DocumentSourceReference("WorkingProfile", p.SectionId, $"working:{p.Hash}", p.Hash)).ToArray()
+                : approvedProfiles.Select(p => new DocumentSourceReference("ApprovedProfile", p.SectionId, p.ApprovalId, p.Hash)).ToArray(),
             providerSources.SelectMany(p => new[]
             {
                 new DocumentSourceReference("ProviderDecision", p.Revision.RecordId.ToString(), p.Revision.Id.ToString(), p.Revision.SnapshotHash),
                 new DocumentSourceReference("MissionAdoption", p.Adoption.SubscriptionId, p.Adoption.Id.ToString(), p.Adoption.SnapshotHash),
                 new DocumentSourceReference("ProviderContext", p.Adoption.OfferingId.ToString(), p.Context.Id.ToString(), p.Context.SnapshotHash),
                 new DocumentSourceReference("ProviderRelease", p.Adoption.CapabilityId.ToString(), p.Release.Id.ToString(), p.Release.SnapshotHash)
-            }).Distinct().ToArray()) { Narratives = narrativeSources };
+            }).Distinct().ToArray()) { Narratives = narrativeSources, PreviewOnly = workingProfiles };
         metadata["props"] = new[]
         {
             new Dictionary<string, string>

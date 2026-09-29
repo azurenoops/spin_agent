@@ -47,6 +47,9 @@ RUN groupadd -r atocopilot && useradd -r -g atocopilot -m atocopilot
 RUN mkdir -p /data /app/logs /home/atocopilot/.azure \
     && chown -R atocopilot:atocopilot /data /app/logs /home/atocopilot/.azure
 
+# The host reapplies JSON before ATO_-prefixed overrides. Use the writable data volume.
+ENV ATO_ExportSettings__DataPath=/data
+
 # Copy published app
 COPY --from=build /app/publish .
 

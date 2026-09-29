@@ -30,6 +30,7 @@ public enum PackageStatus
 /// Controls whether evidence files are embedded in the package archive
 /// or referenced via a manifest with download links.
 /// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
 public enum EvidenceMode
 {
     Embedded = 0,

@@ -238,30 +238,46 @@ public partial class AuthorizationPackageService : IAuthorizationPackageService
         if (!Enum.IsDefined(purpose)) throw new ArgumentOutOfRangeException(nameof(purpose));
         if (purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
             throw new InvalidOperationException("This purpose requires an explicit retained baseline and recorded decision selection.");
-        // Run readiness validation first
-        var validation = purpose == PackagePurpose.Legacy
-            ? await _validationService.ValidateAsync(systemId, generatedBy, cancellationToken)
-            : await _validationService.ValidateAsync(systemId, purpose, generatedBy, cancellationToken);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Findings
-                .Where(f => f.Severity == ValidationSeverity.Error)
-                .Select(f => f.Description));
-            throw new InvalidOperationException($"Package readiness check failed with {validation.ErrorCount} error(s): {errors}");
-        }
-
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var readiness = scope.ServiceProvider.GetRequiredService<PackageReadinessService>();
+        var run = await readiness.ValidateAsync(systemId, new(purpose), generatedBy, cancellationToken);
+        return await EnqueueFromReadinessAsync(systemId, new(purpose), run.Id, run.SourceHash ?? "",
+            evidenceMode, generatedBy, cancellationToken);
+    }
 
+    public async Task<AuthorizationPackage> EnqueueFromReadinessAsync(string systemId, PackageReadinessSelection selection,
+        string runId, string expectedHash, EvidenceMode evidenceMode, string generatedBy, CancellationToken cancellationToken,
+        string? idempotencyKey = null)
+    {
+        if (!Enum.IsDefined(evidenceMode)) throw new ArgumentException("Use Embedded or ManifestOnly evidence mode.");
+        using var scope = _scopeFactory.CreateScope();
+        var readiness = scope.ServiceProvider.GetRequiredService<PackageReadinessService>();
+        var run = await readiness.RequireReadyAsync(systemId, selection, runId, expectedHash, generatedBy, cancellationToken);
+        if (selection.RetainedContext != null)
+            return await EnqueueRetainedWithRunAsync(systemId, selection.Purpose, selection.RetainedContext,
+                generatedBy, cancellationToken, idempotencyKey, run);
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var findings = PackageReadinessService.Checks(run).Where(x => x.Outcome == "FollowUp").Select(x => new ValidationFinding
+        {
+            TenantId = run.TenantId, Severity = ValidationSeverity.Warning, Category = x.Category,
+            Description = x.Why, Remediation = string.Join("\n", x.NextSteps)
+        }).ToList();
+        var validation = new PackageValidationResult
+        {
+            TenantId = run.TenantId, IsValid = true, ValidatedBy = generatedBy,
+            Findings = findings, WarningCount = findings.Count
+        };
         var package = new AuthorizationPackage
         {
+            TenantId = run.TenantId, ReadinessRunId = run.Id, ReadinessSourceHash = run.SourceHash,
             RegisteredSystemId = systemId,
             Status = PackageStatus.Pending,
-            Purpose = purpose,
+            Purpose = selection.Purpose,
             EvidenceMode = evidenceMode,
             GeneratedBy = generatedBy,
             GeneratedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(90)
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(90),
+            ValidationPassed = true, ValidationWarningCount = validation.WarningCount
         };
 
         db.AuthorizationPackages.Add(package);
@@ -273,8 +289,9 @@ public partial class AuthorizationPackageService : IAuthorizationPackageService
         await db.SaveChangesAsync(cancellationToken);
 
         // Enqueue the background job
-        var job = new PackageExportJob(package.Id, systemId, evidenceMode, generatedBy, purpose);
-        await _channel.Writer.WriteAsync(job, cancellationToken);
+        var job = new PackageExportJob(package.Id, systemId, evidenceMode, generatedBy, selection.Purpose,
+            run.TenantId, db.WorkspacePersonId);
+        await _channel.Writer.WriteAsync(job, CancellationToken.None);
 
         _logger.LogInformation("Enqueued package generation job {PackageId} for system {SystemId}", package.Id, systemId);
         return package;
@@ -318,6 +335,7 @@ public partial class AuthorizationPackageService : IAuthorizationPackageService
             .Take(limit)
             .Select(p => new PackageResponse
             {
+                ReadinessRunId = p.ReadinessRunId, SourceHash = p.ReadinessSourceHash,
                 PackageId = p.Id,
                 Purpose = p.Purpose.ToString(),
                 Status = p.Status.ToString(),

@@ -121,13 +121,18 @@ public sealed class ApprovedProfileDocumentTests
         await db.SaveChangesAsync();
         var profile = new SystemProfileService(factory, NullLogger<SystemProfileService>.Instance);
         await profile.BatchApproveSectionsAsync("mission", "reviewer", RmfRole.Issm);
+        var categoryId = await db.UserCategories.Select(c => c.Id).SingleAsync();
+        await profile.ReviewUserCategoryAsync("mission", categoryId, "submit", 1, "owner", simulatedRole: RmfRole.MissionOwner);
+        await profile.ReviewUserCategoryAsync("mission", categoryId, "approve", 2, "reviewer", simulatedRole: RmfRole.Issm);
         var exporter = new OscalSspExportService(factory, NullLogger<OscalSspExportService>.Instance);
         var original = await exporter.ExportAsync("mission");
         await profile.SaveDraftAsync("mission", ProfileSectionType.UsersAndAccess, "{\"description\":\"DRAFT MUST NOT LEAK\"}", "owner", RmfRole.MissionOwner);
+        db.ChangeTracker.Clear();
         var row = await db.UserCategories.SingleAsync();
-        row.CategoryName = "DRAFT CHILD MUST NOT LEAK";
-        row.ApproximateCount = 999;
-        await db.SaveChangesAsync();
+        await profile.SaveDraftWithChildrenAsync("mission", ProfileSectionType.UsersAndAccess,
+            "{\"description\":\"DRAFT MUST NOT LEAK\"}",
+            [JsonSerializer.SerializeToElement(new { id = row.Id, revision = row.Revision,
+                categoryName = "DRAFT CHILD MUST NOT LEAK", approximateCount = 999 })], "owner", RmfRole.MissionOwner);
 
         // Act
         var after = await exporter.ExportAsync("mission");
@@ -161,7 +166,10 @@ public sealed class ApprovedProfileDocumentTests
         await profile.SubmitForReviewAsync("mission", [ProfileSectionType.UsersAndAccess], "owner", RmfRole.MissionOwner);
         await profile.ReviewSectionAsync("mission", ProfileSectionType.UsersAndAccess, ReviewDecision.Approve, "reviewer", null, RmfRole.Issm);
         var successor = await exporter.ExportAsync("mission");
-        successor.OscalJson.Should().Contain("DRAFT CHILD MUST NOT LEAK");
+        successor.OscalJson.Should().NotContain("DRAFT CHILD MUST NOT LEAK");
+        await profile.ReviewUserCategoryAsync("mission", row.Id, "submit", 4, "owner", simulatedRole: RmfRole.MissionOwner);
+        await profile.ReviewUserCategoryAsync("mission", row.Id, "approve", 5, "reviewer", simulatedRole: RmfRole.Issm);
+        (await exporter.ExportAsync("mission")).OscalJson.Should().Contain("DRAFT CHILD MUST NOT LEAK");
         (await db.ProfileAuditEntries.AsNoTracking().SingleAsync(a => a.Id == originalApproval))
             .SnapshotJson.Should().Contain("DEMO operators").And.NotContain("DRAFT CHILD MUST NOT LEAK");
     }

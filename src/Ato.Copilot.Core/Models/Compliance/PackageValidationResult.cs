@@ -11,6 +11,8 @@ namespace Ato.Copilot.Core.Models.Compliance;
 public class PackageValidationResult
 {
     [NotMapped]
+    public IReadOnlyList<Ato.Copilot.Core.Dtos.Dashboard.PackageReadinessCheck> Checks { get; set; } = [];
+    [NotMapped]
     public Ato.Copilot.Core.Dtos.Dashboard.RetainedPackageManifest? RetainedContext { get; set; }
     [NotMapped]
     public string? SourceContextHash { get; set; }

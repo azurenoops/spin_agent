@@ -119,7 +119,8 @@ public class SspExportServiceTests : IDisposable
         await using var db = CreateDb();
         db.RegisteredSystems.Add(new RegisteredSystem { Id = "mission", Name = "DEMO mission", TenantId = Guid.NewGuid() });
         await db.SaveChangesAsync();
-        _oscalServiceMock.Setup(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()))
+        // Approved-only payloads here exercise compatibility with legacy retained snapshots.
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OscalExportResult("{}", [], new OscalStatistics(0, 0, 0, 0, 0)));
 
         // Act
@@ -135,7 +136,7 @@ public class SspExportServiceTests : IDisposable
         replay.ContentHash.Should().Be(first.ContentHash);
         exportReplay.Id.Should().Be(export.Id);
         await changed.Should().ThrowAsync<DbUpdateConcurrencyException>();
-        _oscalServiceMock.Verify(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _oscalServiceMock.Verify(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()), Times.Exactly(2));
         _channel.Reader.TryRead(out var job).Should().BeTrue();
         job!.ExportId.Should().Be(export.Id);
         _channel.Reader.TryRead(out _).Should().BeFalse();
@@ -149,7 +150,7 @@ public class SspExportServiceTests : IDisposable
         await using var db = CreateDb();
         db.RegisteredSystems.Add(new RegisteredSystem { Id = "mission", Name = "DEMO mission", TenantId = Guid.NewGuid() });
         await db.SaveChangesAsync();
-        _oscalServiceMock.Setup(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()))
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OscalExportResult("{}", [], new OscalStatistics(0, 0, 0, 0, 0)));
         var first = await _service.CreatePreviewAsync("mission", "owner-a", idempotencyKey: "shared-key");
         var other = await _service.CreatePreviewAsync("mission", "owner-b", idempotencyKey: "shared-key");
@@ -164,7 +165,7 @@ public class SspExportServiceTests : IDisposable
         first.PreviewId!.Value.Should().NotBe(other.PreviewId!.Value);
         await retry.Should().ThrowAsync<DbUpdateConcurrencyException>();
         (await db.SspExports.CountAsync()).Should().Be(2);
-        _oscalServiceMock.Verify(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _oscalServiceMock.Verify(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -172,7 +173,7 @@ public class SspExportServiceTests : IDisposable
     {
         // Arrange
         var source = "{\"system-security-plan\":{\"uuid\":\"DEMO retained bytes\"}}";
-        _oscalServiceMock.Setup(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()))
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OscalExportResult(source, [], new OscalStatistics(7, 0, 0, 0, 0))
             {
                 SourceManifest = new("GeneratedOscalContent", [new("ApprovedProfile", "section", "approval-v1", "hash-v1")], [])
@@ -207,7 +208,7 @@ public class SspExportServiceTests : IDisposable
     public async Task RetainedPreview_RejectsUnusableSnapshotBeforeQueueing(string invalid)
     {
         // Arrange
-        _oscalServiceMock.Setup(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()))
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new OscalExportResult("{}", [], new OscalStatistics(0, 0, 0, 0, 0))
             {
                 ProfileSourceGaps = invalid == "ProfileGap" ? ["Profile approval missing."] : [],

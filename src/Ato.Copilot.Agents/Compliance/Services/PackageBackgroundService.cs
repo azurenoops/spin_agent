@@ -92,13 +92,33 @@ public partial class PackageBackgroundService : BackgroundService
 
     internal async Task ProcessJobAsync(PackageExportJob job, CancellationToken ct)
     {
+        using var scope = _scopeFactory.CreateScope();
+        using var tenantScope = job.TenantId is { } tenantId
+            ? scope.ServiceProvider.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor>()
+                .Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(tenantId)
+                    { PersonId = job.PersonId, IsWorkspaceRequest = job.PersonId.HasValue })
+            : null;
+        try { await ProcessPinnedJobAsync(job, ct); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Pinned package generation failed for {PackageId}", job.PackageId);
+            var path = Path.Combine(scope.ServiceProvider.GetRequiredService<IOptions<ExportSettings>>().Value.PackagesPath,
+                $"authorization-package-{job.PackageId}.zip");
+            try { if (File.Exists(path)) File.Delete(path); }
+            catch (IOException cleanup) { _logger.LogError(cleanup, "Failed to remove incomplete package {PackageId}", job.PackageId); }
+            await MarkFailedAsync(job.PackageId, "source-integrity", ex.Message, "Revalidate the source and queue a new package.");
+            await _notifier.SendPackageFailedAsync(job.PackageId, "source-integrity", ex.Message, "Revalidate the source.", CancellationToken.None);
+        }
+    }
+
+    private async Task ProcessPinnedJobAsync(PackageExportJob job, CancellationToken ct)
+    {
         _logger.LogInformation("Processing package job {PackageId} for system {SystemId}", job.PackageId, job.SystemId);
-        if (job.Purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
         {
             using var readScope = _scopeFactory.CreateScope();
             var context = readScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
             if (await context.AuthorizationPackages.AsNoTracking().AnyAsync(p => p.Id == job.PackageId
-                && p.RegisteredSystemId == job.SystemId && p.Purpose == job.Purpose && p.Status == PackageStatus.Completed, ct))
+                && p.Status == PackageStatus.Completed, ct))
                 return;
         }
 
@@ -126,11 +146,15 @@ public partial class PackageBackgroundService : BackgroundService
         var packagesDir = settings.PackagesPath;
         Directory.CreateDirectory(packagesDir);
 
-        var zipPath = Path.Combine(packagesDir, $"authorization-package-{job.PackageId[..8]}.zip");
+        var zipPath = Path.Combine(packagesDir, $"authorization-package-{job.PackageId}.zip");
         string? currentArtifact = null;
 
         try
         {
+            var persistedPackage = await db.AuthorizationPackages.SingleAsync(x => x.Id == job.PackageId
+                && x.RegisteredSystemId == job.SystemId && x.Purpose == job.Purpose, ct);
+            var readiness = sp.GetRequiredService<PackageReadinessService>();
+            var readinessRun = await readiness.RequirePackageSourceAsync(persistedPackage, ct);
             using var zipStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: false);
 
@@ -139,7 +163,8 @@ public partial class PackageBackgroundService : BackgroundService
                 packageId = job.PackageId,
                 systemId = job.SystemId,
                 purpose = job.Purpose.ToString(),
-                receivingWorkflowOutcome = "NotRecorded"
+                receivingWorkflowOutcome = "NotRecorded",
+                readiness = ReadinessMetadata(readinessRun)
             }));
 
             // Generate OSCAL artifacts in parallel (T047 - Performance)
@@ -186,13 +211,14 @@ public partial class PackageBackgroundService : BackgroundService
 
             if (sar != null)
             {
-                var sarStream = await sarService.ExportToWordAsync(sar.Id, ct);
+                await using var sarStream = await sarService.ExportToWordAsync(sar.Id, ct);
                 var entry = archive.CreateEntry("security-assessment-report.docx", CompressionLevel.Optimal);
                 await using var entryStream = entry.Open();
                 await sarStream.CopyToAsync(entryStream, ct);
                 await RecordArtifactAsync(db, job.PackageId, PackageArtifactType.Sar, "security-assessment-report.docx", sarStream.Length, ct);
                 await _notifier.SendArtifactGeneratedAsync(job.PackageId, "sar", ct);
             }
+            else throw new InvalidOperationException("The required approved SAR is unavailable during generation.");
 
             // 6. Evidence manifest + files
             currentArtifact = "evidence";
@@ -203,10 +229,10 @@ public partial class PackageBackgroundService : BackgroundService
                 await WriteZipEntryAsync(archive, "evidence-manifest.json", manifestJson);
                 await RecordArtifactAsync(db, job.PackageId, PackageArtifactType.EvidenceManifest, "evidence-manifest.json", manifestJson.Length, ct);
 
-                // Bundle evidence files directly into ZIP if embedded mode
-                if (manifest.EmbeddingMode == "embedded")
+                // Manifest-only outputs still require available bytes matching every retained evidence hash.
                 {
                     var evidenceService = sp.GetRequiredService<IEvidenceArtifactService>();
+                    var emittedEvidencePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var artifact in manifest.Artifacts)
                     {
                         ct.ThrowIfCancellationRequested();
@@ -216,9 +242,26 @@ public partial class PackageBackgroundService : BackgroundService
                             var (content, _, _) = download.Value;
                             try
                             {
-                                var evidenceEntry = archive.CreateEntry($"evidence/{artifact.ControlId}/{artifact.FileName}", CompressionLevel.Optimal);
-                                await using var evidenceEntryStream = evidenceEntry.Open();
-                                await content.CopyToAsync(evidenceEntryStream, ct);
+                                if (artifact.FileName != Path.GetFileName(artifact.FileName) || artifact.FileName.Contains('\\')
+                                    || artifact.FileName is "." or ".." || artifact.ControlId is "." or ".."
+                                    || artifact.ControlId.Contains('/') || artifact.ControlId.Contains('\\'))
+                                    throw new InvalidDataException("Evidence archive entry contains an unsafe path.");
+                                var entryPath = $"evidence/{artifact.ControlId}/{artifact.FileName}";
+                                if (manifest.EmbeddingMode == "embedded" && !emittedEvidencePaths.Add(entryPath))
+                                    throw new InvalidDataException("Multiple evidence artifacts would occupy the same archive path.");
+                                await using var evidenceEntryStream = manifest.EmbeddingMode == "embedded"
+                                    ? archive.CreateEntry(entryPath, CompressionLevel.Optimal).Open()
+                                    : Stream.Null;
+                                using var evidenceHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                                var buffer = new byte[81920];
+                                int read;
+                                while ((read = await content.ReadAsync(buffer, ct)) > 0)
+                                {
+                                    evidenceHash.AppendData(buffer, 0, read);
+                                    await evidenceEntryStream.WriteAsync(buffer.AsMemory(0, read), ct);
+                                }
+                                if (!Convert.ToHexString(evidenceHash.GetHashAndReset()).Equals(artifact.ContentHash, StringComparison.OrdinalIgnoreCase))
+                                    throw new InvalidDataException("Emitted evidence does not match the pinned content hash.");
                             }
                             finally
                             {
@@ -228,6 +271,7 @@ public partial class PackageBackgroundService : BackgroundService
                                     content.Dispose();
                             }
                         }
+                        else throw new IOException("Required package evidence bytes are unavailable.");
                     }
                 }
 
@@ -242,6 +286,7 @@ public partial class PackageBackgroundService : BackgroundService
 
                 await _notifier.SendArtifactGeneratedAsync(job.PackageId, "evidence", ct);
             }
+            else throw new InvalidOperationException("Canonical evidence manifest generation is unavailable.");
 
             // All artifacts written — save DB changes
             await db.SaveChangesAsync(ct);
@@ -253,17 +298,27 @@ public partial class PackageBackgroundService : BackgroundService
             currentArtifact = "validation";
             var totalViolations = 0;
             var allValid = true;
-            foreach (var model in new[] { "ssp", "poam", "assessment-results", "assessment-plan" })
+            foreach (var (model, emitted) in new[] { ("ssp", sspJson), ("poam", poamJson), ("assessment-results", arJson), ("assessment-plan", sapJson) })
             {
                 try
                 {
-                    var result = await schemaValidator.ValidateForSystemAsync(job.SystemId, model, ct);
+                    var result = await schemaValidator.ValidateAsync(emitted, model, ct);
+                    var generated = db.PackageArtifacts.Local.SingleOrDefault(x => x.AuthorizationPackageId == job.PackageId
+                        && x.FileName == $"oscal-{model}.json");
+                    if (generated != null)
+                    {
+                        generated.SchemaValid = result.IsValid;
+                        var bytes = System.Text.Encoding.UTF8.GetBytes(emitted);
+                        generated.FileSize = bytes.Length;
+                        generated.ContentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                    }
                     if (!result.IsValid)
                     {
                         allValid = false;
                         totalViolations += result.Violations.Count;
                     }
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Schema validation for {Model} failed during package generation", model);
@@ -272,6 +327,13 @@ public partial class PackageBackgroundService : BackgroundService
             }
 
             await _notifier.SendValidationCompleteAsync(job.PackageId, allValid, totalViolations, ct);
+            await db.SaveChangesAsync(ct);
+            if (!allValid) throw new InvalidDataException("The emitted package artifacts failed OSCAL schema validation.");
+            foreach (var artifact in db.PackageArtifacts.Local.Where(x => x.AuthorizationPackageId == job.PackageId && x.Format == "json"
+                && x.ArtifactType != PackageArtifactType.EvidenceManifest))
+                artifact.SchemaValid = true;
+            await readiness.RequirePackageSourceAsync(persistedPackage, ct);
+            await db.SaveChangesAsync(ct);
 
             // Close the archive to finalize the ZIP
         }
@@ -280,7 +342,8 @@ public partial class PackageBackgroundService : BackgroundService
             _logger.LogError(ex, "Package generation failed at artifact {Artifact} for {PackageId}", currentArtifact, job.PackageId);
 
             // Delete partial ZIP file
-            try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { /* best effort */ }
+            try { if (File.Exists(zipPath)) File.Delete(zipPath); }
+            catch (IOException cleanup) { _logger.LogError(cleanup, "Failed to remove partial package {PackageId}", job.PackageId); }
 
             await MarkFailedAsync(job.PackageId, currentArtifact, ex.Message,
                 $"Fix the {currentArtifact} artifact and retry package generation.");
@@ -318,8 +381,10 @@ public partial class PackageBackgroundService : BackgroundService
     private static async Task RecordArtifactAsync(AtoCopilotContext db, string packageId, PackageArtifactType type, string fileName, long size, CancellationToken ct)
     {
         var format = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "docx";
+        var tenantId = await db.AuthorizationPackages.Where(x => x.Id == packageId).Select(x => x.TenantId).SingleAsync(ct);
         db.PackageArtifacts.Add(new PackageArtifact
         {
+            TenantId = tenantId,
             AuthorizationPackageId = packageId,
             ArtifactType = type,
             Format = format,
@@ -353,6 +418,8 @@ public partial class PackageBackgroundService : BackgroundService
             if (package != null)
             {
                 package.Status = PackageStatus.Failed;
+                package.ValidationPassed = false;
+                package.ValidationErrorCount = Math.Max(1, package.ValidationErrorCount);
                 package.FailedArtifactType = failedArtifact;
                 package.FailureReason = reason;
                 package.CompletedAt = DateTimeOffset.UtcNow;
@@ -375,7 +442,24 @@ public partial class PackageBackgroundService : BackgroundService
 
         if (package != null)
         {
+            var run = await scope.ServiceProvider.GetRequiredService<PackageReadinessService>().RequirePackageSourceAsync(package, ct);
+            using (var archive = ZipFile.OpenRead(filePath))
+            {
+                var metadata = archive.GetEntry("package-metadata.json") ?? throw new InvalidDataException("Readiness metadata is missing.");
+                using var document = await JsonDocument.ParseAsync(metadata.Open(), cancellationToken: ct);
+                var root = document.RootElement;
+                var readiness = root.GetProperty("readiness");
+                if (root.GetProperty("packageId").GetString() != package.Id || root.GetProperty("systemId").GetString() != package.RegisteredSystemId
+                    || root.GetProperty("purpose").GetString() != package.Purpose.ToString()
+                    || root.GetProperty("receivingWorkflowOutcome").GetString() != "NotRecorded"
+                    || readiness.GetProperty("schemaVersion").GetInt32() != 1 || readiness.GetProperty("runId").GetString() != run.Id
+                    || readiness.GetProperty("selectionHash").GetString() != run.SelectionHash
+                    || readiness.GetProperty("sourceHash").GetString() != run.SourceHash
+                    || readiness.GetProperty("ruleVersion").GetString() != run.RuleVersion)
+                    throw new InvalidDataException("Emitted package readiness metadata does not match its retained run.");
+            }
             package.Status = PackageStatus.Completed;
+            package.ValidationPassed = true;
             package.FilePath = filePath;
             package.FileSize = fileSize;
             package.ContentHash = hash;
@@ -384,4 +468,10 @@ public partial class PackageBackgroundService : BackgroundService
             await db.SaveChangesAsync(ct);
         }
     }
+
+    private static object ReadinessMetadata(PackageReadinessRun run) => new
+    {
+        schemaVersion = 1, runId = run.Id, selectionHash = run.SelectionHash, sourceHash = run.SourceHash,
+        ruleVersion = run.RuleVersion, evaluatedAt = run.EvaluatedAt
+    };
 }

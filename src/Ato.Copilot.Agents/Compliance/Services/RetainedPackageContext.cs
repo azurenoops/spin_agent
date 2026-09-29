@@ -122,6 +122,8 @@ internal static class RetainedPackageContext
             throw new InvalidOperationException("The SSP change preview contains unresolved source/approval gaps.");
         var manifest = JsonSerializer.Deserialize<DocumentSourceManifest>(preview.SourceManifestJson ?? "null")
             ?? throw new InvalidOperationException("The SSP change preview has no retained source/version manifest.");
+        if (manifest.HasWorkingProfileSources)
+            throw new InvalidOperationException("Working profile previews are review-only and cannot be accepted as approved change submissions.");
         await RequireReviewedSourcesAsync(db, systemId, tenantId, manifest, ct);
         var path = Path.Combine(services.GetRequiredService<IOptions<ExportSettings>>().Value.ExportsPath, preview.FilePath);
         await RequireFileHashAsync(path, selection.ChangeContentHash, ct);
@@ -164,6 +166,17 @@ internal static class RetainedPackageContext
             if (section == null || approval?.SnapshotJson == null || approval.SnapshotHash != pin.ContentHash
                 || ApprovedProfileDocumentData.Hash(approval.SnapshotJson) != pin.ContentHash)
                 throw new InvalidOperationException("A changed profile section lacks its exact retained approval.");
+            if (section.SectionType == ProfileSectionType.UsersAndAccess)
+            {
+                // The preview's retained source gaps fence unreviewed working rows.
+                // This pin proves immutable approved baselines, not mutable row-list membership.
+                using var users = JsonDocument.Parse(approval.SnapshotJson);
+                if (!users.RootElement.TryGetProperty("individualUserCategoryReview", out var individual) || !individual.GetBoolean() ||
+                    !users.RootElement.TryGetProperty("accessContextApproved", out var contextApproved) || !contextApproved.GetBoolean() ||
+                    !users.RootElement.TryGetProperty("userCategories", out var categories) ||
+                    categories.ValueKind != JsonValueKind.Array || categories.GetArrayLength() == 0)
+                    throw new InvalidOperationException("The retained UsersAndAccess source lacks independently approved access context and user-category baselines.");
+            }
             reviewedTypes.Add(section.SectionType);
         }
         if (Enum.GetValues<ProfileSectionType>().Where(t => t != ProfileSectionType.LeveragedAuthorizations)

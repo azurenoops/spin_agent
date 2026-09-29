@@ -48,6 +48,17 @@ public partial class AuthorizationPackageService
         RetainedPackageSelection selection, string generatedBy = "mcp-user", CancellationToken cancellationToken = default, string? idempotencyKey = null)
     {
         using var scope = _scopeFactory.CreateScope();
+        var readiness = scope.ServiceProvider.GetRequiredService<PackageReadinessService>();
+        var run = await readiness.ValidateAsync(systemId, new(purpose, selection), generatedBy, cancellationToken);
+        await readiness.RequireReadyAsync(systemId, new(purpose, selection), run.Id, run.SourceHash ?? "", generatedBy, cancellationToken);
+        return await EnqueueRetainedWithRunAsync(systemId, purpose, selection, generatedBy, cancellationToken, idempotencyKey, run);
+    }
+
+    private async Task<AuthorizationPackage> EnqueueRetainedWithRunAsync(string systemId, PackagePurpose purpose,
+        RetainedPackageSelection selection, string generatedBy, CancellationToken cancellationToken, string? idempotencyKey,
+        PackageReadinessRun run)
+    {
+        using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         string? requestKey = null;
         var intentHash = ApprovedProfileDocumentData.Hash(JsonSerializer.Serialize(new { purpose, selection }));
@@ -72,6 +83,7 @@ public partial class AuthorizationPackageService
         var json = RetainedPackageContext.Serialize(context);
         var package = new AuthorizationPackage
         {
+            ReadinessRunId = run.Id, ReadinessSourceHash = run.SourceHash,
             TenantId = context.TenantId, RegisteredSystemId = systemId, Purpose = purpose, Status = PackageStatus.Pending,
             EvidenceMode = EvidenceMode.ManifestOnly, GeneratedBy = generatedBy, ExpiresAt = DateTimeOffset.UtcNow.AddDays(90),
             RetainedContextJson = json, RetainedContextHash = ApprovedProfileDocumentData.Hash(json),
@@ -89,7 +101,8 @@ public partial class AuthorizationPackageService
             if (winner == null) throw;
             return ReplayRetainedPackage(winner, intentHash);
         }
-        await _channel.Writer.WriteAsync(new(package.Id, systemId, EvidenceMode.ManifestOnly, generatedBy, purpose), CancellationToken.None);
+        await _channel.Writer.WriteAsync(new(package.Id, systemId, EvidenceMode.ManifestOnly, generatedBy, purpose,
+            run.TenantId, db.WorkspacePersonId), CancellationToken.None);
         return package;
     }
 
