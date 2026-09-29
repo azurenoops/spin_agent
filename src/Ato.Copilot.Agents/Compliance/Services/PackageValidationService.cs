@@ -354,7 +354,7 @@ public class PackageValidationService : IPackageValidationService
                 "No active provider subscriptions require responsibility review.", "Review provider applicability.", "Issm"));
         else
         {
-            var responsibilities = await scope.ServiceProvider.GetRequiredService<ICapabilityResponsibilityService>().PreviewAsync(systemId, cancellationToken);
+            var responsibilities = await PackageReadinessSources.PreviewResponsibilitiesAsync(db, scope.ServiceProvider, systemId, cancellationToken);
             var pending = responsibilities.Items.Count(x => x.State != "Ready" && x.State is not ("Inactive" or "OutsideBaseline"));
             var outcome = responsibilities.BaselineId == null ? "Unavailable" : responsibilities.Items.Count == 0 ? "NotApplicable"
                 : pending == 0 && responsibilities.PendingImpacts.Count == 0 ? "Passed" : "FollowUp";
