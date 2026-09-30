@@ -42,6 +42,65 @@ Path prefixes below are repository-relative:
 
 ## September 29: approved package-readiness experience
 
+### Governed System design delivery
+
+- [x] A-D001 — Project explicit recorded architecture relationships server-side
+  with stable IDs/source provenance and semantic validation, without guessed flows.
+- [x] A-D002 — Add rules-first working rebuild, preserve reviewed/manual baselines,
+  and classify source-only records outside the default architecture canvas.
+- [x] A-D003 — Apply classification to all interactive/static views, explain
+  generated relationships/remaining gaps, and verify actual SSP/OSCAL outputs.
+- [x] A-D004 — Run regression/type/browser tests; deploy locally and document
+  supported automatic rules and intentionally unresolved inputs.
+  Build/tsc81backendunit39integration64frontend14browser cases perport passed.
+  Actual canonical SSP/OSCAL/schema/package acceptance passed;13artifacthashes
+  inspected. Live demo read showed5architectureelements3source-onlyrecords and
+  4recordedrelationships rendered,9honest gaps,no domainwrites. Matched release
+  automatic-design-20260930 deployed healthy, shared data services retained.
+
+- [x] U004 — Simplify selected-element summary with progressive disclosure and a
+  wider full-detail drawer; style review actions and contribution cards
+  consistently; verify desktop/mobile, keyboard, metadata access and deploy.
+  Tsc42focusedtests12browsercases perport pass; Dashboard-only
+  system-design-inspector-20260930 deployed healthy. Fullmetadata retained, no
+  canonicalrecord or APIchanges.
+
+- [x] U001 — Enable canvas-handle and keyboard connections; expose rename,
+  removal with dependency confirmation and proposed-element palette near canvas.
+- [x] U002 — Restore shared tab styles and render clearly unapproved working SSP
+  diagrams without changing approved-only export authority.
+- [x] U003 — Verify pointer/keyboard CRUD, read-only gating, source/baseline
+  preservation and draft images; redeploy matching local UI/API.
+  Final build/tsc green;40backendunit38integration57focusedUI and10browser cases
+  per local port passed. Real demo workingSSP returned200 with4loaded draftSVGs,
+  canGeneratefalse; no source records mutated. Release system-design-editing-20260930.
+
+- [x] D001 — Inspect mock, six-tab navigation, source records/permissions and all
+  SSP paths; record authority/disposition and approved issue-write preview.
+  Exact feature/four-story preview is local; approval was unavailable, so GitHub
+  creation and sub-issue linkage are NOT marked complete.
+- [x] D002 — Add graph/governance/proposal/layout contracts, additive persistence,
+  scoped service/endpoints and failing authorization/concurrency/history tests.
+- [x] D003 — Project six canonical source areas, source gaps and precedence;
+  reconcile retained Azure/monitoring changes as auditable proposals.
+- [x] D004 — Implement seventh tab, four graph views, structured editor,
+  accessible inspection, layout persistence, compare and review workflows.
+- [x] D005 — Implement approved graph narrative/diagram/OSCAL projection across
+  real SSP outputs and verify draft exclusion and immutable historical outputs.
+- [x] D006 — Run scoped and integration tests, typecheck/lint, large-graph/
+  keyboard/mobile browser tests, required builds and local manual walkthrough.
+  Full unit7,874pass; final integration1,756pass20existing skips. TypeScript and
+  eight design browser cases pass; schema-valid actual SSP/OSCAL/DOCX/PDF and ZIP
+  retained/inspected. Lint command cannot run because this package lacks eslint;
+  full Dashboard retains eleven unrelated provider failures, explicitly recorded.
+- [x] D007 — Deploy locally with data retained; report actual outputs and
+  unresolved Azure/eMASS inputs without claiming approval or submission.
+  Matching API/Dashboard system-design-20260930 deployed healthy. Eight deployed
+  browser cases passed; actual authorized demo graph returned200 withNotStarted,
+  real source gaps and no generated approvals. SQL/Redis/Chat retained.
+  GitHub feature/story linkage remains approval-gated; external acceptance
+  limitations are documented in docs/guides/system-design.md.
+
 ### September 30 workspace-header cleanup
 
 - [x] H001 — Move verified context and authorized admin links into AccountMenu;

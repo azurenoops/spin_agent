@@ -3462,6 +3462,7 @@ public class AtoCopilotContext : DbContext
         modelBuilder.Entity<CspPackageAudit>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         Ato.Copilot.Core.Data.Configurations.ProviderAuthorizationModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.SystemEnvironmentConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.SystemDesignConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.ProviderMonitoringModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.ScopedMonitoringModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.ProviderEvidenceSharingConfiguration.Configure(modelBuilder);

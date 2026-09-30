@@ -698,6 +698,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapProviderHostingEndpoints();
     app.MapProviderEnvironmentAllocationEndpoints();
     app.MapSystemEnvironmentEndpoints();
+    app.MapSystemDesignEndpoints();
     app.MapProviderMissionEndpoints();
     app.MapProviderFindingEndpoints();
     app.MapProviderEvidenceSharingEndpoints();
@@ -1401,6 +1402,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.AuthorizationOverridesSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.SystemDecisionDraftSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.SystemDesignSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.AssessmentPlanWorkspaceSchemaAdditions
         .ApplyAsync(db, logger, ct);

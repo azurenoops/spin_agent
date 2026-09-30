@@ -724,6 +724,7 @@ public partial class AuthorizationService : IAuthorizationService
                 "An Authorizing Official must issue a current decision before the authorization package can be exported.");
 
         var docFormat = format ?? "markdown";
+        var design = await SystemDesignDocumentData.LoadAsync(scope.ServiceProvider, systemId, cancellationToken);
         var package = new AuthorizationPackageBundle
         {
             SystemId = systemId,
@@ -737,14 +738,20 @@ public partial class AuthorizationService : IAuthorizationService
             .Where(d => d.SystemName == system.Name && d.DocumentType == "SSP")
             .OrderByDescending(d => d.GeneratedAt)
             .FirstOrDefaultAsync(cancellationToken);
+        var sspContent = ssp?.Content;
+        if (design != null)
+        {
+            var sspService = scope.ServiceProvider.GetRequiredService<ISspService>();
+            sspContent = (await sspService.GenerateSspAsync(systemId, "markdown", cancellationToken: cancellationToken)).Content;
+        }
 
         package.Documents.Add(new PackageDocument
         {
             Name = "System Security Plan",
-            FileName = $"ssp.{(docFormat == "markdown" ? "md" : docFormat)}",
+            FileName = design != null ? "ssp.md" : $"ssp.{(docFormat == "markdown" ? "md" : docFormat)}",
             DocumentType = "SSP",
-            Content = ssp?.Content ?? "# System Security Plan\n\n*Not yet generated. Run compliance_generate_ssp to create.*",
-            Status = ssp != null ? "generated" : "not_available"
+            Content = sspContent ?? "# System Security Plan\n\n*Not yet generated. Run compliance_generate_ssp to create.*",
+            Status = sspContent != null ? "generated" : "not_available"
         });
 
         // 2. SAR — from documents table

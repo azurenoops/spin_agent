@@ -47,6 +47,20 @@ function readDocument(preview: SspPreview | AdditionalDocumentPreview, documentT
       status: typeof payload.governanceStatus === 'string' ? payload.governanceStatus : null,
       reviewScope: typeof payload.reviewScope === 'string' ? payload.reviewScope : null }];
   });
+  const backMatter = isRecord(body['back-matter']) ? body['back-matter'] : {};
+  const diagrams = (Array.isArray(backMatter.resources) ? backMatter.resources : []).flatMap((resource: unknown) => {
+    if (!isRecord(resource) || !isRecord(resource.base64) || resource.base64['media-type'] !== 'image/svg+xml') return [];
+    const encoded = resource.base64.value;
+    if (typeof encoded !== 'string' || !encoded || !/^[A-Za-z0-9+/=\s]+$/.test(encoded)) {
+      throw new Error('A generated diagram has invalid embedded image content. Inspect the source and regenerate the document.');
+    }
+    return [{
+      id: typeof resource.uuid === 'string' ? resource.uuid : String(resource.title),
+      title: typeof resource.title === 'string' ? resource.title : 'Generated diagram',
+      description: typeof resource.description === 'string' ? resource.description : null,
+      source: `data:image/svg+xml;base64,${encoded.replace(/\s/g, '')}`,
+    }];
+  });
   return {
     available: true as const,
     preview,
@@ -54,12 +68,23 @@ function readDocument(preview: SspPreview | AdditionalDocumentPreview, documentT
     metadata,
     envelope: isRecord(document) ? Object.fromEntries(Object.entries(document).filter(([key]) => key !== definition.model)) : {},
     profiles,
+    diagrams,
     title: typeof metadata.title === 'string' ? metadata.title : typeof body.title === 'string' ? body.title : definition.title,
     systemName: 'systemName' in preview ? preview.systemName
       : typeof characteristics['system-name'] === 'string' ? characteristics['system-name'] : 'Not recorded',
     documentStatus: 'documentStatus' in preview ? preview.documentStatus : null,
     sourceRecords: 'sourceRecords' in preview ? preview.sourceRecords : undefined,
   };
+}
+
+function GeneratedDiagram({ diagram }: { diagram: ReturnType<typeof readDocument>['diagrams'][number] }) {
+  const [failed, setFailed] = useState(false);
+  return <figure className="space-y-2 rounded border border-slate-200 p-3">
+    <figcaption className="font-semibold">{diagram.title}</figcaption>
+    {failed ? <p role="alert" className="text-sm text-red-700">This diagram could not be rendered. Its structured source remains available below; regenerate the document to verify the artifact.</p>
+      : <img src={diagram.source} alt={diagram.title} onError={() => setFailed(true)} className="h-auto w-full object-contain" />}
+    {diagram.description && <p className="text-xs text-slate-500">{diagram.description}</p>}
+  </figure>;
 }
 
 function readProfileContent(value: unknown, allowLegacyText = false): Record<string, unknown> {
@@ -170,19 +195,22 @@ export default function SystemDocumentPreview() {
   </nav>;
   const definition = documentType ? documentTypes[documentType] : null;
   const knownContribution = knownProfileContribution(contribution);
+  const approvedSources = documentType === 'ssp' && new URLSearchParams(location.search).get('source') === 'approved';
   return <div className="ssp-preview-root space-y-5">
     <WorkspacePageHeader title="Preview the generated documents"
       description={definition ? `Inspect the ${definition.title} and its source diagnostics without changing assessment or authorization records.` : 'Select SSP, SAP, SAR or POA&M.'}
-      actions={definition && <Link to={`/systems/${encodeURIComponent(id)}/${knownContribution ? `profile/${knownContribution}` : definition.sourcePath}`}
+      actions={definition && <Link to={`/systems/${encodeURIComponent(id)}/${contribution === 'SystemDesign' ? 'profile/SystemDesign' : knownContribution ? `profile/${knownContribution}` : definition.sourcePath}`}
         className="self-start rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white">{definition.sourceLabel}</Link>} />
     {navigation}
     {documentType
-      ? <PreviewContent key={`${id}:${documentType}:${contribution ?? ''}`} systemId={id} documentType={documentType} contribution={contribution} />
+      ? <PreviewContent key={`${id}:${documentType}:${contribution ?? ''}:${approvedSources}`} systemId={id} documentType={documentType} contribution={contribution} approvedSources={approvedSources} />
       : <p role="alert">Unsupported document type. Choose a document above.</p>}
   </div>;
 }
 
-function PreviewContent({ systemId, documentType, contribution }: { systemId: string; documentType: DocumentType; contribution: string | null }) {
+function PreviewContent({ systemId, documentType, contribution, approvedSources }: {
+  systemId: string; documentType: DocumentType; contribution: string | null; approvedSources: boolean;
+}) {
   const definition = documentTypes[documentType];
   const [view, setView] = useState<'document' | 'source'>('document');
   const [retained, setRetained] = useState<ReturnType<typeof readDocument> | null>(null);
@@ -195,10 +223,11 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
   const data = useRemote(async signal => {
-    if (documentType === 'ssp') return readDocument(await getSspPreview(systemId, signal));
+    if (documentType === 'ssp') return readDocument(await (approvedSources
+      ? getSspPreview(systemId, signal, 'approved') : getSspPreview(systemId, signal)));
     const preview = await getAdditionalDocumentPreview(systemId, documentType, signal);
     return preview.available ? readDocument(preview, documentType) : preview;
-  }, [systemId, documentType, contribution]);
+  }, [systemId, documentType, contribution, approvedSources]);
   const current = retained ?? (!data.loading && !data.error && data.data?.available === true ? data.data : null);
   const unavailable = !data.loading && !data.error && data.data?.available === false ? data.data : null;
   const base = `/systems/${encodeURIComponent(systemId)}`;
@@ -229,7 +258,9 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
     setRetainError(null);
     setConfirmed(false);
     try {
-      const result = readDocument(await retainSspPreview(systemId, requestKey.current, controller.signal));
+      const result = readDocument(await (approvedSources
+        ? retainSspPreview(systemId, requestKey.current, controller.signal, 'approved')
+        : retainSspPreview(systemId, requestKey.current, controller.signal)));
       if (!controller.signal.aborted) setRetained(result);
     } catch (error) {
       if (!controller.signal.aborted) setRetainError(error instanceof Error ? error.message : 'Unable to retain the preview.');
@@ -240,7 +271,9 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
   return <div role="tabpanel" id={`document-panel-${documentType}`} aria-labelledby={`document-tab-${documentType}`} className="space-y-5">
     <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
       {documentType === 'ssp'
-        ? 'Current working data preview — not an approved baseline, immutable package, or submission-readiness decision. Save edits before previewing.'
+        ? approvedSources
+          ? 'Approved-source preview — generated from retained approved records. This is not a signed submission package, package-readiness decision or authorization.'
+          : 'Current working data preview — not an approved baseline, immutable package, or submission-readiness decision. Save edits before previewing.'
         : 'Read-only preview of current saved records. Viewing this document does not create, finalize or approve an assessment or submission.'}
       {' '}Validate the selected package purpose before final generation.
     </p>
@@ -289,11 +322,16 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
               <h2>{current.title}</h2>
               <p className="ssp-cover-system">{current.systemName}</p>
               <p className="text-sm">Version: {typeof current.metadata.version === 'string' ? current.metadata.version : 'Not recorded'}</p>
-              <p className="ssp-draft-notice">{documentType === 'ssp' ? 'WORKING DRAFT' : 'READ-ONLY PREVIEW'}<br />This preview is not a signed or approved submission package and does not establish authorization.</p>
+              <p className="ssp-draft-notice">{documentType === 'ssp' ? approvedSources ? 'APPROVED SOURCE PREVIEW' : 'WORKING DRAFT' : 'READ-ONLY PREVIEW'}<br />This preview is not a signed or approved submission package and does not establish authorization.</p>
               <p className="text-xs">{documentType === 'ssp' ? 'Layout reference: supplied legacy FedRAMP SSP' : 'Formal document presentation'} · SPIN generated content<br />
                 {documentType === 'ssp' ? 'Not an official FedRAMP template or approval.' : 'Not a signed assessment or authorization decision.'}</p>
             </section>
             {documentType === 'ssp' && <SspTemplateFrontMatter />}
+            {current.diagrams.length > 0 && <section aria-label="Generated diagram artifacts" className="ssp-front-matter space-y-4">
+              <h3>Generated diagram artifacts</h3>
+              <p className="text-xs">Images embedded in this generated document. Source versions, review state and structured records determine their meaning; an image alone is not approval.</p>
+              {current.diagrams.map(diagram => <GeneratedDiagram key={`${current.preview.contentHash}:${diagram.id}`} diagram={diagram} />)}
+            </section>}
             <section className="ssp-front-matter" aria-label="Document control">
               <h3 className="mb-4">Document control</h3>
               <table aria-label="Document control" className="ssp-control-table"><tbody>
@@ -304,7 +342,7 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
                   ['Document version', typeof current.metadata.version === 'string' ? current.metadata.version : 'Not recorded'],
                   ...(current.documentStatus ? [['Recorded document state', current.documentStatus]] : []),
                   ['Generated (UTC)', current.preview.generatedAt],
-                  ['Source state', 'Saved working data — review-only preview'],
+                  ['Source state', approvedSources ? 'Retained approved sources — generated preview' : 'Saved working data — review-only preview'],
                 ].map(([label, value]) => <tr key={label}><th scope="row">{label}</th><td>{value}</td></tr>)}
               </tbody></table>
               <h4 className="mb-2 mt-6 font-semibold">Recorded revision history</h4>

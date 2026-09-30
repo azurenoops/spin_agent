@@ -60,6 +60,27 @@ public class PackageValidationService : IPackageValidationService
         var system = await db.RegisteredSystems.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == systemId, cancellationToken)
             ?? throw new InvalidOperationException("System not found in the current workspace.");
+        var designSections = new HashSet<int>();
+        var hasDesign = await db.Set<SystemDesignWorkspace>().AnyAsync(x => x.SystemId == systemId, cancellationToken);
+        if (hasDesign)
+        {
+            try
+            {
+                var design = await SystemDesignDocumentData.LoadAsync(scope.ServiceProvider, systemId, cancellationToken)
+                    ?? throw new InvalidOperationException("DESIGN_APPROVAL_UNVERIFIED: Approved design cannot be resolved.");
+                designSections.UnionWith(design.Sections.Keys);
+                checks.Add(Check("system-design", "Approved System design", "Passed", true,
+                    $"Retained design version {design.Source.VersionId} and stable artifacts are verified.",
+                    "Review System design source contributions.", "Issm", "ssp"));
+            }
+            catch (InvalidOperationException ex)
+            {
+                checks.Add(Check("system-design", "Approved System design", "Blocking", true, ex.Message,
+                    "Reconcile and review System design before package generation.", "Issm", "ssp"));
+                findings.Add(Error("system-design", "ssp", ex.Message,
+                    "Open System definition → System design and resolve the source/approval gap."));
+            }
+        }
         var providerGaps = new List<string>();
         await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
         checks.Add(Check("provider-authorization", "Provider authorization provenance",
@@ -119,7 +140,7 @@ public class PackageValidationService : IPackageValidationService
 
         if (purpose == PackagePurpose.InitialSubmission)
         {
-            foreach (var number in Enumerable.Range(1, 13).Except(sspSections.Select(s => s.SectionNumber)))
+            foreach (var number in Enumerable.Range(1, 13).Except(sspSections.Select(s => s.SectionNumber)).Except(designSections))
             {
                 checks.Add(Check($"ssp-section-{number}", $"SSP section {number}", "Blocking", true,
                     "Required initial-submission SSP section is missing.", "Author and review the SSP section.", "Issm", "ssp"));
@@ -132,7 +153,7 @@ public class PackageValidationService : IPackageValidationService
             "Open SSP narratives and section authoring.", "Isso"));
         foreach (var section in sspSections)
             checks.Add(Check($"ssp-section-{section.SectionNumber}", $"SSP section {section.SectionNumber}: {section.SectionTitle}",
-                section.Status == SspSectionStatus.Approved ? "Passed" : "Blocking", true,
+                section.Status == SspSectionStatus.Approved || designSections.Contains(section.SectionNumber) ? "Passed" : "Blocking", true,
                 $"Recorded section status: {section.Status}. Required status: Approved.", "Complete the section's author/reviewer workflow.", "Issm", "ssp"));
 
         if (sspSections.Count == 0)
@@ -143,7 +164,7 @@ public class PackageValidationService : IPackageValidationService
         }
         else
         {
-            var notApproved = sspSections.Where(s => s.Status != SspSectionStatus.Approved).ToList();
+            var notApproved = sspSections.Where(s => s.Status != SspSectionStatus.Approved && !designSections.Contains(s.SectionNumber)).ToList();
             foreach (var section in notApproved)
             {
                 findings.Add(Error("ssp", "ssp",

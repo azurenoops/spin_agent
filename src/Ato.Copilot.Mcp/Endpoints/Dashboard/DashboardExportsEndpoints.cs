@@ -29,6 +29,17 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Exports domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
+    private static async Task<bool> PreviewGenerationAllowedAsync(AtoCopilotContext db, HttpContext http,
+        string systemId, CancellationToken ct)
+    {
+        if (db.WorkspacePersonId is not Guid person) return false;
+        var system = await db.RegisteredSystems.AsNoTracking().SingleOrDefaultAsync(s => s.Id == systemId, ct);
+        if (system == null) return false;
+        var access = await http.RequestServices.GetRequiredService<ISystemWorkspaceAccessService>()
+            .GetAccessAsync(system.TenantId, person, systemId, false, ct);
+        return access.Permissions.CanRead;
+    }
+
     private static async ValueTask<object?> GuardDocumentEvidenceAccessAsync(
         EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
     {
@@ -82,7 +93,11 @@ public static partial class DashboardEndpoints
                 http.Response.Headers.CacheControl = "no-store";
                 try
                 {
-                    return Results.Ok(await service.CreatePreviewAsync(systemId, currentUser.CurrentUserId, ct, SnapshotIdempotencyKey(http)));
+                    var source = http.Request.Query["source"].ToString();
+                    if (source is not ("" or "working" or "approved"))
+                        throw new ArgumentException("Preview source must be working or approved.");
+                    var preview = await service.CreatePreviewAsync(systemId, currentUser.CurrentUserId, ct, SnapshotIdempotencyKey(http), source == "approved");
+                    return Results.Ok(preview with { GenerationAuthorized = await PreviewGenerationAllowedAsync(db, http, systemId, ct) });
                 }
                 catch (DbUpdateConcurrencyException ex)
                 {
@@ -117,13 +132,23 @@ public static partial class DashboardEndpoints
             {
                 if (!await db.RegisteredSystems.AnyAsync(system => system.Id == systemId && system.IsActive, ct))
                     return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "NOT_FOUND" });
-                var result = await exportService.PreviewAsync(systemId, true, true, ct);
+                var source = http.Request.Query["source"].ToString();
+                if (source is not ("" or "working" or "approved"))
+                    return Results.BadRequest(new ErrorResponse { Error = "Preview source must be working or approved.", ErrorCode = "INVALID_PREVIEW_SOURCE" });
+                var result = source == "approved"
+                    ? await exportService.PreviewApprovedAsync(systemId, true, true, ct)
+                    : await exportService.PreviewAsync(systemId, true, true, ct);
                 var gaps = result.BuildPreviewSourceGaps();
                 http.Response.Headers.CacheControl = "no-store";
                 return Results.Ok(new DocumentPreviewDto(
                     systemId, "json", "application/json", result.OscalJson,
                     Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(result.OscalJson))),
-                    DateTimeOffset.UtcNow, gaps) { SourceManifest = result.SourceManifest });
+                    DateTimeOffset.UtcNow, gaps)
+                {
+                    SourceManifest = result.SourceManifest,
+                    SourceState = source == "approved" ? "ApprovedSources" : "CurrentWorkingData",
+                    GenerationAuthorized = await PreviewGenerationAllowedAsync(db, http, systemId, ct)
+                });
             })
             .WithName("PreviewSspDocument")
             .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);

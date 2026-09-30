@@ -49,6 +49,25 @@ public class SystemProfileServiceTests : IDisposable
 
     public void Dispose() => _serviceProvider.Dispose();
 
+    [Fact]
+    public async Task Completeness_IncludesIndependentDesignStatus_WithoutChangingProfileDenominator()
+    {
+        // Arrange
+        var system = await SeedSystemAsync();
+        _db.Set<SystemDesignWorkspace>().Add(new() { TenantId = system.TenantId, SystemId = system.Id, Revision = 2, ApprovedRevision = 1 });
+        _db.Set<SystemDesignRevision>().Add(new() { TenantId = system.TenantId, SystemId = system.Id, Revision = 2,
+            GovernanceStatus = "NeedsRevision", Actor = MoUserId, Action = "request_revision" });
+        await _db.SaveChangesAsync();
+        // Act
+        var result = await _service.GetCompletenessAsync(system.Id);
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(result, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        // Assert
+        result.TotalSections.Should().Be(5);
+        json.GetProperty("designStatus").GetString().Should().Be("NeedsRevision");
+        json.GetProperty("designRevision").GetInt64().Should().Be(2);
+        json.GetProperty("approvedDesignRevision").GetInt64().Should().Be(1);
+    }
+
     // ─── Seed Helpers ────────────────────────────────────────────────────────
 
     private async Task<RegisteredSystem> SeedSystemAsync(string? name = null)

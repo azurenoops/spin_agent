@@ -78,6 +78,7 @@ nav:
   - Guides:
     - End-to-End Demo: guides/end-to-end-demo.md
     - Compliance Dashboard: guides/compliance-dashboard.md
+    - System Design: guides/system-design.md
     - System Security Capabilities: guides/system-security-capabilities.md
     - Compliance Watch: guides/compliance-watch.md
     - Remediation Kanban: guides/remediation-kanban.md

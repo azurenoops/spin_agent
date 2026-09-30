@@ -58,6 +58,8 @@ internal static class PackageReadinessSources
         await Add(db.NarrativeVersions.Where(x => implementations.Contains(x.ControlImplementationId)), "ssp", sources, db, ct);
         await Add(db.ControlValidationLinks.Where(x => implementations.Contains(x.ControlImplementationId)), "evidence", sources, db, ct);
         await Add(db.SspSections.Where(x => x.RegisteredSystemId == system.Id), "ssp", sources, db, ct);
+        await Add(db.Set<Ato.Copilot.Core.Models.Compliance.SystemDesignWorkspace>().Where(x => x.SystemId == system.Id), "system-design", sources, db, ct);
+        await Add(db.Set<Ato.Copilot.Core.Models.Compliance.SystemDesignRevision>().Where(x => x.SystemId == system.Id), "system-design", sources, db, ct);
         await Add(db.SecurityAssessmentPlans.Where(x => x.RegisteredSystemId == system.Id), "sap", sources, db, ct);
         var plans = db.SecurityAssessmentPlans.Where(x => x.RegisteredSystemId == system.Id).Select(x => x.Id);
         await Add(db.SapControlEntries.Where(x => plans.Contains(x.SecurityAssessmentPlanId)), "sap", sources, db, ct);

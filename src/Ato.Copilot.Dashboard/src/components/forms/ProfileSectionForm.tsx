@@ -1,5 +1,6 @@
 import { Fragment, useState, useEffect, useCallback, useRef, useId, type ReactNode } from 'react';
 import ConnectedSystemEnvironments from '../../features/systems/ConnectedSystemEnvironments';
+import UnsavedDesignGuard from '../../features/system-design/UnsavedDesignGuard';
 import SetupDialog from '../../features/workspace-operations/SetupDialog';
 import type {
   ProfileSectionType,
@@ -475,6 +476,8 @@ export default function ProfileSectionForm({
         Prepare for ATO review: complete the applicable deployment, network/location and recovery/operating details below.
         Expanded sections show which fields are still unrecorded.
       </p>}
+      <UnsavedDesignGuard dirty={dirty && !isReadOnly} title="Unsaved System definition changes"
+        description="Leaving this section will discard unsaved form changes. Keep editing to save first; recorded source reviews and approved baselines are unchanged." />
       {/* Optional section label */}
       {isOptionalSection && (
         <div className="text-xs text-gray-400 italic">

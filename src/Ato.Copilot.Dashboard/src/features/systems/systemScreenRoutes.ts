@@ -22,6 +22,7 @@ export const SYSTEM_SCREEN_GROUPS: SystemScreenGroup[] = [
     { path: 'profile/DataTypes', label: 'Data' },
     { path: 'boundaries', label: 'Inventory & boundary' },
     { path: 'profile/PortsProtocolsAndServices', label: 'Ports & interconnections' },
+    { path: 'profile/SystemDesign', label: 'System design' },
   ] },
   { label: 'Controls & evidence', items: [
     { path: 'baseline', label: 'Categorization & baseline' },

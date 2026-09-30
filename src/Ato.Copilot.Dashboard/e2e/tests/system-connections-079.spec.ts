@@ -85,7 +85,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('table')).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Add connection', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save Draft', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('navigation', { name: 'System task views' }).getByRole('link')).toHaveCount(6);
+    await expect(page.getByRole('navigation', { name: 'System task views' }).getByRole('link')).toHaveCount(7);
     // Assert: compare visible table/title metrics with the actual reference.
     const reference = await page.context().browser()!.newPage({ viewport: { width, height: 1100 } });
     try {

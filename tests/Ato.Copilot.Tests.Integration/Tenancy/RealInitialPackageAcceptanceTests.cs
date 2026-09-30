@@ -31,7 +31,7 @@ using ClosedXML.Excel;
 namespace Ato.Copilot.Tests.Integration.Tenancy;
 
 [Collection("Tenancy")]
-public sealed class RealInitialPackageAcceptanceTests(ITestOutputHelper output)
+public sealed partial class RealInitialPackageAcceptanceTests(ITestOutputHelper output)
 {
     private const string OriginalMarker = "SYNTHETIC-REFERENCE-MISSION-REVISION-ONE";
     private const string RevisedMarker = "SYNTHETIC-REFERENCE-MISSION-REVISION-TWO";
@@ -221,7 +221,8 @@ public sealed class RealInitialPackageAcceptanceTests(ITestOutputHelper output)
             var artifactRoot = Environment.GetEnvironmentVariable("ATO_REAL_PACKAGE_ARTIFACT_DIR");
             _retain = !string.IsNullOrWhiteSpace(artifactRoot);
             _directory = _retain ? Directory.CreateDirectory(Path.Combine(Path.GetFullPath(artifactRoot!), Guid.NewGuid().ToString("N"))).FullName
-                : Directory.CreateTempSubdirectory("real-initial-package-").FullName;
+                : Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(),
+                    ".test-artifacts", $"real-initial-package-{Guid.NewGuid():N}")).FullName;
             _owner.ResetLegacyTenantContext(MultiTenantWebApplicationFactory<McpProgram>.TenantAId);
             _app = _owner.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
             {
@@ -361,13 +362,13 @@ public sealed class RealInitialPackageAcceptanceTests(ITestOutputHelper output)
             await using (As(Author))
             {
                 await profile.SaveDraftWithChildrenAsync(SystemId, ProfileSectionType.UsersAndAccess,
-                    """{"access":"Synthetic test operators only"}""",
+                    """{"accessOverview":"Synthetic test operators only"}""",
                     [JsonSerializer.SerializeToElement(new { categoryName = "Synthetic operators", approximateCount = 3, accessMethod = "Local test console", dataSensitivityLevel = "Public" })], Author.ToString());
                 await profile.SaveDraftAsync(SystemId, ProfileSectionType.EnvironmentAndDeployment,
-                    """{"hostingModel":"Isolated laboratory","networkZones":"Local only","disasterRecovery":"Rebuild synthetic fixtures"}""", Author.ToString());
-                await profile.SaveDraftWithChildrenAsync(SystemId, ProfileSectionType.DataTypes, """{"description":"Synthetic public records only"}""",
+                    """{"hostingModel":"Isolated laboratory","networkZones":"Local only","disasterRecoveryPosture":"Rebuild synthetic fixtures"}""", Author.ToString());
+                await profile.SaveDraftWithChildrenAsync(SystemId, ProfileSectionType.DataTypes, """{"dataOverview":"Synthetic public records only"}""",
                     [JsonSerializer.SerializeToElement(new { dataTypeName = "Synthetic public training", sensitivityClassification = "Public", source = "Test fixture", destination = "Test archive" })], Author.ToString());
-                await profile.SaveDraftWithChildrenAsync(SystemId, ProfileSectionType.PortsProtocolsAndServices, """{"description":"No external connections"}""",
+                await profile.SaveDraftWithChildrenAsync(SystemId, ProfileSectionType.PortsProtocolsAndServices, """{"ppsOverview":"No external connections"}""",
                     [JsonSerializer.SerializeToElement(new { portOrRange = "8080", protocol = "TCP", serviceName = "Synthetic local test", direction = "Inbound", justification = "Loopback-only acceptance fixture" })], Author.ToString());
                 await profile.SubmitForReviewAsync(SystemId, null, Author.ToString());
             }
@@ -433,6 +434,22 @@ public sealed class RealInitialPackageAcceptanceTests(ITestOutputHelper output)
                 receivingSystemAcceptance = "Not performed; external eMASS gate remains open"
             }, new JsonSerializerOptions { WriteIndented = true }));
             _output.WriteLine($"Synthetic acceptance report: {report}");
+        }
+
+        public async Task WriteDesignArtifactsAsync(IReadOnlyDictionary<string, byte[]> artifacts, object report)
+        {
+            var directory = Directory.CreateDirectory(Path.Combine(_directory, "system-design-acceptance")).FullName;
+            foreach (var (name, content) in artifacts)
+                await File.WriteAllBytesAsync(Path.Combine(directory, name), content);
+            await File.WriteAllTextAsync(Path.Combine(directory, "verification.json"), JsonSerializer.Serialize(new
+            {
+                capturedAt = DateTimeOffset.UtcNow, systemId = SystemId, synthetic = true,
+                actualSupportedSourceAndDesignApproval = true, realExporters = true, realSchemas = true,
+                artifacts = artifacts.Select(a => new { file = a.Key, bytes = a.Value.Length, sha256 = Hash(a.Value) }),
+                verification = report,
+                receivingSystemAcceptance = "Not performed; external eMASS gate remains open"
+            }, new JsonSerializerOptions { WriteIndented = true }));
+            _output.WriteLine($"System Design acceptance artifacts: {directory}");
         }
 
         public void Dispose()

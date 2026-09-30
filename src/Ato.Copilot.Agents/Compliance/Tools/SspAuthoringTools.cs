@@ -932,6 +932,8 @@ public class ExportOscalSspTool : BaseTool
 
             var result = await _exportService.ExportAsync(
                 systemId, includeBackMatter, prettyPrint, cancellationToken);
+            if (result.DesignSourceGaps.Count > 0)
+                throw new InvalidOperationException(string.Join("; ", result.DesignSourceGaps));
 
             var validation = await _schemaValidator.ValidateAsync(
                 result.OscalJson, "ssp", cancellationToken);
