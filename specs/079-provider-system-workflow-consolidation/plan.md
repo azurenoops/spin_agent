@@ -6,6 +6,18 @@
 
 ## Summary
 
+### Workspace header consolidation
+
+Retire `WorkspaceHeader` from `ApplicationFrame` after moving its information and
+authorized links into `AccountMenu`. `PageLayout` owns the switch-dialog state
+and narrative-library icon next to Chat. Extract reusable authorized-choice
+rendering from `WorkspacePicker` so first-login routing remains compatible while
+switching uses a modal. Reuse `SetupDialog` focus trapping and cancellation.
+Choice reads support AbortSignal and fail visibly; opening/cancelling performs
+no selection, impersonation or cookie mutation. A confirmed switch navigates
+only this tab to the selected authorized workspace root. Current-workspace
+selection simply stays on the current route. Preserve unrelated local proposals.
+
 ### Personal Settings consolidation
 
 Audit found `SettingsPanel` duplicates notification preference reads/writes with

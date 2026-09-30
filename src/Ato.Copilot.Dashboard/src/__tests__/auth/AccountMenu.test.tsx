@@ -88,6 +88,20 @@ afterEach(() => {
 // ─── Tests ──────────────────────────────────────────────────────────────
 
 describe('AccountMenu', () => {
+  it('opens workspace switching from the profile dropdown without signing out', () => {
+    // Arrange
+    const onSwitchWorkspace = vi.fn();
+    render(<AccountMenu onSwitchWorkspace={onSwitchWorkspace} />);
+    // Act
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Switch workspace' }));
+    // Assert
+    expect(onSwitchWorkspace).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Account menu' })).toHaveFocus();
+    expect(postMock).not.toHaveBeenCalled();
+    expect(purgeMock).not.toHaveBeenCalled();
+  });
   describe('rendering', () => {
     it('shows displayName, persona, and homeTenant.displayName once the menu is opened', () => {
       // Arrange

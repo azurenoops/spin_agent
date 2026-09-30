@@ -39,7 +39,7 @@ describe('authorized workspace picker', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     // Assert
     expect(await screen.findByRole('button', { name: /Organization B/ })).toBeInTheDocument();
-    expect(getWorkspaceOptions).toHaveBeenLastCalledWith(2);
+    expect(getWorkspaceOptions).toHaveBeenLastCalledWith(2, expect.any(AbortSignal));
   });
   it('fails closed for malformed choice pages', async () => {
     // Arrange

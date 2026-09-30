@@ -34,6 +34,7 @@ describe('mock-defined workspace shell', () => {
     expect(screen.getByRole('navigation', { name: 'Provider workspace' })).toBeInTheDocument();
     expect(screen.getByText('Verified Provider')).toBeInTheDocument();
     expect(screen.getByText('Retained offering content')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Provider Narrative Library' })).toHaveAttribute('href', '/narrative-library');
     expect(screen.queryByRole('link', { name: 'Authorizations' })).not.toBeInTheDocument();
   });
 

@@ -9,6 +9,22 @@
 
 ## Product outcome and scope
 
+### September 30: consolidated workspace header
+
+Remove the separate blue workspace bar. Keep verified workspace, selected system
+and effective-role information in the profile/account dropdown, with existing
+authorized administration links. Move Switch workspace into that dropdown.
+Switching opens an accessible dialog over the current route, lists server-authorized
+choices and requires an explicit selection/confirmation. Cancel, close and Escape
+leave URL, workspace and unsaved form state unchanged. Actual switching starts at
+the selected workspace root rather than carrying another organization's system ID.
+The initial sign-in/recovery workspace picker remains supported.
+
+Place an accessible Organization Narrative Library icon next to Chat in the main
+header; provider context uses Provider Narrative Library. Links preserve workspace
+and support context and do not change server authorization. Preserve sign-out,
+PIM notices and the separate audited-support banner.
+
 ### September 30: trustworthy personal Settings
 
 Replace the narrow drawer's internal tab/sidebar layout with a compact

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { NavLink, useLocation } from '../../features/workspaces/workspaceNavigation';
+import { Link, NavLink, useLocation } from '../../features/workspaces/workspaceNavigation';
+import { Library } from 'lucide-react';
+import WorkspaceSwitchDialog from '../../features/workspaces/WorkspaceSwitchDialog';
 import { useMsal } from '@azure/msal-react';
 import HelpPanel from '../help/HelpPanel';
 import ChatToggle from '../chat/ChatToggle';
@@ -75,6 +77,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
   const [sidePanelOpen, setSidePanelOpen] = useState(defaultSidePanelOpen);
   const [helpPanelOpen, setHelpPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [switchWorkspaceOpen, setSwitchWorkspaceOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { panelState, togglePanel } = useChatPanel();
   const { unreadCount } = useNotifications();
@@ -214,6 +217,12 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
               </svg>
             </button>
             <ChatToggle isOpen={panelState.isOpen} onClick={togglePanel} />
+            {workspace && <Link to="/narrative-library"
+              aria-label={`${workspace.target.kind === 'csp' ? 'Provider' : 'Organization'} Narrative Library`}
+              title={`${workspace.target.kind === 'csp' ? 'Provider' : 'Organization'} Narrative Library`}
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100">
+              <Library className="h-5 w-5" aria-hidden="true" />
+            </Link>}
             <button type="button" onClick={() => setSettingsOpen(!settingsOpen)} className={`rounded-lg p-2 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-100 ${settingsOpen ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-200' : 'text-gray-500 dark:text-gray-300'}`} aria-label="Settings" title="Settings" aria-expanded={settingsOpen}>
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
@@ -225,7 +234,7 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
                 legacy hardcoded "JS" avatar that previously sat above
                 this menu has been removed — real identity now flows
                 from /api/auth/me. */}
-            <AccountMenu oid={oid} displayName={displayName} />
+            <AccountMenu oid={oid} displayName={displayName} onSwitchWorkspace={workspace ? () => setSwitchWorkspaceOpen(true) : undefined} />
           </div>
         </header>
 
@@ -268,6 +277,8 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
 
       {/* Settings panel */}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      {switchWorkspaceOpen && workspace && <WorkspaceSwitchDialog currentWorkspace={workspace.target}
+        currentName={workspace.workspace.displayName} onClose={() => setSwitchWorkspaceOpen(false)} />}
     </div>
   );
 }

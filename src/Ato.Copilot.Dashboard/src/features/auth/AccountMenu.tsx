@@ -4,6 +4,9 @@ import { getMsalInstance } from './msalInstance';
 import { purgeUnsavedChanges } from './useIdleFormStateBackup';
 import { useMe } from './useMe';
 import type { PimRoleAssignment } from './types';
+import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
+import { Link } from '../workspaces/workspaceNavigation';
+import { useSystemContext } from '../../hooks/useSystemContext';
 
 /**
  * Feature 051 T140 [US9] — header dropdown. Replaces the Phase-4 T062
@@ -40,6 +43,7 @@ export interface AccountMenuProps {
   oid?: string;
   /** Optional display name for the trigger. Falls back to "Account". */
   displayName?: string;
+  onSwitchWorkspace?: () => void;
 }
 
 /** Format a positive ms-until-expiry into "expires in Nm" or "expires in Hh Mm". */
@@ -64,8 +68,10 @@ function filterActiveRoles(
   });
 }
 
-export default function AccountMenu({ oid: oidProp, displayName: displayNameProp }: AccountMenuProps) {
+export default function AccountMenu({ oid: oidProp, displayName: displayNameProp, onSwitchWorkspace }: AccountMenuProps) {
   const { data: me } = useMe();
+  const session = useWorkspaceSession();
+  const system = useSystemContext();
   const [open, setOpen] = useState(false);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
@@ -258,6 +264,22 @@ export default function AccountMenu({ oid: oidProp, displayName: displayNameProp
             )}
           </div>
 
+          {session && <section aria-label="Active workspace" className="space-y-1 border-t border-gray-100 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300">
+            <p className="font-semibold">{session.target.kind === 'csp' ? 'Provider workspace'
+              : session.target.mode === 'support' ? 'Audited support workspace' : 'Organization workspace'} · {session.workspace.displayName}</p>
+            {session.target.kind === 'organization' && <p>Active organization: {session.workspace.displayName}</p>}
+            {session.systemAccess && <p>Selected system: {system?.name ?? 'Current system'}</p>}
+            <p>Effective roles: {session.roles.join(', ') || 'No assigned roles'}</p>
+          </section>}
+          {onSwitchWorkspace && <button type="button" role="menuitem"
+            className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-50 focus:bg-gray-50 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+            onClick={() => { setOpen(false); triggerRef.current?.focus(); onSwitchWorkspace(); }}>Switch workspace</button>}
+          {session?.target.kind === 'organization' && session.workspace.mode === 'ordinary' && <>
+            {session.workspace.permissions.canManageMemberships && <Link role="menuitem" to="/settings/memberships"
+              onClick={() => setOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">Manage memberships</Link>}
+            {session.workspace.permissions.canManageOrganization && <Link role="menuitem" to="/settings/org"
+              onClick={() => setOpen(false)} className="block px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">Organization administration</Link>}
+          </>}
           {activeRoles.length > 0 && (
             <>
               <div className="my-1 border-t border-gray-100 dark:border-gray-700" role="separator" />

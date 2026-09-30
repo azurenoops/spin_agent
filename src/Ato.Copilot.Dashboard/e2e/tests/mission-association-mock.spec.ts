@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext } from '@playwright/test';
 import axe from 'axe-core';
-import { installWorkspaceFixture } from '../fixtures/workspace-shell';
+import { installWorkspaceFixture, openWorkspaceContext } from '../fixtures/workspace-shell';
 import { allocation, allocationResponse, capability, adoption, relationship } from '../../src/__tests__/provider-relationships/fixtures';
 
 async function installEnvironment(context: BrowserContext) {
@@ -45,7 +45,8 @@ test('Environment exposes hosting while old association bookmarks remain compati
   await expect(page.getByRole('heading', { name: 'Choose provider', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Choose a different system' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Back to Environment' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Active workspace' })).toContainText('Synthetic Mission System');
+  await expect(await openWorkspaceContext(page)).toContainText('Synthetic Mission System');
+  await page.keyboard.press('Escape');
   await page.goto('/workspaces/organizations/org-a/systems/system-a/provider-relationships');
   // Assert
   await expect(page).toHaveURL('/workspaces/organizations/org-a/systems/system-a/provider-relationships');

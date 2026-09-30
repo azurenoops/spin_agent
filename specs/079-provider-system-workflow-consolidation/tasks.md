@@ -20,6 +20,20 @@ Path prefixes below are repository-relative:
 
 ## September 29: approved package-readiness experience
 
+### September 30 workspace-header cleanup
+
+- [x] H001 — Move verified context and authorized admin links into AccountMenu;
+  remove the standalone blue workspace bar and preserve support/sign-out behavior.
+- [x] H002 — Reuse authorized workspace choices in a cancellable dialog;
+  preserve drafts/URL on cancel and prevent cross-system carryover on switch.
+- [x] H003 — Add scoped narrative-library header icon adjacent to Chat.
+- [x] H004 — Verify keyboard/mobile, cancel/draft preservation, scoped navigation,
+  request cancellation and initial-login compatibility; deploy local Dashboard.
+  TypeScript and 34 focused tests passed; 14 header/theme browser cases passed
+  on both source/deployed UI. Two stale audited-support setup scenarios were not
+  claimed passing; no support controls were weakened. Dashboard-only
+  `workspace-header-20260930` deployed healthy, with backend/data services retained.
+
 ### September 30 personal Settings correction
 
 - [x] S001 — Trace Settings controls, consumers, account notification API,

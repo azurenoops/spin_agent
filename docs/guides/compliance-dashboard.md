@@ -8,6 +8,44 @@ The Compliance Dashboard provides a real-time visual overview of your organizati
 
 ## Overview
 
+### Workspace context and switching
+
+The profile/account dropdown contains the active workspace, selected system and
+effective roles. Its **Switch workspace** action opens a dialog without leaving
+the current page. Choose an authorized workspace, then explicitly confirm the
+switch; save unsaved work first. **Cancel**, the close button and **Escape**
+preserve the current URL and unsaved form. Selecting the current ordinary
+workspace also stays on the current page.
+
+A confirmed change opens the selected workspace's root in this tab. It does not
+carry another organization's system ID into the new workspace, alter other tabs
+or start/stop audited support. Initial sign-in and recovery still have a workspace
+selection page because no current workspace is available to return to.
+
+The **Organization Narrative Library** icon is beside Chat in the main header.
+In a provider workspace it is **Provider Narrative Library**. Both use the
+current scoped URL. Authorized membership and organization-administration links
+remain available in the profile menu; the separate blue context bar is removed.
+The audited-support warning banner is retained.
+
+Header acceptance: on a system form, enter an unsaved edit, open the profile
+menu, choose Switch workspace, and cancel (including after selecting a different
+workspace). The draft and full URL must remain unchanged; Escape returns focus
+to the profile button. A confirmed change opens the new workspace root, and Back
+returns through normal browser history. The library icon's accessible name
+identifies the organization/provider scope.
+
+Header verification: strict TypeScript and 34 focused tests passed. Fourteen
+desktop/mobile browser cases passed across organization/provider contexts and
+light/dark themes. Two older audited-support browser scenarios remain blocked
+because their setup omits the required support reason and acknowledgment; this
+change does not relax those controls or claim those tests passed. The full
+Dashboard run recorded 2,814 passes and the ten previously observed provider
+navigation/selector failures. No backend authorization or sign-out contracts
+were changed. The Dashboard-only `workspace-header-20260930` release is deployed
+on port 5173; the source preview on 5197 is also updated. The 14 header/theme
+cases passed against the deployed build. API, SQL, Redis and Chat were retained.
+
 ### Personal Settings and workspace administration
 
 The Settings drawer contains three expandable sections, with **Preferences**

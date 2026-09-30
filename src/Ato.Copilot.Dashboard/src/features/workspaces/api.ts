@@ -37,9 +37,9 @@ export function workspaceErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unable to complete the workspace request.';
 }
 
-export async function getWorkspaceOptions(page = 1): Promise<WorkspacePage<WorkspaceOption>> {
+export async function getWorkspaceOptions(page = 1, signal?: AbortSignal): Promise<WorkspacePage<WorkspaceOption>> {
   return payload(await axios.get<Envelope<WorkspacePage<WorkspaceOption>>>('/api/auth/workspaces',
-    { params: { page, pageSize: 50 } }));
+    { params: { page, pageSize: 50 }, ...(signal ? { signal } : {}) }));
 }
 
 export async function getSystemWorkspaceAccess(systemId: string, signal?: AbortSignal): Promise<SystemWorkspaceAccess> {
