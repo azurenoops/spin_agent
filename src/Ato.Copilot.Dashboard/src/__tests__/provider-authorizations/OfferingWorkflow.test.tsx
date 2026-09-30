@@ -102,13 +102,14 @@ describe('source-backed offering workflow', () => {
   it.each(['', '/boundary', '/packages'])('retains the selected offering in the %s header upload action', async section => {
     // Arrange
     mount(`/authorizations/offerings/offering-a${section}`);
-    await screen.findByRole('heading', { name: section === '/boundary' ? 'Service boundary' : section === '/packages' ? 'Authorizations & sources' : offering.name, level: 1 });
+    // jsdom's :has() style matching throws while computing names for Tailwind-styled headings.
+    await screen.findByText(section === '/boundary' ? 'Service boundary' : section === '/packages' ? 'Authorizations & sources' : offering.name, { selector: 'h1' });
     expect(screen.getByRole('navigation', { name: 'Offering sections' })).toBeInTheDocument();
     // Act
     if (!section) fireEvent.click(screen.getByRole('link', { name: 'Authorizations & sources' }));
     fireEvent.click(screen.getByRole('link', { name: 'Add source material' }));
     // Assert
-    expect(await screen.findByRole('heading', { name: 'Start with your authorization package' })).toBeInTheDocument();
+    expect(await screen.findByText('Start with your authorization package', { selector: 'h2' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Boundary revision')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Offering')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Offering name')).not.toBeInTheDocument();
@@ -139,7 +140,7 @@ describe('source-backed offering workflow', () => {
     fireEvent.change(await screen.findByLabelText('Declared source classification'), { target: { value: 'Unclassified' } });
     fireEvent.click(screen.getByRole('button', { name: 'Upload package' }));
     // Assert
-    expect(await screen.findByRole('heading', { name: 'Review extracted scope' })).toBeInTheDocument();
+    expect(await screen.findByText('Review extracted scope', { selector: 'h2' })).toBeInTheDocument();
     expect(setupApi.uploadSource).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       input: expect.objectContaining({ entryPoint: 'ActivePortal', offeringHintId: offering.offeringId, context: null }),
     }), [file], true);
@@ -191,7 +192,7 @@ describe('source-backed offering workflow', () => {
     // Arrange
     mount('/authorizations/offerings/offering-a/inherited-coverage');
     // Act
-    await screen.findByRole('heading', { name: 'Services & scope', level: 1 });
+    await screen.findByText('Services & scope', { selector: 'h1' });
     // Assert
     expect(await screen.findByRole('region', { name: 'Offering hosting' })).toHaveTextContent('offering-a · 3');
   });
@@ -199,7 +200,7 @@ describe('source-backed offering workflow', () => {
     // Arrange
     mount('/authorizations/offerings/offering-a/impact');
     // Act
-    await screen.findByRole('heading', { name: 'Review change impact', level: 1 });
+    await screen.findByText('Review change impact', { selector: 'h1' });
     // Assert
     expect(await screen.findByRole('button', { name: 'Review a proposed change' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Boundary revision ID')).not.toBeInTheDocument();
@@ -309,7 +310,7 @@ it('opens creation from the header and navigates to the persisted offering witho
   fireEvent.click(screen.getByLabelText('Azure Government', { exact: true }));
   fireEvent.click(screen.getByRole('button', { name: 'Create offering' }));
   // Assert
-  expect(await screen.findByRole('heading', { name: 'Created offering', level: 1 })).toBeInTheDocument();
+  expect(await screen.findByText('Created offering', { selector: 'h1' })).toBeInTheDocument();
   expect(api.createOffering).toHaveBeenCalledExactlyOnceWith({
     name: 'Created offering', description: '', environments: ['AzureUSGovernment'],
   }, expect.any(String));
@@ -339,7 +340,7 @@ it('preserves the existing dedicated creation URL', async () => {
   // Arrange
   mount('/authorizations/create');
   // Act
-  await screen.findByRole('heading', { name: 'Create a service offering', level: 1 });
+  await screen.findByText('Create a service offering', { selector: 'h1' });
   // Assert
   expect(screen.getByLabelText('Offering name')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Back to offerings' })).toBeInTheDocument();

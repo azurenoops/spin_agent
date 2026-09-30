@@ -9,15 +9,38 @@ Upstream's provider/environment/readiness contracts, navigation and document
 renderer take precedence. Adapt onboarding extensions to those contracts rather
 than restoring retired workspace UI or dropping upstream schema modules.
 
-- [ ] Resolve provider DTO/schema/service and Dashboard shell conflicts.
+- [x] Resolve provider DTO/schema/service and Dashboard shell conflicts.
 - [x] Retain all upstream model/schema registrations alongside the three
   onboarding registrations, preserving tenant-column-before-index ordering.
 - [x] Use upstream's complete paragraph renderer (already untruncated) with
   onboarding source provenance and tenant-specific organization lookup.
-- [ ] Rebuild, rerun required RLS and affected onboarding/document tests, and
+- [x] Rebuild, rerun required RLS and affected onboarding/document tests, and
   validate Dashboard types/routes on the combined tree.
 - [ ] Obtain explicit approval before publishing rewritten branch history;
   remote CI/mergeability verification follows the approved push.
+
+Rebase completed locally onto `a4d43d7c`. Provider setup now maps its saved
+declaration to upstream's canonical service model, management arrangement and
+environment fields instead of adding a competing offering JSON field. Upstream
+archive/supersession and schema registrations remain intact. Guided setup is
+attached to the current PageLayout navigation; the retired WorkspaceHeader is
+not restored. The upstream SystemComponents policy-reference actions are
+retained. Generated context was refreshed without removing Feature 079.
+
+Verified on the combined tree: Release solution build passes; 508 focused
+provider/schema/workspace unit tests, 5 fresh-schema tests, and 97 required
+RLS/onboarding/source integration tests pass with no skips. Dashboard strict
+type-check and production build pass; the focused UI reconciliation suite
+passes 604 tests in 53 files, with five additional environment-mapping cases in
+the provider follow-up run. Existing build warnings are retained and no
+warning-free full rebuild is claimed. Eight offering-form test failures were
+reproduced against immutable upstream CSS: jsdom/nwsapi fails during accessible
+heading-name calculation for `dialog:has(.aw-editor)` despite correct heading
+text. Only seven test heading queries were adapted to exact text plus semantic
+heading selectors; production markup and action/receipt assertions are unchanged.
+The offering workflow/identity/intake rerun passes 31 tests, including all eight
+former failures; strict type-check passes. Remote CI has not run on this
+rewritten history.
 
 ## PR 1050 CI repair (September 29, 2026)
 
