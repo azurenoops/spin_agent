@@ -86,11 +86,18 @@ export default function AuditLogPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setData(null);
     try {
       const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       if (actionFilter) query.set('action', actionFilter);
       if (tenantFilter) query.set('tenantId', tenantFilter);
-      const { data: result } = await apiClient.get<AuditLogPage>(`/audit?${query}`);
+      const { data: response } = await apiClient.get<{ status: string; data: AuditLogPage }>(
+        `/audit?${query}`, { baseURL: '/api' });
+      const result = response?.data;
+      if (response?.status !== 'success' || !result || !Array.isArray(result.items)
+        || result.page !== page || result.pageSize !== PAGE_SIZE || !Number.isSafeInteger(result.totalCount)
+        || result.totalCount < result.items.length)
+        throw new Error('The audit response did not return the requested retained event page. Retry the read.');
       setData(result);
     } catch (e: unknown) {
       setError((e as Error).message ?? 'Failed to load audit log.');
@@ -111,7 +118,7 @@ export default function AuditLogPage() {
       <PageHero
         eyebrow="Administration"
         title="Platform Audit Log"
-        description="All platform events: impersonation, tenant status changes, logins, exports, and migrations."
+        description="Recorded platform audit events available to this account. Separate domain histories retain their own review and publication records."
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -149,7 +156,7 @@ export default function AuditLogPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>
+        <div role="alert" className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>
       )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">

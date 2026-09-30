@@ -33,7 +33,8 @@ public sealed partial class ProviderAuthorizationService
             var body = new CreateProviderDecisionRequest(offering!.Revision, request.BoundaryRevisionId,
                 request.SourceCandidateRefs, request.RecordKind, request.Reference, request.IssuingAuthority,
                 request.DecisionAsStated, request.IssuedOn, request.EffectiveOn, request.ExpiresOn, request.ExpiryBasis,
-                request.ScopeStatement, request.Conditions, request.Citations);
+                request.ScopeStatement, request.Conditions, request.Citations)
+                { IssuingAuthorityType = request.IssuingAuthorityType, UpstreamProvider = request.UpstreamProvider };
             await ValidateDecisionAsync(db, offering, body, ct);
             record.Revision++;
             var revision = NewDecisionRevision(record, body, actor);
@@ -58,6 +59,8 @@ public sealed partial class ProviderAuthorizationService
             Text(request.Rationale, "review rationale", 2000);
             Text(body.IssuingAuthority, "issuing authority", 2000);
             Text(body.DecisionAsStated, "source decision", 2000);
+            if (body.RecordKind == "InheritedProviderReference")
+                Text(body.UpstreamProvider, "upstream provider", 256);
             await ValidateDecisionAsync(db, offering!, body, ct);
             await store.CitationsAsync(db, offering!.ProviderId, body.Citations, ct, required: true);
             if (revision.MetadataReviewState != "Unconfirmed")
@@ -88,8 +91,8 @@ public sealed partial class ProviderAuthorizationService
     {
         await using var db = await store.Factory.CreateDbContextAsync(ct);
         var offering = await store.OfferingAsync(db, id, ct);
-        if (recordKind is not (null or "ProviderDecision" or "InheritedMicrosoftReference"))
-            throw new ArgumentException("recordKind must be ProviderDecision or InheritedMicrosoftReference.");
+        if (recordKind is not (null or "ProviderDecision" or "InheritedMicrosoftReference" or "InheritedProviderReference" or "InheritedReferences"))
+            throw new ArgumentException("recordKind must select ProviderDecision, InheritedProviderReference, legacy InheritedMicrosoftReference, or the InheritedReferences group.");
         if (page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize)
             throw new ArgumentException("Use page >=1 and pageSize between1 and100.");
         var query = db.Set<ProviderAuthorizationRevision>().AsNoTracking()
@@ -105,7 +108,9 @@ public sealed partial class ProviderAuthorizationService
         {
             // Kind is retained inside immutable JSON; filter before paging without provider-specific SQL JSON functions.
             var revisions = await query.Select(x => new { x.Id, x.SnapshotJson }).ToListAsync(ct);
-            var matchingIds = revisions.Where(x => Read<CreateProviderDecisionRequest>(x.SnapshotJson).RecordKind == recordKind)
+            var matchingIds = revisions.Where(x => recordKind == "InheritedReferences"
+                    ? Read<CreateProviderDecisionRequest>(x.SnapshotJson).RecordKind is "InheritedProviderReference" or "InheritedMicrosoftReference"
+                    : Read<CreateProviderDecisionRequest>(x.SnapshotJson).RecordKind == recordKind)
                 .Select(x => x.Id).ToArray();
             query = query.Where(x => matchingIds.Contains(x.Id));
         }
@@ -175,10 +180,13 @@ public sealed partial class ProviderAuthorizationService
         CreateProviderDecisionRequest request, CancellationToken ct)
     {
         await RequireBoundaryAsync(db, offering, request.BoundaryRevisionId, ct);
-        if (request.RecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference"))
-            throw new ArgumentException("Record kind must distinguish provider decisions and inherited Microsoft references.");
+        if (request.RecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference" or "InheritedProviderReference"))
+            throw new ArgumentException("Record kind must distinguish provider decisions and inherited upstream-provider references.");
+        if (request.IssuingAuthorityType is not (null or "person" or "organization"))
+            throw new ArgumentException("Issuing authority type must be person or organization, or omitted when unknown.");
         Text(request.Reference, "reference", 2000); Text(request.ScopeStatement, "scope", 8000);
         Text(request.IssuingAuthority, "authority", 2000, false); Text(request.DecisionAsStated, "decision", 2000, false);
+        Text(request.UpstreamProvider, "upstream provider", 256, false);
         var issued = Date(request.IssuedOn); var effective = Date(request.EffectiveOn); var expires = Date(request.ExpiresOn);
         if (request.ExpiryBasis is not ("DateStated" or "NoExpiryStated" or "NotRecorded")
             || (request.ExpiryBasis == "DateStated") != expires.HasValue
@@ -249,6 +257,7 @@ public sealed partial class ProviderAuthorizationService
         return new(row.RecordId, row.OfferingId, row.Id, row.Revision, row.SnapshotHash, row.MetadataReviewState,
             standing, row.RecordedBy, row.RecordedAt, true, body.BoundaryRevisionId,
             body.SourceCandidateRefs, body.RecordKind, body.Reference, body.IssuingAuthority, body.DecisionAsStated,
-            body.IssuedOn, body.EffectiveOn, body.ExpiresOn, body.ExpiryBasis, body.ScopeStatement, body.Conditions, body.Citations);
+            body.IssuedOn, body.EffectiveOn, body.ExpiresOn, body.ExpiryBasis, body.ScopeStatement, body.Conditions, body.Citations)
+            { IssuingAuthorityType = body.IssuingAuthorityType, UpstreamProvider = body.UpstreamProvider };
     }
 }

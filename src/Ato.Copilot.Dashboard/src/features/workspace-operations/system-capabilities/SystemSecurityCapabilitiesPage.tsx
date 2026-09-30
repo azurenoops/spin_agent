@@ -26,6 +26,9 @@ export default function SystemSecurityCapabilitiesPage() {
     return <><SystemCapabilityList tenantId={tenantId} systemId={id} systemName={detail.name} />
       <SetupWizard tenantId={tenantId} routeSystemId={id} /></>;
   }
+  if (legacySetup && query.get('source') === 'provider') {
+    return <Navigate replace to={`/systems/${encodeURIComponent(id)}/provider-relationships/setup`} />;
+  }
   if (legacySetup) {
     query.delete('dialog');
     query.delete('step');
@@ -36,7 +39,10 @@ export default function SystemSecurityCapabilitiesPage() {
   }
   if (segments.length === 0) return <SystemCapabilityList key={`${tenantId}:${id}`} tenantId={tenantId} systemId={id} systemName={detail.name} />;
   if (segments.length === 1 && segments[0] === 'add') {
-    return <SystemCapabilitySetup key={`${tenantId}:${id}`} tenantId={tenantId} systemId={id} />;
+    if (query.get('source') === 'provider') {
+      return <Navigate replace to={`/systems/${encodeURIComponent(id)}/provider-relationships/setup`} />;
+    }
+    return <SystemCapabilitySetup key={`${tenantId}:${id}`} tenantId={tenantId} systemId={id} catalogSource="local" />;
   }
   const source = segments[0];
   const recordId = segments[1];

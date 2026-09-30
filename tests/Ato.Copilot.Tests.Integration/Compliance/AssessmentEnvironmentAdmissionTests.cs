@@ -298,7 +298,7 @@ public sealed class AssessmentEnvironmentAdmissionTests : IAsyncLifetime
         persisted.RegisteredSystemId.Should().Be(system.Id);
         persisted.InitiatedBy.Should().Be(ActorId);
         (await db.ControlEffectivenessRecords.Select(e => e.AssessorId).Distinct().ToListAsync())
-            .Should().Equal(ActorId);
+            .Should().BeEmpty("collection alone cannot attest that baseline controls were human-reviewed");
         (await db.ControlImplementations.SingleAsync()).ImplementationStatus.Should().Be(ImplementationStatus.Planned);
     }
 

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { onboarding } from '../../features/onboarding/api/onboardingApi';
+import { Link } from '../../features/workspaces/workspaceNavigation';
+import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 
 /**
  * Epic #208 / Task #250 — Standalone org settings page at /settings/org.
@@ -20,6 +22,9 @@ interface OrgContextFields {
 }
 
 export default function OrgSettingsPage() {
+  const session = useWorkspaceSession();
+  const canAdminister = session?.workspace.kind === 'organization'
+    && session.workspace.mode === 'ordinary' && session.workspace.permissions.canManageOrganization;
   const [fields, setFields] = useState<OrgContextFields>({
     organizationName: '',
     branch: 0,
@@ -83,9 +88,20 @@ export default function OrgSettingsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Organization Settings</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Review and update your organization profile. Changes take effect immediately.
+          Review and update your organization profile. Operational changes require server-authorized organization access.
         </p>
       </div>
+
+      {canAdminister && <section aria-label="Organization administration" className="space-y-3 rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+        <h2 className="font-semibold">Organization administration</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Manage organization-owned configuration here, not in personal preferences. Registration does not grant Azure permissions.</p>
+        <ul className="space-y-3 text-sm">
+          <li><Link to="/settings/azure-subscriptions" className="text-indigo-700 underline dark:text-indigo-300">Manage Azure subscriptions</Link>
+            <p className="mt-1 text-xs text-gray-500">Register eligible subscriptions for Mission Owners to attach to their systems.</p></li>
+          {session.workspace.permissions.canManageMemberships && <li><Link to="/settings/memberships" className="text-indigo-700 underline dark:text-indigo-300">Manage organization access</Link></li>}
+          <li><Link to="/onboarding?stepNav=admin" className="text-indigo-700 underline dark:text-indigo-300">Maintain organization setup</Link></li>
+        </ul>
+      </section>}
 
       {success && (
         <div className="rounded-md bg-green-50 p-4 text-sm text-green-800">{success}</div>

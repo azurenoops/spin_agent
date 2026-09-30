@@ -67,10 +67,25 @@ public class AuthorizationDecision
     public string IssuedByName { get; set; } = string.Empty;
 
     /// <summary>True for the current active authorization; false when superseded or expired.</summary>
+    [ConcurrencyCheck]
     public bool IsActive { get; set; } = true;
 
     /// <summary>FK → self: reference to the decision that supersedes this one.</summary>
     public string? SupersededById { get; set; }
+
+    [MaxLength(36)]
+    public string? SourceEvidenceId { get; set; }
+    [MaxLength(128)]
+    public string? SourceEvidenceHash { get; set; }
+    [MaxLength(500)]
+    public string? ExternalIssuingAuthority { get; set; }
+    [MaxLength(36)]
+    public string? BaselinePackageId { get; set; }
+    [MaxLength(128)]
+    public string? BaselinePackageHash { get; set; }
+    [MaxLength(200)]
+    public string? RecordedBy { get; set; }
+    public DateTime? RecordedAt { get; set; }
 
     // ─── Navigation Properties ───────────────────────────────────────────────
 
@@ -86,6 +101,12 @@ public class AuthorizationDecision
     /// <summary>Time-bounded display overrides associated with this decision.</summary>
     public List<AuthorizationOverride> Overrides { get; set; } = new();
 }
+
+public sealed record ExternalAuthorizationRecordInput(
+    string DecisionType, DateTime DecisionDate, DateTime? ExpirationDate, string ResidualRiskLevel,
+    string SourceEvidenceId, string ExpectedSourceHash, string IssuingAuthority,
+    string BaselinePackageId, string ExpectedPackageHash, string? TermsAndConditions,
+    bool MakeCurrent, string? ExpectedActiveDecisionId);
 
 /// <summary>
 /// Records a time-bounded annotation over an authorization decision without

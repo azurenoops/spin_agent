@@ -6,12 +6,12 @@ import type { PackageCandidate, PackageSelection } from './types';
 import { claimKinds } from './claims';
 
 interface Props {
-  packageId: string; revision: number; selected: PackageSelection[]; disabled: boolean;
+  packageId: string; revision: number; selected: PackageSelection[]; disabled: boolean; readOnly?: boolean;
   onSelect: (candidate: PackageCandidate, selected: boolean) => void;
   onReview: (candidate: PackageCandidate) => void; onRevisionChanged: () => void;
 }
 
-export function PackageCandidates({ packageId, revision, selected, disabled, onSelect, onReview, onRevisionChanged }: Props) {
+export function PackageCandidates({ packageId, revision, selected, disabled, readOnly = false, onSelect, onReview, onRevisionChanged }: Props) {
   const { params } = useQueryState();
   const [page, setPage] = useState(() => Math.max(1, Number(params.get('page')) || 1));
   const [type, setType] = useState(() => params.get('type') ?? '');
@@ -31,17 +31,17 @@ export function PackageCandidates({ packageId, revision, selected, disabled, onS
   }, [remote.data, linkedCandidate, disabled, onReview]);
 
   return <section aria-label="Candidate records" className="space-y-3">
-    <h2 className="text-lg font-semibold">Review extracted records</h2>
+    <h2 className="text-lg font-semibold">{readOnly ? 'Retained extracted records' : 'Review extracted records'}</h2>
     <div className="flex flex-wrap gap-3">
-      <label className="text-sm">Candidate type<select className={`${inputClass} ml-2`} disabled={disabled} value={type} onChange={event => { setType(event.target.value); setPage(1); }}>
+      <label className="text-sm">Candidate type<select className={`${inputClass} ml-2`} disabled={disabled && !readOnly} value={type} onChange={event => { setType(event.target.value); setPage(1); }}>
         <option value="">All types</option>{['Component', 'Capability', 'ControlMapping', 'Responsibility', 'AuthorizationReference', ...claimKinds].map(value => <option key={value} value={value}>{stateLabel(value)}</option>)}
       </select></label>
-      <label className="text-sm">Review state<select className={`${inputClass} ml-2`} disabled={disabled} value={reviewState} onChange={event => { setReviewState(event.target.value); setPage(1); }}>
+      <label className="text-sm">Review state<select className={`${inputClass} ml-2`} disabled={disabled && !readOnly} value={reviewState} onChange={event => { setReviewState(event.target.value); setPage(1); }}>
         <option value="">All states</option>{['NeedsReview', 'Reviewed', 'Rejected', 'Approved', 'Published'].map(value => <option key={value} value={value}>{stateLabel(value)}</option>)}
       </select></label>
     </div>
-    <p className="text-sm text-slate-600 dark:text-slate-300">Open a record to check it against its sources. Reviewed components and capabilities can then be selected for publication.</p>
-    <details className="text-xs text-slate-500"><summary className="cursor-pointer">What can I publish?</summary><p className="mt-2">Select up to 100 reviewed components and capabilities with their dependencies, including selections across pages. Mappings, responsibilities, authorization references and claims support your review; they are not published separately.</p></details>
+    <p className="text-sm text-slate-600 dark:text-slate-300">{readOnly ? 'Original candidate states and citations are retained for inspection; no new review or publication is allowed.' : 'Open a record to check it against its sources. Reviewed components and capabilities can then be selected for publication.'}</p>
+    {!readOnly && <details className="text-xs text-slate-500"><summary className="cursor-pointer">What can I publish?</summary><p className="mt-2">Select up to 100 reviewed components and capabilities with their dependencies, including selections across pages. Mappings, responsibilities, authorization references and claims support your review; they are not published separately.</p></details>}
     <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
     {remote.data && <>
       {!remote.data.items.length && <p className={`${surfaceClass} p-4`}>No candidates match these filters.</p>}
@@ -49,16 +49,22 @@ export function PackageCandidates({ packageId, revision, selected, disabled, onS
         const eligible = ['Component', 'Capability'].includes(candidate.type)
           && ['Reviewed', 'Approved'].includes(candidate.reviewState) && !candidate.publishedRecordId;
         return <article key={candidate.candidateId} className={`${surfaceClass} flex min-w-0 flex-wrap items-start gap-3 p-4`}>
-          <input className="mt-1" type="checkbox" aria-label={`Select ${candidate.name} revision ${candidate.revision}`}
+          {!readOnly && <input className="mt-1" type="checkbox" aria-label={`Select ${candidate.name} revision ${candidate.revision}`}
             disabled={disabled || !eligible} checked={selected.some(item => item.candidateId === candidate.candidateId)}
-            onChange={event => onSelect(candidate, event.target.checked)} />
+            onChange={event => onSelect(candidate, event.target.checked)} />}
           <div className="min-w-0 flex-1">
             <h3 className="break-words font-semibold">{candidate.name}</h3>
             <p className="text-sm text-gray-600">{stateLabel(candidate.type)} · {stateLabel(candidate.reviewState)} · Revision {candidate.revision} · {candidate.publishedRecordId ? 'Published record' : 'Unpublished import'}</p>
             <p className="text-xs text-gray-500">{candidate.citations.length} citations · {candidate.contributorIds.length} dependencies · {candidate.duplicateMatches.length} duplicate matches</p>
             <details className="mt-1 text-xs text-gray-500"><summary className="cursor-pointer">Record details</summary><code className="block break-all">{candidate.candidateId}</code></details>
+            {readOnly && <details className="mt-2 text-sm"><summary className="cursor-pointer">Retained record and citations</summary>
+              <p className="mt-2 whitespace-pre-wrap">{candidate.description}</p>
+              <ul>{candidate.citations.map((citation, index) => <li key={index} className="mt-2 break-words">
+                <p>{citation.archivePath} · {citation.locator}</p><blockquote>{citation.quote}</blockquote>
+              </li>)}</ul>
+            </details>}
           </div>
-          <button type="button" className={secondaryButtonClass} disabled={disabled} aria-label={`Review ${candidate.name}`} onClick={() => onReview(candidate)}>Review record</button>
+          {!readOnly && <button type="button" className={secondaryButtonClass} disabled={disabled} aria-label={`Review ${candidate.name}`} onClick={() => onReview(candidate)}>Review record</button>}
         </article>;
       })}
       <Pager {...remote.data} onPage={setPage} />

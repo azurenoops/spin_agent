@@ -68,7 +68,7 @@ public class OscalSapExportService : IOscalSapExportService
         RegisteredSystem system)
     {
         var apUuid = Guid.NewGuid().ToString();
-        var lastModified = sap.FinalizedAt?.ToString("o") ?? sap.GeneratedAt.ToString("o");
+        var lastModified = DateTime.SpecifyKind(sap.FinalizedAt ?? sap.GeneratedAt, DateTimeKind.Utc).ToString("o");
 
         // Build metadata
         var metadata = new Dictionary<string, object>
@@ -109,16 +109,23 @@ public class OscalSapExportService : IOscalSapExportService
         }
 
         if (parties.Count > 0)
+        {
             metadata["parties"] = parties;
+            metadata["roles"] = sap.TeamMembers.Select(member => new Dictionary<string, string>
+                { ["id"] = NormalizeRoleId(member.Role), ["title"] = member.Role })
+                .DistinctBy(role => role["id"]).ToArray();
+            metadata["responsible-parties"] = responsibleParties;
+        }
 
         // Build import-ssp reference
         var importSsp = new Dictionary<string, string>
         {
-            ["href"] = $"#ssp-{system.Id}"
+            ["href"] = "oscal-ssp.json"
         };
 
         // Build reviewed-controls with control-selections
         var controlsByFamily = sap.ControlEntries
+            .Where(c => !c.IsExcluded)
             .GroupBy(c => c.ControlFamily)
             .OrderBy(g => g.Key);
 
@@ -152,6 +159,7 @@ public class OscalSapExportService : IOscalSapExportService
 
         // Build assessment-activities from unique methods
         var activities = sap.ControlEntries
+            .Where(c => !c.IsExcluded)
             .SelectMany(c => c.AssessmentMethods ?? [])
             .Distinct()
             .OrderBy(m => m)
@@ -189,8 +197,8 @@ public class OscalSapExportService : IOscalSapExportService
                 {
                     ["within-date-range"] = new Dictionary<string, string>
                     {
-                        ["start"] = sap.ScheduleStart.Value.ToString("o"),
-                        ["end"] = sap.ScheduleEnd.Value.ToString("o")
+                        ["start"] = DateTime.SpecifyKind(sap.ScheduleStart.Value, DateTimeKind.Utc).ToString("o"),
+                        ["end"] = DateTime.SpecifyKind(sap.ScheduleEnd.Value, DateTimeKind.Utc).ToString("o")
                     }
                 };
             }
@@ -209,13 +217,10 @@ public class OscalSapExportService : IOscalSapExportService
         };
 
         if (activities.Count > 0)
-            apRoot["assessment-activities"] = activities;
+            apRoot["local-definitions"] = new Dictionary<string, object> { ["activities"] = activities };
 
         if (tasks.Count > 0)
             apRoot["tasks"] = tasks;
-
-        if (responsibleParties.Count > 0)
-            apRoot["responsible-parties"] = responsibleParties;
 
         return new Dictionary<string, object>
         {

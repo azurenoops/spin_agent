@@ -161,7 +161,7 @@ test('assigns a per-system Mission Owner and preserves the override after refres
   await page.goto(`/systems/${systemId}/roles`);
 
   // Act
-  await expect(page.getByRole('link', { name: 'Roles & Permissions' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'System team' })).toBeVisible();
   const missionOwnerRow = page.getByTestId('role-row-MissionOwner');
   await missionOwnerRow.getByRole('button', { name: 'Assign' }).click();
   await expect(page.getByRole('option', { name: 'Morgan Owner' })).toBeAttached();

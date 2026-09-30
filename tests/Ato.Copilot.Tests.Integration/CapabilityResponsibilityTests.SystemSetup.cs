@@ -112,20 +112,25 @@ public sealed partial class CapabilityResponsibilityTests
         var role = await db.SystemRoleAssignments.SingleAsync();
         role.Role = OrganizationRole.Issm;
         await db.SaveChangesAsync();
-        await using var transaction = await db.Database.BeginTransactionAsync();
-        db.CapabilitySubscriptions.Add(new()
-        {
-            RegisteredSystemId = _system, CspInheritedCapabilityId = _capability.ToString(),
-            RoutingCapabilityId = _capability.ToString(), RoutingTenantId = _tenant
-        });
-        await db.SaveChangesAsync();
+        CapabilityResponsibilityResponse? result = null;
 
         // Act
-        var result = await service.ReconcileSetupAsync(db, _system, "setup-actor");
-        await transaction.RollbackAsync();
+        await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            db.CapabilitySubscriptions.Add(new()
+            {
+                RegisteredSystemId = _system, CspInheritedCapabilityId = _capability.ToString(),
+                RoutingCapabilityId = _capability.ToString(), RoutingTenantId = _tenant
+            });
+            await db.SaveChangesAsync();
+            result = await service.ReconcileSetupAsync(db, _system, "setup-actor");
+            await transaction.RollbackAsync();
+        });
 
         // Assert
-        result.Items.Should().Contain(x => x.State == "MissingAllocation");
+        result.Should().NotBeNull();
+        result!.Items.Should().Contain(x => x.State == "MissingAllocation");
         result.CanConfirm.Should().BeTrue();
         await using var after = new AtoCopilotContext(_options);
         (await after.CapabilitySubscriptions.CountAsync()).Should().Be(0);

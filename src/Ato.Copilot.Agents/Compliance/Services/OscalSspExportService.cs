@@ -5,13 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Dtos.Dashboard;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
 /// <summary>
 /// Produces OSCAL 1.1.2 SSP JSON from entity data (Feature 022).
 /// </summary>
-public class OscalSspExportService : IOscalSspExportService
+public partial class OscalSspExportService : IOscalSspExportService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OscalSspExportService> _logger;
@@ -50,11 +51,24 @@ public class OscalSspExportService : IOscalSspExportService
     }
 
     /// <inheritdoc />
-    public async Task<OscalExportResult> ExportAsync(
+    public Task<OscalExportResult> ExportAsync(
         string registeredSystemId,
         bool includeBackMatter = true,
         bool prettyPrint = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GenerateAsync(registeredSystemId, includeBackMatter, prettyPrint, workingProfiles: false, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<OscalExportResult> PreviewAsync(
+        string registeredSystemId,
+        bool includeBackMatter = true,
+        bool prettyPrint = true,
+        CancellationToken cancellationToken = default) =>
+        GenerateAsync(registeredSystemId, includeBackMatter, prettyPrint, workingProfiles: true, cancellationToken);
+
+    private async Task<OscalExportResult> GenerateAsync(
+        string registeredSystemId, bool includeBackMatter, bool prettyPrint, bool workingProfiles,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(registeredSystemId, nameof(registeredSystemId));
 
@@ -83,16 +97,21 @@ public class OscalSspExportService : IOscalSspExportService
             .Where(ci => ci.RegisteredSystemId == registeredSystemId)
             .OrderBy(ci => ci.ControlId)
             .ToListAsync(cancellationToken);
+        var narrativeSources = await ApprovedNarrativeDocumentData.ApplyAsync(db, implementations, cancellationToken);
 
         var roles = await db.RmfRoleAssignments
             .AsNoTracking()
             .Where(r => r.RegisteredSystemId == registeredSystemId && r.IsActive)
             .ToListAsync(cancellationToken);
+        await ResolveRecordedRolesAsync(scope.ServiceProvider, system, roles, cancellationToken);
 
         var boundaries = await db.AuthorizationBoundaries
             .AsNoTracking()
             .Where(b => b.RegisteredSystemId == registeredSystemId && b.IsInBoundary)
             .ToListAsync(cancellationToken);
+        var modernComponents = await LoadModernComponentsAsync(db, system, cancellationToken);
+        var boundaryDefinitions = await db.AuthorizationBoundaryDefinitions.AsNoTracking()
+            .Where(b => b.RegisteredSystemId == registeredSystemId).OrderBy(b => b.Name).ToListAsync(cancellationToken);
 
         var interconnections = await db.SystemInterconnections
             .AsNoTracking()
@@ -120,6 +139,8 @@ public class OscalSspExportService : IOscalSspExportService
         var componentMap = new Dictionary<string, string>(); // ResourceId → UUID
         foreach (var b in boundaries)
             componentMap[b.ResourceId] = Guid.NewGuid().ToString();
+        foreach (var component in modernComponents)
+            componentMap[component.Id] = new PackageUuidRegistry(system.Id).ComponentUuid(component.Id).ToString();
 
         // Build party UUID map for role → party cross-references
         var partyMap = new Dictionary<string, string>(); // UserId → UUID
@@ -132,8 +153,54 @@ public class OscalSspExportService : IOscalSspExportService
         // Build each OSCAL section
         var metadata = BuildMetadata(system, roles, partyMap, warnings);
         var importProfile = BuildImportProfile(baseline, warnings);
-        var systemChars = BuildSystemCharacteristics(system, categorization, sectionMap, interconnections, baseline, boundaries, roles, warnings);
+        var systemChars = BuildSystemCharacteristics(system, categorization, sectionMap, interconnections, baseline, boundaries, roles, warnings, boundaryDefinitions);
         var systemImpl = BuildSystemImplementation(boundaries, roles, baseline, componentMap, partyMap, warnings);
+        AppendModernComponents(systemImpl, modernComponents, componentMap);
+        var providerGaps = new List<string>();
+        var profileGaps = new List<string>();
+        var approvedProfiles = workingProfiles ? [] :
+            await ApprovedProfileDocumentData.LoadAsync(db, registeredSystemId, profileGaps, cancellationToken);
+        var previewProfiles = workingProfiles
+            ? await WorkingProfileDocumentData.LoadAsync(db, registeredSystemId, profileGaps, cancellationToken) : [];
+        warnings.AddRange(profileGaps);
+        if (approvedProfiles.Count > 0)
+        {
+            var profileProps = systemChars.TryGetValue("props", out var existingProps)
+                ? (List<Dictionary<string, string>>)existingProps : new List<Dictionary<string, string>>();
+            foreach (var profile in approvedProfiles)
+                profileProps.Add(new()
+                {
+                    ["name"] = "approved-profile",
+                    ["ns"] = "https://ato-copilot.io/ns/profile",
+                    ["value"] = JsonSerializer.Serialize(new
+                    {
+                        sectionType = profile.Type.ToString(), profile.ApprovalId, profile.Hash, profile.Content
+                    })
+                });
+            systemChars["props"] = profileProps;
+        }
+        if (workingProfiles)
+        {
+            metadata["title"] = $"{system.Name} System Security Plan - working profile preview";
+            var profileProps = systemChars.TryGetValue("props", out var existingProps)
+                ? (List<Dictionary<string, string>>)existingProps : new List<Dictionary<string, string>>();
+            foreach (var profile in previewProfiles)
+                profileProps.Add(new()
+                {
+                    ["name"] = "working-profile",
+                    ["ns"] = "https://ato-copilot.io/ns/profile",
+                    ["value"] = JsonSerializer.Serialize(new
+                    {
+                        sectionType = profile.Type.ToString(), sectionId = profile.SectionId,
+                        sourceState = "CurrentWorkingData", governanceStatus = profile.GovernanceStatus,
+                        reviewScope = profile.ReviewScope, contentHash = profile.Hash, content = profile.Content
+                    })
+                });
+            if (profileProps.Count > 0) systemChars["props"] = profileProps;
+        }
+        var providerSources = await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
+        warnings.AddRange(providerGaps);
+        ProviderDocumentProvenance.AppendOscal(providerSources, metadata, systemImpl);
         var controlImpl = BuildControlImplementation(system, implementations, baseline, componentMap, deviations, warnings);
 
         Dictionary<string, object>? backMatter = null;
@@ -156,7 +223,7 @@ public class OscalSspExportService : IOscalSspExportService
             ["control-implementation"] = controlImpl
         };
 
-        if (backMatter != null)
+        if (backMatterCount > 0)
             ssp["back-matter"] = backMatter;
 
         var root = new Dictionary<string, object>
@@ -164,12 +231,33 @@ public class OscalSspExportService : IOscalSspExportService
             ["system-security-plan"] = ssp
         };
 
+        var manifest = new DocumentSourceManifest(
+            workingProfiles ? "WorkingProfilePreview" : "GeneratedOscalContent",
+            workingProfiles
+                ? previewProfiles.Select(p => new DocumentSourceReference("WorkingProfile", p.SectionId, $"working:{p.Hash}", p.Hash)).ToArray()
+                : approvedProfiles.Select(p => new DocumentSourceReference("ApprovedProfile", p.SectionId, p.ApprovalId, p.Hash)).ToArray(),
+            providerSources.SelectMany(p => new[]
+            {
+                new DocumentSourceReference("ProviderDecision", p.Revision.RecordId.ToString(), p.Revision.Id.ToString(), p.Revision.SnapshotHash),
+                new DocumentSourceReference("MissionAdoption", p.Adoption.SubscriptionId, p.Adoption.Id.ToString(), p.Adoption.SnapshotHash),
+                new DocumentSourceReference("ProviderContext", p.Adoption.OfferingId.ToString(), p.Context.Id.ToString(), p.Context.SnapshotHash),
+                new DocumentSourceReference("ProviderRelease", p.Adoption.CapabilityId.ToString(), p.Release.Id.ToString(), p.Release.SnapshotHash)
+            }).Distinct().ToArray()) { Narratives = narrativeSources, PreviewOnly = workingProfiles };
+        metadata["props"] = new[]
+        {
+            new Dictionary<string, string>
+            {
+                ["name"] = "source-version-manifest",
+                ["ns"] = "https://ato-copilot.io/ns/document",
+                ["value"] = JsonSerializer.Serialize(manifest)
+            }
+        };
         var opts = prettyPrint ? PrettyOpts : CompactOpts;
         var json = JsonSerializer.Serialize(root, opts);
 
         var stats = new OscalStatistics(
             ControlCount: implementations.Count,
-            ComponentCount: boundaries.Count,
+            ComponentCount: boundaries.Count + modernComponents.Count,
             InventoryItemCount: boundaries.Count,
             UserCount: roles.Count,
             BackMatterResourceCount: backMatterCount);
@@ -178,7 +266,12 @@ public class OscalSspExportService : IOscalSspExportService
             "Exported OSCAL 1.1.2 SSP for system '{SystemId}': {Controls} controls, {Components} components, {Warnings} warnings",
             registeredSystemId, implementations.Count, boundaries.Count, warnings.Count);
 
-        return new OscalExportResult(json, warnings, stats);
+        return new OscalExportResult(json, warnings, stats)
+        {
+            ProviderProvenanceGaps = providerGaps,
+            ProfileSourceGaps = profileGaps,
+            SourceManifest = manifest
+        };
     }
 
     // ─── OSCAL Section Builders ──────────────────────────────────────────────
@@ -199,10 +292,7 @@ public class OscalSspExportService : IOscalSspExportService
 
         if (roles.Count == 0)
         {
-            warnings.Add("No RMF role assignments found. Metadata roles, parties, and responsible-parties are empty.");
-            metadata["roles"] = Array.Empty<object>();
-            metadata["parties"] = Array.Empty<object>();
-            metadata["responsible-parties"] = Array.Empty<object>();
+            warnings.Add("No RMF role assignments found. Optional metadata roles and parties are omitted.");
             return metadata;
         }
 
@@ -289,10 +379,15 @@ public class OscalSspExportService : IOscalSspExportService
         ControlBaseline? baseline,
         List<AuthorizationBoundary> boundaries,
         List<RmfRoleAssignment> roles,
-        List<string> warnings)
+        List<string> warnings,
+        List<AuthorizationBoundaryDefinition>? boundaryDefinitions = null)
     {
         var sc = new Dictionary<string, object>
         {
+            ["system-ids"] = new[]
+            {
+                new Dictionary<string, string> { ["identifier-type"] = "https://ato-copilot.io/ns/system-id", ["id"] = system.Id }
+            },
             ["system-name"] = system.Name,
             ["description"] = system.Description ?? "System description not provided."
         };
@@ -315,7 +410,14 @@ public class OscalSspExportService : IOscalSspExportService
                         ["uuid"] = Guid.NewGuid().ToString(),
                         ["title"] = it.Name,
                         ["description"] = $"SP 800-60 ID: {it.Sp80060Id}, Category: {it.Category ?? "N/A"}",
-                        ["categorization-ids"] = new[] { it.Sp80060Id },
+                        ["categorizations"] = new[]
+                        {
+                            new Dictionary<string, object>
+                            {
+                                ["system"] = "http://doi.org/10.6028/NIST.SP.800-60v2r1",
+                                ["information-type-ids"] = new[] { it.Sp80060Id }
+                            }
+                        },
                         ["confidentiality-impact"] = new Dictionary<string, string>
                         {
                             ["base"] = it.ConfidentialityImpact.ToString().ToLowerInvariant()
@@ -342,20 +444,21 @@ public class OscalSspExportService : IOscalSspExportService
         }
         else
         {
-            warnings.Add("No security categorization found. Using placeholder values.");
-            sc["security-sensitivity-level"] = "not-yet-determined";
-            sc["security-impact-level"] = new Dictionary<string, string>
-            {
-                ["security-objective-confidentiality"] = "low",
-                ["security-objective-integrity"] = "low",
-                ["security-objective-availability"] = "low"
-            };
+            warnings.Add("No security categorization found. Record information types and source-backed impact values before final export.");
         }
 
         // ── §11 Authorization Boundary — SspSection authored content OR entity data fallback ──
         if (sectionMap.TryGetValue(11, out var s11) && !string.IsNullOrWhiteSpace(s11.Content))
         {
             sc["authorization-boundary"] = new Dictionary<string, string> { ["description"] = s11.Content };
+        }
+        else if (boundaryDefinitions?.Count > 0)
+        {
+            sc["authorization-boundary"] = new Dictionary<string, string>
+            {
+                ["description"] = string.Join("\n", boundaryDefinitions.Select(b =>
+                    string.IsNullOrWhiteSpace(b.Description) ? b.Name : $"{b.Name}: {b.Description}"))
+            };
         }
         else if (boundaries.Count > 0)
         {
@@ -440,7 +543,8 @@ public class OscalSspExportService : IOscalSspExportService
             sc["network-architecture"] = new Dictionary<string, string> { ["description"] = s6.Content };
 
         // ── Operational Status ──
-        sc["status"] = new Dictionary<string, string>
+        if (system.OperationalStatus.HasValue)
+            sc["status"] = new Dictionary<string, string>
         {
             ["state"] = system.OperationalStatus switch
             {
@@ -448,9 +552,10 @@ public class OscalSspExportService : IOscalSspExportService
                 OperationalStatus.UnderDevelopment => "under-development",
                 OperationalStatus.Disposed => "disposition",
                 OperationalStatus.MajorModification => "under-major-modification",
-                _ => "operational"
+                _ => throw new InvalidOperationException("Unsupported recorded operational status.")
             }
         };
+        else warnings.Add("System operational status has not been recorded; final SSP export requires an explicit status.");
 
         return sc;
     }
@@ -471,15 +576,7 @@ public class OscalSspExportService : IOscalSspExportService
             si["users"] = roles.Select(r => new Dictionary<string, object>
             {
                 ["uuid"] = partyMap.TryGetValue(r.UserId, out var pid) ? pid : Guid.NewGuid().ToString(),
-                ["role-ids"] = new[] { MapRoleId(r.RmfRole) },
-                ["props"] = new[]
-                {
-                    new Dictionary<string, string>
-                    {
-                        ["name"] = "privilege-level",
-                        ["value"] = r.RmfRole == RmfRole.AuthorizingOfficial ? "privileged" : "non-privileged"
-                    }
-                }
+                ["role-ids"] = new[] { MapRoleId(r.RmfRole) }
             }).ToList();
         }
         else
@@ -524,28 +621,6 @@ public class OscalSspExportService : IOscalSspExportService
         else
         {
             si["components"] = Array.Empty<object>();
-            si["inventory-items"] = Array.Empty<object>();
-        }
-
-        // Leveraged authorizations from ControlInheritance providers
-        if (baseline?.Inheritances != null)
-        {
-            var providers = baseline.Inheritances
-                .Where(i => i.InheritanceType == InheritanceType.Inherited && !string.IsNullOrWhiteSpace(i.Provider))
-                .Select(i => i.Provider!)
-                .Distinct()
-                .ToList();
-
-            if (providers.Count > 0)
-            {
-                si["leveraged-authorizations"] = providers.Select(p => new Dictionary<string, object>
-                {
-                    ["uuid"] = Guid.NewGuid().ToString(),
-                    ["title"] = $"{p} FedRAMP Authorization",
-                    ["party-uuid"] = Guid.NewGuid().ToString(),
-                    ["date-authorized"] = DateTime.UtcNow.ToString("yyyy-MM-dd")
-                }).ToList();
-            }
         }
 
         return si;
@@ -620,54 +695,32 @@ public class OscalSspExportService : IOscalSspExportService
             {
                 ["uuid"] = Guid.NewGuid().ToString(),
                 ["control-id"] = impl.ControlId.ToLowerInvariant(),
-                ["description"] = $"Policy and technical implementation statements for {impl.ControlId}.",
+                ["remarks"] = impl.ApprovedVersionId != null && impl.PolicyNarrative == null
+                    && impl.TechnicalNarrative == null && !string.IsNullOrWhiteSpace(impl.Narrative)
+                    ? impl.Narrative : $"Policy and technical implementation statements for {impl.ControlId}.",
                 ["statements"] = new List<Dictionary<string, object>>
                 {
                     new()
                     {
                         ["uuid"] = Guid.NewGuid().ToString(),
                         ["statement-id"] = $"{impl.ControlId}_smt.policy",
-                        ["description"] = impl.PolicyNarrative ?? "[Not Authored]"
+                        ["remarks"] = impl.PolicyNarrative ?? "[Not Authored]"
                     },
                     new()
                     {
                         ["uuid"] = Guid.NewGuid().ToString(),
                         ["statement-id"] = $"{impl.ControlId}_smt.technical",
-                        ["description"] = impl.TechnicalNarrative ?? "[Not Authored]"
+                        ["remarks"] = impl.TechnicalNarrative ?? "[Not Authored]"
                     }
                 },
                 ["props"] = props.ToArray()
             };
 
-            // Add responsible-roles from inheritance
+            // Inheritance is a recorded allocation, not a party/role assignment.
             if (inheritanceMap.TryGetValue(impl.ControlId, out var inh))
             {
-                req["responsible-roles"] = new[]
-                {
-                    new Dictionary<string, string>
-                    {
-                        ["role-id"] = inh.InheritanceType switch
-                        {
-                            InheritanceType.Inherited => "provider",
-                            InheritanceType.Shared => "shared",
-                            _ => "customer"
-                        }
-                    }
-                };
-            }
-
-            // Add by-components cross-references
-            if (componentMap.Count > 0)
-            {
-                req["by-components"] = componentMap.Values.Take(1).Select(uuid => new Dictionary<string, object>
-                {
-                    ["component-uuid"] = uuid,
-                    ["uuid"] = Guid.NewGuid().ToString(),
-                    ["description"] = string.Join(
-                        "\n\n",
-                        impl.PolicyNarrative ?? "[Not Authored]",
-                        impl.TechnicalNarrative ?? "[Not Authored]")
-                }).ToList();
+                props.Add(new() { ["name"] = "inheritance-type", ["ns"] = "https://ato-copilot.io/ns/document", ["value"] = inh.InheritanceType.ToString() });
+                req["props"] = props.ToArray();
             }
 
             return req;
@@ -752,7 +805,7 @@ public class OscalSspExportService : IOscalSspExportService
             });
         }
 
-        return new Dictionary<string, object>
+        return resources.Count == 0 ? new Dictionary<string, object>() : new Dictionary<string, object>
         {
             ["resources"] = resources
         };

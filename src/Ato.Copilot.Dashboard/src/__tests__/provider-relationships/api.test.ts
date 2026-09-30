@@ -6,6 +6,7 @@ import {
   listProviderRelationships,
   listSystemHostingAllocations,
   listAllSystemHostingAllocations,
+  listAllProviderRelationships,
   previewProviderRelationship,
   proposeProviderCapabilityAdoption,
   reviewProviderRelationship,
@@ -17,6 +18,70 @@ vi.mock('../../api/client', () => ({ default: { request: vi.fn() } }));
 beforeEach(() => vi.resetAllMocks());
 
 describe('mission provider relationship transport', () => {
+  it('rejects malformed preview responses instead of enabling review confirmation', async () => {
+    // Arrange
+    vi.mocked(apiClient.request).mockResolvedValue({ data: { status: 'success', data: {} } });
+    // Act / Assert
+    await expect(previewProviderRelationship('system-a', 'relationship-a', { expectedRevision: 1, expectedAssignmentRevision: 1,
+      relationshipState: 'SeparateBoundaryConsumer', evidence: [], rationale: 'Recorded rationale' })).rejects.toThrow('valid relationship review preview');
+  });
+  it('rejects review receipts for a different relationship or without a reviewed timestamp', async () => {
+    // Arrange
+    vi.mocked(apiClient.request).mockResolvedValue({ data: { status: 'success', data: { ...allocationResponse,
+      relationshipId: 'different', revision: 3, reviewedBy: null, reviewedAt: null } } });
+    // Act / Assert
+    await expect(reviewProviderRelationship('system-a', 'relationship-a', { expectedRevision: 2, previewId: 'preview', previewHash: 'hash',
+      rationale: 'Recorded rationale' })).rejects.toThrow('selected relationship review');
+  });
+  it('retains authoritative relationship review and provenance across all pages', async () => {
+    // Arrange
+    const reviewed = { ...allocationResponse, assignmentId: 'assignment-b', relationshipId: 'relationship-b',
+      revision: 7, assignmentRevision: 4, state: 'SeparateBoundaryConsumer', reviewRequired: true,
+      authorizationRevisionId: 'authorization-3', boundaryRevisionId: 'boundary-2',
+      reviewedBy: 'reviewer-a', reviewedAt: '2026-09-20T12:00:00Z' };
+    vi.mocked(apiClient.request)
+      .mockResolvedValueOnce({ data: { status: 'success', data: { items: [allocationResponse], page: 1, pageSize: 25, total: 2 } } })
+      .mockResolvedValueOnce({ data: { status: 'success', data: { items: [reviewed], page: 2, pageSize: 25, total: 2 } } });
+    // Act
+    const items = await listAllProviderRelationships('system-a');
+    // Assert
+    expect(items).toEqual([allocationResponse, reviewed]);
+    expect(apiClient.request).toHaveBeenLastCalledWith(expect.objectContaining({ params: { page: 2, pageSize: 25 } }));
+  });
+
+  it.each([
+    { items: [], page: 2, pageSize: 25, total: 0 },
+    { items: [allocationResponse], page: 1, pageSize: 25, total: 0 },
+    { items: [{ ...allocationResponse, systemId: 'another-system' }], page: 1, pageSize: 25, total: 1 },
+  ])('rejects invalid first-page identity and completeness before classification', async data => {
+    // Arrange
+    vi.mocked(apiClient.request).mockResolvedValue({ data: { status: 'success', data } });
+    // Act / Assert
+    await expect(listAllProviderRelationships('system-a')).rejects.toThrow(/Hosting allocations/);
+  });
+
+  it('rejects a later-page failure instead of returning partial associations', async () => {
+    // Arrange
+    vi.mocked(apiClient.request)
+      .mockResolvedValueOnce({ data: { status: 'success', data: { items: [allocationResponse], page: 1, pageSize: 25, total: 2 } } })
+      .mockRejectedValueOnce(new Error('Second page unavailable'));
+    // Act / Assert
+    await expect(listAllProviderRelationships('system-a')).rejects.toThrow('Second page unavailable');
+    expect(apiClient.request).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops pagination when the system read is aborted', async () => {
+    // Arrange
+    const controller = new AbortController();
+    vi.mocked(apiClient.request).mockImplementationOnce(async () => {
+      controller.abort();
+      return { data: { status: 'success', data: { items: [allocationResponse], page: 1, pageSize: 25, total: 2 } } };
+    });
+    // Act / Assert
+    await expect(listAllProviderRelationships('system-a', controller.signal)).rejects.toThrow();
+    expect(apiClient.request).toHaveBeenCalledTimes(1);
+  });
+
   it('reads every hosting page without dropping later associated scopes', async () => {
     // Arrange
     vi.mocked(apiClient.request)
@@ -36,6 +101,7 @@ describe('mission provider relationship transport', () => {
     { items: [{ ...allocationResponse, assignmentId: 'assignment-b', systemId: 'system-b' }], page: 2, pageSize: 25, total: 2 },
     { items: [], page: 2, pageSize: 25, total: 2 },
     { items: [{ ...allocationResponse, assignmentId: 'assignment-b' }], page: 2, pageSize: 25, total: 3 },
+    { items: [{ ...allocationResponse, assignmentId: 'assignment-b' }], page: 2, pageSize: 10, total: 2 },
   ])('rejects duplicate, cross-system, incomplete or changed hosting pages', async next => {
     // Arrange
     vi.mocked(apiClient.request)
@@ -81,13 +147,18 @@ describe('mission provider relationship transport', () => {
 
   it('keeps review bound to the exact server preview instead of resubmitting mutable scope', async () => {
     // Arrange
-    vi.mocked(apiClient.request).mockResolvedValue({ data: { status: 'success', data: {} } });
+    vi.mocked(apiClient.request)
+      .mockResolvedValueOnce({ data: { status: 'success', data: {
+        previewId: 'preview-1', previewHash: 'immutable-preview-hash', revision: 4, contextSnapshotHash: 'context-hash', blockers: [], canReview: true,
+      } } })
+      .mockResolvedValueOnce({ data: { status: 'success', data: { ...allocationResponse, systemId: 'system-1',
+        relationshipId: 'relationship/1', revision: 5, reviewedBy: 'reviewer', reviewedAt: '2026-09-28T13:00:00Z' } } });
     const proposal = {
       expectedRevision: 3, expectedAssignmentRevision: 4, relationshipState: 'SeparateBoundaryConsumer' as const,
       evidence: [], rationale: 'Mission maintains a separate boundary.',
     };
     const decision = {
-      expectedRevision: 3, previewId: 'preview-1', previewHash: 'immutable-preview-hash',
+      expectedRevision: 4, previewId: 'preview-1', previewHash: 'immutable-preview-hash',
       rationale: 'Mission maintains a separate boundary.',
     };
 

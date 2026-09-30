@@ -117,8 +117,15 @@ public static class ServiceCollectionExtensions
 
         // ─── Compliance Engine Infrastructure (Feature 008) ──────────────────
         services.AddSingleton<IAzureResourceService, AzureResourceService>();
+        services.AddSingleton<CanonicalEnvironmentCollectionGuard>();
         services.AddSingleton<IAzureAssessmentConnectionProbe, AzureAssessmentConnectionProbe>();
         services.AddScoped<IAssessmentEnvironmentService, AssessmentEnvironmentService>();
+        services.AddScoped<Ato.Copilot.Core.Services.Environments.SystemEnvironmentService>();
+        services.AddScoped<ISystemEnvironmentService>(sp =>
+            sp.GetRequiredService<Ato.Copilot.Core.Services.Environments.SystemEnvironmentService>());
+        services.AddScoped<ISystemEnvironmentScopeResolver>(sp =>
+            sp.GetRequiredService<Ato.Copilot.Core.Services.Environments.SystemEnvironmentService>());
+        services.AddScoped<ISystemEnvironmentAzureSource, Ato.Copilot.Core.Services.Environments.SystemEnvironmentAzureSource>();
         services.AddSingleton<IAssessmentPersistenceService, AssessmentPersistenceService>();
         services.AddSingleton<IScannerRegistry, ScannerRegistry>();
         services.AddSingleton<IEvidenceCollectorRegistry, EvidenceCollectorRegistry>();
@@ -187,6 +194,7 @@ public static class ServiceCollectionExtensions
             sp.GetService<IAlertCorrelationService>()));
         services.AddSingleton<IAlertManager>(sp => sp.GetRequiredService<AlertManager>());
         services.AddSingleton<ComplianceWatchService>();
+        services.AddScoped<ScopedMonitoringService>();
         services.AddSingleton<IComplianceWatchService>(sp => sp.GetRequiredService<ComplianceWatchService>());
         services.AddSingleton<ActivityLogEventSource>();
         services.AddSingleton<IComplianceEventSource>(sp => sp.GetRequiredService<ActivityLogEventSource>());
@@ -423,6 +431,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IOscalSchemaValidationService, OscalSchemaValidationService>();
         services.AddSingleton<IAuthorizationPackageService, AuthorizationPackageService>();
         services.AddSingleton<IPackageValidationService, PackageValidationService>();
+        services.AddSingleton<PackageReadinessService>();
 
         services.AddSingleton<IssueAuthorizationTool>();
         services.AddSingleton<AcceptRiskTool>();
@@ -475,6 +484,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEmassExportReadinessService, EmassExportReadinessService>();
         services.AddSingleton<IEmassRoundTripSyncService, EmassRoundTripSyncService>();
         services.AddSingleton<IEmassWorkflowStatusService, EmassWorkflowStatusService>();
+        services.AddScoped<EmassExchangeService>();
         services.AddSingleton<ExportEmassTool>();
         services.AddSingleton<ImportEmassTool>();
         services.AddSingleton<ExportOscalTool>();

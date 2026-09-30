@@ -744,6 +744,23 @@ export interface ProfileSectionSummary {
 export interface ProfileSectionDetail {
   id: string;
   canEditProfile?: boolean;
+  reviewScope?: 'AccessContext' | 'Section';
+  reviewResult?: {
+    categoryId: string;
+    action: UserCategoryReviewRequest['action'];
+    revision: number;
+    governanceStatus: GovernanceStatus;
+    pendingDeletion: boolean;
+  } | null;
+  userCategoriesReview?: {
+    activeCount: number;
+    approvedCount: number;
+    draftCount: number;
+    underReviewCount: number;
+    needsRevisionCount: number;
+    pendingDeletionCount: number;
+    isComplete: boolean;
+  };
   sectionType: ProfileSectionType;
   governanceStatus: GovernanceStatus;
   draftContent: string | null;
@@ -770,6 +787,24 @@ export interface UserCategoryItem {
   accessMethod: string | null;
   dataSensitivityLevel: string | null;
   sortOrder: number;
+  governanceStatus?: GovernanceStatus;
+  revision?: number;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewerComments?: string | null;
+  canSubmit?: boolean;
+  canWithdraw?: boolean;
+  canReview?: boolean;
+  pendingDeletion?: boolean;
+  approvedSnapshotId?: string | null;
+  submittedBy?: string | null;
+  reviewedBy?: string | null;
+}
+
+export interface UserCategoryReviewRequest {
+  action: 'submit' | 'withdraw' | 'approve' | 'request_revision';
+  expectedRevision: number;
+  comments?: string;
 }
 
 export interface DataTypeItem {

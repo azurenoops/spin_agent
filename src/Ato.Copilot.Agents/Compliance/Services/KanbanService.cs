@@ -611,12 +611,16 @@ public class KanbanService : IKanbanService
             throw new InvalidOperationException("BLOCKER_COMMENT_REQUIRED: A comment explaining the blocker is required.");
         if (rule.RequiresResolutionComment && string.IsNullOrWhiteSpace(comment))
             throw new InvalidOperationException("RESOLUTION_COMMENT_REQUIRED: A resolution comment is required to leave Blocked status.");
-        if (rule.RequiresValidation && !skipValidation)
+        if (skipValidation)
         {
-            // Check if CO can skip
-            if (!KanbanPermissionsHelper.CanPerformAction(actingUserRole, KanbanPermissions.CanCloseWithoutValidation))
-                throw new InvalidOperationException("VALIDATION_REQUIRED: Task must pass validation before closing, or a Compliance Officer must skip validation.");
+            if (!rule.AllowSkipValidation ||
+                !KanbanPermissionsHelper.CanPerformAction(actingUserRole, KanbanPermissions.CanCloseWithoutValidation))
+                throw new UnauthorizedAccessException("UNAUTHORIZED: This role cannot bypass task verification.");
+            if (string.IsNullOrWhiteSpace(comment))
+                throw new InvalidOperationException("SKIP_REASON_REQUIRED: Explain why verification is being bypassed.");
         }
+        if (rule.RequiresValidation && !skipValidation && task.VerificationStatus != "Passed")
+            throw new InvalidOperationException("VALIDATION_REQUIRED: Record successful verification before closing the task.");
 
         // RBAC check
         var canMoveAny = KanbanPermissionsHelper.CanPerformAction(actingUserRole, KanbanPermissions.CanMoveAny);
@@ -656,6 +660,13 @@ public class KanbanService : IKanbanService
 
         task.Status = targetStatus;
         task.UpdatedAt = DateTime.UtcNow;
+        if (targetStatus == TaskStatus.InProgress && oldStatus == TaskStatus.InReview)
+        {
+            task.VerificationStatus = "NotVerified";
+            task.VerificationNotes = null;
+            task.VerifiedAt = null;
+            task.VerifiedBy = null;
+        }
 
         task.History.Add(new TaskHistoryEntry
         {
@@ -665,6 +676,7 @@ public class KanbanService : IKanbanService
             NewValue = targetStatus.ToString(),
             ActingUserId = actingUserId,
             ActingUserName = actingUserName,
+            Details = skipValidation ? $"Verification explicitly bypassed: {comment}" : null,
         });
 
         await _context.SaveChangesAsync(cancellationToken);

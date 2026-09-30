@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getComponents, createComponent, listComponents, assignToSystem } from '../../../api/components';
 import type { OrgComponentDto } from '../../../api/components';
 import type { SystemComponentDto, CreateComponentRequest, ComponentType } from '../../../types/dashboard';
+import { Link } from '../../../features/workspaces/workspaceNavigation';
 
 interface SystemComponentsProps {
   systemId: string;
@@ -159,6 +160,7 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
             <div className="max-h-56 overflow-y-auto space-y-1">
               {orgComponents.map((oc) => {
                 const alreadyAssigned = assignedIds.has(oc.id) || oc.systemAssignments?.some((a) => a.registeredSystemId === systemId);
+                const policyAssignment = oc.systemAssignments?.find(a => a.registeredSystemId === systemId);
                 return (
                   <div key={oc.id} className="flex items-center justify-between rounded-md border border-gray-100 px-3 py-2 text-sm hover:bg-gray-50">
                     <div>
@@ -166,13 +168,19 @@ export default function SystemComponents({ systemId, onNext, onErrors }: SystemC
                       <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600">{oc.componentType}</span>
                       {oc.subType && <span className="ml-1 text-xs text-gray-400">{oc.subType}</span>}
                     </div>
-                    <button
+                    {oc.componentType === 'Policy' ? <Link
+                      to={policyAssignment
+                        ? `/systems/${encodeURIComponent(systemId)}/legal?reference=${encodeURIComponent(policyAssignment.id)}`
+                        : `/systems/${encodeURIComponent(systemId)}/legal?policyAction=add&policySource=${encodeURIComponent(oc.id)}`}
+                      target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-700 underline">
+                      {policyAssignment ? 'Review policy reference' : 'Add policy reference'} ↗
+                    </Link> : <button
                       onClick={() => handleAssignOrg(oc)}
                       disabled={alreadyAssigned || assigning === oc.id}
                       className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {alreadyAssigned ? 'Assigned' : assigning === oc.id ? 'Adding...' : 'Add'}
-                    </button>
+                    </button>}
                   </div>
                 );
               })}

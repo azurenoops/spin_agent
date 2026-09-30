@@ -1,0 +1,107 @@
+%PDF-1.4
+%ту╧╙
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4377 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Azure IL5 ╖ Shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (Evidence index) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.2 | Scenario date: 2026-09-15 | Provider-managed shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 609 Td (AZ-E01 Ч Audit collection) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 586 Td (Scope: seven-day collector reconciliation and archive retrieval sample. Controls: AU-2, AU-6,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 572 Td (AU-11.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 551 Td (Location: service-guide.md, heading 'Audit collection'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 537 Td (describing expected review material, not an attached real export. Owner: Northstar Shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 523 Td (Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 502 Td (AZ-E02 Ч Network protection) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 479 Td (Scope: approved rule sample, route inventory and denied-flow test. Controls: SC-7.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 458 Td (Location: service-guide.md, heading 'Network protection'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 444 Td (describing expected review material, not an attached real export. Owner: Northstar Shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 430 Td (Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 409 Td (AZ-E03 Ч Privileged identity) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 386 Td (Scope: synthetic access review, activation record and leaver test. Controls: IA-2, AC-2.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 365 Td (Location: service-guide.md, heading 'Privileged identity'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 351 Td (describing expected review material, not an attached real export. Owner: Northstar Shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 337 Td (Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 316 Td (AZ-E04 Ч Configuration baselines) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 293 Td (Scope: baseline revision, drift review and approved change sample. Controls: CM-2, CM-3.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 272 Td (Location: service-guide.md, heading 'Configuration baselines'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 258 Td (describing expected review material, not an attached real export. Owner: Northstar Shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 244 Td (Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 223 Td (AZ-E05 Ч Encryption and key handling) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 200 Td (Scope: synthetic rotation rehearsal and endpoint protocol inventory. Controls: SC-12, SC-13.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 179 Td (Location: service-guide.md, heading 'Encryption and key handling'. This is a narrative) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 165 Td (specimen describing expected review material, not an attached real export. Owner: Northstar) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 151 Td (Shared Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 137 Td (CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 116 Td (AZ-E06 Ч Incident coordination) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 93 Td (Scope: tabletop timeline, escalation roster and notification template. Controls: IR-4, IR-6.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 2) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 2414 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Location: service-guide.md, heading 'Incident coordination'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (describing expected review material, not an attached real export. Owner: Northstar Shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 681 Td (AZ-E07 Ч Vulnerability management) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 658 Td (Scope: synthetic scan sample, patch ticket and clean rescan. Controls: RA-5, SI-2.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 637 Td (Location: service-guide.md, heading 'Vulnerability management'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 623 Td (describing expected review material, not an attached real export. Owner: Northstar Shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 609 Td (Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 588 Td (AZ-E08 Ч Backup and recovery) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 565 Td (Scope: backup reconciliation and shared-configuration restore exercise. Controls: CP-9,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 551 Td (CP-10.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 530 Td (Location: service-guide.md, heading 'Backup and recovery'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 516 Td (describing expected review material, not an attached real export. Owner: Northstar Shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 502 Td (Services Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 481 Td (AZ-PRIVATE-WP-001 Ч restricted working paper) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 458 Td (Controls: AU-6, AU-11. Seven-row invented timing ledger. PRIVATE; unavailable in the customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 444 Td (download. The customer assessment summary preserves the finding and corrective plan without) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 430 Td (the detailed working paper.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 2 of 2) Tj ET
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000224 00000 n 
+0000000326 00000 n 
+0000000462 00000 n 
+0000004891 00000 n 
+0000005027 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+7493
+%%EOF

@@ -9,6 +9,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Onboarding;
 using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Models.Compliance;
 
 namespace Ato.Copilot.Tests.Unit.Onboarding;
 
@@ -153,6 +154,56 @@ public class AzureSubscriptionRegistrationServiceTests : IDisposable
         var visible = new List<AzureSubscriptionInfo>();
         var act = async () => await _sut.ReplaceAsync(tenantId, new[] { bogus }, visible, Guid.NewGuid());
         await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Removal_ReferencedEnvironment_PreservesIdentityAndRevokesRegistration(bool replaceSet)
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var registrationId = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var directoryId = Guid.NewGuid();
+        await using (var db = _factory.CreateDbContext())
+        {
+            db.AzureSubscriptionRegistrations.Add(new() { Id = registrationId, TenantId = tenantId,
+                SubscriptionId = subscriptionId, ParentTenantId = directoryId, DisplayName = "Referenced" });
+            db.Set<SystemEnvironmentAttachmentRecord>().Add(new() { TenantId = tenantId,
+                SystemId = Guid.NewGuid().ToString(), RegistrationId = registrationId });
+            await db.SaveChangesAsync();
+        }
+        // Act
+        if (replaceSet)
+            await _sut.ReplaceAsync(tenantId, [], [new(subscriptionId, "Referenced", directoryId, AzureEnvironment.AzureCloud)], Guid.NewGuid());
+        else
+            await _sut.RemoveAsync(tenantId, registrationId, Guid.NewGuid());
+        // Assert
+        await using var verification = _factory.CreateDbContext();
+        var retained = await verification.AzureSubscriptionRegistrations.SingleAsync();
+        retained.Id.Should().Be(registrationId);
+        retained.Status.Should().Be(SubscriptionStatus.Unavailable);
+        (await verification.Set<SystemEnvironmentAttachmentRecord>().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_InvisibleRegistration_DoesNotFabricateVerificationTimestamp()
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var verified = DateTimeOffset.UtcNow.AddDays(-7);
+        await using (var db = _factory.CreateDbContext())
+        {
+            db.AzureSubscriptionRegistrations.Add(new() { TenantId = tenantId, SubscriptionId = subscriptionId, LastSeenVisibleAt = verified });
+            await db.SaveChangesAsync();
+        }
+        // Act
+        var result = await _sut.ReplaceAsync(tenantId, [subscriptionId], [], Guid.NewGuid());
+        // Assert
+        result.Single().LastSeenVisibleAt.Should().Be(verified);
+        result.Single().Status.Should().Be(SubscriptionStatus.Unavailable);
     }
 
     private sealed class TestDbContextFactory : IDbContextFactory<AtoCopilotContext>

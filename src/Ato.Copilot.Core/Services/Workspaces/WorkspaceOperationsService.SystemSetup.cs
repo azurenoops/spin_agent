@@ -332,9 +332,13 @@ public sealed partial class WorkspaceOperationsService
                 }
                 var active = write.WriteKind == "subscription";
                 if (subscription.IsActive != active)
+                {
+                    subscription.CurrentAdoptionSnapshotId = null;
+                    subscription.AdoptionSelectionRevision = checked(subscription.AdoptionSelectionRevision + 1);
                     CapabilityResponsibilityService.AddSubscriptionActivity(db, systemId, subscription.Id, actor,
                         active ? "CapabilitySubscribed" : "CapabilityUnsubscribed",
                         $"{(active ? "Subscribed to" : "Unsubscribed from")} CSP capability: {write.RecordId}");
+                }
                 subscription.IsActive = active;
                 break;
             case "component-placement":

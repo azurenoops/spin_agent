@@ -43,7 +43,8 @@ public sealed partial class CspPackageService(
     private async Task<CspPackage> LoadAsync(AtoCopilotContext db, Guid id, CancellationToken ct)
     {
         var provider = await ProviderAsync(db, ct);
-        return await db.CspPackages.SingleOrDefaultAsync(x => x.Id == id && x.ProviderId == provider, ct)
+        // Explicit ID history access restores only this authorized provider's archived receipt.
+        return await db.CspPackages.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.Id == id && x.ProviderId == provider, ct)
             ?? throw new KeyNotFoundException("Package was not found in the current provider.");
     }
 
@@ -72,6 +73,8 @@ public sealed partial class CspPackageService(
             await using var transaction = db.Database.IsRelational()
                 ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
             var package = await LoadAsync(db, id, ct);
+            if (package.ArchivedAt.HasValue || package.SupersededAt.HasValue)
+                throw new DbUpdateConcurrencyException("Archived or superseded packages are read-only; inspect retained history.");
             var value = await change(db, package);
             Touch(package, false);
             Audit(db, package, action, actor);
@@ -125,7 +128,7 @@ public sealed partial class CspPackageService(
             if (await ProviderAsync(db, ct) != providerId) throw new UnauthorizedAccessException("Provider does not match the current scope.");
             await using var transaction = context is not null && db.Database.IsRelational()
                 ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
-            var existing = await db.CspPackages.SingleOrDefaultAsync(x => x.ProviderId == providerId && x.IdempotencyKey == key, ct);
+            var existing = await db.CspPackages.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.ProviderId == providerId && x.IdempotencyKey == key, ct);
             if (existing is not null)
             {
                 if (existing.ContentHash != fingerprint) throw new DbUpdateConcurrencyException("Idempotency key was already used for different package content.");
@@ -192,7 +195,7 @@ public sealed partial class CspPackageService(
         var bounds = PageBounds(page, pageSize);
         await using var db = await factory.CreateDbContextAsync(ct);
         var provider = await ProviderAsync(db, ct);
-        var query = db.CspPackages.Where(x => x.ProviderId == provider);
+        var query = db.CspPackages.Where(x => x.ProviderId == provider && x.SupersededAt == null);
         var total = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.Id).Skip(bounds.Skip).Take(bounds.Size).ToListAsync(ct);
         var results = new List<PackageStatus>();
@@ -229,7 +232,9 @@ public sealed partial class CspPackageService(
             new(states.Count, Count("Pending"), Count("Processed"), Count("Unsupported"), Count("Unreadable"), Count("Failed"), Count("Excluded")),
             row.LastError, row.CreatedAt, row.UpdatedAt,
             row.OfferingId.HasValue && row.PackageVersionId.HasValue && row.BoundaryRevisionId.HasValue
-                ? new(row.OfferingId.Value, row.PackageVersionId.Value, row.BoundaryRevisionId.Value) : null, progress);
+                ? new(row.OfferingId.Value, row.PackageVersionId.Value, row.BoundaryRevisionId.Value) : null, progress,
+            row.ArchivedAt, row.ArchivedBy, row.ArchiveReason,
+            row.SupersededByPackageId, row.SupersededAt, row.SupersededBy, row.SupersedeReason);
     }
 
     internal static PackageCandidateResponse Candidate(CspPackageCandidate row) =>

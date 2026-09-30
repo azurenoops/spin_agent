@@ -80,8 +80,45 @@ public sealed class OfferingBoundaryOverviewEndpointTests : IAsyncLifetime
         data.GetProperty("capabilities").GetProperty("items")[0].GetProperty("releaseId").ValueKind.Should().Be(JsonValueKind.Null);
         data.GetProperty("missionSystems").GetProperty("page").GetInt32().Should().Be(missionPage);
         data.GetProperty("missionSystems").GetProperty("items")[0].GetProperty("systemName").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("missionSystems").GetProperty("items")[0].GetProperty("targetTenantId").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("missionSystems").GetProperty("items")[0].GetProperty("targetTenantName").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("missionSystems").GetProperty("items")[0].GetProperty("adoptedReleases").GetArrayLength().Should().Be(0);
         _service.VerifyAll();
         _service.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Get_SerializesOnlyRetainedMissionReleaseMetadata()
+    {
+        // Arrange
+        var release = new OfferingMissionRelease(Guid.NewGuid(), "Synthetic capability", Guid.NewGuid(), 2, 5, true);
+        var tenant = Guid.NewGuid();
+        var mission = new OfferingBoundaryMission(Guid.NewGuid(), Guid.NewGuid().ToString(), "Synthetic mission",
+            "Undetermined", false, 1, [])
+        {
+            TargetTenantId = tenant, TargetTenantName = "Synthetic tenant", AdoptedReleases = [release]
+        };
+        _service.Setup(x => x.BoundaryOverviewAsync(_offering, 1, 1, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OfferingBoundaryOverview(_offering, 4, new([], 1, 10, 0, 0, 0), new([mission], 1, 10, 1)));
+
+        // Act
+        var response = await _client.GetAsync(Path);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var item = json.GetProperty("data").GetProperty("missionSystems").GetProperty("items")[0];
+        item.GetProperty("targetTenantId").GetGuid().Should().Be(tenant);
+        item.GetProperty("targetTenantName").GetString().Should().Be("Synthetic tenant");
+        var retained = item.GetProperty("adoptedReleases")[0];
+        retained.EnumerateObject().Select(x => x.Name).Should().BeEquivalentTo(
+            "capabilityId", "capabilityName", "releaseId", "revision", "currentReleaseRevision", "updateAvailable");
+        retained.GetProperty("capabilityId").GetGuid().Should().Be(release.CapabilityId);
+        retained.GetProperty("capabilityName").GetString().Should().Be(release.CapabilityName);
+        retained.GetProperty("releaseId").GetGuid().Should().Be(release.ReleaseId);
+        retained.GetProperty("revision").GetInt64().Should().Be(2);
+        retained.GetProperty("currentReleaseRevision").GetInt64().Should().Be(5);
+        retained.GetProperty("updateAvailable").GetBoolean().Should().BeTrue();
     }
 
     [Theory]

@@ -74,8 +74,8 @@ public sealed class OfferingOverviewEndpointTests : IAsyncLifetime
             .ReturnsAsync(new OfferingOverview(_offering, 7,
                 new([], authorizationPage, pageSize, 11, 5, 4, 2),
                 new([new(package, null, null, null, 1, 1)], packagePage, pageSize, 23, 1, 2, 30,
-                    new(package.PackageId, package.Name, "AuthorizationDecisionClaim")),
-                new(10, 3, 4, 5, 6), new(null, false, 0, 7, 2)));
+                    new(package.PackageId, package.Name, "AuthorizationDecisionClaim")) { SourceDocumentCount = 37 },
+                new(10, 3, 4, 5, 6) { PublishedReleaseRevisions = [2, 4] }, new(null, false, 0, 7, 2)) { OpenFindingCount = 3 });
         // Act
         var response = await _client.GetAsync(Path + query);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -85,7 +85,12 @@ public sealed class OfferingOverviewEndpointTests : IAsyncLifetime
         json.TryGetProperty("metadata", out _).Should().BeTrue();
         var data = json.GetProperty("data");
         data.EnumerateObject().Select(x => x.Name).Should().BeEquivalentTo(
-            "offeringId", "offeringRevision", "authorizations", "packages", "capabilities", "hosting");
+            "offeringId", "offeringRevision", "authorizations", "packages", "capabilities", "hosting", "customerActionCount", "openFindingCount");
+        data.GetProperty("openFindingCount").GetInt32().Should().Be(3);
+        data.GetProperty("packages").GetProperty("sourceDocumentCount").GetInt32().Should().Be(37);
+        data.GetProperty("capabilities").GetProperty("publishedReleaseRevisions").EnumerateArray()
+            .Select(x => x.GetInt64()).Should().Equal(2, 4);
+        data.GetProperty("customerActionCount").ValueKind.Should().Be(JsonValueKind.Null);
         data.GetProperty("authorizations").GetProperty("total").GetInt32().Should().Be(11);
         data.GetProperty("authorizations").GetProperty("page").GetInt32().Should().Be(authorizationPage);
         data.GetProperty("packages").GetProperty("page").GetInt32().Should().Be(packagePage);
@@ -99,6 +104,27 @@ public sealed class OfferingOverviewEndpointTests : IAsyncLifetime
         data.GetProperty("hosting").GetProperty("name").ValueKind.Should().Be(JsonValueKind.Null);
         _service.VerifyAll();
         _service.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(6)]
+    public async Task CustomerActionCount_PreservesUnavailableZeroAndKnownCounts(int? count)
+    {
+        // Arrange
+        _service.Setup(x => x.OverviewAsync(_offering, 1, 1, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OfferingOverview(_offering, 1, new([], 1, 10, 0, 0, 0, 0),
+                new([], 1, 10, 0, 0, 0, 0, null), new(0, 0, 0, 0, 0), new(null, false, 0, 0, 0))
+            { CustomerActionCount = count });
+        // Act
+        var response = await _client.GetAsync(Path);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var value = json.GetProperty("data").GetProperty("customerActionCount");
+        if (count is null) value.ValueKind.Should().Be(JsonValueKind.Null);
+        else value.GetInt32().Should().Be(count);
     }
 
     [Theory]

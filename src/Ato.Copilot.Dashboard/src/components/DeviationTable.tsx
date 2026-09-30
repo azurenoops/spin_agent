@@ -1,4 +1,5 @@
 import type { DeviationListItem } from '../types/dashboard';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 
 const SEVERITY_LABELS: Record<number, string> = { 0: 'CAT I', 1: 'CAT II', 2: 'CAT III' };
 const SEVERITY_COLORS: Record<number, string> = {
@@ -54,6 +55,7 @@ export default function DeviationTable({
   onPageChange,
   onRowClick,
 }: DeviationTableProps) {
+  const { formatDate } = useDateFormatter();
   const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
@@ -157,7 +159,7 @@ export default function DeviationTable({
                 <td className="px-4 py-2 text-gray-500 text-xs">
                   {d.requestedBy}
                   <br />
-                  {new Date(d.requestedAt).toLocaleDateString()}
+                  {formatDate(d.requestedAt)}
                 </td>
                 <td className="px-4 py-2 text-center">{d.evidenceCount}</td>
               </tr>

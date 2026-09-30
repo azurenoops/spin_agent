@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Authorization;
 using System.Text.RegularExpressions;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
@@ -114,8 +115,13 @@ public static partial class DashboardEndpoints
                         Details = ex.Message,
                     });
                 }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.Conflict(new { error = ex.Message });
+                }
             })
-            .WithName("CreateDeviation");
+            .WithName("CreateDeviation")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation, Policies.ComplianceWriter);
 
         // ─── Deviation Workflow (Feature 035) ────────────────────────────────
 
@@ -159,7 +165,8 @@ public static partial class DashboardEndpoints
                     });
                 }
             })
-            .WithName("ReviewDeviation");
+            .WithName("ReviewDeviation")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageRemediation, Policies.ComplianceWriter);
 
         group.MapPut("/deviations/{deviationId}/revoke", async (
                 string deviationId,

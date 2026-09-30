@@ -17,6 +17,7 @@ using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Mcp.Authorization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -137,7 +138,8 @@ public static partial class DashboardEndpoints
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
                 }
             })
-            .WithName("SetCategorization");
+            .WithName("SetCategorization")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem, Policies.ComplianceWriter);
 
         group.MapGet("/systems/{systemId}/categorization/history", async (
                 string systemId,
@@ -212,7 +214,8 @@ public static partial class DashboardEndpoints
                     return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "INVALID_INPUT" });
                 }
             })
-            .WithName("SelectBaseline");
+            .WithName("SelectBaseline")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem, Policies.ComplianceWriter);
 
         // ─── GET Baseline Detail ─────────────────────────────────────────────
         group.MapGet("/systems/{systemId}/baseline", async (
@@ -452,55 +455,7 @@ public static partial class DashboardEndpoints
             })
             .WithName("CreatePta");
 
-        // ─── Quick Action: Add Interconnection ─────────────────────────────
-        group.MapPost("/systems/{systemId}/interconnections", async (
-                string systemId,
-                AddInterconnectionRequest body,
-                IInterconnectionService interconnectionService,
-                AtoCopilotContext context,
-                CancellationToken ct) =>
-            {
-                if (!Enum.TryParse<DataFlowDirection>(body.Direction, true, out var direction))
-                    return Results.BadRequest(new ErrorResponse
-                    {
-                        Error = $"Invalid direction '{body.Direction}'",
-                        ErrorCode = "INVALID_INPUT",
-                        Suggestion = "Use: Inbound, Outbound, Bidirectional"
-                    });
-
-                if (!Enum.TryParse<InterconnectionType>(body.Type, true, out var connType))
-                    connType = InterconnectionType.Direct;
-
-                var result = await interconnectionService.AddInterconnectionAsync(
-                    systemId,
-                    body.RemoteSystem,
-                    connType,
-                    direction,
-                    body.DataClassification ?? "CUI",
-                    createdBy: currentUser.CurrentUserId,
-                    protocolsUsed: string.IsNullOrWhiteSpace(body.Protocol) ? null : new List<string> { body.Protocol },
-                    portsUsed: string.IsNullOrWhiteSpace(body.Port) ? null : new List<string> { body.Port },
-                    cancellationToken: ct);
-
-                context.DashboardActivities.Add(new DashboardActivity
-                {
-                    RegisteredSystemId = systemId,
-                    EventType = "InterconnectionAdded",
-                    Actor = currentUser.CurrentUserId,
-                    Summary = $"Interconnection added to {result.TargetSystemName} ({body.Direction})",
-                    RelatedEntityType = "SystemInterconnection",
-                    RelatedEntityId = result.InterconnectionId,
-                });
-                await context.SaveChangesAsync(ct);
-
-                return Results.Ok(new
-                {
-                    interconnectionId = result.InterconnectionId,
-                    targetSystemName = result.TargetSystemName,
-                    status = result.Status.ToString(),
-                });
-            })
-            .WithName("AddInterconnection");
+        MapInterconnectionRoutes(group);
 
         // ─── Quick Action: Certify No Interconnections ─────────────────────
         group.MapPost("/systems/{systemId}/certify-no-interconnections", async (

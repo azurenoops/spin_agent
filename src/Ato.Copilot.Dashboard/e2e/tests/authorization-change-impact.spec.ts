@@ -1,6 +1,8 @@
 import { expect, test, type BrowserContext } from '@playwright/test';
 import { installWorkspaceFixture } from '../fixtures/workspace-shell';
 import { offering, receipt } from '../../src/__tests__/provider-authorizations/testData';
+import { offeringOverview } from '../../src/__tests__/provider-authorizations/overviewFixtures';
+import { entry, page as sourcePage } from '../../src/__tests__/package-imports/fixtures';
 import { acceptedImpact, emptyImpactPage, impactContext, impactDetails, impactOptions, impactPreview, pendingImpact } from '../../src/__tests__/provider-authorizations/impactFixtures';
 import type { ImpactInput } from '../../src/features/provider-authorizations/types';
 import type { ImpactOptionKind } from '../../src/features/provider-authorizations/changeImpactApi';
@@ -9,6 +11,8 @@ async function installImpact(context: BrowserContext, unavailable = false) {
   const writes: { path: string; body: Record<string, unknown>; key?: string }[] = [];
   let selectedContext: ImpactInput | null = null;
   let decision = '';
+  await context.route('**/api/csp/package-imports/package-1/entries?*', route =>
+    route.fulfill({ json: { status: 'success', data: sourcePage([entry()]) } }));
   await context.route('**/api/csp/offerings/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -16,6 +20,7 @@ async function installImpact(context: BrowserContext, unavailable = false) {
     const ok = (data: unknown) => route.fulfill({ json: { status: 'success', data } });
     if (request.method() === 'GET') {
       if (path.endsWith(`/offerings/${offering.offeringId}`)) return ok(offering);
+      if (path.endsWith('/overview')) return ok(offeringOverview());
       if (path.endsWith('/package-versions')) return ok({ ...emptyImpactPage, total: 1, items: [receipt.packageVersion] });
       if (path.endsWith('/impact-reviews')) return ok({ ...emptyImpactPage, total: selectedContext ? 2 : 1,
         items: [{ ...acceptedImpact, stale: true }, ...(selectedContext ? [{
@@ -74,13 +79,15 @@ for (const width of [1440, 390]) {
     // Act
     await page.getByRole('button', { name: 'Review changes', exact: true }).click();
     // Assert
-    for (const name of ['Proposed change', 'Affected capabilities', 'Affected mission systems', 'Required action', 'Review outcome'])
+    for (const name of ['What changes', 'Affected capabilities', 'Affected mission systems', 'Required action', 'Review outcome'])
       await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
-    await expect(page.getByText('Mission Alpha', { exact: true })).toBeVisible();
+    await expect(page.getByRole('rowheader', { name: /^Mission Alpha/ })).toBeVisible();
     await expect(page.getByText(acceptedImpact.contextSnapshotHash, { exact: true })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Save review decision' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Record provider impact review' })).toHaveCount(0);
+    await expect(page.getByRole('table', { name: 'Affected mission systems' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Recorded impact reviews' })).toBeHidden();
     expect(writes).toHaveLength(0);
-    for (const name of ['Proposed change', 'Affected capabilities', 'Affected mission systems']) {
+    for (const name of ['What changes', 'Affected capabilities', 'Affected mission systems']) {
       const bounds = await page.getByRole('region', { name, exact: true }).boundingBox();
       expect(bounds).not.toBeNull();
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
@@ -89,7 +96,7 @@ for (const width of [1440, 390]) {
     }
     await page.screenshot({ path: info.outputPath(`change-impact-${width}.png`), fullPage: true });
     // Act
-    await page.getByRole('button', { name: 'Update impact review', exact: true }).click();
+    await page.getByRole('button', { name: 'Prepare fresh impact assessment', exact: true }).click();
     await expect(page.getByRole('checkbox', { name: /^Logging coverage ·/ })).toBeChecked();
     await expect(page.getByRole('radio', { name: /^Government services ·/ })).toBeChecked();
     await expect(page.getByRole('checkbox', { name: /^Recorded ATO ·/ })).toBeChecked();
@@ -98,13 +105,13 @@ for (const width of [1440, 390]) {
     await page.getByRole('checkbox', { name: 'I reviewed the selected changes and supporting versions.' }).check();
     await page.getByRole('button', { name: 'Assess impact', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Record review decision' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save review decision' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Record provider impact review' })).toBeDisabled();
     expect(writes).toHaveLength(1);
     expect(writes[0].body).toEqual(impactContext);
     expect(writes[0].key).toBeTruthy();
     await page.getByRole('combobox', { name: 'Review decision', exact: true }).selectOption('AcceptForPublication');
     await page.getByRole('textbox', { name: 'Review rationale', exact: true }).fill('Reviewed the affected logging capability and mission responsibilities.');
-    await page.getByRole('button', { name: 'Save review decision', exact: true }).click();
+    await page.getByRole('button', { name: 'Record provider impact review', exact: true }).click();
     // Assert
     await expect(page.getByText('Review decision saved. No publication was performed.', { exact: true })).toBeVisible();
     expect(writes).toHaveLength(2);
@@ -118,7 +125,9 @@ test('revised-package entry carries its exact package version and boundary witho
   const writes = await installImpact(context);
   // Act
   await page.goto(`/workspaces/csp/authorizations/offerings/${offering.offeringId}/packages`);
-  await page.getByRole('link', { name: 'Review changes', exact: true }).click();
+  await expect(page.getByRole('table', { name: 'Source packages and documents' })).toContainText('package.json');
+  await page.getByRole('button', { name: 'View retained version history' }).click();
+  await page.getByRole('dialog', { name: 'Retained version history' }).getByRole('link', { name: 'Review changes', exact: true }).click();
   // Assert
   await expect(page).toHaveURL(/impact\?packageVersionId=version-1&packageId=package-1&boundaryRevisionId=boundary-1$/);
   await expect(page.getByRole('checkbox', { name: /^Revised logging package ·/ })).toBeChecked();
@@ -149,6 +158,6 @@ test('an unavailable analysis is not displayed as no affected systems', async ({
   await expect(page.getByRole('alert')).toContainText('Impact analysis unavailable');
   await expect(page.getByText(/No conclusion about affected systems can be made/)).toBeVisible();
   await expect(page.getByRole('region', { name: 'Affected mission systems' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Save review decision' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Record provider impact review' })).toHaveCount(0);
   expect(writes).toHaveLength(0);
 });

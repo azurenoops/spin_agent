@@ -16,6 +16,115 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// </summary>
 public class SecurityAssessmentReportService : ISecurityAssessmentReportService
 {
+    public async Task<SecurityAssessmentReport> CreateScopedSarAsync(string systemId, ScopedSarInput input,
+        string createdBy, CancellationToken cancellationToken = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var existing = await db.SecurityAssessmentReports.Include(x => x.Sections)
+            .FirstOrDefaultAsync(x => x.RegisteredSystemId == systemId && x.WorkspaceOperationKey == input.OperationKey, cancellationToken);
+        if (existing is not null)
+        {
+            var retained = JsonSerializer.Deserialize<ScopedSarInput>(existing.SourceSnapshotJson!);
+            if (retained?.IntentHash != input.IntentHash) throw new InvalidOperationException("Request key already used for another report.");
+            return existing;
+        }
+        if (!await db.RegisteredSystems.AnyAsync(x => x.Id == systemId, cancellationToken))
+            throw new InvalidOperationException("System not found.");
+        if (input.Sources.Length == 0) throw new InvalidOperationException("Select at least one result.");
+        if (input.Plan is not null)
+        {
+            var plan = await db.SecurityAssessmentPlans.Include(x => x.ControlEntries)
+                .SingleOrDefaultAsync(x => x.Id == input.Plan.Id && x.RegisteredSystemId == systemId, cancellationToken)
+                ?? throw new InvalidOperationException("Plan not found for this system.");
+            if (plan.Revision != input.Plan.Revision || AssessmentResultProvenance.Hash(plan.Content) != input.Plan.Hash)
+                throw new InvalidOperationException("Selected plan changed.");
+        }
+        foreach (var source in input.Sources)
+        {
+            var parts = source.Id.Split(':', 2);
+            var valid = parts.Length == 2 && (parts[0] == "assessment"
+                ? await db.Assessments.AnyAsync(x => x.Id == parts[1] && x.RegisteredSystemId == systemId, cancellationToken)
+                : parts[0] == "import" && await db.ScanImportRecords.AnyAsync(x => x.Id == parts[1] && x.RegisteredSystemId == systemId, cancellationToken));
+            if (!valid) throw new InvalidOperationException("Selected result not found for this system.");
+            var import = parts[0] == "import" ? await db.ScanImportRecords.SingleAsync(x => x.Id == parts[1], cancellationToken) : null;
+            var assessmentId = import?.AssessmentId ?? parts[1];
+            var assessment = await db.Assessments.Include(x => x.Findings).SingleAsync(x => x.Id == assessmentId
+                && x.RegisteredSystemId == systemId, cancellationToken);
+            var json = import is null ? assessment.ResultProvenanceJson : import.ResultProvenanceJson;
+            var provenance = AssessmentResultProvenance.Read(json);
+            var findings = assessment.Findings.Select(ResultFindingSnapshot.From).ToArray();
+            string[] observations = findings.Where(x => x.ControlId != null).Select(x => x.ControlId!).ToArray();
+            if (import is not null)
+            {
+                var rows = await db.ScanImportFindings.Where(x => x.ScanImportRecordId == import.Id).ToListAsync(cancellationToken);
+                observations = rows.Where(x => !new[] { "Not_Reviewed", "notchecked", "unknown", "error" }
+                    .Contains(x.RawStatus, StringComparer.OrdinalIgnoreCase)).SelectMany(x => x.ResolvedNistControlIds).ToArray();
+                var ids = rows.Select(x => x.ComplianceFindingId).Where(x => x != null).ToHashSet();
+                findings = findings.Where(x => ids.Contains(x.FindingId)).ToArray();
+            }
+            else
+            {
+                var evidenceControls = await db.Evidence.Where(x => x.AssessmentId == assessmentId && x.ControlId != "")
+                    .Select(x => x.ControlId).ToListAsync(cancellationToken);
+                observations = observations.Concat(evidenceControls).ToArray();
+            }
+            findings = provenance.Findings?.ToArray() ?? findings;
+            observations = provenance.ObservedControlIds ?? observations.Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
+            var revision = AssessmentResultProvenance.Hash(JsonSerializer.Serialize(new
+            {
+                Id = source.Id, provenance = json, status = import?.ImportStatus.ToString() ?? assessment.Status.ToString(),
+                Observed = observations, Findings = findings
+            }));
+            if (revision != source.Revision
+                || JsonSerializer.Serialize(source.Reviews) != JsonSerializer.Serialize(provenance.Reviews)
+                || JsonSerializer.Serialize(source.OriginalPlan) != JsonSerializer.Serialize(provenance.Plan)
+                || JsonSerializer.Serialize(source.Findings) != JsonSerializer.Serialize(findings)
+                || !source.ObservedControls.SequenceEqual(observations))
+                throw new InvalidOperationException("Selected source or review snapshot changed.");
+        }
+        var included = input.Plan?.IncludedControlIds;
+        var reviewSummary = SelectedAssessmentReviewSummary.Build(input.Sources
+            .Select(s => (s.Id, s.ObservedControls.AsEnumerable(), s.Reviews.AsEnumerable())), included);
+        var reviews = reviewSummary.Reviews;
+        input = input with { Warnings = input.Warnings.Concat(reviewSummary.Warnings).Distinct().ToArray() };
+        var observed = input.Sources.SelectMany(s => s.ObservedControls).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var sar = new SecurityAssessmentReport
+        {
+            RegisteredSystemId = systemId, SapId = input.Plan?.Id, Title = input.Title,
+            Status = SarStatus.Draft, CreatedBy = createdBy, WorkspaceOperationKey = input.OperationKey,
+            SourceSnapshotJson = JsonSerializer.Serialize(input), TotalControlsAssessed = reviews.Length,
+            TotalControlsPending = (included ?? observed).Except(reviews.Select(r => r.ControlId), StringComparer.OrdinalIgnoreCase).Count(),
+            SatisfiedCount = reviews.Count(r => r.Determination == "Satisfied"),
+            NotSatisfiedCount = reviews.Count(r => r.Determination == "OtherThanSatisfied")
+        };
+        sar.Sections =
+        [
+            CreateSection(sar.Id, SarSectionType.ExecutiveSummary, "Executive Summary",
+                $"Draft based on {input.Sources.Length} selected retained results. {sar.TotalControlsAssessed} controls explicitly reviewed; {sar.TotalControlsPending} pending. Collection observations are not human determinations.", true),
+            CreateSection(sar.Id, SarSectionType.AssessmentScope, "Assessment Scope & Methodology",
+                input.Plan is null ? "Preliminary: no selected plan." :
+                $"{input.Plan.Title}, revision {input.Plan.Revision}, content hash {input.Plan.Hash}\nIncluded: {string.Join(", ", input.Plan.IncludedControlIds)}\nExcluded: {string.Join(", ", input.Plan.ExcludedControlIds)}", true),
+            CreateSection(sar.Id, SarSectionType.FindingsSummary, "Observations and review gaps",
+                string.Join("\n", input.Warnings.Concat(input.Sources.Select(s => $"{s.Id}: {s.ObservedControls.Length} observed controls; {s.Reviews.Length} retained reviews."))), true),
+            CreateSection(sar.Id, SarSectionType.FindingDetails, "Retained findings and determinations",
+                string.Join("\n", input.Sources.SelectMany(s => s.Findings.Select(f => $"{s.Id} | {f.ControlId}: {f.Title} ({f.Severity}) — observation pending review")))
+                + "\n" + string.Join("\n", reviews.Select(r => $"{r.ControlId}: {r.Determination} ({r.Method}); {r.Notes}; reviewed by {r.Actor} at {r.At:O}; evidence: {string.Join(", ", r.EvidenceIds)}")), true),
+            CreateSection(sar.Id, SarSectionType.Recommendations, "Recommendations", "Resolve advisory coverage and review gaps before report approval.", false)
+        ];
+        db.SecurityAssessmentReports.Add(sar);
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            var concurrent = await db.SecurityAssessmentReports.Include(x => x.Sections)
+                .SingleOrDefaultAsync(x => x.RegisteredSystemId == systemId && x.WorkspaceOperationKey == input.OperationKey, cancellationToken);
+            if (concurrent is null || JsonSerializer.Deserialize<ScopedSarInput>(concurrent.SourceSnapshotJson!)?.IntentHash != input.IntentHash) throw;
+            return concurrent;
+        }
+        return sar;
+    }
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SecurityAssessmentReportService> _logger;
 
@@ -51,6 +160,9 @@ public class SecurityAssessmentReportService : ISecurityAssessmentReportService
 
         var system = await db.RegisteredSystems.FindAsync([systemId], cancellationToken)
             ?? throw new InvalidOperationException($"System '{systemId}' not found.");
+        if (sapId is not null && !await db.SecurityAssessmentPlans.AnyAsync(
+            x => x.Id == sapId && x.RegisteredSystemId == systemId, cancellationToken))
+            throw new InvalidOperationException("Selected SAP does not belong to this system.");
 
         // Load assessment data for auto-populating findings sections
         var effectivenessRecords = await db.ControlEffectivenessRecords

@@ -127,6 +127,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-21
 - Existing tenant, Person and role persistence; any membership/schema migration is owned by #942 and requires its approved contrac (078-role-aware-workspaces)
 - C# / .NET 9 backend; TypeScript 5.7 / React 19 dashboard (existing stack; proposed feature) + Existing ASP.NET Core authorization and EF Core; React Router 7, Axios, MSAL, Vitest and Playwrigh (078-role-aware-workspaces)
 - Existing tenant, Person and role persistence; any membership/schema migration is owned by #942 and requires its approved contrac (078-role-aware-workspaces)
+- C# / .NET 9 backend; TypeScript 5.7 / React 19 dashboard + Existing ASP.NET Core, EF Core, React Router, Vite, Vitest, Playwright, MkDocs Material (079-provider-system-workflow-consolidation)
+- Existing SQLite / SQL Server and retained file storage; additive changes only during later implementation (079-provider-system-workflow-consolidation)
 
 - C# 13 / .NET 9.0 + Azure.Identity 1.13, Azure.ResourceManager 1.13, Microsoft.Extensions.AI 9.4-preview, Microsoft.EntityFrameworkCore 9.0, Serilog 4.2, xUnit 2.9, FluentAssertions 7.0, Moq 4.20 (001-core-compliance)
 
@@ -182,9 +184,9 @@ docker compose -f docker-compose.mcp.yml up --build
 - **Logging**: Structured Serilog; redact sensitive tool parameters; no PII/CUI in logs
 
 ## Recent Changes
+- 079-provider-system-workflow-consolidation: Added C# / .NET 9 backend; TypeScript 5.7 / React 19 dashboard + Existing ASP.NET Core, EF Core, React Router, Vite, Vitest, Playwright, MkDocs Material
 - 078-role-aware-workspaces: Added C# / .NET 9 backend; TypeScript 5.7 / React 19 dashboard (existing stack; proposed feature) + Existing ASP.NET Core authorization and EF Core; React Router 7, Axios, MSAL, Vitest and Playwrigh
 - 078-role-aware-workspaces: Added C# / .NET 9 backend; TypeScript 5.7 / React 19 dashboard (existing stack; proposed feature) + Existing ASP.NET Core authorization and EF Core; React Router 7, Axios, MSAL, Vitest and Playwrigh
-- 051-login: Added C# 13 / .NET 9.0 (backend); TypeScript 5.7 / React 19 (Dashboard); TypeScript 5 / Node 20 LTS (VS Code + M365 extensions) + ASP.NET Core 9.0 (Minimal APIs), EF Core 9.0 (SqlServer + Sqlite), Microsoft.Identity.Web 3.5+, Microsoft.Extensions.Caching.StackExchangeRedis 9.0 (NEW), Serilog 4.2; @azure/msal-browser 3.x + @azure/msal-react 2.x (NEW — dashboard); @azure/msal-node 2.x (NEW — VS Code); botbuilder-dialogs (M365)
 
 
 <!-- MANUAL ADDITIONS START -->

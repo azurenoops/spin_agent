@@ -90,6 +90,7 @@ public static class RlsPolicyInstaller
         {
             // Step 1 — install the predicate function (idempotent).
             await db.Database.ExecuteSqlRawAsync(BuildPredicateFunctionSql(), cancellationToken);
+            await db.Database.ExecuteSqlRawAsync(BuildEnvironmentRegistrationPredicateSql(), cancellationToken);
 
             // Step 2 — drop the existing policy if present, then re-create.
             // CREATE SECURITY POLICY does not support OR ALTER syntax in
@@ -174,6 +175,27 @@ public static class RlsPolicyInstaller
                 $"Tenant ownership property {entityType.DisplayName()}.{tenantProperty.Name} has no table column mapping.");
     }
 
+    private static string BuildEnvironmentRegistrationPredicateSql() => """
+        IF OBJECT_ID('dbo.fn_EnvironmentRegistrationReadPredicate', 'IF') IS NOT NULL
+            DROP FUNCTION dbo.fn_EnvironmentRegistrationReadPredicate;
+        EXEC('
+        CREATE FUNCTION dbo.fn_EnvironmentRegistrationReadPredicate
+            (@TenantId UNIQUEIDENTIFIER, @RegistrationId UNIQUEIDENTIFIER)
+        RETURNS TABLE WITH SCHEMABINDING
+        AS RETURN
+            SELECT 1 AS allowed
+            WHERE @TenantId = CAST(SESSION_CONTEXT(N''TenantId'') AS UNIQUEIDENTIFIER)
+                OR CAST(SESSION_CONTEXT(N''IsCspAdmin'') AS NVARCHAR(8)) = N''true''
+                OR SESSION_CONTEXT(N''TenantId'') IS NULL
+                OR EXISTS (
+                    SELECT 1 FROM dbo.ProviderEnvironmentAllocationRecords AS allocation
+                    WHERE allocation.RegistrationId = @RegistrationId
+                        AND allocation.RegistrationOwnerTenantId = @TenantId
+                        AND allocation.ConsumerTenantId = CAST(SESSION_CONTEXT(N''TenantId'') AS UNIQUEIDENTIFIER)
+                );
+        ');
+        """;
+
     /// <summary>
     /// Build the <c>CREATE SECURITY POLICY dbo.TenantSecurityPolicy</c>
     /// statement. Drops + re-creates so adding a new <c>[TenantScoped]</c>
@@ -190,7 +212,14 @@ public static class RlsPolicyInstaller
         var entries = new List<string>();
         foreach (var (schema, table, tenantColumn) in targets)
         {
-            entries.Add($"    ADD FILTER PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}]");
+            if (schema == "dbo" && table == "AzureSubscriptionRegistrations")
+            {
+                // Allocation grants identity reads, including retained history, but never registration writes.
+                entries.Add($"    ADD FILTER PREDICATE dbo.fn_EnvironmentRegistrationReadPredicate([{tenantColumn}], [Id]) ON [{schema}].[{table}]");
+                entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}] BEFORE UPDATE");
+                entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}] BEFORE DELETE");
+            }
+            else entries.Add($"    ADD FILTER PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}]");
             entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}] AFTER INSERT");
             entries.Add($"    ADD BLOCK PREDICATE dbo.fn_TenantPredicate([{tenantColumn}]) ON [{schema}].[{table}] AFTER UPDATE");
         }

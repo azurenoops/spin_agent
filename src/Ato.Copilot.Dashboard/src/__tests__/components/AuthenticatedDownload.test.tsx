@@ -33,6 +33,19 @@ describe('AuthenticatedDownload', () => {
     expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled();
   });
 
+  it('notifies a detail view to discard protected data after access fails', async () => {
+    // Arrange
+    const denied = new Error('Sharing was revoked.');
+    download.mockRejectedValue(denied);
+    const onDownloadError = vi.fn();
+    render(<AuthenticatedDownload url="/api/provider-summary" onDownloadError={onDownloadError}>Open summary</AuthenticatedDownload>);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Open summary' }));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sharing was revoked.');
+    expect(onDownloadError).toHaveBeenCalledWith(denied);
+  });
+
   it('cancels a prior file request and does not keep the new file disabled', async () => {
     // Arrange
     let complete!: () => void;

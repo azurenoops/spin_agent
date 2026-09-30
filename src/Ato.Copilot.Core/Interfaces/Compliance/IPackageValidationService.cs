@@ -10,6 +10,12 @@ public interface IPackageValidationService
 {
     Task<PackageValidationResult> ValidateAsync(
         string systemId,
+        PackagePurpose purpose,
+        string validatedBy = "mcp-user",
+        CancellationToken cancellationToken = default);
+
+    Task<PackageValidationResult> ValidateAsync(
+        string systemId,
         string validatedBy = "mcp-user",
         CancellationToken cancellationToken = default);
 }

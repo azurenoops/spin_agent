@@ -33,7 +33,7 @@ public class TenantsEndpointsContractTests
     public TenantsEndpointsContractTests(MultiTenantWebApplicationFactory<McpProgram> factory)
     {
         _factory = factory;
-        _factory.ResetLegacyTenantContext(MultiTenantWebApplicationFactory<McpProgram>.TenantAId, isCspAdmin: true);
+        factory.ResetLegacyTenantContext(MultiTenantWebApplicationFactory<McpProgram>.TenantAId, isCspAdmin: true);
         _client = factory.CreateClient();
     }
 
@@ -133,27 +133,26 @@ public class TenantsEndpointsContractTests
     }
 
     [Fact]
-    public async Task LegacyContractSetup_AfterWorkspaceTest_DoesNotInheritWorkspaceIdentity()
+    public async Task Delete_Impersonation_LegacySetupAfterWorkspaceTest_StillReturns204WithoutCookie()
     {
-        // Arrange
-        var context = _factory.GetActiveContext();
-        context.IsWorkspaceRequest = true;
-        context.PersonId = Guid.NewGuid();
-        context.OrganizationId = Guid.NewGuid();
-        context.ImpersonatedTenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
-        var nextTest = new TenantsEndpointsContractTests(_factory);
-        using var client = nextTest._client;
+        // Arrange: an earlier collection test selected a workspace-bound actor.
+        var previous = _factory.GetActiveContext();
+        previous.PersonId = Guid.NewGuid();
+        previous.OrganizationId = Guid.NewGuid();
+        previous.IsWorkspaceRequest = true;
+        previous.ImpersonatedTenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
 
-        // Act
+        // Act: legacy contract setup must not inherit workspace identity requirements.
+        var next = new TenantsEndpointsContractTests(_factory);
+        using var client = next._client;
         var response = await client.DeleteAsync("/api/tenants/impersonation");
 
-        // Assert
+        // Assert: deleting an absent legacy cookie remains exactly 204.
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        context.IsWorkspaceRequest.Should().BeFalse();
-        context.PersonId.Should().BeNull();
-        context.OrganizationId.Should().BeNull();
-        context.ImpersonatedTenantId.Should().BeNull();
-        context.TenantId.Should().Be(MultiTenantWebApplicationFactory<McpProgram>.TenantAId);
+        _factory.GetActiveContext().PersonId.Should().BeNull();
+        _factory.GetActiveContext().OrganizationId.Should().BeNull();
+        _factory.GetActiveContext().IsWorkspaceRequest.Should().BeFalse();
+        _factory.GetActiveContext().ImpersonatedTenantId.Should().BeNull();
     }
 
     // ── DEF-004: Update (PUT) ───────────────────────────────────────────────

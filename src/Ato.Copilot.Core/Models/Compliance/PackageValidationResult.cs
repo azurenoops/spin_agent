@@ -10,6 +10,12 @@ namespace Ato.Copilot.Core.Models.Compliance;
 [TenantScoped]
 public class PackageValidationResult
 {
+    [NotMapped]
+    public IReadOnlyList<Ato.Copilot.Core.Dtos.Dashboard.PackageReadinessCheck> Checks { get; set; } = [];
+    [NotMapped]
+    public Ato.Copilot.Core.Dtos.Dashboard.RetainedPackageManifest? RetainedContext { get; set; }
+    [NotMapped]
+    public string? SourceContextHash { get; set; }
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

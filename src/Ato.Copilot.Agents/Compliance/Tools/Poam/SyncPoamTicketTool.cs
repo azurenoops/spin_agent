@@ -15,7 +15,7 @@ public class SyncPoamTicketTool : BaseTool
     public SyncPoamTicketTool(IServiceScopeFactory scopeFactory, ILogger<SyncPoamTicketTool> logger) : base(logger) => _scopeFactory = scopeFactory;
 
     public override string Name => "compliance_sync_poam_ticket";
-    public override string Description => "Sync a single POA&M item with its linked ticket in Jira/ServiceNow.";
+    public override string Description => "Legacy POA&M-owned ticket operation, separate from task-owned links. Explicit push or read-only pull only; pull requires an existing ticket and never closes local work.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {

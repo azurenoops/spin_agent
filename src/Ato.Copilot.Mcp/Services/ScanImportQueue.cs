@@ -13,6 +13,9 @@ namespace Ato.Copilot.Mcp.Services;
 /// </summary>
 public sealed class ScanImportJob
 {
+    public Guid TenantId { get; set; }
+    public Guid? PersonId { get; set; }
+    public Ato.Copilot.Core.Models.Compliance.ScanImportCapture? Capture { get; set; }
     /// <summary>Unique job ID (matches the ScanImportRecord.Id that was pre-created).</summary>
     public string JobId { get; set; } = string.Empty;
 

@@ -395,6 +395,9 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Junction linking POA&amp;M items to system components (many-to-many).</summary>
     public DbSet<PoamComponentLink> PoamComponentLinks => Set<PoamComponentLink>();
+    public DbSet<PoamTaskLink> PoamTaskLinks => Set<PoamTaskLink>();
+    public DbSet<TaskTicketLink> TaskTicketLinks => Set<TaskTicketLink>();
+    public DbSet<TaskTicketAudit> TaskTicketAudits => Set<TaskTicketAudit>();
 
     /// <summary>Immutable audit trail entries for POA&amp;M item changes.</summary>
     public DbSet<PoamHistoryEntry> PoamHistoryEntries => Set<PoamHistoryEntry>();
@@ -421,6 +424,7 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Pre-submission validation results for authorization packages.</summary>
     public DbSet<PackageValidationResult> PackageValidationResults => Set<PackageValidationResult>();
+    public DbSet<PackageReadinessRun> PackageReadinessRuns => Set<PackageReadinessRun>();
 
     /// <summary>Individual validation findings (errors/warnings) within package validation results.</summary>
     public DbSet<ValidationFinding> ValidationFindings => Set<ValidationFinding>();
@@ -605,6 +609,22 @@ public class AtoCopilotContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<PackageReadinessRun>(entity =>
+        {
+            entity.ToTable("PackageReadinessRuns");
+            entity.HasIndex(x => new { x.TenantId, x.RegisteredSystemId, x.Purpose, x.SelectionHash, x.EvaluatedAt })
+                .HasDatabaseName("IX_PackageReadinessRuns_Scope");
+            entity.HasOne<RegisteredSystem>().WithMany().HasForeignKey(x => x.RegisteredSystemId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ComplianceAssessment>().HasIndex(x => x.WorkspaceOperationKey).IsUnique().HasFilter("[WorkspaceOperationKey] IS NOT NULL");
+        modelBuilder.Entity<ScanImportRecord>().HasIndex(x => x.WorkspaceOperationKey).IsUnique().HasFilter("[WorkspaceOperationKey] IS NOT NULL");
+        modelBuilder.Entity<ScanImportRecord>().HasIndex(x => new { x.TenantId, x.RegisteredSystemId, x.FileHash }).IsUnique().HasFilter("[WorkspaceOperationKey] IS NOT NULL");
+        modelBuilder.Entity<SecurityAssessmentReport>().HasIndex(x => x.WorkspaceOperationKey).IsUnique().HasFilter("[WorkspaceOperationKey] IS NOT NULL");
+        modelBuilder.Entity<SspExport>().HasIndex(x => x.RequestScopeKey).IsUnique()
+            .HasDatabaseName("IX_SspExports_RequestScopeKey").HasFilter("[RequestScopeKey] IS NOT NULL");
+        modelBuilder.Entity<AuthorizationPackage>().HasIndex(x => x.RequestScopeKey).IsUnique()
+            .HasDatabaseName("IX_AuthorizationPackages_RequestScopeKey").HasFilter("[RequestScopeKey] IS NOT NULL");
+
         // ─── Value Converters ────────────────────────────────────────────────────
         var stringListConverter = new ValueConverter<List<string>, string>(
             v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
@@ -1127,7 +1147,7 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.ResourceGroupName).HasMaxLength(200);
             entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
 
-            entity.HasIndex(e => new { e.SubscriptionId, e.ResourceGroupName })
+            entity.HasIndex(e => new { e.TenantId, e.SubscriptionId, e.ResourceGroupName })
                 .IsUnique()
                 .HasDatabaseName("IX_MonitoringConfig_Sub_RG");
             entity.HasIndex(e => new { e.NextRunAt, e.IsEnabled })
@@ -1852,6 +1872,7 @@ public class AtoCopilotContext : DbContext
         modelBuilder.Entity<PoamItem>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.RowVersion).IsConcurrencyToken();
             entity.Property(e => e.Id).HasMaxLength(36);
             entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
             entity.Property(e => e.FindingId).HasMaxLength(100);
@@ -2138,6 +2159,7 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.GeneratedBy).HasMaxLength(200).IsRequired();
             entity.Property(e => e.FinalizedBy).HasMaxLength(200);
             entity.Property(e => e.Format).HasMaxLength(20).HasDefaultValue("markdown");
+            entity.Property(e => e.Revision).HasDefaultValue(1L).IsConcurrencyToken();
 
             // Relationships
             entity.HasOne(e => e.RegisteredSystem)
@@ -2154,6 +2176,15 @@ public class AtoCopilotContext : DbContext
             // Indexes
             entity.HasIndex(e => new { e.RegisteredSystemId, e.Status })
                 .HasDatabaseName("IX_SecurityAssessmentPlan_System_Status");
+            entity.HasIndex(e => new { e.TenantId, e.RegisteredSystemId })
+                .IsUnique().HasFilter("[Status] = 'Draft'")
+                .HasDatabaseName("UX_Sap_WorkingDraft");
+            entity.HasIndex(e => new { e.TenantId, e.RegisteredSystemId, e.GenerationRequestId })
+                .IsUnique().HasFilter("[GenerationRequestId] IS NOT NULL")
+                .HasDatabaseName("UX_Sap_GenerationRequest");
+            entity.HasIndex(e => new { e.TenantId, e.RegisteredSystemId, e.PreviousPlanId })
+                .IsUnique().HasFilter("[PreviousPlanId] IS NOT NULL")
+                .HasDatabaseName("UX_Sap_PreviousPlan");
         });
 
         // ─── SapControlEntry (Feature 018) ───────────────────────────────────────
@@ -2611,6 +2642,10 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.RegisteredSystemId).HasMaxLength(36).IsRequired();
             entity.Property(e => e.AuthorizationBoundaryDefinitionId).HasMaxLength(36);
             entity.Property(e => e.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.PolicyRevision).IsConcurrencyToken();
+            entity.HasIndex(e => new { e.TenantId, e.PolicyReferenceKey })
+                .IsUnique().HasFilter("[PolicyReferenceKey] IS NOT NULL")
+                .HasDatabaseName("IX_ComponentSystemAssignment_PolicyReference");
 
             entity.HasIndex(e => new { e.SystemComponentId, e.RegisteredSystemId, e.AuthorizationBoundaryDefinitionId })
                 .IsUnique()
@@ -2888,6 +2923,27 @@ public class AtoCopilotContext : DbContext
         });
 
         // ─── PoamComponentLink (Feature 039) ─────────────────────────────────
+        Ato.Copilot.Core.Data.Configurations.TaskTicketModelConfiguration.ConfigureTaskTicketing(modelBuilder);
+        modelBuilder.Entity<PoamTaskLink>(entity =>
+        {
+            entity.HasKey(e => new { e.PoamItemId, e.RemediationTaskId });
+            entity.Property(e => e.PoamItemId).HasMaxLength(36);
+            entity.Property(e => e.RemediationTaskId).HasMaxLength(36);
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36);
+            entity.Property(e => e.LinkedBy).HasMaxLength(200);
+            entity.HasIndex(e => new { e.TenantId, e.RegisteredSystemId });
+            entity.HasOne<PoamItem>().WithMany().HasForeignKey(e => e.PoamItemId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<RemediationTask>().WithMany().HasForeignKey(e => e.RemediationTaskId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<RemediationTask>(entity =>
+        {
+            entity.Property(e => e.RegisteredSystemId).HasMaxLength(36);
+            entity.Property(e => e.VerificationStatus).HasMaxLength(20);
+            entity.Property(e => e.VerifiedBy).HasMaxLength(200);
+            entity.Property(e => e.WorkspaceOperationKey).HasMaxLength(64);
+            entity.Property(e => e.WorkspaceIntentHash).HasMaxLength(64);
+            entity.HasIndex(e => e.WorkspaceOperationKey).IsUnique().HasFilter("[WorkspaceOperationKey] IS NOT NULL");
+        });
         modelBuilder.Entity<PoamComponentLink>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -3242,6 +3298,7 @@ public class AtoCopilotContext : DbContext
         // ─── UserCategory ────────────────────────────────────────────────────────
         modelBuilder.Entity<UserCategory>(entity =>
         {
+            entity.Property(e => e.GovernanceStatus).HasConversion<string>().HasMaxLength(20);
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasMaxLength(36);
             entity.Property(e => e.SystemProfileSectionId).HasMaxLength(36).IsRequired();
@@ -3398,18 +3455,23 @@ public class AtoCopilotContext : DbContext
         modelBuilder.Entity<CspPackageCandidate>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
         modelBuilder.Entity<CspPackageApproval>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
         modelBuilder.Entity<CspPackageAudit>().HasOne<CspPackage>().WithMany().HasForeignKey(x => x.PackageId);
-        modelBuilder.Entity<CspPackage>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
+        modelBuilder.Entity<CspPackage>().HasQueryFilter(x => x.ArchivedAt == null && (TenantFilterDisabled || TenantFilterCspAdminAll));
         modelBuilder.Entity<CspPackageEntry>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         modelBuilder.Entity<CspPackageCandidate>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         modelBuilder.Entity<CspPackageApproval>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         modelBuilder.Entity<CspPackageAudit>().HasQueryFilter(x => TenantFilterDisabled || TenantFilterCspAdminAll);
         Ato.Copilot.Core.Data.Configurations.ProviderAuthorizationModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.SystemEnvironmentConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ProviderMonitoringModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ScopedMonitoringModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ProviderEvidenceSharingConfiguration.Configure(modelBuilder);
 
         // ─── Tenant query filters (Feature 048 T042) ─────────────────────────────
         // Applied last so all entity types are present in the model. Walks the
         // model and attaches a HasQueryFilter to every CLR type decorated with
         // [TenantScoped]. The filter resolves the active tenant via the
         // ambient accessor captured into the closure.
+        modelBuilder.ApplyConfiguration(new Ato.Copilot.Core.Data.Configurations.EmassExchangeConfiguration());
         ApplyTenantQueryFilters(modelBuilder);
     }
 
@@ -4372,8 +4434,13 @@ public class AtoCopilotContext : DbContext
     /// Auto-regenerates RowVersion for all modified ConcurrentEntity entries
     /// to support optimistic concurrency with Guid-based tokens (per research R-001).
     /// </remarks>
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        SaveChangesAsync(true, cancellationToken);
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        GuardReadinessHistory();
+        await AssessmentPlanPersistenceGuard.ValidateAsync(this, cancellationToken);
         if (Database.IsSqlite())
         {
             foreach (var entry in ChangeTracker.Entries<SystemProfileSection>())
@@ -4397,6 +4464,19 @@ public class AtoCopilotContext : DbContext
             }
         }
 
-        return await base.SaveChangesAsync(cancellationToken);
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        GuardReadinessHistory();
+        AssessmentPlanPersistenceGuard.ValidateAsync(this, CancellationToken.None).GetAwaiter().GetResult();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    private void GuardReadinessHistory()
+    {
+        if (ChangeTracker.Entries<PackageReadinessRun>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Package readiness evaluations are immutable; create a new run.");
     }
 }

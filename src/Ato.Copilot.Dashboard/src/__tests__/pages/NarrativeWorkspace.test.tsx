@@ -21,6 +21,12 @@ vi.mock('../../pages/Narratives', () => ({
     <button disabled={!canGenerate}>Generate Policy draft for AC-2</button>
   </>,
 }));
+vi.mock('../../features/narratives/ControlNarrativeWorkspace', () => ({
+  default: ({ onOpenEditor }: { onOpenEditor: () => void }) => <>
+    <h1>Document how your controls work</h1>
+    <button type="button" onClick={onOpenEditor}>Open full editor</button>
+  </>,
+}));
 vi.mock('../../hooks/useSettings', () => ({ useSettings: () => ({ settings: {}, updateSettings: vi.fn() }) }));
 
 const draft = { id: 'import-1', referenceKey: 'reference-1', title: 'Access policy', scope: 'System', scopeId: 'system-1',
@@ -47,11 +53,31 @@ beforeEach(() => {
 });
 
 describe('Narratives workspace', () => {
+  it('keeps the narrative workspace primary when proposed updates exist and retains the full editor', async () => {
+    // Arrange
+    workspace.session = { roles: ['Issm'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canReviewNarratives: true } } };
+    vi.mocked(library.getProposals).mockResolvedValue([{ id: 'proposal-1', controlId: 'AC-2', narrativeType: 'Technical', baseVersion: 7,
+      beforeContent: 'Old accounts', proposedContent: 'Federated accounts', stateHash: 'SYNTHETIC', provenance: {}, conflicts: [],
+      missingEvidence: [], status: 'Draft', revision: 1, createdAt: '2026-01-01T00:00:00Z',
+      createdBy: 'author', reviewedAt: null, reviewedBy: null, reviewNote: null, acceptedVersion: null, isStale: false, canReview: true }]);
+    // Act
+    open('');
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Document how your controls work' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Control Narratives' })).not.toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Open full editor' }));
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Control Narratives' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Document how your controls work' })).not.toBeInTheDocument();
+    expect(library.reviewProposal).not.toHaveBeenCalled();
+  });
+
   it('does not turn a MissionOwner reference-author grant into narrative generation authority', async () => {
     // Arrange
     workspace.session = { roles: ['MissionOwner'], systemAccess: { systemId: 'system-1', permissions: { canRead: true, canAuthorNarratives: false } } };
     // Act
-    open('narratives');
+    open('records');
     // Assert
     expect(await screen.findByRole('button', { name: /Generate/ })).toBeDisabled();
     expect(library.generateProposal).not.toHaveBeenCalled();
@@ -63,7 +89,7 @@ describe('Narratives workspace', () => {
     vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
       canAuthor: false, canPublishShared: false, canGenerate: true, capabilities: [] });
     // Act
-    open('narratives');
+    open('records');
     // Assert
     await waitFor(() => expect(screen.getByRole('button', { name: /Generate/ })).toBeEnabled());
   });
@@ -74,7 +100,7 @@ describe('Narratives workspace', () => {
     vi.mocked(library.getNarrativeAccess).mockResolvedValue({ tenantId: 'tenant-1', systemName: 'Synthetic system',
       canAuthor: true, canPublishShared: true, canGenerate, capabilities: [] });
     // Act
-    open('narratives');
+    open('records');
     await waitFor(() => expect(screen.queryByText('Loading narrative context...')).not.toBeInTheDocument());
     // Assert
     expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled();
@@ -127,7 +153,7 @@ describe('Narratives workspace', () => {
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Narratives', hidden: true }));
     // Assert
-    expect(screen.getByRole('heading', { name: 'Control Narratives' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Document how your controls work' })).toBeInTheDocument();
   });
 
   it.each(['', 'library', 'import', 'review'])('omits duplicate workflow navigation on the %s view', async (view) => {

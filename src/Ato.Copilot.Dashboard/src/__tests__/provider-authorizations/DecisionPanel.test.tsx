@@ -7,7 +7,7 @@ import { PackageImportError } from '../../features/package-imports/request';
 import '../package-imports/crypto';
 
 vi.mock('../../features/provider-authorizations/api', () => ({
-  listDecisions: vi.fn(), listMicrosoftReferences: vi.fn(), listDecisionHistory: vi.fn(), listBoundaries: vi.fn(),
+  listDecisions: vi.fn(), listInheritedProviderReferences: vi.fn(), listDecisionHistory: vi.fn(), listBoundaries: vi.fn(),
   createDecision: vi.fn(), reviseDecision: vi.fn(), recordDecision: vi.fn(), lifecycleDecision: vi.fn(),
 }));
 
@@ -71,7 +71,7 @@ function deferred<T>() {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(api.listDecisions).mockResolvedValue(page([decision]));
-  vi.mocked(api.listMicrosoftReferences).mockResolvedValue(page([]));
+  vi.mocked(api.listInheritedProviderReferences).mockResolvedValue(page([]));
   vi.mocked(api.listDecisionHistory).mockResolvedValue(page([decision]));
   vi.mocked(api.listBoundaries).mockResolvedValue(page([boundary]));
   vi.mocked(api.createDecision).mockResolvedValue({ ...decision, recordId: 'new-record', reference: 'NEW-REF' });
@@ -81,6 +81,80 @@ beforeEach(() => {
 });
 
 describe('isolated external decision panel', () => {
+  it('records a non-Microsoft upstream identity using the generic inherited category without inferring issuer type', async () => {
+    // Arrange
+    mount(true);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add reference' }));
+    await screen.findByRole('option', { name: /Limited service boundary/ });
+    fillDraft();
+    // Act
+    change('Upstream provider', 'Synthetic non-Microsoft SaaS');
+    fireEvent.click(screen.getByRole('button', { name: 'Save reference draft' }));
+    // Assert
+    await waitFor(() => expect(api.createDecision).toHaveBeenCalledWith('offering-a', expect.objectContaining({
+      recordKind: 'InheritedProviderReference', upstreamProvider: 'Synthetic non-Microsoft SaaS', issuingAuthorityType: null,
+    }), expect.any(String)));
+    expect(api.recordDecision).not.toHaveBeenCalled();
+  });
+
+  it('changes a legacy label only through an explicit successor draft, preserving original history', async () => {
+    // Arrange
+    const legacy = { ...decision, recordKind: 'InheritedMicrosoftReference' as const, issuingAuthorityType: 'person' as const };
+    vi.mocked(api.listInheritedProviderReferences).mockResolvedValue(page([legacy]));
+    mount(true);
+    await openDecision();
+    fireEvent.click(screen.getByRole('button', { name: 'Revise draft' }));
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Use generic upstream-provider category' }));
+    change('Upstream provider', 'Explicit non-Microsoft upstream');
+    fireEvent.click(screen.getByRole('button', { name: 'Save successor draft' }));
+    // Assert
+    await waitFor(() => expect(api.reviseDecision).toHaveBeenCalledWith('offering-a', 'decision-a', expect.objectContaining({
+      recordKind: 'InheritedProviderReference', upstreamProvider: 'Explicit non-Microsoft upstream', issuingAuthorityType: 'person',
+    })));
+    expect(legacy.recordKind).toBe('InheritedMicrosoftReference');
+    expect(api.recordDecision).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'person', 'organization'] as const)('creates only the explicitly selected issuer type %s without inferring from the name', async issuerType => {
+    // Arrange
+    mount();
+    await startDraft();
+    fillDraft();
+    // Act
+    change('Issuing authority as stated', 'Synthetic Authority Organization');
+    // Assert
+    expect(screen.getByRole('combobox', { name: 'Issuing authority type' })).toHaveValue('');
+    change('Issuing authority type', issuerType);
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(api.createDecision).toHaveBeenCalledWith('offering-a', expect.objectContaining({
+      issuingAuthority: 'Synthetic Authority Organization', issuingAuthorityType: issuerType || null,
+    }), expect.any(String)));
+    expect(api.recordDecision).not.toHaveBeenCalled();
+  });
+
+  it.each(['organization', ''] as const)('preserves or explicitly clears the reviewed issuer type in a successor draft: %s', async issuerType => {
+    // Arrange
+    const recorded = { ...decision, issuingAuthorityType: 'organization' as const };
+    vi.mocked(api.listDecisions).mockResolvedValue(page([recorded]));
+    vi.mocked(api.listDecisionHistory).mockResolvedValue(page([recorded]));
+    mount();
+    await openDecision();
+    expect(screen.getByText('organization', { selector: 'dd' })).toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Revise draft' }));
+    await screen.findByRole('option', { name: /Limited service boundary/ });
+    // Assert
+    expect(screen.getByRole('combobox', { name: 'Issuing authority type' })).toHaveValue('organization');
+    change('Issuing authority type', issuerType);
+    fireEvent.click(screen.getByRole('button', { name: 'Save successor draft' }));
+    await waitFor(() => expect(api.reviseDecision).toHaveBeenCalledWith('offering-a', 'decision-a', expect.objectContaining({
+      expectedRevision: 3, issuingAuthorityType: issuerType || null,
+    })));
+    expect(recorded.issuingAuthorityType).toBe('organization');
+    expect(api.recordDecision).not.toHaveBeenCalled();
+  });
+
   it('creates an unconfirmed draft with explicit boundary and unknown dates, never records it automatically', async () => {
     // Arrange
     mount();
@@ -175,7 +249,7 @@ describe('isolated external decision panel', () => {
     // Assert
     await waitFor(() => expect(api.reviseDecision).toHaveBeenCalledWith('offering-a', 'decision-a', expect.objectContaining({
       expectedRevision: 3, reference: 'CORRECTED-REF', issuedOn: '2026-01-01', effectiveOn: null,
-      expiresOn: null, expiryBasis: 'NotRecorded', citations: decision.citations, sourceCandidateRefs: decision.sourceCandidateRefs,
+      issuingAuthorityType: null, expiresOn: null, expiryBasis: 'NotRecorded', citations: decision.citations, sourceCandidateRefs: decision.sourceCandidateRefs,
     })));
     expect(api.createDecision).not.toHaveBeenCalled();
     expect(decision.reference).toBe('SYNTHETIC-REF');
@@ -277,9 +351,9 @@ describe('isolated external decision panel', () => {
     expect(api.listDecisionHistory).toHaveBeenLastCalledWith('offering-a', 'decision-a', 2, expect.any(AbortSignal));
   });
 
-  it('separates inherited Microsoft references from provider decisions in list and creation', async () => {
+  it('retains legacy Microsoft references while creating vendor-neutral inherited references', async () => {
     // Arrange
-    vi.mocked(api.listMicrosoftReferences).mockResolvedValue(page([{ ...decision, recordId: 'inherited-a', recordKind: 'InheritedMicrosoftReference', reference: 'MICROSOFT-REF' }]));
+    vi.mocked(api.listInheritedProviderReferences).mockResolvedValue(page([{ ...decision, recordId: 'inherited-a', recordKind: 'InheritedMicrosoftReference', reference: 'MICROSOFT-REF' }]));
     mount(true);
     // Act
     await screen.findByRole('button', { name: 'Open MICROSOFT-REF' });
@@ -290,7 +364,7 @@ describe('isolated external decision panel', () => {
     // Assert
     expect(screen.queryByRole('button', { name: 'Open SYNTHETIC-REF' })).not.toBeInTheDocument();
     await waitFor(() => expect(api.createDecision).toHaveBeenCalledWith('offering-a', expect.objectContaining({
-      recordKind: 'InheritedMicrosoftReference',
+      recordKind: 'InheritedProviderReference',
     }), expect.any(String)));
   });
 

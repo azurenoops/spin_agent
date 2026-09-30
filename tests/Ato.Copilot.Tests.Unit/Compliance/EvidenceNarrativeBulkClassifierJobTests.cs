@@ -10,6 +10,10 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Unit.Compliance;
 
+[CollectionDefinition("Evidence classifier performance", DisableParallelization = true)]
+public sealed class EvidenceClassifierPerformanceCollection;
+
+[Collection("Evidence classifier performance")]
 public sealed class EvidenceNarrativeBulkClassifierJobTests
 {
     [Fact]

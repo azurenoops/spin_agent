@@ -5,6 +5,7 @@ import RouteResolverFallback from '../components/layout/RouteResolverFallback';
 import { useCspDashboardAvailable } from '../components/layout/useCspDashboardAvailable';
 import { useImpersonationActive } from '../hooks/useImpersonationActive';
 import { useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
+import ProviderWorkspacePage from '../features/provider-workspace/ProviderWorkspacePage';
 
 /**
  * Scope-aware landing page mounted at `/`.
@@ -50,7 +51,7 @@ export default function PortfolioRoute(): ReactElement {
   const impersonating = useImpersonationActive();
   const cspAdminAvailable = useCspDashboardAvailable(!workspace);
 
-  if (workspace?.kind === 'csp') return <CspDashboardPage />;
+  if (workspace?.kind === 'csp') return <ProviderWorkspacePage view="overview" />;
   if (workspace?.kind === 'organization') return <PortfolioRiskProfile key={`${workspace.tenantId}:${workspace.mode ?? 'ordinary'}`} />;
 
   if (impersonating) {

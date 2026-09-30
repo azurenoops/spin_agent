@@ -50,6 +50,7 @@ export interface EmassConflict {
   detectedAt: string;
   resolvedAt: string | null;
   resolvedBy: string | null;
+  rationale?: string | null;
 }
 
 export interface EmassSyncResult {
@@ -117,10 +118,11 @@ export async function resolveConflict(
   systemId: string,
   conflictId: string,
   resolution: Exclude<ConflictStatus, 'Unresolved'>,
+  rationale?: string,
 ): Promise<EmassConflict> {
   const response = await apiClient.put<ApiEnvelope<EmassConflict>>(
     `/systems/${systemId}/emass/conflicts/${conflictId}`,
-    { resolution },
+    { resolution, ...(rationale === undefined ? {} : { rationale }) },
   );
   return response.data.data;
 }

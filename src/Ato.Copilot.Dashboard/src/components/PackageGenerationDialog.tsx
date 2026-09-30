@@ -6,15 +6,20 @@ import {
   validatePackage,
   downloadPackageUrl,
 } from '../api/package';
-import type { PackageDetail, ValidationFinding } from '../api/package';
+import type { PackageDetail, ValidationFinding, PackagePurpose, RetainedPackageSelection } from '../api/package';
+import PackagePurposeSelect from './PackagePurposeSelect';
 import AuthenticatedDownload from './AuthenticatedDownload';
 import { isProgressEvent, progressError, useJobProgress, useProgressSession, type ProgressSession } from '../hooks/useJobProgress';
 import ProgressTransportNotice from './ProgressTransportNotice';
+import SetupDialog from '../features/workspace-operations/SetupDialog';
+import RetainedPackageContext from './RetainedPackageContext';
+import { getCategoryRoute } from '../features/systems/packageReadiness';
 
 interface PackageGenerationDialogProps {
   systemId: string;
   onClose: () => void;
   onPackageComplete?: () => void;
+  initialPurpose?: PackagePurpose;
 }
 
 type DialogPhase = 'readiness' | 'configure' | 'generating' | 'completed' | 'failed';
@@ -33,35 +38,6 @@ const ARTIFACT_SEQUENCE = [
   { type: 'EvidenceManifest', label: 'Evidence Bundle' },
 ];
 
-/** Maps validation finding category to a dashboard route suffix and label */
-function getCategoryRoute(category: string, artifactType?: string | null): { path: string; label: string } | null {
-  switch (category) {
-    case 'authorization-decision':
-      return { path: 'authorize', label: 'Authorize' };
-    case 'boundary':
-      return { path: 'boundaries', label: 'Boundaries' };
-    case 'ssp':
-      return { path: 'narratives', label: 'Narratives' };
-    case 'sar':
-      return { path: 'assessments', label: 'Assessments' };
-    case 'sap':
-      return { path: 'assessments', label: 'Assessments' };
-    case 'poam':
-    case 'cross-reference':
-      return { path: 'poam', label: 'POA&M' };
-    case 'schema':
-      if (artifactType === 'ssp') return { path: 'narratives', label: 'Narratives' };
-      if (artifactType === 'poam') return { path: 'poam', label: 'POA&M' };
-      if (artifactType === 'assessment-results' || artifactType === 'assessment-plan')
-        return { path: 'assessments', label: 'Assessments' };
-      return null;
-    case 'evidence':
-      return { path: 'evidence', label: 'Evidence' };
-    default:
-      return null;
-  }
-}
-
 function RemediationText({
   finding,
   systemId,
@@ -73,7 +49,7 @@ function RemediationText({
 }) {
   if (!finding.remediation) return null;
 
-  const route = getCategoryRoute(finding.category, finding.artifactType);
+  const route = getCategoryRoute(finding.category, finding.artifactType, finding.description);
 
   return (
     <p className="text-xs text-red-600 mt-1">
@@ -107,12 +83,22 @@ function PackageGenerationContent({
   onClose,
   onPackageComplete,
   session,
+  initialPurpose = 'Legacy',
 }: PackageGenerationDialogProps & { session: ProgressSession }) {
   const [phase, setPhase] = useState<DialogPhase>('readiness');
+  const [purpose, setPurpose] = useState<PackagePurpose>(initialPurpose);
+  const [retainedContext, setRetainedContext] = useState<RetainedPackageSelection | null>(null);
+  const [validatedSourceHash, setValidatedSourceHash] = useState<string | null>(null);
+  const requiresContext = purpose === 'AuthorizedBaselineArchive' || purpose === 'ChangeSubmission';
+  const artifactSequence = requiresContext
+    ? [{ type: 'RetainedBaseline', label: 'Retained baseline package' }, { type: 'PackageContext', label: 'Recorded decision and source manifest' },
+      ...(purpose === 'ChangeSubmission' ? [{ type: 'ReviewedSspChange', label: 'Reviewed SSP change' }] : [])]
+    : ARTIFACT_SEQUENCE;
   const [evidenceMode, setEvidenceMode] = useState<'Embedded' | 'ManifestOnly'>('Embedded');
   const [readinessFindings, setReadinessFindings] = useState<ValidationFinding[]>([]);
   const [readinessValid, setReadinessValid] = useState<boolean | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(true);
+  const [validationRevision, setValidationRevision] = useState(0);
   const [packageId, setPackageId] = useState<string | null>(null);
   const [packageDetail, setPackageDetail] = useState<PackageDetail | null>(null);
   const [artifactProgress, setArtifactProgress] = useState<ArtifactProgress[]>(
@@ -140,7 +126,7 @@ function PackageGenerationContent({
     onStatus: result => {
       setPackageDetail(result);
       const generated = new Set(result.artifacts.map(artifact => artifact.type));
-      const next = ARTIFACT_SEQUENCE.find(artifact => !generated.has(artifact.type))?.type;
+      const next = artifactSequence.find(artifact => !generated.has(artifact.type))?.type;
       setArtifactProgress(previous => previous.map(artifact => ({
         ...artifact,
         status: generated.has(artifact.type) ? 'done'
@@ -167,23 +153,24 @@ function PackageGenerationContent({
     [onClose, navigate],
   );
 
-  // Close on Escape (unless generating)
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && phase !== 'generating') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose, phase]);
-
   // Run readiness check on mount
   useEffect(() => {
     if (!session.ready) { setReadinessLoading(false); return; }
+    if (requiresContext && !retainedContext) { setReadinessLoading(false); setReadinessValid(false); setPhase('readiness'); return; }
     const request = session.request();
     setReadinessLoading(true);
-    validatePackage(systemId, request.signal)
+    (purpose === 'Legacy' ? validatePackage(systemId, request.signal)
+      : retainedContext ? validatePackage(systemId, request.signal, purpose, retainedContext)
+        : validatePackage(systemId, request.signal, purpose))
       .then((result) => {
         if (!request.isCurrent()) return;
+        if (requiresContext && result.isValid && !result.sourceContextHash) {
+          setReadinessValid(false);
+          setReadinessLoading(false);
+          setError('The server did not return a validated source-context hash. Revalidate against the current API before generation.');
+          return;
+        }
+        setValidatedSourceHash(result.sourceContextHash ?? null);
         setReadinessValid(result.isValid);
         setReadinessFindings(result.findings);
         setReadinessLoading(false);
@@ -197,18 +184,25 @@ function PackageGenerationContent({
         setReadinessLoading(false);
       }).finally(request.complete);
     return () => { request.cancel(); request.complete(); };
-  }, [systemId, session.key, session.ready]);
+  }, [systemId, session.key, session.ready, purpose, retainedContext, validationRevision]);
 
   const handleGenerate = async () => {
     if (!session.ready || !session.isCurrent()) { setError('Authenticated workspace context is required.'); return; }
+    if (requiresContext && !retainedContext) { setError('Select a retained baseline and decision before generating this package.'); return; }
+    if (requiresContext && !validatedSourceHash) { setError('Revalidate the selected source versions before generation.'); return; }
     const request = session.request();
     setPhase('generating');
     setError(null);
     setStatusMessage('Submitting...');
-    setArtifactProgress(ARTIFACT_SEQUENCE.map((a) => ({ type: a.type, status: 'pending' })));
+    setArtifactProgress(artifactSequence.map((a) => ({ type: a.type, status: 'pending' })));
 
     try {
-      const result = await generatePackage(systemId, evidenceMode, request.signal);
+      const result = purpose === 'Legacy'
+        ? await generatePackage(systemId, evidenceMode, request.signal)
+        : retainedContext ? await generatePackage(systemId, 'ManifestOnly', request.signal, purpose, {
+          ...retainedContext, expectedSourceContextHash: validatedSourceHash!,
+        })
+          : await generatePackage(systemId, evidenceMode, request.signal, purpose);
       if (!request.isCurrent()) return;
       if (!result || typeof result.packageId !== 'string' || !result.packageId.trim()) {
         throw new Error('Unexpected package generation response.');
@@ -224,44 +218,32 @@ function PackageGenerationContent({
     }
   };
 
-  const handleBackdrop = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && phase !== 'generating') onClose();
-  };
-
   const errors = readinessFindings.filter((f) => f.severity === 'error');
   const warnings = readinessFindings.filter((f) => f.severity === 'warning');
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={handleBackdrop}
-    >
-      <div
-        className="w-full max-w-lg rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden"
-        role="dialog"
-        aria-labelledby="pkg-dialog-title"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 id="pkg-dialog-title" className="text-base font-semibold text-gray-900">
-            Generate Authorization Package
-          </h2>
-          {phase !== 'generating' && (
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="Close"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
+    <SetupDialog title="Generate Authorization Package" description="Choose a purpose, review validation, and preserve the generated artifacts."
+      busy={phase === 'generating'} onClose={onClose}>
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
           <ProgressTransportNotice monitor={monitor} onClose={onClose} />
+          {(phase === 'readiness' || phase === 'configure') && <PackagePurposeSelect value={purpose}
+            onChange={value => {
+              setPurpose(value);
+              setRetainedContext(null);
+              setValidatedSourceHash(null);
+              setPhase('readiness');
+              setReadinessValid(null);
+              setReadinessFindings([]);
+              setReadinessLoading(true);
+              setError(null);
+            }} />}
+          {requiresContext && (phase === 'readiness' || phase === 'configure') && <RetainedPackageContext key={purpose}
+            systemId={systemId} purpose={purpose} disabled={readinessLoading} onChange={selection => {
+              setRetainedContext(selection); setValidatedSourceHash(null); setPhase('readiness'); setReadinessValid(null);
+              setReadinessFindings([]); setError(null);
+            }} />}
           {error && phase !== 'failed' && <p role="alert">{error}</p>}
           {/* ─── Readiness Check ─── */}
           {phase === 'readiness' && (
@@ -299,7 +281,7 @@ function PackageGenerationContent({
                         <div key={i} className="p-2 rounded-lg bg-amber-50 border border-amber-200">
                           <p className="text-sm text-amber-800">{f.description}</p>
                           {f.remediation && (() => {
-                            const route = getCategoryRoute(f.category, f.artifactType);
+                            const route = getCategoryRoute(f.category, f.artifactType, f.description);
                             return (
                               <p className="text-xs text-amber-600 mt-1">
                                 {f.remediation}
@@ -352,7 +334,7 @@ function PackageGenerationContent({
                   ))}
                 </div>
               )}
-              <div>
+              {!requiresContext ? <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Evidence Bundling</label>
                 <div className="space-y-2">
                   <label
@@ -392,7 +374,10 @@ function PackageGenerationContent({
                     </div>
                   </label>
                 </div>
-              </div>
+              </div> : <p className="text-sm text-slate-600">
+                The retained baseline package is included unchanged, including its original evidence.
+                No current evidence files are collected or removed by this archive/change operation.
+              </p>}
             </div>
           )}
 
@@ -402,7 +387,7 @@ function PackageGenerationContent({
               <h3 className="text-sm font-medium text-gray-700 mb-3">Artifact Generation</h3>
               <div className="space-y-2">
                 {artifactProgress.map((a) => {
-                  const info = ARTIFACT_SEQUENCE.find((s) => s.type === a.type);
+                  const info = artifactSequence.find((s) => s.type === a.type);
                   return (
                     <div
                       key={a.type}
@@ -442,7 +427,7 @@ function PackageGenerationContent({
               <p className="text-sm font-medium text-red-800">Generation Failed</p>
               {failedArtifact && (
                 <p className="text-xs text-red-700 mt-1">
-                  Failed artifact: {ARTIFACT_SEQUENCE.find((a) => a.type === failedArtifact)?.label ?? failedArtifact}
+                  Failed artifact: {artifactSequence.find((a) => a.type === failedArtifact)?.label ?? failedArtifact}
                 </p>
               )}
               <p className="text-xs text-red-600 mt-1">{error}</p>
@@ -530,7 +515,13 @@ function PackageGenerationContent({
                 onClick={() => {
                   setPackageId(null);
                   setPackageDetail(null);
-                  setPhase('configure');
+                  setRetainedContext(null);
+                  setValidatedSourceHash(null);
+                  setReadinessValid(null);
+                  setReadinessFindings([]);
+                  setReadinessLoading(true);
+                  setValidationRevision(value => value + 1);
+                  setPhase('readiness');
                   setError(null);
                   setFailedArtifact(null);
                 }}
@@ -541,7 +532,6 @@ function PackageGenerationContent({
             </>
           )}
         </div>
-      </div>
-    </div>
+    </SetupDialog>
   );
 }

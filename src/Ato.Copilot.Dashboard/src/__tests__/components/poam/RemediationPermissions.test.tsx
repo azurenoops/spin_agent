@@ -1,151 +1,106 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { invokeClick } from '../../helpers/domainPermissions';
+import '../../helpers/dialog';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Remediation from '../../../pages/Remediation';
+import * as api from '../../../api/remediationWorkspace';
+import { remediationWorkspace, remediationTaskDetail } from '../../fixtures/remediationWorkspace';
 import type { SystemWorkspacePermissions } from '../../../features/workspaces/types';
 
+vi.mock('../../../components/remediation/TaskTicketPanel', () => ({ default: () => <section>Task external tickets</section> }));
 const state = vi.hoisted(() => ({
   session: null as { roles?: string[]; systemAccess?: { systemId: string; permissions?: Partial<SystemWorkspacePermissions> } } | null,
-  role: 'AO',
-  link: vi.fn(),
-  move: vi.fn(),
-  export: vi.fn(),
 }));
 vi.mock('../../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => state.session }));
-vi.mock('../../../features/workspaces/workspaceNavigation', async () => {
-  const router = await import('react-router-dom');
-  return { Link: router.Link, useNavigate: router.useNavigate };
-});
 vi.mock('../../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: { systemId: 'system-a' } }) }));
-vi.mock('../../../hooks/useSettings', () => ({
-  useSettings: () => ({ settings: { role: state.role, defaultRemediationView: 'table', autoRefreshInterval: 60000 } }),
+vi.mock('../../../api/remediationWorkspace', async original => ({
+  ...await original<typeof api>(), getRemediationWorkspace: vi.fn(), getRemediationTask: vi.fn(),
+  saveRemediationTask: vi.fn(), createRemediationTask: vi.fn(), moveRemediationTask: vi.fn(),
+  linkRemediationPoamTask: vi.fn(), unlinkRemediationPoamTask: vi.fn(),
 }));
-vi.mock('../../../api/deviations', () => ({ getDeviations: async () => ({ items: [] }) }));
-vi.mock('../../../api/poam', () => ({
-  listPoamItems: async () => ({ items: [{ id: 'poam-a', controlId: 'AC-2', weakness: 'Weakness A', status: 'Ongoing' }] }),
-  linkTask: (...args: unknown[]) => state.link(...args),
-}));
-vi.mock('../../../api/remediation', () => ({
-  getRemediationSummary: async () => ({
-    totalTasks: 1, tasksByStatus: { backlog: 1, todo: 0, inProgress: 0, inReview: 0, blocked: 0, done: 0 },
-  }),
-  getRemediationTasks: async () => ({
-    items: [{
-      id: 'task-a', taskNumber: 'TASK-1', title: 'Repair A', description: 'Repair',
-      controlId: 'AC-2', severity: 'High', status: 'Backlog', dueDate: '2026-10-01',
-    }],
-  }),
-  moveTask: (...args: unknown[]) => state.move(...args),
-  exportTasks: (...args: unknown[]) => state.export(...args),
-}));
-const canonical = '/workspaces/organizations/org-a/systems/system-a/remediation';
-function mount(path = canonical) {
-  return render(<MemoryRouter initialEntries={[path]}><Remediation /></MemoryRouter>);
-}
-function allow() {
-  state.session = { roles: ['MissionOwner', 'ISSO'], systemAccess: { systemId: 'system-a', permissions: { canManageRemediation: true } } };
-}
+const denied = { canCreateFinding: false, canCreateTask: false, canManageRemediation: false, canVerify: false, reason: 'Permission denied.' };
+const canonical = '/workspaces/organizations/org-a/systems/system-a/remediation?task=task-a';
+function mount(path = canonical) { return render(<MemoryRouter initialEntries={[path]}><Remediation /></MemoryRouter>); }
 beforeEach(() => {
   vi.clearAllMocks();
   state.session = { roles: ['MissionOwner'], systemAccess: { systemId: 'system-a', permissions: { canManageSystem: true } } };
-  state.link.mockResolvedValue({});
-  state.move.mockResolvedValue({});
+  vi.mocked(api.getRemediationWorkspace).mockResolvedValue({ ...remediationWorkspace, permissions: denied });
+  vi.mocked(api.getRemediationTask).mockResolvedValue({ ...remediationTaskDetail, permissions: denied });
 });
 
-describe('#1017 remediation page permissions', () => {
-  it.each(['AO', 'ISSM'])('denies forged %s authority while preserving task reads and CSV export', async role => {
+describe('Remediation record action permissions', () => {
+  it.each(['AO', 'ISSM'])('does not trust displayed %s authority over scoped action permissions', async role => {
     // Arrange
-    state.role = role;
+    state.session = { ...state.session, roles: [role] };
     mount();
-    await screen.findByText('Repair A');
     // Act
-    fireEvent.click(screen.getByText('Repair A'));
-    fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
-    await invokeClick(screen.getByRole('button', { name: 'Create Task' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Correct session timeout settings' });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Linked work' }));
     // Assert
-    expect(screen.getByRole('button', { name: 'Create Task' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Link to POA&M' })).toBeDisabled();
-    expect(state.export).toHaveBeenCalledWith('system-a');
-    expect(screen.queryByRole('dialog', { name: 'Create Remediation Task' })).not.toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission denied/i);
+    expect(screen.queryByRole('button', { name: 'Add finding' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create standalone task' })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: 'Link existing POA&M' })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: 'Unlink from this task' })).not.toBeInTheDocument();
+    expect(api.moveRemediationTask).not.toHaveBeenCalled();
+    expect(api.linkRemediationPoamTask).not.toHaveBeenCalled();
   });
-
   it.each([null, { systemAccess: { systemId: 'system-b', permissions: { canManageRemediation: true } } }])(
-    'fails closed with missing or mismatched canonical access', async session => {
+    'retains denied record actions when context is missing or mismatched', async session => {
       // Arrange
       state.session = session;
       mount();
-      // Act
-      fireEvent.click(await screen.findByText('Repair A'));
-      // Assert
-      expect(screen.getByRole('button', { name: 'Link to POA&M' })).toBeDisabled();
-    },
-  );
-
-  it('allows real multi-role POA&M linking without enabling unprojected task creation', async () => {
+      // Act / Assert
+      const drawer = await screen.findByRole('dialog', { name: 'Correct session timeout settings' });
+      expect(within(drawer).queryByRole('button', { name: 'Edit task' })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole('button', { name: 'Change task status' })).not.toBeInTheDocument();
+    });
+  it('uses the actual record projection to permit multi-role corrective editing', async () => {
     // Arrange
-    allow();
+    state.session = { roles: ['MissionOwner', 'ISSO'], systemAccess: { systemId: 'system-a', permissions: { canManageRemediation: true } } };
+    vi.mocked(api.getRemediationWorkspace).mockResolvedValue(remediationWorkspace);
+    vi.mocked(api.getRemediationTask).mockResolvedValue(remediationTaskDetail);
     mount();
-    fireEvent.click(await screen.findByText('Repair A'));
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Link to POA&M' }));
-    fireEvent.change(screen.getByPlaceholderText('Search by control ID or weakness...'), { target: { value: 'AC' } });
-    fireEvent.click(await screen.findByRole('button', { name: /Weakness A/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
     // Assert
-    await waitFor(() => expect(state.link).toHaveBeenCalledWith('poam-a', { taskId: 'task-a' }));
-    expect(screen.getByRole('button', { name: 'Create Task' })).toBeDisabled();
+    await waitFor(() => expect(api.saveRemediationTask).toHaveBeenCalledWith('system-a', 'task-a', expect.objectContaining({
+      expectedRowVersion: 'task-revision-a',
+    })));
   });
-
-  it('revokes a picker already opened by an authorized user', async () => {
+  it('clears an open editor on permission-context revocation before any write', async () => {
     // Arrange
-    allow();
+    state.session = { systemAccess: { systemId: 'system-a', permissions: { canManageRemediation: true } } };
+    vi.mocked(api.getRemediationWorkspace).mockResolvedValue(remediationWorkspace);
+    vi.mocked(api.getRemediationTask).mockResolvedValue(remediationTaskDetail);
     const { rerender } = mount();
-    fireEvent.click(await screen.findByText('Repair A'));
-    fireEvent.click(screen.getByRole('button', { name: 'Link to POA&M' }));
-    fireEvent.change(screen.getByPlaceholderText('Search by control ID or weakness...'), { target: { value: 'AC' } });
-    await screen.findByRole('button', { name: /Weakness A/ });
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit task' }));
     // Act
     state.session = null;
+    vi.mocked(api.getRemediationWorkspace).mockRejectedValue(new Error('Permission revoked.'));
     rerender(<MemoryRouter initialEntries={[canonical]}><Remediation /></MemoryRouter>);
-    await invokeClick(screen.getByRole('button', { name: /Weakness A/ }));
     // Assert
-    expect(screen.getByRole('button', { name: /Weakness A/ })).toBeDisabled();
-    expect(state.link).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission denied/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Permission revoked.');
+    expect(screen.queryByRole('button', { name: 'Save task' })).not.toBeInTheDocument();
+    expect(api.saveRemediationTask).not.toHaveBeenCalled();
   });
-
-  it('rejects synthetic drag/drop even with a broader remediation flag', async () => {
+  it('does not offer synthetic drag-to-close on the finding board', async () => {
     // Arrange
-    allow();
-    const { container } = mount();
-    await screen.findByText('Repair A');
-    fireEvent.click(screen.getByRole('button', { name: 'Kanban' }));
-    const card = container.querySelector('[draggable]')!;
-    const destination = screen.getByText('To Do').parentElement!.parentElement!.parentElement!;
+    mount(canonical.split('?')[0]);
+    await screen.findByRole('button', { name: 'Verify session timeout correction' });
     // Act
-    fireEvent.dragStart(card, { dataTransfer: { setData: vi.fn() } });
-    fireEvent.drop(destination);
+    fireEvent.click(screen.getByRole('button', { name: 'Board' }));
     // Assert
-    expect(card).toHaveAttribute('draggable', 'false');
-    expect(state.move).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission denied/i);
+    expect(document.querySelector('[draggable="true"]')).toBeNull();
+    expect(api.moveRemediationTask).not.toHaveBeenCalled();
   });
-
-  it('retains legacy creation and drag/drop with no workspace session', async () => {
+  it('does not grant legacy-route writes without the server record projection', async () => {
     // Arrange
     state.session = null;
-    const { container } = mount('/systems/system-a/remediation');
-    await screen.findByText('Repair A');
-    expect(screen.getByRole('button', { name: 'Create Task' })).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Kanban' }));
-    const card = container.querySelector('[draggable]')!;
-    const destination = screen.getByText('To Do').parentElement!.parentElement!.parentElement!;
-    // Act
-    fireEvent.dragStart(card, { dataTransfer: { setData: vi.fn() } });
-    fireEvent.drop(destination);
-    // Assert
-    expect(card).toHaveAttribute('draggable', 'true');
-    await waitFor(() => expect(state.move).toHaveBeenCalledWith('task-a', 'ToDo'));
+    mount('/systems/system-a/remediation?task=task-a');
+    // Act / Assert
+    const drawer = await screen.findByRole('dialog', { name: 'Correct session timeout settings' });
+    expect(within(drawer).queryByRole('button', { name: 'Edit task' })).not.toBeInTheDocument();
+    expect(api.saveRemediationTask).not.toHaveBeenCalled();
   });
 });

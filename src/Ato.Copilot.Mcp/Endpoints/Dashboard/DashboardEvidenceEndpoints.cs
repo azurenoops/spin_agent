@@ -29,10 +29,12 @@ public static partial class DashboardEndpoints
 {
     private static void MapEvidenceRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
+        MapEvidenceCatalogRoutes(group);
         group.MapPost("/systems/{systemId}/evidence", async (
                 string systemId,
                 HttpRequest request,
                 IEvidenceArtifactService evidenceService,
+                AtoCopilotContext db,
                 HttpContext httpContext,
                 CancellationToken ct) =>
             {
@@ -57,7 +59,7 @@ public static partial class DashboardEndpoints
                 if (string.IsNullOrWhiteSpace(categoryStr))
                     categoryStr = form["category"].ToString();
                 if (string.IsNullOrWhiteSpace(categoryStr) ||
-                    !Enum.TryParse<ArtifactCategory>(categoryStr, ignoreCase: true, out var category))
+                    !Enum.TryParse<ArtifactCategory>(categoryStr, ignoreCase: true, out var category) || !Enum.IsDefined(category))
                     return Results.BadRequest(new ErrorResponse
                     {
                         Error = "Valid artifactCategory is required",
@@ -72,6 +74,18 @@ public static partial class DashboardEndpoints
                 if (string.IsNullOrWhiteSpace(securityCapabilityId))
                     securityCapabilityId = null;
 
+                var controlId = form["controlId"].ToString();
+                if (!string.IsNullOrWhiteSpace(controlId))
+                {
+                    var implementationId = await db.ControlImplementations
+                        .Where(c => c.RegisteredSystemId == systemId && c.ControlId == controlId)
+                        .Select(c => c.Id).SingleOrDefaultAsync(ct);
+                    if (implementationId is null) return Results.NotFound(new { error = "Control not found in this system." });
+                    if (securityCapabilityId is not null || (controlImplementationId is not null && controlImplementationId != implementationId))
+                        return Results.BadRequest(new { error = "Conflicting evidence targets." });
+                    controlImplementationId = implementationId;
+                }
+
                 if (controlImplementationId is null && securityCapabilityId is null)
                     return Results.BadRequest(new ErrorResponse
                     {
@@ -85,8 +99,9 @@ public static partial class DashboardEndpoints
 
                 var collectionMethod = CollectionMethod.Manual;
                 var methodStr = form["collectionMethod"].ToString();
-                if (!string.IsNullOrWhiteSpace(methodStr))
-                    Enum.TryParse<CollectionMethod>(methodStr, ignoreCase: true, out collectionMethod);
+                if (!string.IsNullOrWhiteSpace(methodStr) &&
+                    (!Enum.TryParse<CollectionMethod>(methodStr, ignoreCase: true, out collectionMethod) || !Enum.IsDefined(collectionMethod)))
+                    return Results.BadRequest(new { error = "Valid collectionMethod is required." });
 
                 var narrativeType = EvidenceNarrativeType.Unclassified;
                 var narrativeTypeText = form["narrativeType"].ToString();
@@ -177,7 +192,7 @@ public static partial class DashboardEndpoints
                 foreach (var implId in controlImpls)
                 {
                     var artifacts = await evidenceService.ListForControlAsync(implId, ct);
-                    directArtifacts.AddRange(artifacts);
+                    directArtifacts.AddRange(artifacts.Where(a => a.RegisteredSystemId == systemId));
                 }
 
                 // Inherited evidence: from capabilities linked to this control
@@ -197,10 +212,8 @@ public static partial class DashboardEndpoints
                     .ToListAsync(ct);
 
                 // Automated evidence: from ComplianceEvidence table
-                var automatedEvidence = await db.Evidence
-                    .Where(ce => ce.ControlId == controlId &&
-                                 db.ControlImplementations.Any(ci =>
-                                     ci.ControlId == ce.ControlId && ci.RegisteredSystemId == systemId))
+                var automatedEvidence = await EvidenceCatalogService.ScopedAutomated(db, systemId)
+                    .Where(ce => ce.ControlId == controlId)
                     .ToListAsync(ct);
 
                 return Results.Ok(new
@@ -252,7 +265,8 @@ public static partial class DashboardEndpoints
                     }),
                 });
             })
-            .WithName("GetControlEvidence");
+            .WithName("GetControlEvidence")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem);
 
         // ─── Evidence Download (US1 T016) ────────────────────────────────────
 
@@ -261,9 +275,19 @@ public static partial class DashboardEndpoints
                 string systemId,
                 string evidenceId,
                 IEvidenceArtifactService evidenceService,
+                ILogger<EvidenceCatalogService> logger,
                 CancellationToken ct) =>
             {
-                var result = await evidenceService.DownloadAsync(evidenceId, ct);
+                var artifact = await evidenceService.GetByIdAsync(evidenceId, ct);
+                if (artifact is null || artifact.RegisteredSystemId != systemId) return Results.NotFound();
+                (Stream Content, string FileName, string ContentType)? result;
+                try { result = await evidenceService.DownloadAsync(evidenceId, ct); }
+                catch (FileNotFoundException) { return Results.StatusCode(410); }
+                catch (Exception ex) when (EvidenceCatalogService.IsOperational(ex) || ex is UnauthorizedAccessException)
+                {
+                    logger.LogWarning(ex, "Evidence download unavailable for {EvidenceId}", evidenceId);
+                    return Results.Json(new { error = "Evidence content is unavailable. Retry the request." }, statusCode: 503);
+                }
                 if (result is null)
                     return Results.NotFound(new ErrorResponse
                     {
@@ -274,7 +298,8 @@ public static partial class DashboardEndpoints
                 var (stream, fileName, contentType) = result.Value;
                 return Results.File(stream, contentType, fileName);
             })
-            .WithName("DownloadEvidence");
+            .WithName("DownloadEvidence")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem);
 
         // ─── Evidence Repository (US2 T020) ─────────────────────────────────
 
@@ -325,7 +350,7 @@ public static partial class DashboardEndpoints
                         a.ContentType,
                         a.FileSizeBytes,
                         ArtifactCategory = a.ArtifactCategory.ToString(),
-                        ControlId = (string?)null,
+                        ControlId = a.ControlImplementation?.ControlId,
                         a.ControlImplementationId,
                         a.SecurityCapabilityId,
                         a.Description,
@@ -338,9 +363,7 @@ public static partial class DashboardEndpoints
                 // Automated evidence
                 if (showAutomated)
                 {
-                    var autoQuery = db.Evidence
-                        .Where(ce => db.ControlImplementations.Any(ci =>
-                            ci.ControlId == ce.ControlId && ci.RegisteredSystemId == systemId));
+                    var autoQuery = EvidenceCatalogService.ScopedAutomated(db, systemId);
 
                     if (!string.IsNullOrWhiteSpace(controlFamily))
                         autoQuery = autoQuery.Where(ce => ce.ControlId.StartsWith(controlFamily));
@@ -383,7 +406,8 @@ public static partial class DashboardEndpoints
 
                 return Results.Ok(new { items, totalCount, page = p, pageSize = ps });
             })
-            .WithName("ListEvidence");
+            .WithName("ListEvidence")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem);
 
         // ─── Evidence Summary (US2 T021) ─────────────────────────────────────
 
@@ -404,7 +428,8 @@ public static partial class DashboardEndpoints
                     summary.CoveragePercentage,
                 });
             })
-            .WithName("GetEvidenceSummary");
+            .WithName("GetEvidenceSummary")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem);
 
         // ─── Evidence Detail (US2 T022) ──────────────────────────────────────
 
@@ -453,7 +478,6 @@ public static partial class DashboardEndpoints
                         artifact.FileName,
                         artifact.ContentType,
                         artifact.FileSizeBytes,
-                        artifact.StoragePath,
                         ArtifactCategory = artifact.ArtifactCategory.ToString(),
                         CollectionMethod = artifact.CollectionMethod.ToString(),
                         ControlId = controlId,
@@ -469,7 +493,7 @@ public static partial class DashboardEndpoints
                 }
 
                 // Try automated evidence
-                var compEvidence = await db.Evidence
+                var compEvidence = await EvidenceCatalogService.ScopedAutomated(db, systemId)
                     .FirstOrDefaultAsync(ce => ce.Id == evidenceId, ct);
 
                 if (compEvidence is not null)
@@ -502,7 +526,8 @@ public static partial class DashboardEndpoints
                     ErrorCode = "NOT_FOUND",
                 });
             })
-            .WithName("GetEvidenceDetail");
+            .WithName("GetEvidenceDetail")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem);
 
         // ─── Collect Evidence Trigger (US5 T033) ────────────────────────────
 
@@ -512,14 +537,17 @@ public static partial class DashboardEndpoints
                 string controlId,
                 IEvidenceStorageService evidenceStorageService,
                 AtoCopilotContext db,
+                ILogger<EvidenceCatalogService> logger,
                 CancellationToken ct) =>
             {
+                if (!await db.ControlImplementations.AnyAsync(c => c.RegisteredSystemId == systemId && c.ControlId == controlId, ct))
+                    return Results.NotFound();
                 // Resolve a subscription ID from the system's Azure profile
                 var system = await db.RegisteredSystems
                     .Where(s => s.Id == systemId)
                     .FirstOrDefaultAsync(ct);
 
-                var subscriptionId = system?.AzureProfile?.SubscriptionIds?.FirstOrDefault();
+                var subscriptionId = system?.AzureProfile?.SubscriptionIds?.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
 
                 if (string.IsNullOrEmpty(subscriptionId))
                     return Results.BadRequest(new ErrorResponse
@@ -528,10 +556,15 @@ public static partial class DashboardEndpoints
                         ErrorCode = "NO_SUBSCRIPTION",
                     });
 
+                var assessment = await db.Assessments.Where(a => a.RegisteredSystemId == systemId)
+                    .OrderByDescending(a => a.AssessedAt).FirstOrDefaultAsync(ct);
+                if (assessment is null)
+                    return Results.BadRequest(new { error = "Create an assessment for this system before collecting evidence." });
+
                 try
                 {
-                    var evidence = await evidenceStorageService.CollectEvidenceAsync(
-                        controlId, subscriptionId, cancellationToken: ct);
+                    var evidence = await evidenceStorageService.CollectForAssessmentAsync(
+                        systemId, assessment.Id, controlId, subscriptionId, ct);
 
                     return Results.Ok(new
                     {
@@ -542,8 +575,11 @@ public static partial class DashboardEndpoints
                         evidence.ContentHash,
                     });
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (KeyNotFoundException) { return Results.NotFound(); }
+                catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+                catch (Exception ex) when (EvidenceCatalogService.IsOperational(ex))
                 {
+                    logger.LogWarning(ex, "Evidence collection failed for {SystemId}", systemId);
                     return Results.StatusCode(502);
                 }
             })
@@ -556,12 +592,17 @@ public static partial class DashboardEndpoints
         group.MapDelete("/systems/{systemId}/evidence/{evidenceId}", async (
                 string systemId,
                 string evidenceId,
+                string? expectedHash,
                 IEvidenceArtifactService evidenceService,
                 HttpContext httpContext,
                 CancellationToken ct) =>
             {
                 var userId = currentUser.CurrentUserId;
-                var deleted = await evidenceService.DeleteAsync(evidenceId, userId, ct);
+                var artifact = await evidenceService.GetByIdAsync(evidenceId, ct);
+                if (artifact is null || artifact.RegisteredSystemId != systemId) return Results.NotFound();
+                bool deleted;
+                try { deleted = await evidenceService.DeleteScopedAsync(systemId, evidenceId, userId, expectedHash, ct); }
+                catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Evidence changed. Reload before deleting." }); }
 
                 return deleted
                     ? Results.NoContent()
@@ -585,6 +626,8 @@ public static partial class DashboardEndpoints
                 HttpContext httpContext,
                 CancellationToken ct) =>
             {
+                var existing = await evidenceService.GetByIdAsync(evidenceId, ct);
+                if (existing is null || existing.RegisteredSystemId != systemId) return Results.NotFound();
                 if (!request.HasFormContentType)
                     return Results.BadRequest(new ErrorResponse
                     {
@@ -611,12 +654,14 @@ public static partial class DashboardEndpoints
                 try
                 {
                     using var stream = file.OpenReadStream();
-                    var artifact = await evidenceService.ReplaceAsync(
+                    var artifact = await evidenceService.ReplaceScopedAsync(
+                        systemId,
                         evidenceId,
                         file.FileName,
                         file.ContentType,
                         stream,
                         userId,
+                        expectedHash: form["expectedHash"].FirstOrDefault(),
                         description: description,
                         cancellationToken: ct);
 
@@ -644,6 +689,10 @@ public static partial class DashboardEndpoints
                         ErrorCode = "NOT_FOUND",
                     });
                 }
+                catch (DbUpdateConcurrencyException)
+                {
+                    return Results.Conflict(new { error = "Evidence changed. Reload before replacing." });
+                }
                 catch (ArgumentException ex)
                 {
                     return Results.BadRequest(new ErrorResponse
@@ -666,6 +715,8 @@ public static partial class DashboardEndpoints
                 AtoCopilotContext db,
                 CancellationToken ct) =>
             {
+                if (!await db.EvidenceArtifacts.AnyAsync(a => a.Id == evidenceId && a.RegisteredSystemId == systemId && !a.IsDeleted, ct))
+                    return Results.NotFound();
                 var versions = await db.EvidenceVersions
                     .Where(v => v.EvidenceArtifactId == evidenceId)
                     .OrderByDescending(v => v.ReplacedAt)
@@ -683,7 +734,8 @@ public static partial class DashboardEndpoints
                     .ToListAsync(ct);
                 return Results.Ok(versions);
             })
-            .WithName("GetEvidenceVersions");
+            .WithName("GetEvidenceVersions")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem);
 
         // T037b: GET /systems/{systemId}/evidence/{evidenceId}/versions/{versionId}/download
         group.MapGet("/systems/{systemId}/evidence/{evidenceId}/versions/{versionId}/download", async (
@@ -692,8 +744,11 @@ public static partial class DashboardEndpoints
                 string versionId,
                 AtoCopilotContext db,
                 Core.Interfaces.Storage.IFileStorageProvider storageProvider,
+                ILogger<EvidenceCatalogService> logger,
                 CancellationToken ct) =>
             {
+                if (!await db.EvidenceArtifacts.AnyAsync(a => a.Id == evidenceId && a.RegisteredSystemId == systemId && !a.IsDeleted, ct))
+                    return Results.NotFound();
                 var version = await db.EvidenceVersions
                     .FirstOrDefaultAsync(v => v.Id == versionId && v.EvidenceArtifactId == evidenceId, ct);
 
@@ -707,14 +762,22 @@ public static partial class DashboardEndpoints
                 if (version.IsFilePurged)
                     return Results.StatusCode(410); // Gone
 
-                var exists = await storageProvider.ExistsAsync(version.StoragePath, ct);
-                if (!exists)
-                    return Results.StatusCode(410);
-
-                var stream = await storageProvider.GetAsync(version.StoragePath, ct);
-                return Results.File(stream, "application/octet-stream", version.FileName);
+                try
+                {
+                    if (!await storageProvider.ExistsAsync(version.StoragePath, ct)) return Results.StatusCode(410);
+                    var stream = await storageProvider.GetAsync(version.StoragePath, ct);
+                    return stream is null ? Results.StatusCode(410)
+                        : Results.File(stream, "application/octet-stream", version.FileName);
+                }
+                catch (FileNotFoundException) { return Results.StatusCode(410); }
+                catch (Exception ex) when (EvidenceCatalogService.IsOperational(ex) || ex is UnauthorizedAccessException)
+                {
+                    logger.LogWarning(ex, "Retained evidence version unavailable for {VersionId}", versionId);
+                    return Results.Json(new { error = "Retained evidence content is unavailable. Retry the request." }, statusCode: 503);
+                }
             })
-            .WithName("DownloadEvidenceVersion");
+            .WithName("DownloadEvidenceVersion")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem);
 
         // ── GET /evidence/settings ─────────────────────────────────────────
         group.MapGet("/evidence/settings", (IConfiguration configuration) =>

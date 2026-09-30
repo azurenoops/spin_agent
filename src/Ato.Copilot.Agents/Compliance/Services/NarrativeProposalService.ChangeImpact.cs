@@ -186,7 +186,7 @@ public sealed partial class NarrativeProposalService
             request.ControlIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 20) ||
             request.NarrativeTypes is null || request.NarrativeTypes.Count is 0 or > 2 ||
             request.NarrativeTypes.Any(type => type is not ("Policy" or "Technical")) ||
-            request.SourceKind is not ("OrganizationCapability" or "CspCapability" or "Inheritance" or "Component" or "Reference" or "Assessment" or "System") ||
+            request.SourceKind is not ("OrganizationCapability" or "CspCapability" or "Inheritance" or "Component" or "Reference" or "Assessment" or "System" or "Monitoring") ||
             string.IsNullOrWhiteSpace(request.SourceId) || request.SourceId.Length > 200 ||
             string.IsNullOrWhiteSpace(request.Actor) || request.Actor.Length > 200 ||
             request.ImpactId is not null && (string.IsNullOrWhiteSpace(request.ImpactId) || request.ImpactId.Length > 128))

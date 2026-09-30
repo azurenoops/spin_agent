@@ -21,6 +21,17 @@ public static class CspPackageImportEndpoints
         group.MapGet("/{id:guid}", (Guid id, HttpContext http, ICspPackageService service, CancellationToken ct) =>
             ExecuteAsync(http, async () => Success(await service.GetAsync(id, ct))))
             .WithName("GetCspPackage").WithSummary("Read package processing, coverage and publication state.");
+        group.MapPost("/{id:guid}/archive", (Guid id, ArchivePackageRequest body, HttpContext http,
+            ICspPackageService service, CancellationToken ct) =>
+            ExecuteAsync(http, async () => Success(await service.ArchiveAsync(id, body, Actor(http), ct))))
+            .WithName("ArchiveCspPackage").WithSummary("Archive an inactive unpublished receipt without deleting source history.");
+        group.MapPost("/{id:guid}/supersede-review", (Guid id, SupersedePackageReviewRequest body, HttpContext http,
+            ICspPackageService service, CancellationToken ct) =>
+            ExecuteAsync(http, async () => Success(await service.SupersedeReviewAsync(id, body, Actor(http), ct))))
+            .WithName("SupersedeCspPackageReview").WithSummary("Retire obsolete review work while retaining canonical source visibility.");
+        group.MapGet("/{id:guid}/history", (Guid id, HttpContext http, ICspPackageService service, CancellationToken ct) =>
+            ExecuteAsync(http, async () => Success(await service.HistoryAsync(id, ct))))
+            .WithName("GetCspPackageHistory").WithSummary("Inspect retained receipt and audit history, including archived sources.");
         group.MapGet("/{id:guid}/review-state", (Guid id, HttpContext http, ICspPackageService service, CancellationToken ct) =>
             ExecuteAsync(http, async () => Success(await service.ReviewStateAsync(id, ct))))
             .WithName("GetCspPackageReviewState").WithSummary("Recover saved preview, approval and publication outcomes without guessing client state.");

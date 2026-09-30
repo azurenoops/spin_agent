@@ -12,12 +12,14 @@ interface ImportProgressEvent {
   totalCount: number;
   errorMessage: string | null;
   cancelRequested?: boolean;
+  resultId?: string | null;
+  warnings?: string[];
 }
 
 interface Props {
   systemId: string;
   importJobId: string;
-  onComplete?: (status: ScanImportStatusDto['status']) => void;
+  onComplete?: (status: ScanImportStatusDto['status'], details?: Pick<ScanImportStatusDto, 'resultId' | 'warnings'>) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -27,6 +29,7 @@ function statusLabel(status: ScanImportStatusDto['status']): string {
     case 'Queued': return 'Queued…';
     case 'Processing': return 'Processing…';
     case 'Completed': return 'Import complete';
+    case 'CompletedWithWarnings': return 'Imported with warnings — review retained observations';
     case 'Failed': return 'Import failed';
     case 'Cancelled': return 'Cancelled';
   }
@@ -35,6 +38,7 @@ function statusLabel(status: ScanImportStatusDto['status']): string {
 function statusColor(status: ScanImportStatusDto['status']): string {
   switch (status) {
     case 'Completed': return 'bg-green-500';
+    case 'CompletedWithWarnings': return 'bg-amber-500';
     case 'Failed': return 'bg-red-500';
     case 'Cancelled': return 'bg-gray-400';
     default: return 'bg-indigo-500';
@@ -54,19 +58,27 @@ export default function ScanImportProgressBar(props: Props) {
   return <ScanImportProgress key={`${session.key}:${props.importJobId}`} {...props} session={session} />;
 }
 
+function isWarnings(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
 function parseProgress(payload: unknown, importJobId: string): ImportProgressEvent {
   if (!isProgressEvent(payload, 'jobId', importJobId)
     || (payload.status !== 'Queued' && payload.status !== 'Processing' && payload.status !== 'Completed'
-      && payload.status !== 'Failed' && payload.status !== 'Cancelled')
+      && payload.status !== 'CompletedWithWarnings' && payload.status !== 'Failed' && payload.status !== 'Cancelled')
     || typeof payload.processedCount !== 'number' || !Number.isSafeInteger(payload.processedCount) || payload.processedCount < 0
     || typeof payload.totalCount !== 'number' || !Number.isSafeInteger(payload.totalCount) || payload.totalCount < 0
-    || (payload.errorMessage !== null && typeof payload.errorMessage !== 'string')) {
+    || (payload.errorMessage !== null && typeof payload.errorMessage !== 'string')
+    || (payload.resultId !== undefined && payload.resultId !== null && typeof payload.resultId !== 'string')
+    || (payload.warnings !== undefined && !isWarnings(payload.warnings))) {
     throw new Error('Unexpected scan import status response.');
   }
   return {
     jobId: importJobId, status: payload.status, processedCount: payload.processedCount,
     totalCount: payload.totalCount, errorMessage: payload.errorMessage,
     ...(typeof payload.cancelRequested === 'boolean' ? { cancelRequested: payload.cancelRequested } : {}),
+    ...(payload.resultId === null || typeof payload.resultId === 'string' ? { resultId: payload.resultId } : {}),
+    ...(isWarnings(payload.warnings) ? { warnings: payload.warnings } : {}),
   };
 }
 
@@ -83,7 +95,7 @@ function ScanImportProgress({ systemId, importJobId, onComplete, session }: Prop
   const [cancelling, setCancelling] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
 
-  const isDone = progress.status === 'Completed' || progress.status === 'Failed' || progress.status === 'Cancelled';
+  const isDone = progress.status === 'Completed' || progress.status === 'CompletedWithWarnings' || progress.status === 'Failed' || progress.status === 'Cancelled';
 
   const monitor = useJobProgress<ImportProgressEvent>({
     session, jobId: importJobId, hubPath: '/hubs/import-progress', events: ['ImportProgress'],
@@ -94,17 +106,24 @@ function ScanImportProgress({ systemId, importJobId, onComplete, session }: Prop
       return parseProgress({ ...status, jobId: status.id }, importJobId);
     },
     onEvent: (_name, payload) => parseProgress(payload, importJobId),
-    isTerminal: event => event.status === 'Completed' || event.status === 'Failed' || event.status === 'Cancelled',
+    isTerminal: event => event.status === 'Completed' || event.status === 'CompletedWithWarnings' || event.status === 'Failed' || event.status === 'Cancelled',
     onStatus: (event, terminal) => {
       setProgress(event);
       if (event.cancelRequested !== undefined) setCancelRequested(event.cancelRequested);
-      if (terminal) onComplete?.(event.status);
+      if (terminal) {
+        if (event.resultId !== undefined || event.warnings !== undefined) {
+          onComplete?.(event.status, {
+            ...(event.resultId !== undefined ? { resultId: event.resultId } : {}),
+            ...(event.warnings !== undefined ? { warnings: event.warnings } : {}),
+          });
+        } else onComplete?.(event.status);
+      }
     },
   });
 
   const percent = progress.totalCount > 0
     ? Math.min(100, Math.round((progress.processedCount / progress.totalCount) * 100))
-    : progress.status === 'Completed' ? 100 : 0;
+    : progress.status === 'Completed' || progress.status === 'CompletedWithWarnings' ? 100 : 0;
 
   const handleCancel = async () => {
     if (!session.ready || !session.isCurrent()) { setCancelError('Authenticated workspace context is required.'); return; }
@@ -132,6 +151,7 @@ function ScanImportProgress({ systemId, importJobId, onComplete, session }: Prop
       <div className="flex items-center justify-between text-sm">
         <span className={`font-medium ${
           progress.status === 'Failed' ? 'text-red-600'
+          : progress.status === 'CompletedWithWarnings' ? 'text-amber-700 dark:text-amber-300'
           : progress.status === 'Completed' ? 'text-green-700'
           : 'text-gray-700'
         }`}>
@@ -155,6 +175,11 @@ function ScanImportProgress({ systemId, importJobId, onComplete, session }: Prop
       {/* Error message */}
       {progress.errorMessage && (
         <p role="alert" className="text-xs text-red-600">{progress.errorMessage}</p>
+      )}
+      {progress.warnings && progress.warnings.length > 0 && (
+        <ul aria-label="Import warnings" className="list-disc space-y-1 pl-4 text-xs text-amber-700 dark:text-amber-300">
+          {progress.warnings.map((warning, index) => <li key={`${index}:${warning}`}>{warning}</li>)}
+        </ul>
       )}
 
       {/* Cancel button */}

@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import axe from 'axe-core';
+import { openWorkspaceContext } from '../fixtures/workspace-shell';
 import {
   installSystemCapabilityFixture, providerCapabilityId, providerComponentId, systemCapabilityRoot,
 } from '../fixtures/system-capabilities';
@@ -54,7 +55,8 @@ for (const width of [1440, 390]) {
       await page.goto(systemCapabilityRoot);
       // Assert
       await expect(page.getByRole('heading', { name: 'Security Capabilities', exact: true })).toBeVisible();
-      await expect(page.getByRole('region', { name: 'Active workspace' })).toContainText('Selected system: Synthetic Mission System');
+      await expect(await openWorkspaceContext(page)).toContainText('Selected system: Synthetic Mission System');
+      await page.keyboard.press('Escape');
       await expect(page.getByRole('link', { name: 'Security monitoring', exact: true })).toBeVisible();
       await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*dark)/);
       await checkLayout(page, testInfo, '01-by-capability');

@@ -29,6 +29,7 @@ public class AtoComplianceEngineTests : IDisposable
     private readonly Mock<IEvidenceCollectorRegistry> _evidenceCollectorRegistryMock = new();
     private readonly Mock<IComplianceWatchService> _complianceWatchMock = new();
     private readonly Mock<IAlertManager> _alertManagerMock = new();
+    private readonly Mock<ISystemEnvironmentScopeResolver> _environmentResolver = new();
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly string _dbName;
 
@@ -75,6 +76,7 @@ public class AtoComplianceEngineTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(_complianceWatchMock.Object);
         services.AddSingleton(_alertManagerMock.Object);
+        services.AddSingleton(_environmentResolver.Object);
         var sp = services.BuildServiceProvider();
 
         return new(
@@ -88,7 +90,42 @@ public class AtoComplianceEngineTests : IDisposable
             _azureResourceMock.Object,
             _stigValidationMock.Object,
             _evidenceCollectorRegistryMock.Object,
-            sp);
+            sp, _environmentResolver.Setups.Any()
+                ? new CanonicalEnvironmentCollectionGuard(_dbFactory, sp.GetRequiredService<IServiceScopeFactory>())
+                : null);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CanonicalExecution_BlocksBeforeAnyScannerOrResourceRead(bool eligible)
+    {
+        // Arrange
+        var subscription = Guid.NewGuid();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        db.RegisteredSystems.Add(new() { Id = "canonical-system", Name = "Synthetic system" });
+        await db.SaveChangesAsync();
+        var source = new ResolvedSystemEnvironmentScope(Guid.NewGuid(), 1, Guid.NewGuid(), 1,
+            new(Guid.NewGuid(), Guid.NewGuid(), subscription, Guid.NewGuid(), "Government", "Synthetic",
+                "Selected", DateTimeOffset.UtcNow), "ProviderAllocation", Guid.NewGuid(), 1,
+            eligible, eligible ? null : "Allocation withdrawn",
+            [$"/subscriptions/{subscription}/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/a"],
+            [], [], new("Test", null, null, "Reconciled", null, DateTimeOffset.UtcNow));
+        _environmentResolver.Setup(x => x.ResolveAsync("canonical-system", It.IsAny<EnvironmentScopePurpose>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes("canonical-system", 1, [source], []));
+        var engine = CreateEngine();
+
+        // Act
+        var act = () => engine.RunRetainedAssessmentAsync(new()
+            { RegisteredSystemId = "canonical-system", SubscriptionId = subscription.ToString() });
+
+        // Assert
+        (await act.Should().ThrowAsync<AssessmentEnvironmentException>()).Which.ErrorCode
+            .Should().Be(eligible ? "ASSESSMENT_SCOPE_UNSUPPORTED" : "ASSESSMENT_ENVIRONMENT_INELIGIBLE");
+        _azureResourceMock.Invocations.Should().BeEmpty();
+        _policyMock.Invocations.Should().BeEmpty();
+        _defenderMock.Invocations.Should().BeEmpty();
+        _scannerRegistryMock.Invocations.Should().BeEmpty();
     }
 
     private static string MakePolicyResponse(List<object>? states = null) =>
@@ -494,7 +531,7 @@ public class AtoComplianceEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task RunComprehensiveAssessment_PartialFailure_ContinuesAndCompletes()
+    public async Task RunComprehensiveAssessment_PartialFailure_RetainsWorkWithoutClaimingCompletion()
     {
         // Setup most families to succeed, but one scanner throws
         var failingScanner = new Mock<IComplianceScanner>();
@@ -515,7 +552,7 @@ public class AtoComplianceEngineTests : IDisposable
         var engine = CreateEngine();
         var result = await engine.RunComprehensiveAssessmentAsync("test-sub");
 
-        result.Status.Should().Be(AssessmentStatus.Completed);
+        result.Status.Should().Be(AssessmentStatus.Failed);
         result.ControlFamilyResults.Should().HaveCount(20);
 
         var acResult = result.ControlFamilyResults.First(f => f.FamilyCode == "AC");
@@ -543,7 +580,7 @@ public class AtoComplianceEngineTests : IDisposable
 
         _persistenceMock.Verify(x => x.SaveAssessmentAsync(
             It.Is<ComplianceAssessment>(a => a.Status == AssessmentStatus.Completed),
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Exactly(21));
     }
 
     [Fact]
@@ -569,6 +606,8 @@ public class AtoComplianceEngineTests : IDisposable
         result.ScanPillarResults.Should().ContainKey("ARM");
         result.ScanPillarResults.Should().ContainKey("Policy");
         result.ScanPillarResults.Should().ContainKey("Defender");
+        result.ScanPillarResults["Policy"].Should().BeFalse("a missing evaluator outcome is not proof of success");
+        result.ScanPillarResults["Defender"].Should().BeFalse("a missing evaluator outcome is not proof of success");
     }
 
     [Fact]
@@ -713,8 +752,9 @@ public class AtoComplianceEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task AssessControlFamily_StigFailure_StillReturnsResults()
+    public async Task AssessControlFamily_StigFailure_MarksFailedAndRetainsScannerResults()
     {
+        // Arrange
         var mockScanner = CreateMockScanner("AC", 3, 1);
         _scannerRegistryMock.Setup(x => x.GetScanner("AC")).Returns(mockScanner.Object);
         SetupNistForFamily("AC", 3);
@@ -724,10 +764,21 @@ public class AtoComplianceEngineTests : IDisposable
             .ThrowsAsync(new Exception("STIG service down"));
 
         var engine = CreateEngine();
+
+        // Act
         var result = await engine.AssessControlFamilyAsync("AC", "test-sub");
 
-        // Should still complete with scanner results despite STIG failure
-        result.Status.Should().Be(FamilyAssessmentStatus.Completed);
+        // Assert
+        result.Status.Should().Be(FamilyAssessmentStatus.Failed);
+        result.ErrorMessage.Should().Be("STIG validation failed; scanner observations retained.");
+        result.Findings.Should().ContainSingle()
+            .Which.Should().Match<ComplianceFinding>(f =>
+                f.ControlFamily == "AC" && f.Title == "Finding 1" && f.Severity == FindingSeverity.Medium);
+        result.TotalControls.Should().Be(3);
+        result.PassedControls.Should().Be(2);
+        result.FailedControls.Should().Be(1);
+        result.ComplianceScore.Should().BeApproximately(2.0 / 3 * 100, 0.001);
+        result.ScannerName.Should().Be("MockScanner");
     }
 
     [Fact]
@@ -1794,21 +1845,19 @@ public class AtoComplianceEngineTests : IDisposable
     // ─── T105: Persistence Failure Behavior Tests ──────────────────────────
 
     [Fact]
-    public async Task RunComprehensiveAssessmentAsync_PersistenceFails_ReturnsAssessment()
+    public async Task RunComprehensiveAssessmentAsync_PersistenceFails_PropagatesFailure()
     {
+        // Arrange
         SetupScannerRegistryForAllFamilies();
 
-        // Make persistence throw — but the assessment should still be returned
         _persistenceMock.Setup(x => x.SaveAssessmentAsync(It.IsAny<ComplianceAssessment>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB is down"));
 
         var engine = CreateEngine();
-        var result = await engine.RunComprehensiveAssessmentAsync("sub-1");
-
-        // The assessment should still be returned even though persistence failed
-        result.Should().NotBeNull();
-        result.SubscriptionId.Should().Be("sub-1");
-        result.Status.Should().Be(AssessmentStatus.Completed);
+        // Act
+        var run = () => engine.RunComprehensiveAssessmentAsync("sub-1");
+        // Assert
+        await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB is down");
     }
 
     [Fact]

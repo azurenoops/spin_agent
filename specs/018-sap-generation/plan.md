@@ -1,104 +1,63 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Connected Assessment Workflow
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
-
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+**Feature**: 018-sap-generation | **Amended**: 2026-09-28 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+Reuse SecurityAssessmentPlan/SapControlEntry/SapTeamMember, ComplianceAssessment,
+ScanImportRecord, ControlEffectiveness, ComplianceSnapshot and
+SecurityAssessmentReport. Add scope/revision/provenance metadata to those records
+where required; do not add a parallel SAP, assessment, or report store.
+
+Plan and Results share a selected SAP ID/revision. A plan projection supplies
+readable context, real advisory validation, permissions, named lead candidates,
+structured editors, saved preview and history. Result projections preserve
+original collection scope while comparing coverage against the selected plan.
+Existing collection/import services retain supported methods and explicit
+permissions; failed checks cannot fabricate assessment acceptance.
+
+Preserve preliminary collection and draft SAR behavior. SAR creation must select
+and retain exact result/review sources, not silently aggregate all effectiveness
+rows ever recorded for the system. Safe retries use persistent operation identity
+and existing records. Collection, result review, SAR lifecycle and AO decisions
+are separate.
+
+See [the connected-workflow contract](contracts/assessment-workspace.md) for
+verified starting gaps and proposed additive contracts.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+- C# / .NET 9 backend; TypeScript / React 19 Dashboard.
+- Existing ASP.NET Core, EF Core, React Router, Axios and Markdown renderers.
+- SQLite / SQL Server existing entities; additive schema changes only.
+- Production-route xUnit integration, Vitest and Playwright.
+- Paged reads, cancellation, explicit progress/partial failure for long operations.
+- No new package dependency, agent, tool, parallel plan/report store or automatic
+  authorization-role assignment.
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+Document first; failing AAA tests before production code; server-side tenant,
+system, record and action checks; audited version/idempotency checks; reuse
+existing services; Dashboard static build and targeted backend/frontend/browser
+tests. External issue linkage remains pending approval.
 
-[Gates determined based on constitution file]
+Existing full-solution unit-project compile blockers must be reported separately,
+not hidden or fixed as unrelated scope.
 
-## Project Structure
+## Implementation surfaces
 
-### Documentation (this feature)
-
-```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit.plan command output)
-├── research.md          # Phase 0 output (/speckit.plan command)
-├── data-model.md        # Phase 1 output (/speckit.plan command)
-├── quickstart.md        # Phase 1 output (/speckit.plan command)
-├── contracts/           # Phase 1 output (/speckit.plan command)
-└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
-```
-
-### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
-
-```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
-```
-
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+- Core SAP, assessment, scan-import and SAR models/DTOs plus additive schema.
+- Existing SAP, assessment engine/artifact, scan import and SAR services.
+- MCP assessment/SAP/SAR/scan-import endpoints and scoped workspace projections.
+- Dashboard assessment page, guided planning/result drawers, existing import,
+  readiness, findings/remediation actions and protected document access.
+- Feature 018 contract/tasks and assessment/documentation guides.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| Decision | Why needed | Rejected alternative |
+|----------|------------|----------------------|
+| Retained plan/result metadata on existing records | Scope and review must survive later plan edits and safe retries | Reconstructing historical scope from the current baseline mislabels results |
+| Scoped workspace projections | Existing latest-SAP readers disagree and results APIs are broad | Independent client plan cards/queries can select different versions |
+| Selected-source SAR extension | Current SAR uses all system effectiveness records | A second report store or unscoped latest-data aggregation breaks provenance |

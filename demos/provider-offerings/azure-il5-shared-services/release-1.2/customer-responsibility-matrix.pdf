@@ -1,0 +1,154 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 3 /Kids [5 0 R 7 0 R 9 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4461 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Azure IL5 ∑ Shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (Customer responsibility matrix) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.2 | Scenario date: 2026-09-15 | Provider-managed shared services) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 609 Td (Audit collection | AU-2, AU-6, AU-11) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 586 Td (Provider accountable: Operate collector health checks every 15 minutes; reconcile ingestion) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 572 Td (counts daily; protect archived events from routine operator modification.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 551 Td (Joint handoff: Agree event categories and triage escalation with each mission; investigate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 537 Td (missing source intervals jointly within one business day.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 516 Td (Customer accountable: Enable workload audit sources, review mission-specific events each) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 502 Td (business day, and set longer retention when mission policy requires it.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 481 Td (Acceptance artifact: AZ-E01: seven-day collector reconciliation and archive retrieval sample.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 467 Td (Review cadence: monthly and after material change. Customer sign-off is required before) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 453 Td (claiming applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 432 Td (Network protection | SC-7) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 409 Td (Provider accountable: Maintain deny-by-default hub rules, review exceptions monthly, and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 395 Td (record firewall changes with rollback instructions.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 374 Td (Joint handoff: Approve traffic purpose and route changes jointly; exercise a denied-traffic) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 360 Td (test before connecting a new spoke.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 339 Td (Customer accountable: Manage application ingress, workload NSGs, DNS dependencies and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 325 Td (endpoints outside the provider hub.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 304 Td (Acceptance artifact: AZ-E02: approved rule sample, route inventory and denied-flow test.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 290 Td (Review cadence: monthly and after material change. Customer sign-off is required before) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 276 Td (claiming applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 255 Td (Privileged identity | IA-2, AC-2) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 232 Td (Provider accountable: Require MFA for operators; review privileged membership monthly; remove) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 218 Td (provider leavers within four hours of confirmed notice.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 197 Td (Joint handoff: Maintain named escalation contacts and reconcile emergency access use after) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 183 Td (every activation.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 162 Td (Customer accountable: Approve mission accounts, enforce mission MFA, perform access reviews,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 148 Td (and disable customer leavers.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 127 Td (Acceptance artifact: AZ-E03: synthetic access review, activation record and leaver test.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 113 Td (Review cadence: monthly and after material change. Customer sign-off is required before) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 99 Td (claiming applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 3) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4566 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 730 Td (Configuration baselines | CM-2, CM-3) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 707 Td (Provider accountable: Record baseline version, approver, test result and rollback plan;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 693 Td (compare deployed shared settings weekly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 672 Td (Joint handoff: Assess mission impact before changing shared defaults; agree maintenance) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 658 Td (windows and exception expiration.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 637 Td (Customer accountable: Maintain application baselines and approve workload changes; remediate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 623 Td (customer-owned configuration drift.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 602 Td (Acceptance artifact: AZ-E04: baseline revision, drift review and approved change sample.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 588 Td (Review cadence: monthly and after material change. Customer sign-off is required before) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 574 Td (claiming applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 553 Td (Encryption and key handling | SC-12, SC-13) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 530 Td (Provider accountable: Restrict key administration, test rotation every 90 days, record) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 516 Td (custody, and enforce TLS 1.2 or higher on covered endpoints.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 495 Td (Joint handoff: Document key ownership and coordinate rotation windows for dependent) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 481 Td (workloads; test trust-chain changes jointly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 460 Td (Customer accountable: Configure workload encryption and certificates; manage customer keys) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 446 Td (and classify data before using a covered endpoint.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 425 Td (Acceptance artifact: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 411 Td (Review cadence: monthly and after material change. Customer sign-off is required before) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 397 Td (claiming applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 376 Td (Incident coordination | IR-4, IR-6) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 353 Td (Provider accountable: Acknowledge severity-one tickets within 30 minutes in the scenario;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 339 Td (preserve provider records and issue initial impact notices.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 318 Td (Joint handoff: Exercise incident handoffs quarterly; coordinate containment approval where) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 304 Td (provider action affects mission service.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 283 Td (Customer accountable: Own mission incident declarations, regulatory reporting, application) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 269 Td (containment and mission recovery decisions.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 248 Td (Acceptance artifact: AZ-E06: tabletop timeline, escalation roster and notification template.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 234 Td (Review cadence: monthly and after material change. Customer sign-off is required before) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 220 Td (claiming applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 199 Td (Vulnerability management | RA-5, SI-2) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 176 Td (Provider accountable: Triage critical results within one business day, schedule fixes by) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 162 Td (risk, and verify remediation with a follow-up scan.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 141 Td (Joint handoff: Agree outage windows and compensating controls for shared infrastructure) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 127 Td (exceptions; review overdue items weekly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 106 Td (Customer accountable: Scan and patch customer applications, containers and mission hosts;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 92 Td (document mission risk acceptance separately.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 2 of 3) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 1777 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Acceptance artifact: AZ-E07: synthetic scan sample, patch ticket and clean rescan. Review) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (cadence: monthly and after material change. Customer sign-off is required before claiming) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 681 Td (Backup and recovery | CP-9, CP-10) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 658 Td (Provider accountable: Monitor backup jobs daily, protect recovery copies from ordinary) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 644 Td (operator deletion, and record restore results quarterly.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 623 Td (Joint handoff: Agree recovery sequence and validate shared dependencies during a joint) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 609 Td (recovery exercise.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 588 Td (Customer accountable: Back up mission data and applications, define mission RTO/RPO, and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 574 Td (validate business transactions after recovery.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 553 Td (Acceptance artifact: AZ-E08: backup reconciliation and shared-configuration restore exercise.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 539 Td (Review cadence: monthly and after material change. Customer sign-off is required before) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 525 Td (claiming applicability; an unresolved customer duty remains customer-owned.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 3 of 3) Tj ET
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000230 00000 n 
+0000000332 00000 n 
+0000000468 00000 n 
+0000004981 00000 n 
+0000005117 00000 n 
+0000009735 00000 n 
+0000009872 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+11702
+%%EOF

@@ -1,250 +1,92 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getTicketingConfig, configureTicketing } from '../../api/poam';
-import type { ConfigureTicketingRequest } from '../../types/poam';
 import { useSystemMutationPermission } from '../permissions/useSystemMutationPermission';
 
-interface TicketingConfigProps {
-  systemId: string;
-}
-
-const defaultFieldMapping: Record<string, string> = {
-  weakness: 'summary',
-  catSeverity: 'priority',
-  poc: 'assignee',
-  scheduledCompletionDate: 'duedate',
-};
+interface TicketingConfigProps { systemId: string }
 
 export default function TicketingConfig({ systemId }: TicketingConfigProps) {
-  // Ticketing configuration has no scoped workspace-operation projection yet.
-  const canConfigure = useSystemMutationPermission(systemId, null);
+  const canConfigure = useSystemMutationPermission(systemId, 'canManageSystem');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [configured, setConfigured] = useState(false);
-
   const [provider, setProvider] = useState<'jira' | 'servicenow'>('jira');
   const [baseUrl, setBaseUrl] = useState('');
-  const [projectKeyOrTableName, setProjectKeyOrTableName] = useState('');
-  const [issueType, setIssueType] = useState('');
-  const [authToken, setAuthToken] = useState('');
+  const [projectKey, setProjectKey] = useState('');
+  const [secretName, setSecretName] = useState('');
   const [syncEnabled, setSyncEnabled] = useState(false);
-  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>(defaultFieldMapping);
+  const generation = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    getTicketingConfig(systemId)
-      .then(config => {
-        if (cancelled) return;
-        if (config && config.provider) {
-          setConfigured(true);
-          setProvider(config.provider as 'jira' | 'servicenow');
-          setBaseUrl((config.baseUrl as string) ?? '');
-          setProjectKeyOrTableName((config.projectKeyOrTableName as string) ?? '');
-          setIssueType((config.issueType as string) ?? '');
-          setSyncEnabled(!!config.syncEnabled);
-          if (config.fieldMapping) setFieldMapping(config.fieldMapping as Record<string, string>);
-        }
-      })
-      .catch(() => { /* no config yet */ })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    ++generation.current;
+    setLoading(true); setError(null); setSuccess(false); setConfigured(false);
+    setBaseUrl(''); setProjectKey(''); setSecretName(''); setSyncEnabled(false);
+    getTicketingConfig(systemId).then(config => {
+      if (cancelled) return;
+      setConfigured(config.configured === true);
+      setProvider(String(config.provider).toLowerCase() === 'servicenow' ? 'servicenow' : 'jira');
+      setBaseUrl(typeof config.baseUrl === 'string' ? config.baseUrl : '');
+      setProjectKey(typeof config.projectKey === 'string' ? config.projectKey : '');
+      setSyncEnabled(config.syncEnabled === true);
+    }).catch(() => {
+      if (!cancelled) setError('Could not load ticket configuration. Verify your access and try again.');
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; ++generation.current; };
   }, [systemId]);
 
-  const handleSave = useCallback(async () => {
-    if (!canConfigure) {
-      setError('Permission denied: ticketing configuration is unavailable in this workspace.');
-      return;
-    }
-    setError(null);
-    setSuccess(false);
-    setSaving(true);
+  async function save() {
+    if (!canConfigure) return;
+    const current = generation.current;
+    setSaving(true); setError(null); setSuccess(false);
     try {
-      const request: ConfigureTicketingRequest = {
-        provider,
-        baseUrl: baseUrl.trim(),
-        projectKeyOrTableName: projectKeyOrTableName.trim(),
-        issueType: issueType.trim() || undefined,
-        authToken: authToken.trim(),
-        fieldMapping,
-        syncEnabled,
-      };
-      await configureTicketing(systemId, request);
-      setConfigured(true);
-      setSuccess(true);
-      setAuthToken('');
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save configuration');
-    } finally {
-      setSaving(false);
-    }
-  }, [systemId, provider, baseUrl, projectKeyOrTableName, issueType, authToken, fieldMapping, syncEnabled, canConfigure]);
-
-  const updateMapping = useCallback((poamField: string, externalField: string) => {
-    setFieldMapping(prev => ({ ...prev, [poamField]: externalField }));
-  }, []);
-
-  if (loading) {
-    return <div className="py-8 text-center text-gray-400">Loading ticketing configuration...</div>;
+      await configureTicketing(systemId, {
+        provider, baseUrl: baseUrl.trim(), projectKey: projectKey.trim(),
+        apiKeySecretName: secretName.trim(), syncEnabled,
+      });
+      if (current === generation.current) { setConfigured(true); setSuccess(true); setSecretName(''); }
+    } catch (reason) {
+      const detail = reason && typeof reason === 'object' && 'error' in reason && typeof reason.error === 'string' ? reason.error : null;
+      if (current === generation.current) setError(detail ?? 'Could not save ticket configuration.');
+    } finally { if (current === generation.current) setSaving(false); }
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Status Banner */}
-      {configured && (
-        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Ticketing integration configured ({provider === 'jira' ? 'Jira' : 'ServiceNow'})
-          {syncEnabled && ' — Auto-sync enabled'}
-        </div>
-      )}
-
-      {(error || !canConfigure) && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error ?? 'Permission denied: ticketing configuration is unavailable in this workspace.'}
-        </div>
-      )}
-
-      {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          Configuration saved successfully!
-        </div>
-      )}
-
-      {/* Provider Selection */}
-      <fieldset>
-        <legend className="mb-2 text-sm font-semibold text-gray-700">Provider</legend>
-        <div className="flex gap-4">
-          {(['jira', 'servicenow'] as const).map(p => (
-            <label key={p} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="provider"
-                value={p}
-                checked={provider === p}
-                onChange={() => setProvider(p)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
-              />
-              <span className="text-sm text-gray-700">{p === 'jira' ? 'Jira' : 'ServiceNow'}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      {/* Connection Details */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="ticketing-url" className="mb-1 block text-sm font-medium text-gray-700">
-            Base URL
-          </label>
-          <input
-            id="ticketing-url"
-            type="url"
-            value={baseUrl}
-            onChange={e => setBaseUrl(e.target.value)}
-            placeholder={provider === 'jira' ? 'https://myorg.atlassian.net' : 'https://myorg.service-now.com'}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-        <div>
-          <label htmlFor="ticketing-project" className="mb-1 block text-sm font-medium text-gray-700">
-            {provider === 'jira' ? 'Project Key' : 'Table Name'}
-          </label>
-          <input
-            id="ticketing-project"
-            type="text"
-            value={projectKeyOrTableName}
-            onChange={e => setProjectKeyOrTableName(e.target.value)}
-            placeholder={provider === 'jira' ? 'POAM' : 'incident'}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-        {provider === 'jira' && (
-          <div>
-            <label htmlFor="ticketing-issue-type" className="mb-1 block text-sm font-medium text-gray-700">
-              Issue Type
-            </label>
-            <input
-              id="ticketing-issue-type"
-              type="text"
-              value={issueType}
-              onChange={e => setIssueType(e.target.value)}
-              placeholder="Task"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
-        )}
-        <div>
-          <label htmlFor="ticketing-token" className="mb-1 block text-sm font-medium text-gray-700">
-            {configured ? 'Auth Token (leave blank to keep existing)' : 'Auth Token'}
-          </label>
-          <input
-            id="ticketing-token"
-            type="password"
-            value={authToken}
-            onChange={e => setAuthToken(e.target.value)}
-            placeholder={configured ? '••••••••' : 'API token or PAT'}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-      </div>
-
-      {/* Auto-Sync Toggle */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={syncEnabled}
-          onClick={() => setSyncEnabled(s => !s)}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-            syncEnabled ? 'bg-indigo-600' : 'bg-gray-200'
-          }`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform ${
-              syncEnabled ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
-        <span className="text-sm text-gray-700">
-          Enable automatic bidirectional sync
-        </span>
-      </div>
-
-      {/* Field Mapping */}
-      <fieldset>
-        <legend className="mb-2 text-sm font-semibold text-gray-700">Field Mapping</legend>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {Object.entries(fieldMapping).map(([poamField, extField]) => (
-            <div key={poamField} className="flex items-center gap-2">
-              <span className="w-40 truncate text-sm text-gray-500">{poamField}</span>
-              <span className="text-gray-400">→</span>
-              <input
-                type="text"
-                value={extField}
-                onChange={e => updateMapping(poamField, e.target.value)}
-                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-          ))}
-        </div>
-      </fieldset>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={!canConfigure || saving || !baseUrl.trim() || !projectKeyOrTableName.trim() || (!configured && !authToken.trim())}
-          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : configured ? 'Update Configuration' : 'Save Configuration'}
-        </button>
-      </div>
+  if (loading) return <p role="status">Loading ticketing configuration…</p>;
+  const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100';
+  return <div className="space-y-4">
+    <div>
+      <h3 className="font-semibold">System ticket connector</h3>
+      <p className="text-sm text-gray-600">Configure Jira or ServiceNow for explicit ticket creation and manual read-only snapshots. No scheduled sync, incoming webhooks, or bidirectional updates.</p>
     </div>
-  );
+    {configured && <p className="text-sm text-green-700">Connector configured. {syncEnabled ? 'Manual operations enabled.' : 'Manual operations disabled.'}</p>}
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {!canConfigure && <p role="alert" className="text-sm text-amber-800">System management permission is required to change this connector.</p>}
+    {success && <p role="status" className="text-sm text-green-700">Configuration saved.</p>}
+    <fieldset disabled={!canConfigure || saving} className="space-y-3">
+      <label className="block text-sm">Provider
+        <select value={provider} onChange={event => setProvider(event.target.value as 'jira' | 'servicenow')} className={input}>
+          <option value="jira">Jira</option><option value="servicenow">ServiceNow</option>
+        </select>
+      </label>
+      <label className="block text-sm">HTTPS base URL
+        <input type="url" value={baseUrl} onChange={event => setBaseUrl(event.target.value)} placeholder="https://tickets.example.com" className={input} />
+      </label>
+      <label className="block text-sm">{provider === 'jira' ? 'Project key' : 'Table name'}
+        <input value={projectKey} onChange={event => setProjectKey(event.target.value)} className={input} />
+      </label>
+      <label className="block text-sm">Server credential reference {configured ? '(blank keeps existing)' : ''}
+        <input value={secretName} onChange={event => setSecretName(event.target.value)} autoComplete="off" className={input} />
+      </label>
+      <p className="text-xs text-gray-500">Enter an administrator-provisioned reference, never an API token or password. Credentials are resolved only on the server; the destination host must be allowlisted.</p>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={syncEnabled} onChange={event => setSyncEnabled(event.target.checked)} />Enable manual ticket operations
+      </label>
+      <button type="button" disabled={saving || !baseUrl.trim() || !projectKey.trim() || (!configured && !secretName.trim())}
+        onClick={() => void save()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white disabled:opacity-50">
+        {saving ? 'Saving…' : 'Save connector'}
+      </button>
+    </fieldset>
+    <p className="text-xs text-gray-500">Existing POA&amp;M-owned ticket references are legacy records and remain separate from task-owned links.</p>
+  </div>;
 }

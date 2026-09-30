@@ -9,6 +9,10 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </summary>
 public interface IAuthorizationService
 {
+    Task<AuthorizationDecision> RecordExternalAuthorizationAsync(
+        string systemId, ExternalAuthorizationRecordInput input, string recordedBy, string recordedByName,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Issue an authorization decision for a registered system.
     /// Advances the system to the Monitor RMF step on success.

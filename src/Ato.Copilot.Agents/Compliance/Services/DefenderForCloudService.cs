@@ -16,6 +16,7 @@ public class DefenderForCloudService : IDefenderForCloudService
 {
     private readonly ArmClient _armClient;
     private readonly ILogger<DefenderForCloudService> _logger;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -27,10 +28,12 @@ public class DefenderForCloudService : IDefenderForCloudService
     /// </summary>
     public DefenderForCloudService(
         ArmClient armClient,
-        ILogger<DefenderForCloudService> logger)
+        ILogger<DefenderForCloudService> logger,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _armClient = armClient;
         _logger = logger;
+        _environmentGuard = environmentGuard;
     }
 
     /// <inheritdoc />
@@ -38,6 +41,8 @@ public class DefenderForCloudService : IDefenderForCloudService
         string subscriptionId,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         try
         {
             _logger.LogInformation("Getting secure score for subscription {SubId}", subscriptionId);
@@ -94,6 +99,8 @@ public class DefenderForCloudService : IDefenderForCloudService
         string subscriptionId,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         try
         {
             _logger.LogInformation("Getting security assessments for subscription {SubId}", subscriptionId);
@@ -155,6 +162,8 @@ public class DefenderForCloudService : IDefenderForCloudService
         string subscriptionId,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         try
         {
             _logger.LogInformation("Getting security recommendations for subscription {SubId}", subscriptionId);

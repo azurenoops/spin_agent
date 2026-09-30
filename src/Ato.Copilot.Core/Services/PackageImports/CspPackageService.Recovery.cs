@@ -30,9 +30,11 @@ public sealed partial class CspPackageService
             {
                 var snapshot = Read<PreviewSnapshot>(latest.SnapshotJson);
                 preview = Preview(latest, snapshot.Candidates);
-                if (latest.State != "Published")
+                stale = latest.State != "Published" && (package.SupersededAt.HasValue || package.ArchivedAt.HasValue);
+                if (latest.State != "Published" && !stale)
                 {
-                    var material = await ValidateSelectionAsync(db, package, Read<PackageSelection[]>(latest.SelectionJson), ct);
+                    var material = await ValidateSelectionAsync(db, package, Read<PackageSelection[]>(latest.SelectionJson), ct,
+                        PackageImpactIds(latest.SnapshotJson));
                     stale = latest.State is not ("Preview" or "Approved") || latest.Revision != package.Revision
                         || latest.ExpiresAt <= DateTimeOffset.UtcNow || material.Hash != latest.PreviewHash
                         || !material.Blockers.SequenceEqual(preview.Blockers);

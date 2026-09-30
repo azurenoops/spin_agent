@@ -10,6 +10,9 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// <remarks>Feature 018.</remarks>
 public interface ISapService
 {
+    /// <summary>Read the latest saved SAP, including all content and children, without preferring finalized history.</summary>
+    Task<SecurityAssessmentPlan?> GetWorkingSapAsync(string systemId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Generate a Security Assessment Plan for a registered system.
     /// Auto-populates from baseline, OSCAL objectives, STIG mappings, and evidence data.
@@ -51,10 +54,15 @@ public interface ISapService
         string finalizedBy = "mcp-user",
         CancellationToken cancellationToken = default);
 
+    /// <summary>Finalize only the exact reviewed content and revision.</summary>
+    Task<SapDocument> FinalizeSapAsync(
+        string sapId, string finalizedBy, CancellationToken cancellationToken,
+        string? expectedContentHash, long? expectedRevision);
+
     /// <summary>
     /// Retrieve a specific SAP by ID or the latest SAP for a system.
     /// If both sapId and systemId are provided, sapId takes precedence.
-    /// For system lookups, prefers Finalized over Draft.
+    /// For system lookups, prefers the working Draft over finalized history.
     /// </summary>
     /// <param name="sapId">Specific SAP ID (takes precedence).</param>
     /// <param name="systemId">System ID — returns latest SAP.</param>

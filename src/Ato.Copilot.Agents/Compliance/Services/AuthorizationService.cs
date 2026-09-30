@@ -14,7 +14,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// risk acceptance with auto-expire, POA&amp;M CRUD, RAR generation,
 /// and authorization package bundling (SSP + SAR + RAR + POA&amp;M + CRM + ATO Letter).
 /// </summary>
-public class AuthorizationService : IAuthorizationService
+public partial class AuthorizationService : IAuthorizationService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AuthorizationService> _logger;
@@ -89,6 +89,8 @@ public class AuthorizationService : IAuthorizationService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
+        await using var decisionTransaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken) : null;
         await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
             db, systemId, permission => permission.CanDecideAuthorization, cancellationToken);
 
@@ -234,6 +236,7 @@ public class AuthorizationService : IAuthorizationService
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        if (decisionTransaction is not null) await decisionTransaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation(
             "Authorization decision {DecisionType} issued for system {SystemId} by {IssuedBy}",

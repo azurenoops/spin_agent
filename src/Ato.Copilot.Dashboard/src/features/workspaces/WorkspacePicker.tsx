@@ -9,6 +9,19 @@ import type { WorkspaceOption } from './types';
 export default function WorkspacePicker() {
   const navigate = useNavigate();
   const location = useLocation();
+  const select = (option: WorkspaceOption) => {
+    const intended = safeDeepLink((location.state as { deepLink?: unknown } | null)?.deepLink);
+    const parsed = parseWorkspaceUrl(intended);
+    navigate(buildWorkspaceUrl(optionTarget(option), parsed?.route ?? intended), { replace: true });
+  };
+  return <main className="mx-auto max-w-xl space-y-5 px-6 py-12">
+    <h1 className="text-2xl font-semibold">Choose a workspace</h1>
+    <p>Choose an authorized provider or organization workspace for this tab.</p>
+    <WorkspaceChoices onSelect={select} />
+  </main>;
+}
+
+export function WorkspaceChoices({ onSelect }: { onSelect: (option: WorkspaceOption) => void }) {
   const [choices, setChoices] = useState<WorkspaceOption[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -16,11 +29,11 @@ export default function WorkspacePicker() {
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
-    getWorkspaceOptions(page).then(result => {
-      if (!active) return;
+    getWorkspaceOptions(page, controller.signal).then(result => {
+      if (controller.signal.aborted) return;
       if (!Array.isArray(result.items) || !Number.isInteger(result.total) || result.total < result.items.length
         || result.total < 0 || (result.total > (page - 1) * 50 && result.items.length === 0)) {
         throw new Error('The workspace API returned incomplete choices.');
@@ -29,28 +42,19 @@ export default function WorkspacePicker() {
       setChoices(result.items);
       setTotal(result.total);
     }).catch(reason => {
-      if (active) setError(workspaceErrorMessage(reason));
-    }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      if (!controller.signal.aborted) setError(workspaceErrorMessage(reason));
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [page, revision]);
 
-  const select = (option: WorkspaceOption) => {
-    const intended = safeDeepLink((location.state as { deepLink?: unknown } | null)?.deepLink);
-    const parsed = parseWorkspaceUrl(intended);
-    // Selection is an ordinary URL context only: never start/end support or
-    // write a browser-wide selection cookie on this path.
-    navigate(buildWorkspaceUrl(optionTarget(option), parsed?.route ?? intended), { replace: true });
-  };
   return (
-    <main className="mx-auto max-w-xl space-y-5 px-6 py-12">
-      <h1 className="text-2xl font-semibold">Choose a workspace</h1>
-      <p>Choose an authorized provider or organization workspace for this tab.</p>
+    <div className="space-y-4">
       {error ? <WorkspaceStatus message={error} onRetry={() => setRevision(value => value + 1)} /> : loading
         ? <p role="status">Loading authorized workspaces…</p>
         : choices.length === 0 ? <p role="status">No authorized workspaces are available. Contact your administrator.</p>
         : <ul className="space-y-3">{choices.map(option => (
           <li key={`${option.kind}:${option.tenantId ?? ''}`}>
-            <button type="button" disabled={option.status === 'Disabled'} onClick={() => select(option)}
+            <button type="button" disabled={option.status === 'Disabled'} onClick={() => onSelect(option)}
               className="w-full rounded border p-4 text-left hover:bg-indigo-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-indigo-950">
               <strong>{option.displayName}</strong>
               <span className="block text-sm">{option.kind === 'csp' ? 'Provider workspace' : 'Organization workspace'} · {option.status}</span>
@@ -62,6 +66,6 @@ export default function WorkspacePicker() {
         <span>Page {page}</span>
         <button disabled={loading || page * 50 >= total} onClick={() => setPage(value => value + 1)}>Next</button>
       </nav>
-    </main>
+    </div>
   );
 }

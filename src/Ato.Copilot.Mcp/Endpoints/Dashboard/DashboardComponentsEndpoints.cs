@@ -82,7 +82,8 @@ public static partial class DashboardEndpoints
                         Suggestion = "Check the component ID and try again",
                     });
             })
-            .WithName("UpdateOrgComponent");
+            .WithName("UpdateOrgComponent")
+            .AddEndpointFilter(PolicyReferenceWorkflowGuard);
 
         group.MapDelete("/components/{componentId}", async (
                 string componentId,
@@ -99,7 +100,8 @@ public static partial class DashboardEndpoints
                         Suggestion = "Check the component ID and try again",
                     });
             })
-            .WithName("DeleteOrgComponent");
+            .WithName("DeleteOrgComponent")
+            .AddEndpointFilter(PolicyReferenceWorkflowGuard);
 
         group.MapPost("/components/{componentId}/assignments", async (
                 string componentId,
@@ -114,7 +116,8 @@ public static partial class DashboardEndpoints
                     return Results.Conflict(new ErrorResponse { Error = error, ErrorCode = "DUPLICATE_ASSIGNMENT" });
                 return Results.Created($"/api/dashboard/components/{componentId}/assignments/{assignment!.Id}", assignment);
             })
-            .WithName("AssignComponentToSystem");
+            .WithName("AssignComponentToSystem")
+            .AddEndpointFilter(PolicyReferenceWorkflowGuard);
 
         group.MapDelete("/components/{componentId}/assignments/{assignmentId}", async (
                 string componentId,
@@ -131,7 +134,8 @@ public static partial class DashboardEndpoints
                         ErrorCode = "ASSIGNMENT_NOT_FOUND",
                     });
             })
-            .WithName("RemoveComponentAssignment");
+            .WithName("RemoveComponentAssignment")
+            .AddEndpointFilter(PolicyReferenceWorkflowGuard);
 
         group.MapPost("/components/{componentId}/capabilities", async (
                 string componentId,

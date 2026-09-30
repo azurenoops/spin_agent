@@ -42,69 +42,40 @@ public class TenantScopedEndpointHttpPipelineTests
     public TenantScopedEndpointHttpPipelineTests(MultiTenantWebApplicationFactory<McpProgram> factory)
     {
         _factory = factory;
-        _client = factory.CreateClient();
         _tenantA = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
         _tenantB = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
 
-        // Default context: active, non-impersonated Tenant-A user.
-        SetTenant(_tenantA, isCspAdmin: false);
+        // Legacy tenancy contract, not the prior collection test's workspace/person selection.
+        factory.ResetLegacyTenantContext(_tenantA);
+        _client = factory.CreateClient();
     }
 
     // ─── Tests ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public void LegacyFixtureInitialization_DoesNotRetainWorkspaceIdentity()
+    public async Task LegacyFixtureSetup_ClearsPreviousWorkspaceIdentity_AndReadsNewTenantRecords()
     {
-        // Arrange
-        var context = _factory.GetActiveContext();
-        context.TenantId = _tenantB;
-        context.OrganizationId = Guid.NewGuid();
-        context.PersonId = Guid.NewGuid();
-        context.IsWorkspaceRequest = true;
-        context.IsCspAdmin = true;
-        context.ImpersonatedTenantId = _tenantB;
-        context.Status = TenantStatus.Disabled;
+        // Arrange: model a preceding workspace test using the collection's shared mutable context.
+        var previous = _factory.GetActiveContext();
+        previous.PersonId = Guid.NewGuid();
+        previous.OrganizationId = Guid.NewGuid();
+        previous.IsWorkspaceRequest = true;
+        previous.IsCspAdmin = true;
+        previous.ImpersonatedTenantId = _tenantB;
 
-        // Act
-        var initialized = new TenantScopedEndpointHttpPipelineTests(_factory);
-        using var client = initialized._client;
+        // Act: xUnit constructs each legacy test with this same collection factory.
+        var next = new TenantScopedEndpointHttpPipelineTests(_factory);
+        using var client = next._client;
+        var ownSystem = await next.SeedSystemAsync(_tenantA, "Fresh-legacy-tenant-A");
+        var foreignSystem = await next.SeedSystemAsync(_tenantB, "Fresh-legacy-tenant-B");
+        var ids = await ReadAllSystemIdsAsync(client);
 
-        // Assert
-        context.TenantId.Should().Be(_tenantA);
-        context.OrganizationId.Should().BeNull();
-        context.PersonId.Should().BeNull();
-        context.IsWorkspaceRequest.Should().BeFalse();
-        context.IsCspAdmin.Should().BeFalse();
-        context.ImpersonatedTenantId.Should().BeNull();
-        context.Status.Should().Be(TenantStatus.Active);
-    }
-
-    [Fact]
-    public async Task GetSystems_WithOpaqueIdentifiers_PreservesTenantIsolation()
-    {
-        // Arrange
-        var systemA = $"sys-a-{Guid.NewGuid():N}";
-        var systemB = $"sys-b-{Guid.NewGuid():N}";
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-        db.RegisteredSystems.AddRange(
-            new RegisteredSystem { Id = systemA, TenantId = _tenantA, Name = "Opaque A", CreatedBy = "test" },
-            new RegisteredSystem { Id = systemB, TenantId = _tenantB, Name = "Opaque B", CreatedBy = "test" });
-        await db.SaveChangesAsync();
-
-        // Act
-        var response = await _client.GetAsync("/api/dashboard/systems?pageSize=100");
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var tenantBIds = await GetSystemIdsForTenantAsync(_tenantB);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var items = body.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
-            ? data.GetProperty("items")
-            : body.GetProperty("items");
-        var visibleIds = items.EnumerateArray().Select(item => item.GetProperty("systemId").GetString()).ToList();
-        visibleIds.Should().Contain(systemA).And.NotContain(systemB);
-        tenantBIds.Should().Contain(systemB).And.NotContain(systemA);
+        // Assert: retain the original exact tenant visibility contract, not workspace-user visibility.
+        ids.Should().Contain(ownSystem.ToString()).And.NotContain(foreignSystem.ToString());
+        _factory.GetActiveContext().PersonId.Should().BeNull();
+        _factory.GetActiveContext().OrganizationId.Should().BeNull();
+        _factory.GetActiveContext().IsWorkspaceRequest.Should().BeFalse();
+        _factory.GetActiveContext().ImpersonatedTenantId.Should().BeNull();
     }
 
     [Theory]
@@ -422,18 +393,9 @@ public class TenantScopedEndpointHttpPipelineTests
         SetTenant(_tenantA, isCspAdmin: false);
 
         // Act
-        var resp = await _client.GetAsync("/api/dashboard/systems");
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        var ids = await ReadAllSystemIdsAsync(_client);
 
         // Assert
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
-            ? dataEl.GetProperty("items")
-            : body.GetProperty("items");
-        var ids = Enumerable.Range(0, items.GetArrayLength())
-                            .Select(i => items[i].GetProperty("systemId").GetString())
-                            .ToList();
-
         ids.Should().Contain(systemA.ToString(),
             because: "Tenant-A systems must be visible to Tenant-A user");
 
@@ -441,9 +403,61 @@ public class TenantScopedEndpointHttpPipelineTests
         var tenantBSystemIds = await GetSystemIdsForTenantAsync(_tenantB);
         foreach (var bId in tenantBSystemIds)
         {
-            ids.Should().NotContain(bId,
+            ids.Should().NotContain(bId.ToString(),
                 because: $"Tenant-B system {bId} must NOT be visible to Tenant-A user");
         }
+
+    }
+
+    [Fact]
+    public async Task GetSystems_AcrossMultiplePages_PreservesExactTenantVisibility()
+    {
+        // Arrange
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var ownIds = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid().ToString()).ToArray();
+        db.RegisteredSystems.AddRange(ownIds.Select(id => new RegisteredSystem
+        {
+            Id = id, TenantId = _tenantA, Name = $"Pagination {id}", CreatedBy = "test"
+        }));
+        var foreignId = Guid.NewGuid().ToString();
+        db.RegisteredSystems.Add(new RegisteredSystem
+        {
+            Id = foreignId, TenantId = _tenantB, Name = "Foreign pagination system", CreatedBy = "test"
+        });
+        await db.SaveChangesAsync();
+        SetTenant(_tenantA, isCspAdmin: false);
+
+        // Act
+        var ids = await ReadAllSystemIdsAsync(_client);
+
+        // Assert
+        ids.Should().Contain(ownIds).And.NotContain(foreignId);
+        ids.Should().BeEquivalentTo(await db.RegisteredSystems.IgnoreQueryFilters()
+            .Where(system => system.TenantId == _tenantA && system.IsActive)
+            .Select(system => system.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task TenantIdInventory_PreservesValidNonGuidSystemIdentifiers()
+    {
+        // Arrange
+        var id = $"legacy-{Guid.NewGuid():N}"[..36];
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.RegisteredSystems.Add(new RegisteredSystem
+        {
+            Id = id, TenantId = _tenantB, Name = "Synthetic legacy system",
+            SystemType = SystemType.MajorApplication, MissionCriticality = MissionCriticality.MissionSupport,
+            HostingEnvironment = "Manual", CurrentRmfStep = RmfPhase.Prepare, CreatedBy = "test"
+        });
+        await db.SaveChangesAsync();
+
+        // Act
+        var ids = await GetSystemIdsForTenantAsync(_tenantB);
+
+        // Assert
+        ids.Should().Contain(id);
     }
 
     /// <summary>
@@ -460,25 +474,16 @@ public class TenantScopedEndpointHttpPipelineTests
         SetTenant(_tenantB, isCspAdmin: false);
 
         // Act
-        var resp = await _client.GetAsync("/api/dashboard/systems");
+        var ids = await ReadAllSystemIdsAsync(_client);
 
         // Assert
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
-            ? dataEl.GetProperty("items")
-            : body.GetProperty("items");
-        var ids = Enumerable.Range(0, items.GetArrayLength())
-                            .Select(i => items[i].GetProperty("systemId").GetString())
-                            .ToList();
-
         ids.Should().Contain(systemB.ToString(),
             because: "Tenant-B systems must be visible to Tenant-B user");
 
         var tenantASystemIds = await GetSystemIdsForTenantAsync(_tenantA);
         foreach (var aId in tenantASystemIds)
         {
-            ids.Should().NotContain(aId,
+            ids.Should().NotContain(aId.ToString(),
                 because: $"Tenant-A system {aId} must NOT be visible to Tenant-B user");
         }
     }
@@ -498,18 +503,9 @@ public class TenantScopedEndpointHttpPipelineTests
         SetTenant(_tenantA, isCspAdmin: true, impersonatedTenantId: null);
 
         // Act
-        var resp = await _client.GetAsync("/api/dashboard/systems");
+        var ids = await ReadAllSystemIdsAsync(_client);
 
         // Assert
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
-            ? dataEl.GetProperty("items")
-            : body.GetProperty("items");
-        var ids = Enumerable.Range(0, items.GetArrayLength())
-                            .Select(i => items[i].GetProperty("systemId").GetString())
-                            .ToHashSet();
-
         // Must see systems from BOTH tenants.
         ids.Should().Contain(systemA.ToString(),
             because: "CSP-Admin must see Tenant-A systems");
@@ -530,18 +526,9 @@ public class TenantScopedEndpointHttpPipelineTests
         SetTenant(_tenantA, isCspAdmin: true, impersonatedTenantId: _tenantB);
 
         // Act
-        var resp = await _client.GetAsync("/api/dashboard/systems");
+        var ids = await ReadAllSystemIdsAsync(_client);
 
         // Assert
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        var items = body.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object
-            ? dataEl.GetProperty("items")
-            : body.GetProperty("items");
-        var ids = Enumerable.Range(0, items.GetArrayLength())
-                            .Select(i => items[i].GetProperty("systemId").GetString())
-                            .ToList();
-
         ids.Should().Contain(systemB.ToString(),
             because: "impersonated Tenant-B system must be visible");
         ids.Should().NotContain(systemA.ToString(),
@@ -550,15 +537,57 @@ public class TenantScopedEndpointHttpPipelineTests
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
+    private static async Task<List<string>> ReadAllSystemIdsAsync(HttpClient client)
+    {
+        var ids = new List<string>();
+        string? cursor = null;
+        var cursors = new HashSet<string>();
+        while (true)
+        {
+            using var response = await client.GetAsync("/api/dashboard/systems?pageSize=50"
+                + (cursor is null ? "" : "&cursor=" + Uri.EscapeDataString(cursor)));
+            response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var result = body.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object ? data : body;
+            var items = result.GetProperty("items").EnumerateArray().ToArray();
+            ids.AddRange(items.Select(item => item.GetProperty("systemId").GetString()!));
+            cursor = result.GetProperty("nextCursor").GetString();
+            if (cursor is null)
+            {
+                ids.Should().HaveCount(result.GetProperty("totalCount").GetInt32()).And.OnlyHaveUniqueItems();
+                return ids;
+            }
+            cursors.Add(cursor).Should().BeTrue("pagination must advance rather than repeat the first page");
+            items.Should().NotBeEmpty("more records were reported by the server");
+        }
+    }
+
+    [Fact]
+    public async Task SystemVisibilityAssertions_ReadBeyondTheFirstPage()
+    {
+        // Arrange
+        var expected = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid().ToString()).ToArray();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.RegisteredSystems.AddRange(expected.Select(id => new RegisteredSystem
+        {
+            Id = id, TenantId = _tenantA, Name = $"Paged-{id}", CreatedBy = "test"
+        }));
+        await db.SaveChangesAsync();
+        SetTenant(_tenantA, false);
+
+        // Act
+        var ids = await ReadAllSystemIdsAsync(_client);
+
+        // Assert
+        ids.Should().Contain(expected);
+        ids.Should().NotContain(await GetSystemIdsForTenantAsync(_tenantB));
+    }
+
     private void SetTenant(Guid tenantId, bool isCspAdmin, Guid? impersonatedTenantId = null)
     {
         var ctx = _factory.GetActiveContext();
         ctx.TenantId = tenantId;
-        // This collection shares a mutable context with workspace tests.
-        // These legacy HTTP tests must not inherit their person-scoped authorization mode.
-        ctx.OrganizationId = null;
-        ctx.PersonId = null;
-        ctx.IsWorkspaceRequest = false;
         ctx.IsCspAdmin = isCspAdmin;
         ctx.ImpersonatedTenantId = impersonatedTenantId;
         ctx.Status = TenantStatus.Active;

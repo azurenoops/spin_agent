@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { buttonClass, errorClass, inputClass, message, secondaryButtonClass } from '../workspace-operations/workspaceUi';
 import { PackageImportError } from '../package-imports/request';
-import type { AzureScope, Citation } from './types';
+import type { ProviderScope, OfferingEnvironment, Citation } from './types';
+import { blankProviderScope, offeringEnvironments } from './scopes';
 
 export function Field({ label, value, onChange, required = false, multiline = false, type = 'text', maxLength = 2000 }: {
   label: string; value: string; onChange: (value: string) => void; required?: boolean; multiline?: boolean; type?: string; maxLength?: number;
@@ -28,19 +29,41 @@ export function CitationFields({ value, onChange }: { value: Citation[]; onChang
       onClick={() => onChange([...value, { packageId: '', artifactId: '', archivePath: '', locator: '', quote: '' }])}>Add citation</button>
   </fieldset>;
 }
-export function ScopeFields({ label, value, onChange, maxItems = 100 }: { label: string; value: AzureScope[]; onChange: (value: AzureScope[]) => void; maxItems?: number }) {
+export function ScopeFields({ label, value, onChange, maxItems = 100, defaultKind = 'Azure', environment = 'AzureUSGovernment' }: {
+  label: string; value: ProviderScope[]; onChange: (value: ProviderScope[]) => void; maxItems?: number;
+  defaultKind?: 'Azure' | 'Service'; environment?: OfferingEnvironment;
+}) {
+  const [kind, setKind] = useState(defaultKind);
+  const selectedKind = value.length ? value[0]?.kind === 'Service' ? 'Service' : 'Azure' : kind;
   return <fieldset className="space-y-3 rounded border border-slate-200 p-3"><legend className="text-sm font-semibold">{label}</legend>
+    <label className="grid gap-1 text-sm">{label} kind<select className={inputClass} value={selectedKind} onChange={event => {
+      setKind(event.target.value === 'Service' ? 'Service' : 'Azure'); onChange([]);
+    }}><option value="Azure">Azure resource scope</option><option value="Service">Manually documented service relationship</option></select></label>
+    <p className="text-xs text-slate-600">Changing kind clears entered scope rows. Manual service records do not configure a live connector.</p>
     {value.map((scope, index) => <div key={index} className="grid gap-2 border-t pt-3 sm:grid-cols-2">
+      {scope.kind === 'Service' ? <>
+        <Field label={`Service identifier ${index + 1}`} value={scope.serviceId} required maxLength={256}
+          onChange={serviceId => onChange(value.map((item, row) => row === index ? { ...scope, serviceId } : item))} />
+        <Field label={`Service name ${index + 1}`} value={scope.serviceName} required maxLength={256}
+          onChange={serviceName => onChange(value.map((item, row) => row === index ? { ...scope, serviceName } : item))} />
+        <label className="grid gap-1 text-sm">Service environment {index + 1}<select className={inputClass} value={scope.environment}
+          onChange={event => onChange(value.map((item, row) => row === index ? { ...scope, environment: event.target.value as OfferingEnvironment } : item))}>
+          {Object.entries(offeringEnvironments).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+        </select></label>
+        <Field label={`Service tenant reference ${index + 1}`} value={scope.tenantReference ?? ''} maxLength={256}
+          onChange={tenantReference => onChange(value.map((item, row) => row === index ? { ...scope, tenantReference: tenantReference || null } : item))} />
+      </> : <>
       <label className="grid gap-1 text-sm">Cloud {index + 1}<select className={inputClass} value={scope.cloud} onChange={event => {
         const cloud = event.target.value === 'AzureCloud' ? 'AzureCloud' : 'AzureUSGovernment';
-        onChange(value.map((item, row) => row === index ? { ...item, cloud } : item));
+        onChange(value.map((item, row) => row === index ? { ...scope, cloud } : item));
       }}><option value="AzureCloud">Azure Commercial</option><option value="AzureUSGovernment">Azure Government</option></select></label>
       {(['directoryTenantId', 'subscriptionId', 'resourceId'] as const).map(field => <Field key={field} label={`${field} ${index + 1}`} value={scope[field]} required
-        onChange={text => onChange(value.map((item, row) => row === index ? { ...item, [field]: text } : item))} />)}
+        onChange={text => onChange(value.map((item, row) => row === index ? { ...scope, [field]: text } : item))} />)}
+      </>}
       <button type="button" className={secondaryButtonClass} onClick={() => onChange(value.filter((_, row) => row !== index))}>Remove scope {index + 1}</button>
     </div>)}
     <button type="button" className={secondaryButtonClass} disabled={value.length >= maxItems} onClick={() => onChange([...value,
-      { cloud: 'AzureUSGovernment', directoryTenantId: '', subscriptionId: '', resourceId: '' }])}>Add scope</button>
+      blankProviderScope(selectedKind, environment)])}>Add scope</button>
   </fieldset>;
 }
 

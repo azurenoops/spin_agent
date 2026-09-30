@@ -3,7 +3,7 @@ import apiClient from '../../api/client';
 import type {
   ApplicableCapabilitiesQuery, AssociatedRelationship, AssociateRelationshipInput,
   CapabilityAdoption, CapabilityAdoptionInput, RelationshipPreview, RelationshipPreviewInput,
-  RelationshipReviewInput, SystemHostingAllocation,
+  RelationshipReviewInput, SystemHostingAllocation, ProviderRelationship,
 } from './types';
 import { capabilityPage, relationshipPage } from './validation';
 
@@ -67,25 +67,35 @@ export async function listProviderRelationships(systemId: string, page = 1, sign
 
 export async function listSystemHostingAllocations(systemId: string, page = 1, signal?: AbortSignal) {
   const result = await listProviderRelationships(systemId, page, signal);
-  const items: SystemHostingAllocation[] = result.items.map(item => ({
+  return { ...result, items: result.items.map(toHostingAllocation) };
+}
+
+function toHostingAllocation(item: ProviderRelationship): SystemHostingAllocation {
+  return {
     relationshipId: item.relationshipId,
     assignmentId: item.assignmentId, revision: item.assignmentRevision,
     offeringId: item.offeringId, offeringName: item.offeringName ?? 'Offering name unavailable',
     providerName: item.providerName, hostingScopeName: item.hostingScopeName,
     systemId: item.systemId, systemName: item.systemName ?? 'System name unavailable',
     assignedScopes: item.assignedScopes, canAssociate: item.canAssociate,
-  }));
-  return { ...result, items };
+  };
 }
 
 export async function listAllSystemHostingAllocations(systemId: string, signal?: AbortSignal) {
-  const first = await listSystemHostingAllocations(systemId, 1, signal);
+  return (await listAllProviderRelationships(systemId, signal)).map(toHostingAllocation);
+}
+
+export async function listAllProviderRelationships(systemId: string, signal?: AbortSignal) {
+  const first = await listProviderRelationships(systemId, 1, signal);
+  if (first.page !== 1) {
+    throw new ProviderRelationshipError('Hosting allocations are incomplete or do not match this system. Refresh and review again.');
+  }
   const items = [...first.items];
   let page = 1;
   while (items.length < first.total) {
     signal?.throwIfAborted();
-    const next = await listSystemHostingAllocations(systemId, ++page, signal);
-    if (next.total !== first.total || next.page !== page || next.items.length === 0) {
+    const next = await listProviderRelationships(systemId, ++page, signal);
+    if (next.total !== first.total || next.page !== page || next.pageSize !== first.pageSize || next.items.length === 0) {
       throw new ProviderRelationshipError('Hosting allocations changed while loading. Refresh and review again.');
     }
     items.push(...next.items);
@@ -110,16 +120,30 @@ export async function associateProviderRelationship(systemId: string, data: Asso
   return result;
 }
 
-export function previewProviderRelationship(systemId: string, relationshipId: string, data: RelationshipPreviewInput) {
-  return request<RelationshipPreview>({
+export async function previewProviderRelationship(systemId: string, relationshipId: string, data: RelationshipPreviewInput) {
+  const result = await request<RelationshipPreview>({
     method: 'POST', url: `${relationshipPath(systemId, relationshipId)}/previews`, data,
   });
+  if (!result || typeof result.previewId !== 'string' || !result.previewId
+    || typeof result.previewHash !== 'string' || !result.previewHash
+    || !Number.isSafeInteger(result.revision) || result.revision <= data.expectedRevision
+    || typeof result.contextSnapshotHash !== 'string' || !result.contextSnapshotHash
+    || !Array.isArray(result.blockers) || typeof result.canReview !== 'boolean') {
+    throw new ProviderRelationshipError('The server did not confirm a valid relationship review preview. Refresh the scope and prepare a new review.');
+  }
+  return result;
 }
 
-export function reviewProviderRelationship(systemId: string, relationshipId: string, data: RelationshipReviewInput) {
-  return request<unknown>({
+export async function reviewProviderRelationship(systemId: string, relationshipId: string, data: RelationshipReviewInput) {
+  const result = await request<unknown>({
     method: 'POST', url: `${relationshipPath(systemId, relationshipId)}/review`, data,
   });
+  const confirmed = relationshipPage({ items: [result], page: 1, pageSize: 1, total: 1 }).items[0]!;
+  if (confirmed.systemId !== systemId || confirmed.relationshipId !== relationshipId || confirmed.revision <= data.expectedRevision
+    || !confirmed.reviewedAt || !confirmed.reviewedBy) {
+    throw new ProviderRelationshipError('The server did not confirm the selected relationship review. Refresh saved scope records before retrying.');
+  }
+  return confirmed;
 }
 
 export async function listApplicableProviderCapabilities(systemId: string, query: ApplicableCapabilitiesQuery, signal?: AbortSignal) {

@@ -8,10 +8,8 @@ import QuickActions from './QuickActions';
 import AiHealthBanner from './AiHealthBanner';
 import McpToolChips from './McpToolChips';
 import { useChat } from '../../hooks/useChat';
-import { useSettings } from '../../hooks/useSettings';
+import { MAX_CHAT_PANEL_WIDTH, MIN_CHAT_PANEL_WIDTH, useSettings } from '../../hooks/useSettings';
 
-const MIN_WIDTH = 320;
-const MAX_WIDTH = 600;
 const MOBILE_BREAKPOINT = 768;
 
 export interface ChatPanelProps {
@@ -92,7 +90,7 @@ export default function ChatPanel({ isOpen, onClose, width, onWidthChange }: Cha
       const handleMouseMove = (e: MouseEvent) => {
         if (!isDraggingRef.current) return;
         const delta = startX - e.clientX;
-        const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+        const newWidth = Math.min(MAX_CHAT_PANEL_WIDTH, Math.max(MIN_CHAT_PANEL_WIDTH, startWidth + delta));
         onWidthChange(newWidth);
       };
 

@@ -4,9 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BaselineManagement from '../../pages/BaselineManagement';
 import * as systemDetailApi from '../../api/systemDetail';
 import * as systemProfileApi from '../../api/systemProfile';
-import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
+import { useWorkspaceSession, type WorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
-import type { WorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
 import type { BaselineDetailResponse } from '../../api/systemDetail';
 import type { ProfileSectionDetail, SystemDetailResponse } from '../../types/dashboard';
 
@@ -156,7 +155,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('BaselineManagement design alignment', () => {
-  it('renders the mock-aligned content with real data and workspace-scoped actions', async () => {
+  it('renders real categorization metadata and working supporting actions', async () => {
     // Arrange
     renderPage();
 
@@ -164,23 +163,6 @@ describe('BaselineManagement design alignment', () => {
     await screen.findByRole('heading', { name: 'Categorization & control baseline' });
 
     // Assert
-    expect(screen.getByRole('navigation', { name: 'Controls and evidence pages' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Categorization & baseline' })).toHaveAttribute(
-      'href',
-      `${routeRoot}/baseline`,
-    );
-    expect(screen.getByRole('link', { name: 'Applied capabilities' })).toHaveAttribute(
-      'href',
-      `${routeRoot}/security-capabilities`,
-    );
-    expect(screen.getByRole('link', { name: 'Responsibilities' })).toHaveAttribute(
-      'href',
-      `${routeRoot}/inheritance/subscriptions`,
-    );
-    expect(screen.getByRole('link', { name: 'Narratives' })).toHaveAttribute('href', `${routeRoot}/narratives`);
-    expect(screen.getByRole('link', { name: 'Evidence' })).toHaveAttribute('href', `${routeRoot}/evidence`);
-    expect(screen.getByRole('link', { name: 'Policies' })).toHaveAttribute('href', `${routeRoot}/legal`);
-
     expect(screen.getByText('Mission support records')).toBeInTheDocument();
     expect(screen.getByText('Mission owner inventory')).toBeInTheDocument();
     expect(screen.getByText('System Owner')).toBeInTheDocument();
@@ -194,17 +176,25 @@ describe('BaselineManagement design alignment', () => {
       `${routeRoot}/documents#ssp-sections`,
     );
     expect(screen.getByRole('link', { name: 'View package readiness' })).toHaveAttribute('href', routeRoot);
-    expect(screen.getByRole('heading', { name: 'Baseline details' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /baseline details/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /control families/i })).not.toBeInTheDocument();
+  });
+
+  it('uses restrained neutral surfaces without the legacy detail panels', async () => {
+    // Arrange
+    renderPage();
+
+    // Act
+    await screen.findByTestId('categorization-summary');
+
+    // Assert
     expect(screen.getByTestId('categorization-summary')).toHaveClass('border-gray-200', 'bg-white');
     expect(screen.getByTestId('information-type-panel')).not.toHaveClass('shadow-sm');
-    expect(screen.getAllByTestId('baseline-metric')).toHaveLength(5);
-    screen.getAllByTestId('baseline-metric').forEach(metric => {
-      expect(metric).toHaveClass('border-gray-200', 'bg-white', 'text-gray-900');
-    });
+    expect(screen.queryByTestId('baseline-metric')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Preview contribution' })).toHaveClass('border-gray-300', 'bg-white');
   });
 
-  it('uses the primary action for the existing authorized categorization workflow', async () => {
+  it('opens the existing categorization workflow from the primary action', async () => {
     // Arrange
     renderPage();
     const review = await screen.findByRole('button', { name: 'Review categorization' });
@@ -216,7 +206,7 @@ describe('BaselineManagement design alignment', () => {
     expect(screen.getByRole('heading', { name: 'Re-categorize System' })).toBeInTheDocument();
   });
 
-  it('keeps categorization visible and reports unavailable Data Types governance metadata', async () => {
+  it('keeps categorization visible and reports unavailable Data Types metadata', async () => {
     // Arrange
     vi.mocked(systemProfileApi.getProfileSection).mockRejectedValue(new Error('profile unavailable'));
     renderPage();
@@ -227,6 +217,6 @@ describe('BaselineManagement design alignment', () => {
     // Assert
     expect(screen.getByRole('alert')).toHaveTextContent('Data Types review metadata is unavailable');
     expect(screen.getByText('SP 800-60')).toBeInTheDocument();
-    expect(screen.getByText('Review unavailable')).toBeInTheDocument();
+    expect(screen.getAllByText('Review unavailable').length).toBeGreaterThan(0);
   });
 });

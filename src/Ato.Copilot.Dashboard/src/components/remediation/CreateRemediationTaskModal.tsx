@@ -4,6 +4,8 @@ import { useSystemMutationPermission } from '../permissions/useSystemMutationPer
 
 interface Props {
   systemId: string;
+  /** Scoped server projection for finding follow-up; absent callers retain the existing fail-closed policy. */
+  canCreateFromFinding?: boolean;
   /** When launched from a finding, pre-populates title/severity/findingId.
    *  When launched standalone from the Remediation page, these are omitted
    *  and the user fills them in manually. fix(#441) */
@@ -18,6 +20,7 @@ const SEVERITY_OPTIONS = ['Critical', 'High', 'Medium', 'Low'];
 
 export default function CreateRemediationTaskModal({
   systemId,
+  canCreateFromFinding,
   findingTitle,
   findingId,
   findingSeverity,
@@ -25,7 +28,8 @@ export default function CreateRemediationTaskModal({
   onCreated,
 }: Props) {
   // Standalone task endpoints do not yet project a workspace operation.
-  const canCreateTask = useSystemMutationPermission(systemId, null);
+  const legacyPermission = useSystemMutationPermission(systemId, null);
+  const canCreateTask = findingId && canCreateFromFinding !== undefined ? canCreateFromFinding : legacyPermission;
   const isStandalone = !findingId;
 
   const [title, setTitle] = useState(findingTitle ?? '');

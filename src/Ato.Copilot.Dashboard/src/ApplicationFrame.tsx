@@ -13,7 +13,6 @@ import { useIdleTimer } from './features/auth/useIdleTimer';
 import { useLoginConfig } from './features/auth/LoginConfigContext';
 import { useMe } from './features/auth/useMe';
 import { useWorkspaceSession } from './features/workspaces/WorkspaceBoundary';
-import WorkspaceHeader from './features/workspaces/WorkspaceHeader';
 
 export default function ApplicationFrame({ children }: { children: ReactNode }) {
   const session = useWorkspaceSession();
@@ -50,7 +49,6 @@ function FrameContent({ children }: { children: ReactNode }) {
       <ImpersonationBanner />
       <IdleWarningModal />
       {identity?.oid && <RestoreUnsavedChangesPrompt oid={identity.oid} />}
-      <WorkspaceHeader />
       <div className="min-h-0 flex-1 overflow-auto">{children}</div>
       <ChatPanel isOpen={panelState.isOpen} onClose={closePanel} width={panelState.width} onWidthChange={setWidth} />
       {!session && <OnboardingGate />}

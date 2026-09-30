@@ -56,7 +56,8 @@ public sealed class ProviderHostingServiceTests : IAsyncLifetime
         var tenant = new TenantContext(Guid.Empty) { IsCspAdmin = true };
         using var scope = _accessor.Push(tenant);
         var service = Service(tenant);
-        var request = new CreateProviderHostingScopeRequest(1, null, "First", [Scope()], [], []);
+        var request = new CreateProviderHostingScopeRequest(1, null, "First", [Scope()], [], [])
+        { Purpose = "Synthetic shared service", ChangeRationale = "Record the reviewed initial technical boundary." };
         var first = await service.CreateScopeAsync(_offering, request, "first", "provider", default);
         var second = await service.CreateScopeAsync(_offering,
             new(first.OfferingRevision, first.Snapshot.RevisionId, "Second", [Scope("/resourceGroups/new")], [], []),
@@ -68,6 +69,8 @@ public sealed class ProviderHostingServiceTests : IAsyncLifetime
         // Assert
         replay.Snapshot.Should().Be(first.Snapshot);
         exact.Name.Should().Be("First");
+        exact.Purpose.Should().Be("Synthetic shared service");
+        exact.ChangeRationale.Should().Be("Record the reviewed initial technical boundary.");
         exact.Snapshot.Should().Be(first.Snapshot);
         exact.OfferingRevision.Should().Be(second.OfferingRevision);
         page.Total.Should().Be(2);
@@ -118,6 +121,50 @@ public sealed class ProviderHostingServiceTests : IAsyncLifetime
 
         // Assert
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task Assignment_KeepsOfferingAndAcceptedReviewUnchanged_WithIndependentRevisionAndAudit()
+    {
+        // Arrange
+        var tenant = new TenantContext(Guid.Empty) { IsCspAdmin = true };
+        using var scope = _accessor.Push(tenant);
+        var service = Service(tenant);
+        var hosting = await service.CreateScopeAsync(_offering,
+            new(1, null, "Hosting", [Scope()], [], []), "scope", "provider", default);
+        var reviewId = Guid.NewGuid();
+        await using (var seed = new AtoCopilotContext(_options))
+        {
+            seed.Add(new ProviderAuthorizationImpactReview
+            {
+                Id = reviewId, ProviderId = _provider, OfferingId = _offering,
+                Disposition = "AcceptForPublication", ReviewedBy = "reviewer", ReviewedAt = DateTimeOffset.UtcNow
+            });
+            await seed.SaveChangesAsync();
+        }
+        var request = new CreateProviderHostingAssignmentRequest(_tenant, _system,
+            hosting.Snapshot.RevisionId, [Scope("/resourceGroups/customer")], []);
+
+        // Act
+        var assignment = await service.AssignAsync(_offering, request, "allocation", "provider", default);
+        var replay = await service.AssignAsync(_offering, request, "allocation", "provider", default);
+
+        // Assert
+        assignment.Revision.Should().Be(1);
+        replay.Should().BeEquivalentTo(assignment);
+        await using var db = new AtoCopilotContext(_options);
+        (await db.Set<ProviderOffering>().SingleAsync()).Revision.Should().Be(hosting.OfferingRevision);
+        var review = await db.Set<ProviderAuthorizationImpactReview>().SingleAsync(x => x.Id == reviewId);
+        review.InvalidatedAt.Should().BeNull();
+        review.Revision.Should().Be(1);
+        (await db.Set<ProviderAuthorizationImpactReview>().CountAsync()).Should().Be(2,
+            "only the initial scope review and the accepted review exist; allocation needs no global review");
+        (await db.Set<ProviderHostingAssignment>().CountAsync()).Should().Be(1);
+        var audit = await db.Set<ProviderAuthorizationAudit>()
+            .SingleAsync(x => x.Action == $"HostingAssigned:{_offering:D}");
+        audit.CreatedBy.Should().Be("provider");
+        (await db.Set<ProviderAuthorizationOperation>()
+            .CountAsync(x => x.IdempotencyKey == "allocation")).Should().Be(1);
     }
 
     [Theory]

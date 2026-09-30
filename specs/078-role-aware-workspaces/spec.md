@@ -1,5 +1,12 @@
 # Feature Specification: CSP and Organization Workspaces
 
+> Coordination: [Feature 079](../079-provider-system-workflow-consolidation/spec.md)
+> owns the broader mock-defined provider-to-mission document workflow and
+> phased UI consolidation. This feature remains the authentication/workspace
+> and domain foundation. Reuse its provider authorization, source processing,
+> publication, hosting/adoption and responsibility services. Keep existing issue
+> parents, security checks and historical delivery evidence intact.
+
 **Feature issue**: [#1002](https://github.com/azurenoops/ato-copilot/issues/1002)
 
 **Feature branch**: `feature/1002-workspace-ui-1025-1035`

@@ -104,6 +104,13 @@ public interface IEvidenceArtifactService
     /// <returns><c>true</c> if the artifact was deleted; <c>false</c> if not found.</returns>
     Task<bool> DeleteAsync(string evidenceId, string deletedBy, CancellationToken cancellationToken = default);
 
+    Task<bool> DeleteScopedAsync(string systemId, string evidenceId, string deletedBy,
+        string? expectedHash, CancellationToken cancellationToken = default);
+
+    Task<EvidenceArtifact> ReplaceScopedAsync(string systemId, string evidenceId, string fileName,
+        string contentType, Stream content, string replacedBy, string? expectedHash,
+        int retentionDays = 365, string? description = null, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Replace an evidence artifact's file, creating a version snapshot of the old file.
     /// </summary>

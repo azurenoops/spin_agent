@@ -42,6 +42,31 @@ public class ConMonReportEnrichmentTests : IDisposable
     }
 
     [Fact]
+    public async Task CanonicalReport_DoesNotReuseLegacyNewestCheckOrHealthyConfiguration()
+    {
+        // Arrange
+        var systemId = await SeedFullSystem(["sub-001"], monitoringEnabled: true);
+        var resolver = new Mock<ISystemEnvironmentScopeResolver>();
+        resolver.Setup(x => x.ResolveAsync(systemId, EnvironmentScopePurpose.Monitoring, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(systemId, 2, [], []));
+        var services = new ServiceCollection();
+        services.AddSingleton(resolver.Object);
+        services.AddSingleton(Mock.Of<IDbContextFactory<AtoCopilotContext>>());
+        services.AddSingleton<CanonicalEnvironmentCollectionGuard>();
+        await using var provider = services.BuildServiceProvider();
+        var service = ActivatorUtilities.CreateInstance<ConMonService>(provider, _scopeFactory,
+            Mock.Of<ILogger<ConMonService>>(), Mock.Of<IComplianceWatchService>());
+
+        // Act
+        var report = await service.GenerateReportAsync(systemId, "Monthly", "2026-03", "test-user");
+
+        // Assert
+        report.MonitoringEnabled.Should().BeFalse();
+        report.LastMonitoringCheck.Should().BeNull();
+        report.ReportContent.Should().Contain("Collection unavailable");
+    }
+
+    [Fact]
     public async Task GenerateReportAsync_WithWatchData_IncludesEnrichmentFields()
     {
         // Arrange

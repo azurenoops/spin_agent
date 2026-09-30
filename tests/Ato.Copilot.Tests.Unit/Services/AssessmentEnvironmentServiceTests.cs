@@ -30,6 +30,7 @@ public sealed class AssessmentEnvironmentServiceTests : IDisposable
     private readonly ITenantContextAccessor _tenants;
     private readonly IDbContextFactory<AtoCopilotContext> _factory;
     private readonly Mock<IAzureAssessmentConnectionProbe> _probe = new(MockBehavior.Strict);
+    private readonly Mock<ISystemEnvironmentScopeResolver> _environments = new();
     private readonly GatewayOptions _gateway = new();
     private readonly OnboardingOptions _onboarding = new();
 
@@ -37,6 +38,9 @@ public sealed class AssessmentEnvironmentServiceTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        _environments.Setup(x => x.ResolveAsync(It.IsAny<string>(), It.IsAny<EnvironmentScopePurpose>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, EnvironmentScopePurpose _, CancellationToken _) => new ResolvedSystemEnvironmentScopes(id, 0, [], []));
+        services.AddSingleton(_environments.Object);
         services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.AddSingleton<TenantStampingSaveChangesInterceptor>();
         services.AddDbContextFactory<AtoCopilotContext>((sp, options) =>
@@ -50,6 +54,132 @@ public sealed class AssessmentEnvironmentServiceTests : IDisposable
     }
 
     public void Dispose() => _provider.Dispose();
+
+    [Fact]
+    public async Task IndependentProviderScope_WithoutSubscription_IsUnconfiguredAzureNotInvalidRelationship()
+    {
+        // Arrange
+        using var tenant = _tenants.Push(new TenantContext(_tenantId));
+        var system = await SeedAsync(null);
+        _environments.Setup(x => x.ResolveAsync(system.Id, EnvironmentScopePurpose.Assessment, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(system.Id, 0, [],
+                [new("provider-scope", "ProviderHosting", "Synthetic provider scope", "Valid", "No subscription link is required.")]));
+
+        // Act
+        var result = await CreateService().GetReadinessAsync(system.Id);
+
+        // Assert
+        result.ErrorCode.Should().Be(AssessmentEnvironmentErrors.EnvironmentRequired);
+        result.Subscriptions.Should().BeEmpty();
+        _probe.Invocations.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("OrganizationOwned")]
+    [InlineData("ProviderAllocation")]
+    public async Task IndependentSubscription_WithoutProviderRelationship_IsEligibleButCollectorUnsupported(string sourceKind)
+    {
+        // Arrange
+        using var tenant = _tenants.Push(new TenantContext(_tenantId));
+        var system = await SeedAsync(null);
+        var source = CanonicalSource(true) with
+        {
+            Source = sourceKind,
+            AllocationId = sourceKind == "ProviderAllocation" ? Guid.NewGuid() : null,
+            AllocationVersion = sourceKind == "ProviderAllocation" ? 1 : null
+        };
+        _environments.Setup(x => x.ResolveAsync(system.Id, EnvironmentScopePurpose.Assessment, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(system.Id, 1, [source], []));
+
+        // Act
+        var result = await CreateService().GetReadinessAsync(system.Id);
+
+        // Assert
+        result.ErrorCode.Should().Be("ASSESSMENT_SCOPE_UNSUPPORTED");
+        result.Subscriptions.Should().ContainSingle().Which.State.Should().Be("ScopeUnsupported");
+        _probe.Invocations.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, "ASSESSMENT_SCOPE_UNSUPPORTED")]
+    [InlineData(false, "ASSESSMENT_ENVIRONMENT_INELIGIBLE")]
+    public async Task CanonicalScope_NeverFallsBackToLegacyProfileOrCallsAzure(bool eligible, string error)
+    {
+        // Arrange
+        using var tenant = _tenants.Push(new TenantContext(_tenantId));
+        var system = await SeedAsync(Profile(AzureCloudEnvironment.Government));
+        var source = CanonicalSource(eligible);
+        _environments.Setup(x => x.ResolveAsync(system.Id, EnvironmentScopePurpose.Assessment, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(system.Id, 1, [source], []));
+
+        // Act
+        var result = await CreateService().GetReadinessAsync(system.Id);
+
+        // Assert
+        result.IsReady.Should().BeFalse();
+        result.ErrorCode.Should().Be(error);
+        result.Subscriptions.Should().ContainSingle();
+        result.ConfigurationUrl.Should().Contain("EnvironmentAndDeployment");
+        _probe.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CanonicalScope_ThreeSubscriptionsPreserveDeniedSourceWithoutProbing()
+    {
+        // Arrange
+        using var tenant = _tenants.Push(new TenantContext(_tenantId));
+        var system = await SeedAsync(Profile(AzureCloudEnvironment.Government));
+        var sources = new[] { CanonicalSource(true), CanonicalSource(false), CanonicalSource(true) };
+        _environments.Setup(x => x.ResolveAsync(system.Id, EnvironmentScopePurpose.Assessment, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(system.Id, 2, sources, []));
+
+        // Act
+        var result = await CreateService().GetReadinessAsync(system.Id);
+
+        // Assert
+        result.IsReady.Should().BeFalse();
+        result.Subscriptions.Should().HaveCount(3);
+        result.ErrorCode.Should().Be("ASSESSMENT_ENVIRONMENT_INELIGIBLE");
+        _probe.Invocations.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("configure")]
+    [InlineData("detach")]
+    [InlineData("read-selector")]
+    public async Task CanonicalScope_LegacySelectorCannotMutateSeparateProfile(string operation)
+    {
+        // Arrange
+        using var tenant = _tenants.Push(new TenantContext(_tenantId));
+        var system = await SeedAsync(Profile(AzureCloudEnvironment.Government));
+        _environments.Setup(x => x.ResolveAsync(system.Id, EnvironmentScopePurpose.Documentation, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(system.Id, 1, [CanonicalSource(false)], []));
+
+        // Act
+        Func<Task> act = operation switch
+        {
+            "configure" => async () => await CreateService().ConfigureAsync(system.Id,
+                new() { CloudEnvironment = "Government", SubscriptionIds = [Subscription.ToString()] }, Actor),
+            "detach" => () => CreateService().DetachAsync(system.Id, Actor),
+            _ => async () => await CreateService().GetConfigurationAsync(system.Id)
+        };
+
+        // Assert
+        (await act.Should().ThrowAsync<AssessmentEnvironmentException>()).Which.ErrorCode
+            .Should().Be("ASSESSMENT_SHARED_ENVIRONMENT_REQUIRED");
+        await using var db = await _factory.CreateDbContextAsync();
+        (await db.RegisteredSystems.SingleAsync()).AzureProfile.Should().NotBeNull();
+    }
+
+    private ResolvedSystemEnvironmentScope CanonicalSource(bool eligible)
+    {
+        var subscription = Guid.NewGuid();
+        return new(Guid.NewGuid(), 1, Guid.NewGuid(), 1,
+            new(Guid.NewGuid(), _tenantId, subscription, _directoryId, "Government", "Synthetic subscription",
+                "Selected", DateTimeOffset.UtcNow), "ProviderAllocation", Guid.NewGuid(), 1, eligible,
+            eligible ? null : "Allocation withdrawn", [$"/subscriptions/{subscription}/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/test"],
+            [], [], new("Test", null, null, "Reconciled", null, DateTimeOffset.UtcNow));
+    }
 
     [Theory]
     [InlineData(AzureCloudEnvironment.Government, "AzureGovernment", AzureEnvironment.AzureUSGovernment)]
@@ -491,7 +621,7 @@ public sealed class AssessmentEnvironmentServiceTests : IDisposable
             .Should().Be(AssessmentEnvironmentErrors.SystemNotFound);
     }
 
-    private AssessmentEnvironmentService CreateService() => new(
+    private AssessmentEnvironmentService CreateService() => ActivatorUtilities.CreateInstance<AssessmentEnvironmentService>(_provider,
         _factory, _tenants, _probe.Object, Options.Create(_gateway), Options.Create(_onboarding),
         new ArmClientFactory(_gateway.Azure.CloudEnvironment, NullLogger<ArmClientFactory>.Instance),
         NullLogger<AssessmentEnvironmentService>.Instance);

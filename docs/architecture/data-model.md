@@ -2,6 +2,11 @@
 
 > Entity Framework Core data model — all entities, relationships, and ER diagram.
 
+Provider/source/release/adoption and document-lineage consolidation is planned in
+[Feature 079's authority map](../../specs/079-provider-system-workflow-consolidation/data-model.md)
+and [ADR 004](adr-004-provider-mission-lineage.md). Those additions are proposed
+contracts, not a claim that new schema or export mappings have shipped.
+
 ---
 
 ## Table of Contents

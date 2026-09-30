@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, FileText, Package, Plus, Search, ShieldCheck, Users } from 'lucide-react';
-import { Link, useNavigate } from '../../workspaces/workspaceNavigation';
-import { useSystemContext } from '../../../components/layout/SystemLayout';
+import { Building2, FileText, Package, Plus, Search, Users } from 'lucide-react';
+import { Link } from '../../workspaces/workspaceNavigation';
+import { SystemTaskHeading } from '../../systems/SystemTaskPresentation';
 import SetupDialog from '../SetupDialog';
 import SystemComponentPlacements from './SystemComponentPlacements';
+import SystemCapabilitySetup from './SystemCapabilitySetup';
 import { buttonClass, inputClass, moveTabFocus, Pager, secondaryButtonClass, Status, surfaceClass, useQueryState, useRemote } from '../workspaceUi';
 import * as api from './systemCapabilityApi';
 import type { SystemCapabilityItem, SystemCapabilityPlacement, SystemCapabilityQuery, SystemCapabilitySource } from './systemCapabilityTypes';
@@ -22,9 +23,7 @@ export function SystemCapabilityPlacements({ placements }: { placements: SystemC
 }
 
 export function SystemCapabilitySourceBadge({ source }: { source: SystemCapabilitySource }) {
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-    source === 'provider' ? 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200'
-      : 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200'}`}>
+  return <span className="inline-flex rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
     {source === 'provider' ? 'Provider' : 'Organization'}
   </span>;
 }
@@ -32,6 +31,102 @@ export function SystemCapabilitySourceBadge({ source }: { source: SystemCapabili
 function ComponentIcon({ type }: { type: string | null }) {
   const Icon = type === 'Person' ? Users : type === 'Place' ? Building2 : type === 'Policy' ? FileText : Package;
   return <Icon size={18} aria-hidden className="mt-0.5 shrink-0 text-indigo-600 dark:text-indigo-300" />;
+}
+
+function AppliedCapabilityDrawer({ tenantId, systemId, source, recordId, onClose, onManageComponent }: {
+  tenantId: string;
+  systemId: string;
+  source: SystemCapabilitySource;
+  recordId: string;
+  onClose: () => void;
+  onManageComponent: (componentId: string, componentSource: SystemCapabilitySource) => void;
+}) {
+  const remote = useRemote(signal => api.getSystemCapability(
+    tenantId,
+    systemId,
+    { source, recordType: 'capability', recordId },
+    signal,
+  ), [tenantId, systemId, source, recordId]);
+  const data = remote.data;
+  const item = data?.item;
+  const base = `/systems/${encodeURIComponent(systemId)}/security-capabilities`;
+
+  return <SetupDialog
+    title="Review applied capability"
+    description="Review the applied source, system placements, controls, and outstanding responsibilities."
+    placement="right"
+    busy={false}
+    onClose={onClose}
+  >
+    <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
+    {data && item && <div className="space-y-6">
+      <header>
+        <div className="flex flex-wrap items-center gap-2">
+          <SystemCapabilitySourceBadge source={item.source} />
+          <span className="text-xs text-gray-500">{item.status}</span>
+        </div>
+        <h2 className="mt-3 text-xl font-semibold text-gray-900 dark:text-gray-100">{item.name}</h2>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          {item.description || 'No source implementation description is recorded.'}
+        </p>
+        <p className="mt-2 text-xs text-gray-500">Source / owner: {item.sourceName}</p>
+      </header>
+
+      <section className="space-y-3" aria-labelledby="capability-contributors-heading">
+        <h3 id="capability-contributors-heading" className="font-semibold">Contributors and placements</h3>
+        {item.components.length ? <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
+          {item.components.map(component => <li key={`${component.source}:${component.recordId}`} className="space-y-2 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-medium">{component.name}</p>
+                <p className="text-xs text-gray-500">{component.componentType}{component.subType ? ` · ${component.subType}` : ''}</p>
+              </div>
+              {data.permissions.canManage && item.isApplied
+                ? <button type="button" className={secondaryButtonClass}
+                  onClick={() => onManageComponent(component.recordId, component.source)}>
+                  Manage {component.name} placement
+                </button>
+                : <span className="text-xs text-gray-500">Read-only</span>}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              <SystemCapabilityPlacements placements={component.placements} />
+            </div>
+          </li>)}
+        </ul> : <p className="text-sm text-gray-500">No contributing components are recorded.</p>}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="capability-controls-heading">
+        <h3 id="capability-controls-heading" className="font-semibold">Mapped controls and responsibilities</h3>
+        {data.controls.length ? <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              <tr><th className="px-3 py-2">Control</th><th className="px-3 py-2">Coverage</th><th className="px-3 py-2">Organization duty</th><th className="px-3 py-2">Review</th></tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{data.controls.map(control =>
+              <tr key={control.controlId}>
+                <td className="px-3 py-3 font-medium">{control.controlId}</td>
+                <td className="px-3 py-3">{control.providerCoverage || 'Not recorded'}</td>
+                <td className="px-3 py-3">{control.organizationDuty || 'Not recorded'}</td>
+                <td className="px-3 py-3">{control.reviewState}</td>
+              </tr>)}</tbody>
+          </table>
+        </div> : <p className="text-sm text-gray-500">No mapped controls are recorded for the selected baseline.</p>}
+      </section>
+
+      <div className="flex flex-col items-start gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+        <Link className={buttonClass} to={data.responsibilityReviewUrl}>Review responsibilities</Link>
+        <Link className={secondaryButtonClass} to={`${base}/${source}/${encodeURIComponent(recordId)}?tab=evidence`}>
+          Review evidence and narratives
+        </Link>
+        <Link className={`${linkClass} text-sm`} to={`${base}/${source}/${encodeURIComponent(recordId)}`}>
+          Open full capability review
+        </Link>
+      </div>
+      {source === 'provider' && <p className="text-xs text-gray-500">
+        Provider-authored source content is read-only here. Organization actions affect only this system&apos;s application and placements.
+      </p>}
+    </div>}
+  </SetupDialog>;
 }
 
 export function SystemComponentDrawer({ tenantId, systemId, source, componentId, onClose, onChanged }: {
@@ -93,8 +188,7 @@ export default function SystemCapabilityList({ tenantId, systemId, systemName }:
   tenantId: string; systemId: string; systemName: string;
 }) {
   const { params, set } = useQueryState();
-  const navigate = useNavigate();
-  const { setPageContext } = useSystemContext();
+  const [setupOpen, setSetupOpen] = useState(false);
   const grouping = params.get('view') === 'component' ? 'component' : 'capability';
   const source = params.get('source');
   const componentType = types.find(type => type === params.get('componentType'));
@@ -116,45 +210,67 @@ export default function SystemCapabilityList({ tenantId, systemId, systemName }:
   }, [remote.data, metadataScope]);
   const boundaries = remote.data?.boundaries ?? (boundaryOptions.scope === metadataScope ? boundaryOptions.values : []);
   const base = `/systems/${encodeURIComponent(systemId)}/security-capabilities`;
+  const systemBase = `/systems/${encodeURIComponent(systemId)}`;
   const items = remote.data?.items ?? [];
   const filtered = !!(query.search || query.source || query.componentType || query.boundaryId);
+  const selectedCapability = params.get('capabilityId');
+  const selectedCapabilitySource = params.get('capabilitySource') === 'provider' ? 'provider'
+    : params.get('capabilitySource') === 'local' ? 'local' : null;
   const selectedComponent = params.get('componentId');
   const selectedComponentSource = params.get('componentSource') === 'provider' ? 'provider' : 'local';
+  const openCapability = (recordId: string, capabilitySource: SystemCapabilitySource) =>
+    set({ capabilityId: recordId, capabilitySource });
   const openComponent = (recordId: string, componentSource: SystemCapabilitySource) => set({ componentId: recordId, componentSource });
   const followUp = useMemo(() => {
     const reviewItems = remote.data?.items.reduce((total, item) => total + item.reviewRequiredCount, 0) ?? 0;
-    return <section className={`${surfaceClass} space-y-4 p-4`}>
-      <h2 className="font-semibold">System follow-up</h2>
-      {remote.loading ? <p className="text-sm">Loading review status...</p>
-        : remote.error ? <p className="text-sm">Review status could not be loaded.</p>
-          : <p className="text-sm">{reviewItems ? `${reviewItems} review ${reviewItems === 1 ? 'item' : 'items'} on this page require attention.`
-            : 'No pending responsibility reviews reported on this page.'}</p>}
-      <Link className={`${linkClass} inline-block text-sm`} to={`/systems/${encodeURIComponent(systemId)}/inheritance/subscriptions`}>
-        Open responsibility review
-      </Link>
+    return <aside className="space-y-5" aria-label="Applied capability supporting actions">
+      <section className="border-l-2 border-indigo-200 pl-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Used in your package</p>
+        <h2 className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">SSP · Control implementation / CRM</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+          This page supplies reviewed records to the SSP. Draft edits do not replace approved content.
+        </p>
+        <Link className="mt-2 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          to={`${systemBase}/documents#ssp-sections`}>Preview contribution <span aria-hidden="true" className="ml-1">→</span></Link>
+      </section>
+      <section className="border-l-2 border-indigo-200 pl-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Review & ownership</p>
+        <h2 className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Keep the next action clear</h2>
+        {remote.loading ? <p className="mt-1 text-sm">Loading review status...</p>
+          : remote.error ? <p className="mt-1 text-sm">Review status could not be loaded.</p>
+            : <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{reviewItems
+              ? `${reviewItems} responsibility ${reviewItems === 1 ? 'item requires' : 'items require'} review on this page.`
+              : 'No pending responsibility reviews reported on this page.'}</p>}
+        <Link className={`${linkClass} mt-2 inline-block text-sm`} to={`${systemBase}/inheritance/subscriptions`}>
+          Review responsibilities
+        </Link>
+      </section>
+      <section className="border-l-2 border-indigo-200 pl-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Related work</p>
+        <Link className="mt-2 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          to={systemBase}>View package readiness <span aria-hidden="true" className="ml-1">→</span></Link>
+      </section>
       <p className="text-xs text-gray-600 dark:text-gray-300">Applying a capability does not confirm responsibilities, approve narratives, or grant an ATO.</p>
-    </section>;
+    </aside>;
   }, [remote.data, remote.loading, remote.error, systemId]);
-  useEffect(() => {
-    setPageContext?.(followUp);
-    return () => setPageContext?.(null);
-  }, [setPageContext, followUp]);
-
   function capabilityRow(item: SystemCapabilityItem) {
     return <tr key={`${item.source}:${item.recordType}:${item.recordId}`} className="border-t border-gray-100 dark:border-gray-800">
       <td className={cellClass}><Link className={linkClass} to={`${base}/${item.source}/${encodeURIComponent(item.recordId)}`}>{item.name}</Link>
         <p className="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">{item.description}</p></td>
-      <td className={cellClass}><SystemCapabilitySourceBadge source={item.source} /><p className="mt-1 text-xs">{item.sourceName}</p></td>
+      <td className={cellClass}>{item.source === 'provider' ? `Provider · ${item.sourceName}` : 'Organization'}</td>
       <td className={cellClass}>{item.components.length ? <ul className="space-y-2">{item.components.map(component =>
         <li key={`${component.source}:${component.recordId}`}><button className={`${linkClass} text-left`}
           onClick={() => openComponent(component.recordId, component.source)}>{component.name}</button>
           <div className="mt-1 text-xs text-gray-600 dark:text-gray-300"><SystemCapabilityPlacements placements={component.placements} /></div>
-        </li>)}</ul> : <span className="text-gray-500 dark:text-gray-400">No contributors recorded</span>}</td>
-      <td className={cellClass}>{item.controlIds.length} mapped</td>
+        </li>)}</ul> : <span className="text-gray-500 dark:text-gray-400">{item.sourceName}</span>}</td>
       <td className={cellClass}>{item.reviewRequiredCount > 0
-        ? <span className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Review required ({item.reviewRequiredCount})</span>
+        ? <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Responsibilities pending ({item.reviewRequiredCount})</span>
         : <span className="text-xs">{item.status}</span>}</td>
-      <td className={cellClass}><Link className={`${linkClass} whitespace-nowrap`} to={`${base}/${item.source}/${encodeURIComponent(item.recordId)}`}>View details<span className="sr-only"> for {item.name}</span></Link></td>
+      <td className={cellClass}><button type="button"
+        className="whitespace-nowrap rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-gray-50"
+        onClick={() => openCapability(item.recordId, item.source)}>
+        Open<span className="sr-only"> {item.name}</span><span aria-hidden="true"> →</span>
+      </button></td>
     </tr>;
   }
 
@@ -174,19 +290,27 @@ export default function SystemCapabilityList({ tenantId, systemId, systemName }:
     </tr>;
   }
 
+  const pendingReviews = items.reduce((total, item) => total + item.reviewRequiredCount, 0);
+
   return <div className="space-y-5">
-    <header className="rounded-xl bg-gradient-to-r from-indigo-50 to-sky-50 p-5 dark:from-indigo-950 dark:to-slate-900">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight">Security Capabilities</h1>
-          <span className="rounded-full border border-indigo-200 bg-white/60 px-2 py-1 text-xs text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">Applied to this system</span></div>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Connect security functions, contributing components and control responsibilities.</p>
-          <p className="mt-4 flex items-center gap-2 text-sm font-medium"><ShieldCheck size={17} aria-hidden />{systemName}</p>
-        </div>
+    <SystemTaskHeading
+      eyebrow={systemName}
+      title="Applied security capabilities"
+      description="See which security functions serve this system and which responsibilities still need review."
+      action={<div className="flex flex-wrap gap-2">
+        <Link className={secondaryButtonClass} to={`/systems/${encodeURIComponent(systemId)}/provider-relationships/setup`}>
+          Add CSP hosting &amp; capabilities
+        </Link>
         <button className={`${buttonClass} inline-flex items-center gap-2`} disabled={!remote.data?.permissions.canManage}
-          onClick={() => navigate(`${base}/add`)}><Plus size={16} aria-hidden />Add from library</button>
-      </div>
-      {remote.data && !remote.data.permissions.canManage && <p className="mt-3 text-sm">Adding capabilities requires system-management permission. Your current access is read-only for this action.</p>}
-    </header>
+          onClick={() => setSetupOpen(true)}><Plus size={16} aria-hidden />Add organization capability</button>
+      </div>}
+    />
+    {remote.data && !remote.data.permissions.canManage && <p className="text-sm">Adding capabilities requires system-management permission. Your current access is read-only for this action.</p>}
+    <div data-testid="capability-review-summary"
+      className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between">
+      <span className="font-medium">{pendingReviews ? 'Draft · Review required' : 'Applied · No pending reviews'}</span>
+      <span className="text-xs text-gray-500">{remote.data ? `${remote.data.total} applied ${remote.data.total === 1 ? 'record' : 'records'}` : 'Loading applied records'}</span>
+    </div>
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-700">
       <div role="tablist" aria-label="Security capability views" className="flex gap-2" onKeyDown={moveTabFocus}>
         {(['capability', 'component'] as const).map(view => <button key={view} role="tab" id={`view-${view}`}
@@ -198,7 +322,7 @@ export default function SystemCapabilityList({ tenantId, systemId, systemName }:
       </div>
       <Link className={`${linkClass} text-sm`} to={`${base}/inventory`}>Manage inventory</Link>
     </div>
-    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <label className="relative text-sm"><span className="mb-1 block">Search this system</span>
         <Search size={15} className="absolute bottom-3 left-3 text-gray-400" aria-hidden />
         <input type="search" className={`${inputClass} w-full pl-9`} value={query.search ?? ''} maxLength={200}
@@ -217,22 +341,51 @@ export default function SystemCapabilityList({ tenantId, systemId, systemName }:
         <option value="status:asc">Status</option><option value="componentType:asc">Component type</option>
       </select></label>
     </div>
-    <div role="tabpanel" id="system-capability-results" aria-labelledby={`view-${grouping}`} aria-busy={remote.loading}>
-      <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
-      {remote.data && (items.length ? <div className={`${surfaceClass} relative overflow-x-auto rounded-lg`}>
-        <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"><tr>
-          {(grouping === 'capability' ? ['Capability', 'Source', 'Contributors & placements', 'Controls', 'Responsibility', 'Action']
-            : ['Component', 'Type', 'Source', 'Delivers', 'Boundary', 'Action']).map(label => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}
-        </tr></thead><tbody>{items.map(grouping === 'capability' ? capabilityRow : componentRow)}</tbody></table>
-      </div> : <section className={`${surfaceClass} space-y-3 p-6`}>
-        <h2 className="font-semibold">{filtered ? 'No matching applied records' : grouping === 'capability' ? 'No security capabilities applied to this system yet.' : 'No components applied to this system yet.'}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{filtered ? 'Change the filters to find other records applied to this system.'
-          : 'You can use organization capabilities without a provider. Available library records are separate until you add them to this system.'}</p>
-        {filtered && <button className={secondaryButtonClass} onClick={() => set({ search: null, source: null, componentType: null, boundaryId: null, page: 1 })}>Clear filters</button>}
-      </section>)}
-      {remote.data && <Pager page={remote.data.page} pageSize={remote.data.pageSize} total={remote.data.total} onPage={next => set({ page: next })} />}
+    <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
+      <div role="tabpanel" id="system-capability-results" aria-labelledby={`view-${grouping}`} aria-busy={remote.loading}>
+        <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
+        {remote.data && (items.length ? <div className={`${surfaceClass} relative overflow-x-auto rounded-lg`}>
+          <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"><tr>
+            {(grouping === 'capability' ? ['Record', 'Context', 'Source / owner', 'Status', '']
+              : ['Component', 'Type', 'Source', 'Delivers', 'Boundary', 'Action']).map(label => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}
+          </tr></thead><tbody>{items.map(grouping === 'capability' ? capabilityRow : componentRow)}</tbody></table>
+        </div> : <section className={`${surfaceClass} space-y-3 p-6`}>
+          <h2 className="font-semibold">{filtered ? 'No matching applied records' : grouping === 'capability' ? 'No security capabilities applied to this system yet.' : 'No components applied to this system yet.'}</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300">{filtered ? 'Change the filters to find other records applied to this system.'
+            : 'You can use organization capabilities without a provider. Available library records are separate until you add them to this system.'}</p>
+          {filtered && <button className={secondaryButtonClass} onClick={() => set({ search: null, source: null, componentType: null, boundaryId: null, page: 1 })}>Clear filters</button>}
+        </section>)}
+        {remote.data && <Pager page={remote.data.page} pageSize={remote.data.pageSize} total={remote.data.total} onPage={next => set({ page: next })} />}
+      </div>
+      <div>{followUp}</div>
     </div>
-    <div className={setPageContext ? 'xl:hidden' : undefined}>{followUp}</div>
+    {selectedCapability && selectedCapabilitySource && <AppliedCapabilityDrawer
+      key={`${metadataScope}:${selectedCapabilitySource}:${selectedCapability}`}
+      tenantId={tenantId}
+      systemId={systemId}
+      source={selectedCapabilitySource}
+      recordId={selectedCapability}
+      onClose={() => set({ capabilityId: null, capabilitySource: null })}
+      onManageComponent={(recordId, componentSource) => set({
+        capabilityId: null,
+        capabilitySource: null,
+        componentId: recordId,
+        componentSource,
+      })}
+    />}
+    {setupOpen && <SetupDialog
+      title="Add organization capability"
+      description={`Choose organization-managed capabilities and review applicability for ${systemName}.`}
+      placement="right"
+      expanded
+      busy={false}
+      onClose={() => { setSetupOpen(false); remote.retry(); }}
+    >
+      <SystemCapabilitySetup tenantId={tenantId} systemId={systemId} embedded catalogSource="local" onCompleted={remote.retry} onClose={() => {
+        setSetupOpen(false);
+        remote.retry();
+      }} />
+    </SetupDialog>}
     {selectedComponent && <SystemComponentDrawer key={`${metadataScope}:${selectedComponentSource}:${selectedComponent}`}
       tenantId={tenantId} systemId={systemId} source={selectedComponentSource} componentId={selectedComponent}
       onChanged={remote.retry}

@@ -6,7 +6,7 @@ namespace Ato.Copilot.Core.Models.Poam;
 
 /// <summary>
 /// External ticketing system configuration per registered system.
-/// Credentials are stored in Azure Key Vault — only the URI is persisted here.
+/// Only an administrator-provisioned server credential reference is persisted here.
 /// </summary>
 [TenantScoped]
 public class TicketingIntegration
@@ -42,7 +42,7 @@ public class TicketingIntegration
     [MaxLength(100)]
     public string? IssueType { get; set; }
 
-    /// <summary>Azure Key Vault secret URI for authentication credentials. NEVER the credential itself.</summary>
+    /// <summary>Server credential reference (legacy column name). NEVER the credential itself.</summary>
     [Required]
     [MaxLength(500)]
     public string KeyVaultSecretUri { get; set; } = string.Empty;
@@ -51,7 +51,7 @@ public class TicketingIntegration
     [MaxLength(4000)]
     public string? FieldMappingJson { get; set; }
 
-    /// <summary>Whether periodic sync is enabled.</summary>
+    /// <summary>Whether explicit manual ticket operations are enabled. No scheduler is implemented.</summary>
     public bool SyncEnabled { get; set; } = true;
 
     /// <summary>Sync reconciliation interval in minutes (default: 15).</summary>

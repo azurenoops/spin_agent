@@ -56,31 +56,73 @@ Verification: rendered all 30 pages at 1440px, exercised each primary action and
 
 ### Production mapping: Categorization & baseline
 
-The production Categorization & Baseline page keeps the current SPIN workspace
-shell and server-derived records while following page 8's information hierarchy.
-Its Controls & evidence tabs map to these existing system routes:
+The production page keeps the current SPIN workspace shell and server-derived
+records while following page 8's information hierarchy. Its Controls & evidence
+tabs map to the existing baseline, security capabilities, responsibility,
+narrative, evidence, and legal system routes.
 
-| Design tab | Production route |
-|---|---|
-| Categorization & baseline | `baseline` |
-| Applied capabilities | `security-capabilities` |
-| Responsibilities | `inheritance/subscriptions` |
-| Narratives | `narratives` |
-| Evidence | `evidence` |
-| Policies | `legal` |
-
-The primary **Review categorization** action opens the existing authorized
-categorization workflow. Information-type **Open** actions lead to the Data Types
-profile section, **Preview contribution** leads to the SSP sections in Documents,
-and **View package readiness** returns to the system overview. Organization and
-system workspace scope must be preserved for every destination.
+The primary **Review categorization** action opens the authorized categorization
+workflow. Information-type **Open** actions lead to Data Types, **Preview
+contribution** leads to the SSP sections in Documents, and **View package
+readiness** returns to the system overview. Workspace scope must be preserved for
+every destination.
 
 Production source, owner, and review presentation is composed from the current
-categorization record and Data Types section governance metadata. The UI must not
-substitute the prototype's sample values or infer permissions when those records
-are unavailable.
+categorization record and Data Types section governance metadata. Styling uses
+white bordered surfaces, neutral impact cards, and muted supporting text. The
+page ends after the information-type rationale and supporting-action rail; the
+legacy baseline-details, control-family, and tailoring panels are intentionally
+not repeated below it. Indigo
+is reserved for active navigation, links, and the primary action; semantic colors
+are reserved for meaningful review, impact, success, warning, and error states.
 
-Production styling follows the mock's restrained visual hierarchy: white bordered
-surfaces, neutral metric cards, and muted supporting text. Indigo is reserved for
-the active tab, links, and the primary action; semantic colors are reserved for
-meaningful review, impact, success, warning, and error states.
+### Production mapping: Applied capabilities
+
+The production page follows page 9's hierarchy: system heading and add action,
+applied-record review summary, capability/component views, the records table,
+and a supporting-action rail. **Open** launches a right-side review drawer for
+the selected applied capability without leaving the system page. The drawer
+shows the authoritative source, contributors and placements, mapped controls,
+responsibility state, and links to the full evidence/narrative review.
+
+Users with system-management permission can open a contributor's placement
+editor from the capability drawer. **Add from library** opens the three-step
+setup workflow in a right-side drawer without leaving the applied-record list.
+The setup drawer uses a wider desktop width, single-column capability choices,
+and a compact selection summary so viewport breakpoints never squeeze content
+into unreadable nested columns.
+Prepared setup operations use the backend's zero-based optimistic revision;
+revision `0` is valid until the first execution claim increments it.
+If an immutable prepared plan becomes stale before completion, the drawer keeps
+the server record for audit recovery but offers a clear **Start a current
+review** action. That action discards only the tab-local draft and reloads the
+current library so the user can prepare a new operation with a new idempotency
+key. The action is presented in the conflict banner above the persisted-change
+list so recovery never depends on scrolling through an operation that cannot be
+applied.
+After the server reports the operation as completed, the applied-record list
+refreshes immediately; it never adds an optimistic row for a rejected or
+partially completed operation.
+**Preview contribution** leads to the SSP sections in Documents, and **View
+package readiness** returns to the system overview.
+Provider-authored source content remains read-only in the organization portal.
+
+### Production mapping: Responsibilities
+
+The production page follows page 10's hierarchy: a concise review header,
+current review summary, control responsibility matrix, and package/review
+support rail. Each matrix **Open** action launches a right-side drawer for the
+selected control. The drawer shows the current and previously reviewed provider
+source, effective and confirmed allocation, organization duty, exact revisions,
+and the authorized allocation form without expanding every subscription on the
+page.
+
+**Review allocations** opens the first control that can be reviewed.
+**Preview contribution** leads to the SSP/CRM document sections, and **View
+package readiness** returns to the system overview. Reconciliation and pending
+impact delivery remain separate explicit actions; neither generates nor
+approves narrative content.
+
+Provider responsibility previews accept both the legacy root-level redacted
+snapshot and the immutable release envelope whose redacted display content is
+under `Capability`. Invalid or unredacted source content still fails closed.

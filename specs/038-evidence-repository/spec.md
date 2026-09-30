@@ -120,6 +120,57 @@ An ISSO can delete outdated evidence or replace it with an updated version. When
 
 ## Requirements
 
+### User Story 7 - Source-aware Evidence catalog and detail drawer (Priority: P1)
+
+**Tracking**: Parent feature [azurenoops/spin_agent#216](https://github.com/azurenoops/spin_agent/issues/216).
+New user-story issue and parent linkage require external-write approval. The user
+directed local implementation to continue on September 28 while this external
+write remains pending; do not treat the closed parent issue as new scope approval.
+
+An authorized system user can find supporting records in one catalog without
+confusing file access, provider sharing, documentation links, assessor judgments,
+or authorization decisions. The September 28, 2026 SPIN Evidence mock governs the
+page composition. Its provider empty panel is an alternate tab state, not an
+additional section beneath populated results.
+
+**Acceptance scenarios**:
+
+1. Mixed system uploads, scoped automated records, and explicitly shared provider
+   summaries appear under All evidence, System evidence, and Provider shared.
+   Filtering happens before counts and one globally ordered page is selected.
+2. The heading is "Evidence"; the description is "Find supporting records and see
+   what still needs attention." The existing organization/system shell, SPIN
+   branding, and Controls & evidence navigation remain.
+3. Search and progressively disclosed family/category/source/date/sort filters
+   preserve the source identity of every record. Missing control links produce
+   documentation attention, never an inferred compliance finding.
+4. A URL-addressable Overview / Linked controls / History drawer retains list
+   state and scroll position, supports refresh and Back, traps keyboard focus,
+   closes with Escape, restores focus, and is full width on small screens.
+5. The drawer shows actual source metadata, retained versions, protected content
+   access, and available history. Unknown owner/review/currency/relevance are
+   explicit; uploader and sharing approver are not relabeled as owner or assessor.
+6. Provider records expose only approved summaries and authorized provenance.
+   Current sharing grants do not permit private provider attachments. A fresh
+   grant check on detail/content access rejects revoked or wrong-system shares.
+7. Empty Provider shared shows "No provider evidence shared yet." and "Only
+   records explicitly shared with this system appear here.", Refresh access, and
+   Sharing guidance. Search misses, denied access, partial availability, total
+   failure, and loading are distinct; failed sources never produce zero counts.
+8. Upload, replacement, deletion, collection, retained-version downloads, and
+   authorized control linking remain reachable. Every mutation checks its real
+   server permission and exact target scope. Stale revisions produce conflicts.
+9. Switching systems cancels pending reads and clears previous scoped rows,
+   drawer content, and pending forms. Qualified IDs prevent cross-source clashes.
+10. A collapsed "How evidence supports your SSP and assessment" section explains
+    verified consumers and gaps without promising assessment acceptance, package
+    readiness, eMASS submission, or an ATO from artifact availability.
+
+This story supersedes US2's old column layout, permanent summary bar, and legacy
+sidebar placement (FR-013/FR-020), not its upload, filtering, history, or access
+requirements. The catalog contract is documented in
+[contracts/evidence-catalog.md](contracts/evidence-catalog.md).
+
 ### Functional Requirements
 
 - **FR-001**: System MUST allow users to upload evidence files to a specific control implementation
@@ -142,6 +193,14 @@ An ISSO can delete outdated evidence or replace it with an updated version. When
 - **FR-018**: System MUST support a configurable storage provider via server-side configuration (environment variables or `appsettings.json`) allowing selection between Local Filesystem (default) and Azure Blob Storage, with provider-specific settings (e.g., connection string, container name) for the selected provider
 - **FR-019**: System MUST support an evidence version retention period via server-side configuration (default: 365 days) controlling how long replaced evidence files are kept before automatic purge by a background service
 - **FR-020**: System MUST display a summary bar at the top of the Evidence Repository page showing: total evidence count, breakdown by source (Automated vs. Manual), and evidence coverage percentage (controls with at least one evidence item / total controls in the system)
+- **FR-021**: US7 MUST combine authorized sources in one catalog, with stable source-qualified identities, deduplication, filter-before-count semantics, and globally consistent paging.
+- **FR-022**: The catalog MUST report per-source availability and unknown counts on failure, with explicit retry; no success-shaped empty fallback is permitted.
+- **FR-023**: Artifact access and mutation MUST validate tenant, system, source, record, action, and applicable concurrency token; sharing is rechecked at protected content access.
+- **FR-024**: The detail drawer MUST preserve navigation state and provide Overview, Linked controls, and History without fabricating metadata or review outcomes.
+- **FR-025**: Provider ownership MUST remain unchanged; approved summary grants MUST NOT expose private names, attachments, storage paths, credentials, or unapproved provider findings.
+- **FR-026**: Existing authorized evidence operations MUST remain available, with permission-derived reasons and explicit validation, conflict, and storage errors.
+- **FR-027**: Control links MUST reuse existing records/services and cannot mark controls satisfied or alter assessment/authorization decisions.
+- **FR-028**: The UI MUST distinguish supporting documentation, sharing approval, currency/relevance, assessment, and package/authorization state.
 
 ### Key Entities
 

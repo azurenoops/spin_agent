@@ -78,7 +78,7 @@ public class OscalSspImportService : IOscalSspImportService
                             ? technicalParts
                             : combinedParts;
 
-                    if (stmt.TryGetProperty("description", out var description) &&
+                    if ((stmt.TryGetProperty("remarks", out var description) || stmt.TryGetProperty("description", out description)) &&
                         description.GetString() is { Length: > 0 } text)
                     {
                         target.Add(text);

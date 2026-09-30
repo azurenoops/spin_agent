@@ -209,6 +209,35 @@ T015: "Create RollbackNarrativeTool in NarrativeGovernanceTools.cs"
 
 ---
 
+## Phase 8: User Story 6 — Control Narrative Workspace (Priority: P1)
+
+**Goal**: Replace the competing dashboard list/review composition with a concise,
+control-oriented workspace and state-preserving detail drawer while retaining the
+existing narrative, proposal, reference, evidence, governance, and bulk workflows.
+
+**Independent Test**: Load independently populated Policy/Technical records and
+current/stale proposals, verify consistent view counts and filters, deep-link the
+drawer, inspect evidence/history/provenance, and exercise view-only, author, and
+review permissions plus stale/foreign mutation failures.
+
+- [x] T050 [US6] Document the aggregate dashboard contract and verified SSP/OSCAL/eMASS consumers in `specs/024-narrative-governance/contracts/dashboard-workspace.md`
+- [x] T051 [US6] Add failing backend projection tests for readable control names, consistent view counts, independent Policy/Technical display state, approved snapshots, current proposals, authorization, tenant/system isolation, and history in `tests/Ato.Copilot.Tests.Integration/Tenancy/ControlNarrativeWorkspaceHttpTests.cs`
+- [x] T052 [US6] Add failing frontend API validation tests for malformed, foreign, incomplete, stale, and permission-limited workspace/detail responses in `src/Ato.Copilot.Dashboard/src/__tests__/api/controlNarrativeWorkspace.test.ts`
+- [x] T053 [US6] Add failing page and drawer tests for views, filters, independent statement selection, direct links, focus restoration, retained list state, authorized actions, stale proposals, empty content, evidence/history, and retry states in `src/Ato.Copilot.Dashboard/src/__tests__/pages/ControlNarrativeWorkspace.test.tsx`
+- [x] T054 [US6] Add a tenant-scoped aggregate read projection over existing `ControlImplementation`, `NarrativeVersion`, `NarrativeReview`, `NarrativeProposal`, NIST control, validation-link, and responsibility records in `src/Ato.Copilot.Mcp/Endpoints/Dashboard/DashboardNarrativeWorkspaceEndpoints.cs`
+- [x] T055 [US6] Add fail-closed TypeScript transport validation in `src/Ato.Copilot.Dashboard/src/api/controlNarrativeWorkspace.ts`
+- [x] T056 [US6] Implement the compact list, truthful counts, combined filter toolbar, actionable proposal notification, and collapsed SSP contribution disclosure in `src/Ato.Copilot.Dashboard/src/features/narratives/ControlNarrativeWorkspace.tsx`
+- [x] T057 [US6] Implement the responsive, URL-addressable Statements/Evidence/History drawer with readable proposal comparison, provenance, responsibility dependencies, action explanations, keyboard focus, and retained list state in `src/Ato.Copilot.Dashboard/src/features/narratives/ControlNarrativeDrawer.tsx`
+- [x] T058 [US6] Recompose `src/Ato.Copilot.Dashboard/src/pages/NarrativeWorkspace.tsx` so the new workspace is primary while existing reference import/library, proposal review, direct editing, creation, and bulk workflows remain reachable
+- [x] T059 [US6] Add desktop/mobile Playwright coverage for filtering/count consistency, deep links, keyboard interaction, responsive drawer layout, authorized actions, stale proposal handling, and navigation-state retention in `src/Ato.Copilot.Dashboard/e2e/tests/control-narratives.spec.ts`
+- [x] T060 [US6] Verify targeted backend/frontend tests, dashboard type-check/build, supported themes, desktop/mobile browser behavior, `git diff --check`, and the actual SSP/OSCAL/eMASS export behavior; record any unresolved approved-snapshot export gap without claiming package readiness
+
+**Checkpoint**: Control narratives are understandable and operable from one
+control-oriented workspace; no new narrative store or client-derived authorization
+path exists.
+
+---
+
 ## Implementation Strategy
 
 ### MVP First (User Story 1 Only)
@@ -227,7 +256,8 @@ T015: "Create RollbackNarrativeTool in NarrativeGovernanceTools.cs"
 4. US3 → Progress dashboard → Deploy/Demo
 5. US4 → Batch submission → Deploy/Demo
 6. US5 → Concurrent edit protection → Deploy/Demo
-7. Polish → SSP integration, docs, final validation
+7. US6 → Control narrative workspace → Deploy/Demo
+8. Polish → SSP integration, docs, final validation
 
 ### Parallel Team Strategy
 

@@ -4,8 +4,8 @@ import { errorClass, inputClass, message, Pager, secondaryButtonClass, Status, s
 import { excludePackageEntry, getPackageEntries, packageArtifactUrl } from './api';
 import type { PackageEntry } from './types';
 
-export function PackageEntries({ packageId, revision, disabled, onChanged }: {
-  packageId: string; revision: number; disabled: boolean; onChanged: () => void;
+export function PackageEntries({ packageId, revision, disabled, readOnly = false, onChanged }: {
+  packageId: string; revision: number; disabled: boolean; readOnly?: boolean; onChanged: () => void;
 }) {
   const [page, setPage] = useState(1);
   const remote = useRemote(signal => getPackageEntries(packageId, page, signal), [packageId, page, revision]);
@@ -15,14 +15,14 @@ export function PackageEntries({ packageId, revision, disabled, onChanged }: {
     <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
     {remote.data && <>
       {!remote.data.items.length && <p className={`${surfaceClass} p-4`}>No source entries returned.</p>}
-      {remote.data.items.map(entry => <EntryRow key={`${entry.entryId}:${entry.revision}`} packageId={packageId} entry={entry} disabled={disabled} onChanged={onChanged} />)}
+      {remote.data.items.map(entry => <EntryRow key={`${entry.entryId}:${entry.revision}`} packageId={packageId} entry={entry} disabled={disabled} readOnly={readOnly} onChanged={onChanged} />)}
       <Pager {...remote.data} onPage={setPage} />
     </>}
   </section>;
 }
 
-function EntryRow({ packageId, entry, disabled, onChanged }: {
-  packageId: string; entry: PackageEntry; disabled: boolean; onChanged: () => void;
+function EntryRow({ packageId, entry, disabled, readOnly, onChanged }: {
+  packageId: string; entry: PackageEntry; disabled: boolean; readOnly: boolean; onChanged: () => void;
 }) {
   const [rationale, setRationale] = useState('');
   const [busy, setBusy] = useState(false);
@@ -53,7 +53,7 @@ function EntryRow({ packageId, entry, disabled, onChanged }: {
     {entry.reason && entry.reason !== exclusionReason && <p className={warningClass}>{entry.reason}</p>}
     {exclusionReason && <p className={entry.status === 'Excluded' ? `${surfaceClass} p-3 text-sm` : warningClass}>Excluded from analysis: {exclusionReason}</p>}
     <AuthenticatedDownload className="text-sm font-medium text-indigo-700 underline" url={packageArtifactUrl(packageId, entry.artifactId)} fileName={entry.fileName}>Download source</AuthenticatedDownload>
-    {entry.status !== 'Excluded' && <details>
+    {!readOnly && entry.status !== 'Excluded' && <details>
       <summary className="cursor-pointer text-sm font-medium text-gray-700">Exclude source entry</summary>
       <form className="mt-3 space-y-2" onSubmit={event => { event.preventDefault(); void exclude(); }}>
         <label className="block text-sm">Exclusion rationale for {entry.fileName}<textarea className={`${inputClass} mt-1 w-full`} maxLength={2000} disabled={disabled || busy} value={rationale} onChange={event => setRationale(event.target.value)} /></label>

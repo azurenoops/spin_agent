@@ -12,8 +12,12 @@ import type {
   EmassExportReadinessResult,
   EmassWorkflowStatus,
 } from '../api/emass-status';
-import EmassConflictList from '../components/EmassConflictList';
+import SystemEmassConflictReview from '../features/systems/SystemEmassConflictReview';
+import EmassExchangeHistory from '../features/systems/EmassExchangeHistory';
 import { useSystemContext } from '../components/layout/SystemLayout';
+import { Link, useLocation } from '../features/workspaces/workspaceNavigation';
+import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport } from '../features/systems/SystemTaskPresentation';
+import { packagePurposeFromSearch, packagePurposeLabels } from '../features/systems/packageReadinessNavigation';
 
 function formatStatus(value: string): string {
   return value
@@ -36,10 +40,20 @@ function errorMessage(error: unknown): string {
 
 export default function EmassStatusPage() {
   const { detail } = useSystemContext();
-  const systemId = detail.systemId;
+  return <SystemEmassTask key={detail.systemId} systemId={detail.systemId} />;
+}
+
+function SystemEmassTask({ systemId }: { systemId: string }) {
+  const location = useLocation();
+  const selectedPurpose = packagePurposeFromSearch(location.search);
+  const readinessQuery = new URLSearchParams(location.search);
+  readinessQuery.delete('tab');
+  readinessQuery.delete('check');
   const [status, setStatus] = useState<EmassWorkflowStatus | null>(null);
   const [readiness, setReadiness] = useState<EmassExportReadinessResult | null>(null);
   const [conflicts, setConflicts] = useState<EmassConflict[]>([]);
+  const [conflictOffset, setConflictOffset] = useState(0);
+  const [conflictTotal, setConflictTotal] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [acknowledge, setAcknowledge] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -51,11 +65,12 @@ export default function EmassStatusPage() {
       const [nextStatus, nextReadiness, conflictPage] = await Promise.all([
         getEmassStatus(systemId),
         getEmassReadiness(systemId),
-        getEmassConflicts(systemId, { status: 'Unresolved', limit: 50 }),
+        getEmassConflicts(systemId, { status: 'Unresolved', limit: 50, offset: conflictOffset }),
       ]);
       setStatus(nextStatus);
       setReadiness(nextReadiness);
       setConflicts(conflictPage.items);
+      setConflictTotal(conflictPage.total);
       setError(null);
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -66,7 +81,7 @@ export default function EmassStatusPage() {
 
   useEffect(() => {
     void load();
-  }, [systemId]);
+  }, [systemId, conflictOffset]);
 
   async function syncWorkbook() {
     if (!file) return;
@@ -83,39 +98,55 @@ export default function EmassStatusPage() {
     }
   }
 
-  async function handleResolve(conflictId: string, resolution: Exclude<ConflictStatus, 'Unresolved'>) {
+  async function handleResolve(conflictId: string, resolution: Exclude<ConflictStatus, 'Unresolved'>, rationale?: string) {
     setError(null);
     try {
-      await resolveConflict(systemId, conflictId, resolution);
+      await resolveConflict(systemId, conflictId, resolution, rationale);
       await load();
     } catch (requestError) {
       setError(errorMessage(requestError));
+      throw requestError;
     }
   }
 
   if (loading) return <p className="p-6 text-sm text-gray-500">Loading eMASS workflow...</p>;
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">eMASS workflow</h1>
-          <p className="mt-1 text-sm text-gray-500">Export readiness, round-trip synchronization, and field conflicts.</p>
-        </div>
-        {status ? (
+    <div className="space-y-6">
+      <SystemTaskHeading title="eMASS round-trip review"
+        description="Compare returned records with your export and resolve differences explicitly."
+        status={status ? (
           <span className={`rounded-full px-3 py-1 text-sm font-medium ${
             status.overallStatus === 'UpToDate' ? 'bg-green-100 text-green-700'
               : status.overallStatus === 'HasConflicts' ? 'bg-red-100 text-red-700'
                 : 'bg-amber-100 text-amber-800'
           }`}>{formatStatus(status.overallStatus)}</span>
-        ) : null}
-      </header>
+        ) : null} />
+      <SystemTaskColumns support={<>
+        <SystemTaskSupport title="Contributes to"><p>Reconciled system records / Exchange history</p></SystemTaskSupport>
+        <SystemTaskSupport title="Review before accepting">
+          <p>Keep the exported and returned values distinct until a permitted reviewer records a resolution. A successful local export does not prove eMASS receipt.</p>
+          <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/documents?tab=exports`}>Export packages</Link>
+        </SystemTaskSupport>
+      </>}>
 
-      {error ? <div role="alert" className="border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div> : null}
+      {error ? <div role="alert" className="border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-800">{error}
+        <button type="button" className="ml-3 underline" onClick={() => void load()}>Retry eMASS data</button>
+      </div> : null}
+      {status && !error && <section className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-700"><h2 className="text-lg font-semibold">Field difference review</h2></div>
+        <SystemEmassConflictReview conflicts={conflicts} onResolve={handleResolve} />
+        {conflictTotal > 50 && <nav aria-label="Conflict pages" className="flex flex-wrap items-center justify-between gap-3 border-t p-4 text-sm">
+          <button type="button" disabled={conflictOffset === 0} onClick={() => setConflictOffset(value => Math.max(0, value - 50))}>Previous conflicts</button>
+          <span>{conflictOffset + 1}–{Math.min(conflictOffset + 50, conflictTotal)} of {conflictTotal}</span>
+          <button type="button" disabled={conflictOffset + 50 >= conflictTotal} onClick={() => setConflictOffset(value => value + 50)}>Next conflicts</button>
+        </nav>}
+      </section>}
 
       {readiness && !readiness.isReady ? (
         <section className="border-l-4 border-amber-500 bg-amber-50 px-5 py-4">
-          <h2 className="text-sm font-semibold text-amber-900">Export readiness needs attention</h2>
+          <h2 className="text-sm font-semibold text-amber-900">eMASS identifier and exchange advisories</h2>
+          <p className="mt-2 text-sm text-amber-900">These eMASS-specific fields are separate from purpose-specific package validation below.</p>
           <ul className="mt-2 space-y-1 text-sm text-amber-900">
             {readiness.gaps.map((gap) => (
               <li key={gap.fieldName} className={gap.severity === 'Blocking' ? 'font-semibold' : undefined}>
@@ -125,6 +156,14 @@ export default function EmassStatusPage() {
           </ul>
         </section>
       ) : null}
+      <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="font-semibold">Authoritative package readiness</h2>
+        <p className="mt-2 text-slate-500">Exchange observations and reconciliation do not establish submission readiness or authorization.
+          {selectedPurpose && ` Selected purpose: ${packagePurposeLabels[selectedPurpose]}.`}</p>
+        {selectedPurpose ? <Link className="mt-3 inline-block text-indigo-700 underline dark:text-indigo-300"
+          to={`/systems/${systemId}/documents${readinessQuery.size ? `?${readinessQuery}` : ''}`}>View current package validation</Link>
+          : <p role="alert" className="mt-2">Unsupported package purpose. Select a supported purpose on the readiness page.</p>}
+      </section>
 
       {status ? (
         <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -154,10 +193,9 @@ export default function EmassStatusPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-200 px-5 py-4"><h2 className="text-sm font-semibold text-gray-900">Field conflicts</h2></div>
-        <EmassConflictList conflicts={conflicts} onResolve={handleResolve} />
-      </section>
+      <EmassExchangeHistory systemId={systemId} />
+
+      </SystemTaskColumns>
     </div>
   );
 }

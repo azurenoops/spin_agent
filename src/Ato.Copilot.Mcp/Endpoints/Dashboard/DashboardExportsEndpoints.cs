@@ -18,6 +18,9 @@ using Ato.Copilot.Core.Models.Poam;
 using Ato.Copilot.Core.Services;
 using Ato.Copilot.Mcp.Services;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Text;
+using Ato.Copilot.Mcp.Authorization;
 
 using KanbanTaskStatus = Ato.Copilot.Core.Models.Kanban.TaskStatus;
 
@@ -26,8 +29,105 @@ namespace Ato.Copilot.Mcp.Endpoints;
 // ─── #648 Decomposition: Exports domain routes ─────────────────────────────
 public static partial class DashboardEndpoints
 {
+    private static async ValueTask<object?> GuardDocumentEvidenceAccessAsync(
+        EndpointFilterInvocationContext invocation, EndpointFilterDelegate next)
+    {
+        try { return await next(invocation); }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Json(new ErrorResponse { Error = "Current evidence sharing permission is required.", ErrorCode = "EVIDENCE_ACCESS_DENIED" }, statusCode: 403);
+        }
+        catch (KeyNotFoundException)
+        {
+            return Results.NotFound(new ErrorResponse { Error = "Approved evidence summary is unavailable in this system.", ErrorCode = "EVIDENCE_UNAVAILABLE" });
+        }
+        catch (IOException)
+        {
+            return Results.Conflict(new ErrorResponse { Error = "Retained document evidence failed integrity or availability validation.", ErrorCode = "EVIDENCE_INTEGRITY_UNVERIFIED" });
+        }
+    }
+
+    private static string? SnapshotIdempotencyKey(HttpContext http)
+    {
+        if (!http.Request.Headers.TryGetValue("Idempotency-Key", out var values)) return null;
+        if (values.Count != 1 || string.IsNullOrWhiteSpace(values[0]) || values[0]!.Length > 100)
+            throw new ArgumentException("Idempotency-Key must be a single value containing 1-100 characters.");
+        return values[0];
+    }
+
     private static void MapExportRoutes(IEndpointRouteBuilder group, IEndpointRouteBuilder app, ICurrentUserService currentUser)
     {
+        foreach (var documentType in new[] { "sap", "sar", "poam" })
+        {
+            group.MapGet($"/systems/{{systemId}}/documents/{documentType}/preview", async (
+                    string systemId, AtoCopilotContext db, WorkingDocumentPreviewService previews,
+                    HttpContext http, CancellationToken ct) =>
+                {
+                    http.Response.Headers.CacheControl = "no-store";
+                    var system = await db.RegisteredSystems.AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.Id == systemId && x.IsActive, ct);
+                    if (system == null)
+                        return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "NOT_FOUND" });
+                    return Results.Ok(await previews.PreviewAsync(system, documentType, ct));
+                })
+                .WithName($"Preview{documentType.ToUpperInvariant()}Document")
+                .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
+        }
+
+        group.MapPost("/systems/{systemId}/documents/ssp/preview", async (
+                string systemId, AtoCopilotContext db, ISspExportService service, HttpContext http, CancellationToken ct) =>
+            {
+                if (!await db.RegisteredSystems.AnyAsync(s => s.Id == systemId && s.IsActive, ct))
+                    return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "NOT_FOUND" });
+                http.Response.Headers.CacheControl = "no-store";
+                try
+                {
+                    return Results.Ok(await service.CreatePreviewAsync(systemId, currentUser.CurrentUserId, ct, SnapshotIdempotencyKey(http)));
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "SNAPSHOT_REQUEST_CONFLICT" });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "VALIDATION_ERROR" });
+                }
+                catch (IOException ex)
+                {
+                    http.RequestServices.GetRequiredService<ILogger<SspExportService>>()
+                        .LogError(ex, "Retained SSP preview storage failed for system {SystemId}", systemId);
+                    return Results.Json(new ErrorResponse
+                    {
+                        Error = "Retained preview storage is unavailable. Contact an administrator to check the configured export directory.",
+                        ErrorCode = "DOCUMENT_STORAGE_UNAVAILABLE"
+                    }, statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
+            })
+            .WithName("RetainSspDocumentPreview")
+            .Produces<ErrorResponse>(StatusCodes.Status503ServiceUnavailable)
+            .AddEndpointFilter(GuardDocumentEvidenceAccessAsync)
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
+
+        group.MapGet("/systems/{systemId}/documents/ssp/preview", async (
+                string systemId,
+                AtoCopilotContext db,
+                IOscalSspExportService exportService,
+                HttpContext http,
+                CancellationToken ct) =>
+            {
+                if (!await db.RegisteredSystems.AnyAsync(system => system.Id == systemId && system.IsActive, ct))
+                    return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "NOT_FOUND" });
+                var result = await exportService.PreviewAsync(systemId, true, true, ct);
+                var gaps = result.BuildPreviewSourceGaps();
+                http.Response.Headers.CacheControl = "no-store";
+                return Results.Ok(new DocumentPreviewDto(
+                    systemId, "json", "application/json", result.OscalJson,
+                    Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(result.OscalJson))),
+                    DateTimeOffset.UtcNow, gaps) { SourceManifest = result.SourceManifest });
+            })
+            .WithName("PreviewSspDocument")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
+
         group.MapPost("/systems/{systemId}/exports", async (
                 string systemId,
                 CreateExportRequest body,
@@ -49,7 +149,14 @@ public static partial class DashboardEndpoints
 
                 try
                 {
-                    var export = await exportService.EnqueueExportAsync(systemId, format, body.TemplateId, userId, ct);
+                    var requestKey = SnapshotIdempotencyKey(httpContext);
+                    if (requestKey != null && !body.SourcePreviewId.HasValue)
+                        return Results.BadRequest(new ErrorResponse { Error = "Idempotency-Key requires sourcePreviewId for this export route.", ErrorCode = "RETAINED_PREVIEW_REQUIRED" });
+                    if (body.SourcePreviewId.HasValue && (format != "json" || body.TemplateId.HasValue))
+                        return Results.BadRequest(new ErrorResponse { Error = "Retained preview export currently supports JSON without a template only.", ErrorCode = "UNSUPPORTED_SNAPSHOT_FORMAT" });
+                    var export = body.SourcePreviewId.HasValue
+                        ? await exportService.EnqueueFromPreviewAsync(systemId, body.SourcePreviewId.Value, userId, ct, requestKey)
+                        : await exportService.EnqueueExportAsync(systemId, format, body.TemplateId, userId, ct);
                     return Results.Accepted($"/api/dashboard/systems/{systemId}/exports/{export.Id}", new ExportSummaryDto
                     {
                         ExportId = export.Id,
@@ -58,6 +165,10 @@ public static partial class DashboardEndpoints
                         GeneratedBy = export.GeneratedBy,
                         GeneratedAt = export.GeneratedAt,
                     });
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    return Results.Conflict(new ErrorResponse { Error = ex.Message, ErrorCode = "SNAPSHOT_REQUEST_CONFLICT" });
                 }
                 catch (ArgumentException ex)
                 {
@@ -68,7 +179,9 @@ public static partial class DashboardEndpoints
                     });
                 }
             })
-            .WithName("CreateSspExport");
+            .WithName("CreateSspExport")
+            .AddEndpointFilter(GuardDocumentEvidenceAccessAsync)
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
         // T014: GET /systems/{systemId}/exports — list exports
         group.MapGet("/systems/{systemId}/exports", async (
@@ -88,7 +201,8 @@ public static partial class DashboardEndpoints
                     ct);
                 return Results.Ok(new { items = exports, totalCount = exports.Count });
             })
-            .WithName("ListSspExports");
+            .WithName("ListSspExports")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
         // T015: GET /systems/{systemId}/exports/{exportId} — get export detail
         group.MapGet("/systems/{systemId}/exports/{exportId:guid}", async (
@@ -106,7 +220,8 @@ public static partial class DashboardEndpoints
                     });
                 return Results.Ok(detail);
             })
-            .WithName("GetSspExport");
+            .WithName("GetSspExport")
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
         // T011: GET /systems/{systemId}/exports/{exportId}/download — download file
         group.MapGet("/systems/{systemId}/exports/{exportId:guid}/download", async (
@@ -115,6 +230,14 @@ public static partial class DashboardEndpoints
                 ISspExportService exportService,
                 CancellationToken ct) =>
             {
+                var detail = await exportService.GetExportAsync(exportId, ct);
+                if (detail is null || detail.SystemId != systemId)
+                    return Results.NotFound(new ErrorResponse
+                    {
+                        Error = "Export not found",
+                        ErrorCode = "NOT_FOUND",
+                    });
+
                 var result = await exportService.GetExportFileStreamAsync(exportId, ct);
                 if (result is null)
                     return Results.NotFound(new ErrorResponse
@@ -134,7 +257,9 @@ public static partial class DashboardEndpoints
 
                 return Results.File(stream, contentType ?? "application/octet-stream", fileName);
             })
-            .WithName("DownloadSspExport");
+            .WithName("DownloadSspExport")
+            .AddEndpointFilter(GuardDocumentEvidenceAccessAsync)
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
 
         // ─── SSP Template Management (Feature 037 US4) ───────────────────────
 
@@ -185,6 +310,7 @@ public static partial class DashboardEndpoints
                         ct);
                     return Results.Created($"/api/dashboard/templates/{result.Id}", result);
                 }
+
                 catch (ArgumentException ex)
                 {
                     return Results.BadRequest(new ErrorResponse

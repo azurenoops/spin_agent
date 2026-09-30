@@ -191,9 +191,11 @@ export async function importSystemAzureComponents(
 export async function getAssessmentComponentRisks(
   systemId: string,
   assessmentId: string,
+  signal?: AbortSignal,
 ): Promise<import('../types/dashboard').AssessmentComponentRisks> {
   const { data } = await apiClient.get<import('../types/dashboard').AssessmentComponentRisks>(
     `/systems/${systemId}/assessments/${assessmentId}/component-risks`,
+    { signal },
   );
   return data;
 }

@@ -16,6 +16,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data.Queries;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 
@@ -60,7 +61,10 @@ public partial class DocumentTemplateService : IDocumentTemplateService
             "HostingEnvironment", "SecurityCategorization", "BaselineLevel",
             "TotalControls", "ImplementedControls", "PartialControls", "PlannedControls",
             "ControlNarratives", "InheritedControls", "SharedControls",
-            "AuthorizationBoundary", "PreparedBy", "PreparedDate"
+            "AuthorizationBoundary", "PreparedBy", "PreparedDate",
+            "ApprovedProfileMissionAndPurpose", "ApprovedProfileUsersAndAccess", "ApprovedProfileEnvironmentAndDeployment",
+            "ApprovedProfileDataTypes", "ApprovedProfilePortsProtocolsAndServices", "ApprovedProfileLeveragedAuthorizations",
+            "ProviderAuthorizationSources"
         ],
         ["sar"] = [
             "SystemName", "SystemAcronym", "AssessmentDate", "AssessorName",
@@ -83,7 +87,9 @@ public partial class DocumentTemplateService : IDocumentTemplateService
             "TotalControls", "CustomerControls", "InheritedControls", "SharedControls",
             "ControlMatrix", "StigBenchmarks", "AssessmentTeam",
             "ScheduleStart", "ScheduleEnd", "RulesOfEngagement",
-            "PreparedBy", "PreparedDate"
+            "PreparedBy", "PreparedDate",
+            "SapId", "Title", "SapStatus", "SapRevision", "ContentHash",
+            "AssessmentLead", "AssessmentApproach", "ScopeNotes", "ExcludedControls", "RetainedPlanContent"
         ]
     };
 
@@ -279,23 +285,41 @@ public partial class DocumentTemplateService : IDocumentTemplateService
     //  Render DOCX (custom template mail-merge)
     // ═════════════════════════════════════════════════════════════════════════
 
-    public async Task<byte[]> RenderDocxAsync(
+    public Task<byte[]> RenderDocxAsync(
         string systemId,
         string documentType,
         string? templateId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        RenderDocxAsync(systemId, documentType, templateId, cancellationToken, null);
+
+    public async Task<byte[]> RenderDocxAsync(
+        string systemId, string documentType, string? templateId,
+        CancellationToken cancellationToken, string? sapId)
     {
         var docType = documentType.ToLowerInvariant();
         _logger.LogInformation("Rendering DOCX {DocType} for system {SystemId}", docType, systemId);
 
-        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken);
-
+        StoredTemplate? template = null;
         if (templateId != null)
         {
-            if (!_templates.TryGetValue(templateId, out var template))
+            if (!_templates.TryGetValue(templateId, out template))
                 throw new InvalidOperationException($"Template '{templateId}' not found.");
-
-            return ApplyMailMerge(template.FileBytes, mergeData);
+            if (docType == "sap" && !string.Equals(template.DocumentType, "sap", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("SAP exports require a SAP document template.");
+            if (docType == "ssp")
+            {
+                var validation = ValidateDocxMergeFields(template.FileBytes, docType);
+                if (!validation.IsValid)
+                    throw new InvalidOperationException($"Template omits required SSP merge fields: {string.Join(", ", validation.MergeFieldsMissing)}.");
+            }
+        }
+        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken, sapId);
+        if (template != null)
+        {
+            var merged = ApplyMailMerge(template.FileBytes, mergeData);
+            // Older layouts may not contain the new planning fields. A retained-record
+            // appendix keeps the export complete without invalidating those templates.
+            return docType == "sap" ? AppendSapSnapshot(merged, mergeData) : merged;
         }
 
         // No custom template — generate a built-in DOCX with merge data
@@ -324,7 +348,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         // Replace {{FieldName}} with actual values
         foreach (var (key, value) in mergeData)
         {
-            xml = xml.Replace($"{{{{{key}}}}}", EscapeXml(value));
+            xml = xml.Replace($"{{{{{key}}}}}", EscapeXml(value), StringComparison.OrdinalIgnoreCase);
         }
 
         // Delete and re-create entry
@@ -351,17 +375,12 @@ public partial class DocumentTemplateService : IDocumentTemplateService
 
         foreach (var (key, value) in mergeData.Where(kvp => kvp.Key != "SystemName" && kvp.Key != "PreparedDate"))
         {
-            body.AppendLine($"<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>{EscapeXml(key)}: </w:t></w:r><w:r><w:t>{EscapeXml(TruncateForDocx(value))}</w:t></w:r></w:p>");
+            body.AppendLine($"<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>{EscapeXml(key)}</w:t></w:r></w:p>");
+            foreach (var line in value.Split('\n'))
+                body.AppendLine($"<w:p><w:r><w:t xml:space=\"preserve\">{EscapeXml(line.TrimEnd('\r'))}</w:t></w:r></w:p>");
         }
 
         return CreateMinimalDocx(body.ToString());
-    }
-
-    private static string TruncateForDocx(string value)
-    {
-        // Keep first 500 chars for inline display; full data is in the merge
-        if (value.Length <= 500) return value;
-        return value[..497] + "...";
     }
 
     /// <summary>Formats control narratives for the shared DOCX and PDF merge field.</summary>
@@ -369,8 +388,11 @@ public partial class DocumentTemplateService : IDocumentTemplateService
     {
         var sections = implementations
             .OrderBy(implementation => implementation.ControlId)
-            .Take(50)
             .Select(implementation =>
+                implementation.ApprovedVersionId != null && implementation.PolicyNarrative == null
+                    && implementation.TechnicalNarrative == null && !string.IsNullOrWhiteSpace(implementation.Narrative)
+                ? $"{implementation.ControlId}\nRetained approved implementation narrative:\n{implementation.Narrative}"
+                :
                 $"{implementation.ControlId}\n" +
                 "Implementation Statement (Policy):\n" +
                 $"{implementation.PolicyNarrative ?? "[Not Authored]"}\n\n" +
@@ -437,18 +459,23 @@ public partial class DocumentTemplateService : IDocumentTemplateService
     //  Render PDF (QuestPDF built-in format)
     // ═════════════════════════════════════════════════════════════════════════
 
-    public async Task<byte[]> RenderPdfAsync(
+    public Task<byte[]> RenderPdfAsync(
         string systemId,
         string documentType,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        RenderPdfAsync(systemId, documentType, progress, cancellationToken, null);
+
+    public async Task<byte[]> RenderPdfAsync(
+        string systemId, string documentType, IProgress<double>? progress,
+        CancellationToken cancellationToken, string? sapId)
     {
         var docType = documentType.ToLowerInvariant();
         _logger.LogInformation("Rendering PDF {DocType} for system {SystemId}", docType, systemId);
 
         progress?.Report(0.1);
 
-        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken);
+        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken, sapId);
 
         progress?.Report(0.3);
 
@@ -469,7 +496,11 @@ public partial class DocumentTemplateService : IDocumentTemplateService
             {
                 page.Size(PageSizes.Letter);
                 page.Margin(1, Unit.Inch);
-                page.DefaultTextStyle(x => x.FontSize(10));
+                // SAP text must remain searchable/copyable: optional ligatures in
+                // the bundled font lose characters in PDF text extraction.
+                page.DefaultTextStyle(x => documentType == "sap"
+                    ? x.FontSize(10).DisableFontFeature("liga").DisableFontFeature("clig").DisableFontFeature("dlig")
+                    : x.FontSize(10));
 
                 // Header
                 page.Header().Column(col =>
@@ -540,6 +571,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         "sar" => "Security Assessment Report (SAR)",
         "poam" => "Plan of Action & Milestones (POA&M)",
         "rar" => "Risk Assessment Report (RAR)",
+        "sap" => "Security Assessment Plan (SAP)",
         _ => $"Compliance Document ({documentType.ToUpperInvariant()})"
     };
 
@@ -557,8 +589,11 @@ public partial class DocumentTemplateService : IDocumentTemplateService
     private async Task<Dictionary<string, string>> BuildMergeDataAsync(
         string systemId,
         string documentType,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? sapId = null)
     {
+        if (sapId is not null && documentType != "sap")
+            throw new ArgumentException("A SAP source ID can only be used for SAP documents.");
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
@@ -607,7 +642,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
                 await PopulateRarData(db, systemId, data, cancellationToken);
                 break;
             case "sap":
-                await PopulateSapData(db, systemId, data, cancellationToken);
+                await PopulateSapData(db, systemId, system.TenantId, sapId, data, cancellationToken);
                 break;
         }
 
@@ -652,7 +687,18 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         data["PlannedControls"] = implementations
             .Count(ci => ci.ImplementationStatus == ImplementationStatus.Planned).ToString();
 
+        await ApprovedNarrativeDocumentData.ApplyAsync(db, implementations, ct);
         data["ControlNarratives"] = BuildControlNarratives(implementations);
+        var profileGaps = new List<string>();
+        var profiles = await ApprovedProfileDocumentData.LoadAsync(db, systemId, profileGaps, ct);
+        foreach (var profile in profiles)
+            data[$"ApprovedProfile{profile.Type}"] = ApprovedProfileDocumentData.Render(profile);
+        if (profileGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("\n", profileGaps));
+        var provider = await ProviderDocumentProvenance.ProjectDocumentAsync(db, system, ct);
+        if (provider.SourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("\n", provider.SourceGaps));
+        data["ProviderAuthorizationSources"] = provider.Content;
 
         var boundaries = await db.AuthorizationBoundaries
             .AsNoTracking()
@@ -779,41 +825,52 @@ public partial class DocumentTemplateService : IDocumentTemplateService
 
     /// <summary>T038: Populate SAP-specific merge fields from persisted SAP data.</summary>
     private static async Task PopulateSapData(
-        AtoCopilotContext db, string systemId,
+        AtoCopilotContext db, string systemId, Guid tenantId, string? sapId,
         Dictionary<string, string> data, CancellationToken ct)
     {
-        var sap = await db.SecurityAssessmentPlans
+        var sap = (await db.SecurityAssessmentPlans
             .AsNoTracking()
-            .Include(s => s.ControlEntries)
-            .Include(s => s.TeamMembers)
-            .Where(s => s.RegisteredSystemId == systemId)
-            .OrderByDescending(s => s.Status == SapStatus.Finalized ? 1 : 0)
-            .ThenByDescending(s => s.GeneratedAt)
-            .FirstOrDefaultAsync(ct);
+            .Where(s => s.RegisteredSystemId == systemId && s.TenantId == tenantId
+                && (sapId == null || s.Id == sapId))
+            .OrderWorkingFirst().Take(1)
+            .LoadRetainedDetailsAsync(ct)).SingleOrDefault();
 
-        if (sap == null) return;
+        if (sap == null)
+            throw new InvalidOperationException("No retained SAP was found for the selected system and plan.");
 
+        var included = sap.ControlEntries.Where(e => !e.IsExcluded).OrderBy(e => e.ControlId).ToList();
+        data["SapId"] = sap.Id;
+        data["Title"] = sap.Title;
+        data["SapStatus"] = sap.Status.ToString();
+        data["SapRevision"] = sap.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        data["ContentHash"] = SapService.HashContent(sap.Content);
+        data["AssessmentLead"] = sap.AssessmentLead ?? "Not recorded";
+        data["AssessmentApproach"] = sap.AssessmentApproach ?? "Not recorded";
+        data["ScopeNotes"] = sap.ScopeNotes ?? "Not recorded";
+        data["RetainedPlanContent"] = sap.Content;
         data["BaselineLevel"] = sap.BaselineLevel;
-        data["TotalControls"] = sap.TotalControls.ToString();
-        data["CustomerControls"] = sap.CustomerControls.ToString();
-        data["InheritedControls"] = sap.InheritedControls.ToString();
-        data["SharedControls"] = sap.SharedControls.ToString();
-        data["ScheduleStart"] = sap.ScheduleStart?.ToString("yyyy-MM-dd") ?? "Not scheduled";
-        data["ScheduleEnd"] = sap.ScheduleEnd?.ToString("yyyy-MM-dd") ?? "Not scheduled";
+        data["TotalControls"] = included.Count.ToString();
+        data["CustomerControls"] = included.Count(e => e.InheritanceType == InheritanceType.Customer).ToString();
+        data["InheritedControls"] = included.Count(e => e.InheritanceType == InheritanceType.Inherited).ToString();
+        data["SharedControls"] = included.Count(e => e.InheritanceType == InheritanceType.Shared).ToString();
+        data["ScheduleStart"] = sap.ScheduleStart?.ToString("O") ?? "Not scheduled";
+        data["ScheduleEnd"] = sap.ScheduleEnd?.ToString("O") ?? "Not scheduled";
         data["RulesOfEngagement"] = sap.RulesOfEngagement ?? "Not specified";
+        data["PreparedBy"] = sap.GeneratedBy;
+        data["PreparedDate"] = sap.GeneratedAt.ToString("O");
 
-        // Control matrix summary
-        var families = sap.ControlEntries
-            .GroupBy(e => e.ControlFamily)
-            .OrderBy(g => g.Key)
-            .Select(g => $"{g.Key}: {g.Count()} controls ({string.Join(", ", g.SelectMany(e => e.AssessmentMethods).Distinct().OrderBy(m => m))})")
-            .ToList();
-        data["ControlMatrix"] = families.Count > 0
-            ? string.Join("; ", families)
-            : "No controls";
+        data["ControlMatrix"] = included.Count > 0
+            ? string.Join("\n\n", included.Select(e => $"{e.ControlId} — {e.ControlTitle} ({e.ControlFamily})\n"
+                + $"Methods: {string.Join(", ", e.AssessmentMethods)}\n"
+                + $"Method rationale: {e.OverrideRationale ?? "Not recorded"}\n"
+                + $"Objectives:\n{string.Join("\n", e.AssessmentObjectives)}"))
+            : "No controls included in the retained assessment scope.";
+        var exclusions = sap.ControlEntries.Where(e => e.IsExcluded).OrderBy(e => e.ControlId)
+            .Select(e => $"{e.ControlId} — {e.ControlTitle}: {e.ExclusionRationale ?? "No rationale recorded"}").ToList();
+        data["ExcludedControls"] = exclusions.Count > 0 ? string.Join("\n", exclusions) : "No explicit exclusions.";
 
         // STIG benchmarks
-        var stigs = sap.ControlEntries
+        var stigs = included
             .SelectMany(e => e.StigBenchmarks)
             .Distinct()
             .OrderBy(s => s)
@@ -824,11 +881,39 @@ public partial class DocumentTemplateService : IDocumentTemplateService
 
         // Assessment team
         var team = sap.TeamMembers
-            .Select(m => $"{m.Name} ({m.Role}, {m.Organization})")
+            .Select(m => $"{m.Name} ({m.Role}, {m.Organization}) — {m.ContactInfo ?? "No contact recorded"}")
             .ToList();
         data["AssessmentTeam"] = team.Count > 0
             ? string.Join("; ", team)
             : "No team assigned";
+    }
+
+    private static byte[] AppendSapSnapshot(byte[] document, Dictionary<string, string> data)
+    {
+        using var output = new MemoryStream();
+        output.Write(document);
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var part = archive.GetEntry("word/document.xml")
+                ?? throw new InvalidOperationException("The SAP template has no document body.");
+            XDocument xml;
+            using (var input = part.Open()) xml = XDocument.Load(input);
+            XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+            var body = xml.Root?.Element(w + "body")
+                ?? throw new InvalidOperationException("The SAP template has no document body.");
+            var paragraphs = new List<XElement>();
+            foreach (var line in new[] { "Retained SAP record" }.Concat(data.SelectMany(kv =>
+                new[] { FormatFieldLabel(kv.Key) }.Concat(kv.Value.Split('\n')))))
+                paragraphs.Add(new XElement(w + "p", new XElement(w + "r",
+                    new XElement(w + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), line.TrimEnd('\r')))));
+            var section = body.Element(w + "sectPr");
+            if (section is null) body.Add(paragraphs);
+            else section.AddBeforeSelf(paragraphs);
+            part.Delete();
+            using var writer = archive.CreateEntry("word/document.xml").Open();
+            xml.Save(writer);
+        }
+        return output.ToArray();
     }
 
     // ═════════════════════════════════════════════════════════════════════════

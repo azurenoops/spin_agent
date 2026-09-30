@@ -23,6 +23,95 @@ public sealed class ProviderDecisionLifecycleHttpTests : IClassFixture<PackageIm
         factory.GetActiveContext().ImpersonatedTenantId = null;
     }
 
+    [Theory]
+    [InlineData("person")]
+    [InlineData("organization")]
+    public async Task GenericUpstreamReference_HttpRoundTrip_PreservesExplicitIdentityTypeAndLegacyReadability(string issuerType)
+    {
+        // Arrange
+        var (offering, draft, citations) = await Draft(issuerType: issuerType,
+            recordKind: "InheritedProviderReference", upstreamProvider: "Synthetic non-Microsoft SaaS");
+        var recorded = await Record(offering, draft);
+        var state = await Data(await _client.GetAsync($"/api/csp/offerings/{offering}"));
+        var legacy = await Data(await Post($"/api/csp/offerings/{offering}/authorization-records", new
+        {
+            expectedOfferingRevision = state.GetProperty("revision").GetInt64(),
+            boundaryRevisionId = draft.GetProperty("boundaryRevisionId").GetGuid(), sourceCandidateRefs = Array.Empty<object>(),
+            recordKind = "InheritedMicrosoftReference", reference = "SYNTHETIC legacy reference", issuingAuthority = "Recorded legacy issuer",
+            decisionAsStated = "ATO", expiryBasis = "NoExpiryStated", scopeStatement = "Legacy source only",
+            conditions = Array.Empty<string>(), citations
+        }));
+
+        // Act
+        var read = await Data(await _client.GetAsync($"/api/csp/offerings/{offering}/authorization-records/{recorded.GetProperty("recordId").GetGuid()}"));
+        var references = await Data(await _client.GetAsync($"/api/csp/offerings/{offering}/authorization-records?recordKind=InheritedReferences&pageSize=1"));
+        var legacyRead = await Data(await _client.GetAsync($"/api/csp/offerings/{offering}/authorization-records/{legacy.GetProperty("recordId").GetGuid()}"));
+
+        // Assert
+        read.GetProperty("recordKind").GetString().Should().Be("InheritedProviderReference");
+        read.GetProperty("upstreamProvider").GetString().Should().Be("Synthetic non-Microsoft SaaS");
+        read.GetProperty("issuingAuthorityType").GetString().Should().Be(issuerType);
+        read.GetProperty("snapshotHash").GetString().Should().Be(draft.GetProperty("snapshotHash").GetString());
+        references.GetProperty("total").GetInt32().Should().Be(2);
+        references.GetProperty("items").GetArrayLength().Should().Be(1);
+        legacyRead.GetProperty("recordKind").GetString().Should().Be("InheritedMicrosoftReference");
+        legacyRead.GetProperty("upstreamProvider").ValueKind.Should().Be(JsonValueKind.Null);
+        var revisedResponse = await _client.PutAsJsonAsync(
+            $"/api/csp/offerings/{offering}/authorization-records/{read.GetProperty("recordId").GetGuid()}/draft", new
+            {
+                expectedRevision = read.GetProperty("revision").GetInt64(),
+                boundaryRevisionId = draft.GetProperty("boundaryRevisionId").GetGuid(), sourceCandidateRefs = Array.Empty<object>(),
+                recordKind = "InheritedProviderReference", reference = "SYNTHETIC successor",
+                issuingAuthority = "Synthetic source authority", issuingAuthorityType = issuerType,
+                upstreamProvider = "Explicitly revised upstream identity", decisionAsStated = "ATO",
+                issuedOn = "2019-01-01", effectiveOn = "2019-01-01", expiryBasis = "NoExpiryStated",
+                scopeStatement = "Synthetic source scope", conditions = Array.Empty<string>(), citations
+            });
+        revisedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var revised = await Data(revisedResponse);
+        revised.GetProperty("upstreamProvider").GetString().Should().Be("Explicitly revised upstream identity");
+        revised.GetProperty("issuingAuthorityType").GetString().Should().Be(issuerType);
+        revised.GetProperty("metadataReviewState").GetString().Should().Be("Unconfirmed");
+        var history = await Data(await _client.GetAsync(
+            $"/api/csp/offerings/{offering}/authorization-records/{read.GetProperty("recordId").GetGuid()}/revisions"));
+        history.GetProperty("items").EnumerateArray().Should().Contain(item =>
+            item.GetProperty("revisionId").GetGuid() == draft.GetProperty("revisionId").GetGuid()
+            && item.GetProperty("snapshotHash").GetString() == draft.GetProperty("snapshotHash").GetString()
+            && item.GetProperty("upstreamProvider").GetString() == "Synthetic non-Microsoft SaaS");
+    }
+
+    [Fact]
+    public async Task OfferingIdentity_HttpRoundTripAndLegacyPatch_PreserveExplicitMetadata()
+    {
+        // Arrange
+        var created = await Data(await Post("/api/csp/offerings", new
+        {
+            name = $"Synthetic identity {Guid.NewGuid():N}", description = "Manual service identity, not a live connector",
+            environments = new[] { "AzureUSGovernment" }, serviceModel = "SoftwareAsAService",
+            managementArrangement = "SharedOperations", serviceOwner = "Synthetic service operations",
+            securityContact = "Synthetic provider ISSM"
+        }));
+        var id = created.GetProperty("offeringId").GetGuid();
+
+        // Act
+        var patch = await _client.PatchAsJsonAsync($"/api/csp/offerings/{id}", new
+        {
+            expectedRevision = created.GetProperty("revision").GetInt64(), name = created.GetProperty("name").GetString(),
+            description = "Updated description", environments = new[] { "AzureUSGovernment" }
+        });
+        var current = await Data(await _client.GetAsync($"/api/csp/offerings/{id}"));
+
+        // Assert
+        patch.StatusCode.Should().Be(HttpStatusCode.OK);
+        current.GetProperty("serviceModel").GetString().Should().Be("SoftwareAsAService");
+        current.GetProperty("managementArrangement").GetString().Should().Be("SharedOperations");
+        current.GetProperty("serviceOwner").GetString().Should().Be("Synthetic service operations");
+        current.GetProperty("securityContact").GetString().Should().Be("Synthetic provider ISSM");
+        current.GetProperty("revision").GetInt64().Should().BeGreaterThan(created.GetProperty("revision").GetInt64());
+        current.GetProperty("lifecycle").GetString().Should().Be("Draft");
+        current.GetProperty("currentHostingScopeRevisionId").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
     [Fact]
     public async Task HumanRecordingAndLifecycle_AdvanceConcurrencyFence_WithoutRewritingSnapshot()
     {
@@ -68,6 +157,26 @@ public sealed class ProviderDecisionLifecycleHttpTests : IClassFixture<PackageIm
         responses.Should().OnlyContain(x => x.StatusCode == HttpStatusCode.Created);
         var records = await Task.WhenAll(responses.Select(Data));
         records.Select(x => x.GetProperty("offeringId").GetGuid()).Distinct().Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("person")]
+    [InlineData("organization")]
+    public async Task IssuerType_IsRetainedOnlyAsExplicitlyRecorded(string? issuerType)
+    {
+        // Arrange
+        var (offering, draft, _) = await Draft(issuerType: issuerType);
+
+        // Act
+        var recorded = await Record(offering, draft);
+        var current = await Data(await _client.GetAsync(
+            $"/api/csp/offerings/{offering}/authorization-records/{draft.GetProperty("recordId").GetGuid()}"));
+
+        // Assert
+        recorded.GetProperty("issuingAuthorityType").GetString().Should().Be(issuerType);
+        current.GetProperty("issuingAuthorityType").GetString().Should().Be(issuerType);
+        current.GetProperty("snapshotHash").GetString().Should().Be(draft.GetProperty("snapshotHash").GetString());
     }
 
     [Fact]
@@ -144,6 +253,7 @@ public sealed class ProviderDecisionLifecycleHttpTests : IClassFixture<PackageIm
     [Theory]
     [InlineData("ProviderDecision", "DATO")]
     [InlineData("InheritedMicrosoftReference", "Authorized")]
+    [InlineData("InheritedProviderReference", "Authorized")]
     public async Task Supersession_RejectsNegativeDecisionOrInheritedReferenceAsProviderReplacement(string kind, string stated)
     {
         // Arrange
@@ -155,6 +265,7 @@ public sealed class ProviderDecisionLifecycleHttpTests : IClassFixture<PackageIm
             expectedOfferingRevision = current.GetProperty("revision").GetInt64(),
             boundaryRevisionId = draft.GetProperty("boundaryRevisionId").GetGuid(), sourceCandidateRefs = Array.Empty<object>(),
             recordKind = kind, reference = "SYNTHETIC-REPLACEMENT", issuingAuthority = "Synthetic authority",
+            upstreamProvider = kind == "InheritedProviderReference" ? "Synthetic upstream SaaS" : null,
             decisionAsStated = stated, expiryBasis = "NoExpiryStated", scopeStatement = "Synthetic recorded scope",
             conditions = Array.Empty<string>(), citations
         }));
@@ -190,7 +301,8 @@ public sealed class ProviderDecisionLifecycleHttpTests : IClassFixture<PackageIm
         return await _client.SendAsync(request);
     }
 
-    private async Task<(Guid Offering, JsonElement Decision, object[] Citations)> Draft(bool source = true)
+    private async Task<(Guid Offering, JsonElement Decision, object[] Citations)> Draft(bool source = true, string? issuerType = null,
+        string recordKind = "ProviderDecision", string? upstreamProvider = null)
     {
         var offering = await Data(await Post("/api/csp/offerings", new
         {
@@ -226,7 +338,8 @@ public sealed class ProviderDecisionLifecycleHttpTests : IClassFixture<PackageIm
         {
             expectedOfferingRevision = boundary.GetProperty("offeringRevision").GetInt64(),
             boundaryRevisionId = boundary.GetProperty("boundaryRevisionId").GetGuid(), sourceCandidateRefs = Array.Empty<object>(),
-            recordKind = "ProviderDecision", reference = "SYNTHETIC-ONLY", issuingAuthority = "Synthetic source authority",
+            recordKind, upstreamProvider, reference = "SYNTHETIC-ONLY", issuingAuthority = "Synthetic source authority",
+            issuingAuthorityType = issuerType,
             decisionAsStated = "ATO", issuedOn = "2019-01-01", effectiveOn = "2019-01-01",
             expiryBasis = "NoExpiryStated", scopeStatement = "Synthetic source scope", conditions = Array.Empty<string>(), citations
         });

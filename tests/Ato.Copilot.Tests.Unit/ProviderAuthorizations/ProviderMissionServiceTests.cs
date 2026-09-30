@@ -19,10 +19,13 @@ using Xunit;
 using Moq;
 using Ato.Copilot.Core.Interfaces.PackageImports;
 using static Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationStore;
+using Ato.Copilot.Agents.Compliance.Services;
+using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Ato.Copilot.Tests.Unit.ProviderAuthorizations;
 
-public sealed class ProviderMissionServiceTests : IAsyncLifetime
+public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly TenantContextAccessor _accessor = new();
@@ -67,7 +70,8 @@ public sealed class ProviderMissionServiceTests : IAsyncLifetime
         _offering.CurrentHostingScopeRevisionId = hosting.Id;
         var record = new Ato.Copilot.Core.Models.ProviderAuthorizations.ProviderAuthorizationRecord { ProviderId = _provider, OfferingId = _offering.Id };
         var decisionBody = new CreateProviderDecisionRequest(1, _boundary.Id, [], "ProviderDecision", "Decision reference",
-            "External authority", "ATO", null, null, null, "NoExpiryStated", "Recorded scope", [], [_citation]);
+            "External authority", "ATO", "2025-04-17", null, null, "NoExpiryStated", "Recorded scope", [], [_citation])
+            { IssuingAuthorityType = "organization" };
         _decision = new() { ProviderId = _provider, OfferingId = _offering.Id, RecordId = record.Id, BoundaryRevisionId = _boundary.Id,
             SnapshotJson = ProviderAuthorizationStore.Json(decisionBody), SnapshotHash = Hash(ProviderAuthorizationStore.Json(decisionBody)), MetadataReviewState = "Recorded",
             RecordedBy = "provider", RecordedAt = DateTimeOffset.UtcNow };
@@ -235,7 +239,7 @@ public sealed class ProviderMissionServiceTests : IAsyncLifetime
             seed.CspInheritedCapabilities.Add(new() { Id = capabilityId, CspInheritedComponentId = component.Id,
                 Name = "Published capability", Status = CspInheritedCapabilityStatus.Mapped, MappedNistControlIds = ["AC-2", "AC-3", "AC-4"] });
             seed.Add(release);
-            var hosting = await seed.Set<ProviderHostingScopeRevision>().SingleAsync();
+            var hosting = await seed.Set<ProviderHostingScopeRevision>().SingleAsync(x => x.OfferingId == _offering.Id);
             var context = new ProviderPublicationContextMaterial(_offering.Id, _offering.Revision, _boundary.Id, _boundary.SnapshotHash,
                 hosting.Id, hosting.SnapshotHash, [new(_decision.RecordId, _decision.Id, _decision.SnapshotHash, "lifecycle")], [], []);
             var review = new ProviderAuthorizationImpactReview { ProviderId = _provider, OfferingId = _offering.Id,
@@ -248,6 +252,222 @@ public sealed class ProviderMissionServiceTests : IAsyncLifetime
             await seed.SaveChangesAsync();
         }
         return (capabilityId, release);
+    }
+
+    [Theory]
+    [InlineData(OrganizationRole.MissionOwner)]
+    [InlineData(OrganizationRole.SystemOwner)]
+    public async Task MissionOwnerMayAdoptExactPublishedRelease_ButCannotConfirmResponsibilities(OrganizationRole role)
+    {
+        // Arrange
+        var (capabilityId, release) = await SeedPublishedAsync();
+        await using (var seed = new AtoCopilotContext(_options))
+        {
+            (await seed.SystemRoleAssignments.SingleAsync()).Role = role;
+            await seed.SaveChangesAsync();
+        }
+        var tenant = new TenantContext(_tenant) { PersonId = _person, IsWorkspaceRequest = true };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = Service(db, tenant);
+        await service.AssociateAsync(_system, new(_assignment.Id, 1), "mission-owner", default);
+        var applicability = (await service.ApplicableAsync(_system, 1, 10, _assignment.Id, null, null, capabilityId, release.Id, default)).Items.Single();
+
+        // Act
+        var adopted = await service.AdoptAsync(_system, new(_assignment.Id, 1, capabilityId, release.Id,
+            applicability.Applicability.SnapshotHash, applicability.ApplicabilityPreviewHash), "mission-owner", default, "mo-adopt");
+        var access = new SystemWorkspaceAccessService(new Factory(_options, _accessor), _accessor);
+        var responsibilities = new CapabilityResponsibilityService(db, tenant, access, NullLogger<CapabilityResponsibilityService>.Instance);
+        var confirm = () => responsibilities.ConfirmAsync(_system, capabilityId, new("", "", "", []), "mission-owner");
+
+        // Assert
+        applicability.CanProposeAdoption.Should().BeTrue();
+        applicability.CanConfirmResponsibilities.Should().BeFalse();
+        adopted.Subscription.Responsibilities.CanConfirm.Should().BeFalse();
+        await confirm.Should().ThrowAsync<UnauthorizedAccessException>();
+        (await db.Set<CapabilityResponsibilityConfirmation>().CountAsync()).Should().Be(0);
+        (await db.AuthorizationDecisions.CountAsync()).Should().Be(0);
+        (await db.CapabilitySubscriptions.SingleAsync()).CurrentAdoptionSnapshotId.Should().Be(adopted.AdoptionSnapshotId);
+    }
+
+    [Theory]
+    [InlineData("unrelated-person")]
+    [InlineData("foreign-tenant")]
+    public async Task AdoptionHandoff_RejectsUnrelatedScopeBeforeCreatingSubscription(string denied)
+    {
+        // Arrange
+        var (capabilityId, _) = await SeedPublishedAsync();
+        var tenant = new TenantContext(denied == "foreign-tenant" ? Guid.NewGuid() : _tenant)
+        {
+            PersonId = denied == "unrelated-person" ? Guid.NewGuid() : _person, IsWorkspaceRequest = true
+        };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var access = new SystemWorkspaceAccessService(new Factory(_options, _accessor), _accessor);
+        var responsibilities = new CapabilityResponsibilityService(db, tenant, access, NullLogger<CapabilityResponsibilityService>.Instance);
+
+        // Act
+        var adopt = () => responsibilities.SubscribeForAdoptionAsync(_system, capabilityId, "unrelated");
+
+        // Assert
+        await adopt.Should().ThrowAsync<KeyNotFoundException>();
+        (await db.CapabilitySubscriptions.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ExplicitSuccessorAdoption_ExportsSelectedRelease_AndPreservesPriorHistory()
+    {
+        // Arrange
+        var (capabilityId, firstRelease) = await SeedPublishedAsync();
+        var tenant = new TenantContext(_tenant) { PersonId = _person, IsWorkspaceRequest = true };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = Service(db, tenant);
+        await service.AssociateAsync(_system, new(_assignment.Id, 1), "owner", default);
+        var firstRequest = await AdoptionRequestAsync(service, capabilityId, firstRelease.Id);
+        var first = await service.AdoptAsync(_system, firstRequest, "manager", default, "adopt-v1");
+        var firstSnapshot = (await db.Set<CapabilityAdoptionSnapshot>().SingleAsync()).SnapshotJson;
+        var firstExport = await ExportAsync();
+        var nextRelease = new ProviderCapabilityRelease
+        {
+            CapabilityId = capabilityId, Revision = 2, SnapshotJson = firstRelease.SnapshotJson,
+            SnapshotHash = "exact-release-v2", IdempotencyKey = "release-v2", PublishedBy = "provider"
+        };
+        await using (var seed = new AtoCopilotContext(_options))
+        {
+            var context = await seed.Set<ProviderCatalogContextSnapshot>().SingleAsync();
+            seed.Add(nextRelease);
+            seed.Add(new ProviderCatalogContextSnapshot
+            {
+                ProviderId = _provider, OfferingId = _offering.Id, CapabilityId = capabilityId, ReleaseId = nextRelease.Id,
+                ImpactReviewId = context.ImpactReviewId, SnapshotJson = context.SnapshotJson, SnapshotHash = context.SnapshotHash
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        // Act
+        var second = await service.AdoptAsync(_system, await AdoptionRequestAsync(service, capabilityId, nextRelease.Id),
+            "manager", default, "adopt-v2");
+        var secondExport = await ExportAsync();
+        await service.AdoptAsync(_system, firstRequest, "manager", default, "adopt-v1");
+        var afterReplay = await ExportAsync();
+
+        // Assert
+        first.Subscription.Id.Should().Be(second.Subscription.Id);
+        firstExport.ProviderProvenanceGaps.Should().BeEmpty();
+        secondExport.ProviderProvenanceGaps.Should().BeEmpty();
+        ExportedProperty(firstExport, "release-id").Should().Be(firstRelease.Id.ToString());
+        ExportedProperty(secondExport, "release-id").Should().Be(nextRelease.Id.ToString());
+        ExportedProperty(afterReplay, "adoption-id").Should().Be(second.AdoptionSnapshotId.ToString());
+        (await db.Set<CapabilityAdoptionSnapshot>().CountAsync()).Should().Be(2);
+        (await db.Set<CapabilityAdoptionSnapshot>().SingleAsync(x => x.Id == first.AdoptionSnapshotId))
+            .SnapshotJson.Should().Be(firstSnapshot);
+    }
+
+    [Fact]
+    public async Task UnsubscribeAndReactivate_RequireFreshExplicitAdoption_WithoutRevivingHistory()
+    {
+        // Arrange
+        var (capabilityId, release) = await SeedPublishedAsync();
+        var tenant = new TenantContext(_tenant) { PersonId = _person, IsWorkspaceRequest = true };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = Service(db, tenant);
+        var access = new SystemWorkspaceAccessService(new Factory(_options, _accessor), _accessor);
+        var responsibilities = new CapabilityResponsibilityService(db, tenant, access, NullLogger<CapabilityResponsibilityService>.Instance);
+        await service.AssociateAsync(_system, new(_assignment.Id, 1), "owner", default);
+        var first = await service.AdoptAsync(_system, await AdoptionRequestAsync(service, capabilityId, release.Id),
+            "manager", default, "first-cycle");
+
+        // Act
+        await responsibilities.UnsubscribeAsync(_system, capabilityId, "manager");
+        var unsubscribed = await ExportAsync();
+        await responsibilities.SubscribeAsync(_system, capabilityId, "manager");
+        var reactivated = await ExportAsync();
+        var fresh = await service.AdoptAsync(_system, await AdoptionRequestAsync(service, capabilityId, release.Id),
+            "manager", default, "second-cycle");
+        var readopted = await ExportAsync();
+
+        // Assert
+        unsubscribed.OscalJson.Should().NotContain("leveraged-authorizations");
+        reactivated.OscalJson.Should().NotContain("leveraged-authorizations");
+        reactivated.ProviderProvenanceGaps.Should().NotBeEmpty();
+        fresh.Subscription.Id.Should().Be(first.Subscription.Id);
+        ExportedProperty(readopted, "adoption-id").Should().Be(fresh.AdoptionSnapshotId.ToString());
+        (await db.Set<CapabilityAdoptionSnapshot>().CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Adoption_RejectsReusedPreviewAfterAnotherExplicitSelection()
+    {
+        // Arrange
+        var (capabilityId, release) = await SeedPublishedAsync();
+        var tenant = new TenantContext(_tenant) { PersonId = _person, IsWorkspaceRequest = true };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = Service(db, tenant);
+        await service.AssociateAsync(_system, new(_assignment.Id, 1), "owner", default);
+        var stale = await AdoptionRequestAsync(service, capabilityId, release.Id);
+        await service.AdoptAsync(_system, stale, "manager", default, "winning-choice");
+
+        // Act
+        var competing = () => service.AdoptAsync(_system, stale, "manager", default, "competing-choice");
+
+        // Assert
+        await competing.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        (await db.Set<CapabilityAdoptionSnapshot>().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AdoptionSelection_UsesDatabaseConcurrencyFenceAcrossContexts()
+    {
+        // Arrange
+        var (capabilityId, release) = await SeedPublishedAsync();
+        var tenant = new TenantContext(_tenant) { PersonId = _person, IsWorkspaceRequest = true };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = Service(db, tenant);
+        await service.AssociateAsync(_system, new(_assignment.Id, 1), "owner", default);
+        await service.AdoptAsync(_system, await AdoptionRequestAsync(service, capabilityId, release.Id),
+            "manager", default, "initial-selection");
+        await using var first = new AtoCopilotContext(_options, _accessor);
+        await using var competing = new AtoCopilotContext(_options, _accessor);
+        var winner = await first.CapabilitySubscriptions.SingleAsync();
+        var stale = await competing.CapabilitySubscriptions.SingleAsync();
+        winner.CurrentAdoptionSnapshotId = null;
+        winner.AdoptionSelectionRevision++;
+        stale.CurrentAdoptionSnapshotId = null;
+        stale.AdoptionSelectionRevision++;
+        await first.SaveChangesAsync();
+
+        // Act
+        var saveStale = () => competing.SaveChangesAsync();
+
+        // Assert
+        await saveStale.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        (await db.Set<CapabilityAdoptionSnapshot>().CountAsync()).Should().Be(1);
+    }
+
+    private async Task<AdoptProviderCapabilityRequest> AdoptionRequestAsync(ProviderMissionService service, Guid capability, Guid release)
+    {
+        var selected = (await service.ApplicableAsync(_system, 1, 10, _assignment.Id, null, null, capability, release, default)).Items.Single();
+        return new(_assignment.Id, _assignment.Revision, capability, release, selected.Applicability.SnapshotHash, selected.ApplicabilityPreviewHash);
+    }
+
+    private async Task<OscalExportResult> ExportAsync()
+    {
+        using var services = new ServiceCollection()
+            .AddScoped(_ => new AtoCopilotContext(_options, _accessor)).BuildServiceProvider();
+        return await new OscalSspExportService(services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<OscalSspExportService>.Instance).ExportAsync(_system);
+    }
+
+    private static string? ExportedProperty(OscalExportResult result, string name)
+    {
+        using var document = JsonDocument.Parse(result.OscalJson);
+        return document.RootElement.GetProperty("system-security-plan").GetProperty("system-implementation")
+            .GetProperty("leveraged-authorizations").EnumerateArray().Single().GetProperty("props").EnumerateArray()
+            .Single(p => p.GetProperty("name").GetString() == name).GetProperty("value").GetString();
     }
 
     [Theory]
@@ -423,7 +643,7 @@ public sealed class ProviderMissionServiceTests : IAsyncLifetime
         (await db.AuthorizationDecisions.CountAsync()).Should().Be(0);
         await FluentActions.Awaiting(() => service.AdoptAsync(_system,
             new(_assignment.Id, 1, Guid.NewGuid(), Guid.NewGuid(), "hash", "hash"), "owner", default))
-            .Should().ThrowAsync<UnauthorizedAccessException>();
+            .Should().ThrowAsync<DbUpdateConcurrencyException>();
     }
 
     [Theory]

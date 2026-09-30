@@ -57,14 +57,15 @@ export async function downloadEvidence(systemId: string, evidenceId: string): Pr
   return data;
 }
 
-export async function deleteEvidence(systemId: string, evidenceId: string): Promise<void> {
-  await apiClient.delete(`/systems/${systemId}/evidence/${evidenceId}`);
+export async function deleteEvidence(systemId: string, evidenceId: string, expectedHash?: string): Promise<void> {
+  await apiClient.delete(`/systems/${systemId}/evidence/${evidenceId}`, { params: { expectedHash } });
 }
 
 export async function replaceEvidence(params: EvidenceReplaceParams): Promise<EvidenceArtifactDto> {
   const formData = new FormData();
   formData.append('file', params.file);
   if (params.description) formData.append('description', params.description);
+  if (params.expectedHash) formData.append('expectedHash', params.expectedHash);
 
   const { data } = await apiClient.put<EvidenceArtifactDto>(
     `/systems/${params.systemId}/evidence/${params.evidenceId}`,

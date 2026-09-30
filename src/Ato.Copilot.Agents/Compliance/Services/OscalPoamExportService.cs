@@ -72,6 +72,15 @@ public class OscalPoamExportService : IOscalPoamExportService
         var now = DateTimeOffset.UtcNow;
 
         var poamItems = items.Select(item => BuildPoamItem(item, registry)).ToList();
+        var connected = await Ato.Copilot.Core.Services.PoamService.GetConnectedExportReferencesAsync(db, items, cancellationToken);
+        for (var index = 0; index < items.Count; index++)
+        {
+            var refs = connected[items[index].Id];
+            const string ns = "https://ato-copilot.dev/ns/remediation";
+            poamItems[index].Props!.AddRange(refs.Tasks.Select(id => new OscalProp { Name = "remediation-task-id", Ns = ns, Value = id }));
+            poamItems[index].Props!.AddRange(refs.Evidence.Select(id => new OscalProp { Name = "remediation-evidence-reference", Ns = ns, Value = id }));
+            poamItems[index].Props!.AddRange(refs.Exceptions.Select(id => new OscalProp { Name = "exception-reference", Ns = ns, Value = id }));
+        }
         var risks = items
             .Where(i => i.Milestones.Count > 0)
             .Select(i => BuildRiskWithMilestones(i, registry))

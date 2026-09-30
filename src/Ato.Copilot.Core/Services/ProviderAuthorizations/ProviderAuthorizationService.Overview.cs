@@ -26,8 +26,18 @@ public sealed partial class ProviderAuthorizationService
                 capabilities.Count(x => x.PublicationState == "Unpublished" && x.ReviewState == "NeedsReview"),
                 capabilities.Count(x => x.PublicationState == "Unpublished" && x.ReviewState == "Reviewed"),
                 capabilities.Count(x => x.PublicationState == "Published"),
-                capabilities.Count(x => x.PublicationState == "Archived")),
-            await OverviewHostingAsync(db, offering, ct));
+                capabilities.Count(x => x.PublicationState == "Archived"))
+            {
+                PublishedReleaseRevisions = capabilities.Where(x => x.PublicationState == "Published")
+                    .Select(x => x.ReleaseRevision!.Value).Distinct().Order().ToArray()
+            },
+            await OverviewHostingAsync(db, offering, ct))
+        {
+            CustomerActionCount = await OverviewCustomerActionsAsync(db, offering, ct),
+            OpenFindingCount = await db.Set<ProviderFinding>().AsNoTracking()
+                .CountAsync(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id
+                    && x.WorkflowState != "Closed", ct)
+        };
     }
 
     private static async Task<OfferingOverviewAuthorizations> OverviewAuthorizationsAsync(
@@ -46,7 +56,7 @@ public sealed partial class ProviderAuthorizationService
         var decisions = revisions.Values.Where(x =>
         {
             var source = Read<CreateProviderDecisionRequest>(x.SnapshotJson);
-            if (source.RecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference")
+            if (source.RecordKind is not ("ProviderDecision" or "InheritedMicrosoftReference" or "InheritedProviderReference")
                 || source.BoundaryRevisionId == Guid.Empty || source.SourceCandidateRefs is null
                 || source.Conditions is null || source.Citations is null)
                 throw new InvalidDataException("An authorization revision has invalid retained decision material.");
@@ -77,7 +87,9 @@ public sealed partial class ProviderAuthorizationService
         AtoCopilotContext db, ProviderOffering offering, int page, int pageSize, CancellationToken ct)
     {
         var versions = await db.Set<ProviderPackageVersion>().AsNoTracking()
-            .Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id).ToListAsync(ct);
+            .Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id
+                && !db.CspPackages.IgnoreQueryFilters().Any(p => p.ProviderId == offering.ProviderId
+                    && p.Id == x.PackageId && p.ArchivedAt != null)).ToListAsync(ct);
         var linkedIds = versions.Select(x => x.PackageId).ToArray();
         var receipts = await db.CspPackages.AsNoTracking().Where(x => x.ProviderId == offering.ProviderId
             && (x.OfferingId == offering.Id || linkedIds.Contains(x.Id))).ToListAsync(ct);
@@ -98,9 +110,15 @@ public sealed partial class ProviderAuthorizationService
                 throw new InvalidDataException("An offering receipt has inconsistent retained package or boundary links.");
         }
         // DateTimeOffset ordering is client-side for parity with SQLite and SQL Server.
-        var ordered = receipts.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).ToArray();
+        var active = receipts.Where(x => x.SupersededAt == null).ToArray();
+        var ordered = active.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).ToArray();
         var ids = receipts.Select(x => x.Id).ToArray();
-        var candidates = await db.CspPackageCandidates.AsNoTracking().Where(x => ids.Contains(x.PackageId))
+        var sourceEntries = await db.CspPackageEntries.AsNoTracking().Where(x => ids.Contains(x.PackageId))
+            .Select(x => new { x.FileName, x.ArchivePath, x.MediaType }).ToListAsync(ct);
+        // Original upload media types are retained verbatim; classify wrappers independently of analysis status.
+        var sourceDocumentCount = sourceEntries.Count(x => !IsSourceContainer(x.FileName, x.ArchivePath, x.MediaType));
+        var activeIds = active.Select(x => x.Id).ToArray();
+        var candidates = await db.CspPackageCandidates.AsNoTracking().Where(x => activeIds.Contains(x.PackageId))
             .Select(x => new { x.PackageId, x.Type, x.ReviewState }).ToListAsync(ct);
         var grouped = candidates.ToLookup(x => x.PackageId);
         var selected = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
@@ -124,11 +142,26 @@ public sealed partial class ProviderAuthorizationService
             .ThenBy(x => x.ReviewState == "NeedsReview" ? 0 : 1)
             .ThenByDescending(x => receiptMap[x.PackageId].CreatedAt).ThenBy(x => x.PackageId)
             .FirstOrDefault();
-        return new(items, page, pageSize, receipts.Count,
-            receipts.Count(x => x.ProcessingState is "NeedsAttention" or "Failed"),
-            receipts.Count(x => x.ProcessingState is "Received" or "Processing"),
+        return new(items, page, pageSize, active.Length,
+            active.Count(x => x.ProcessingState is "NeedsAttention" or "Failed"),
+            active.Count(x => x.ProcessingState is "Received" or "Processing"),
             candidates.Count(x => x.ReviewState == "NeedsReview"),
-            preferred is null ? null : new(preferred.PackageId, receiptMap[preferred.PackageId].Name, preferred.Type));
+            preferred is null ? null : new(preferred.PackageId, receiptMap[preferred.PackageId].Name, preferred.Type))
+        {
+            SourceDocumentCount = sourceDocumentCount
+        };
+    }
+
+    private static bool IsSourceContainer(string fileName, string archivePath, string mediaType)
+    {
+        if (fileName.EndsWith('/') || fileName.EndsWith('\\')
+            || archivePath.EndsWith('/') || archivePath.EndsWith('\\')
+            || fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            || archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return mediaType.Split(';', 2)[0].Trim().ToLowerInvariant()
+            is "application/zip" or "application/x-zip" or "application/x-zip-compressed"
+                or "inode/directory" or "application/x-directory";
     }
 
     private static async Task<OfferingOverviewHosting> OverviewHostingAsync(

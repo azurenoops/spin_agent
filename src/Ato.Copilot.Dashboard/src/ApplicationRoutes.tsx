@@ -11,7 +11,10 @@ import AuthorizationPage from './pages/AuthorizationPage';
 import RolesManagementPage from './pages/RolesManagementPage';
 import BoundaryManagement from './pages/BoundaryManagement';
 import Documents from './pages/Documents';
+import SystemDocumentPreview from './features/systems/SystemDocumentPreview';
+import SystemHistoryPage from './features/systems/SystemHistoryPage';
 import ConMon from './pages/ConMon';
+import ScopedMonitoring from './pages/ScopedMonitoring';
 import Assessments from './pages/Assessments';
 import AssessmentEnvironment from './pages/AssessmentEnvironment';
 import Remediation from './pages/Remediation';
@@ -48,6 +51,9 @@ import WorkspaceOperationsPage from './features/workspace-operations/WorkspaceOp
 import { AuthorizationsPage } from './features/provider-authorizations/AuthorizationsPage';
 import MissionAssociationWizard from './features/provider-relationships/MissionAssociationWizard';
 import SystemSecurityCapabilitiesPage from './features/workspace-operations/system-capabilities/SystemSecurityCapabilitiesPage';
+import ProviderWorkspacePage from './features/provider-workspace/ProviderWorkspacePage';
+import CspSystemsPage from './features/csp-dashboard/CspSystemsPage';
+import { useWorkspaceSession } from './features/workspaces/WorkspaceBoundary';
 
 export default function ApplicationRoutes() {
   return (
@@ -70,7 +76,14 @@ export default function ApplicationRoutes() {
             <Route path="boundaries" element={<BoundaryManagement />} />
             <Route path="legal" element={<LegalRegulatory />} />
             <Route path="documents" element={<Documents />} />
-            <Route path="conmon" element={<ConMon />} />
+            <Route path="documents/preview" element={<SystemDocumentPreview />} />
+            <Route path="conmon" element={<ScopedMonitoring />} />
+            <Route path="conmon/rules" element={<ScopedMonitoring section="rules" />} />
+            <Route path="conmon/changes" element={<ScopedMonitoring section="changes" />} />
+            <Route path="conmon/impacts" element={<ScopedMonitoring section="impacts" />} />
+            <Route path="conmon/plan" element={<ConMon />} />
+            <Route path="conmon/reports" element={<ConMon view="reports" />} />
+            <Route path="history" element={<SystemHistoryPage />} />
             <Route path="emass/status" element={<EmassStatusPage />} />
             <Route path="narratives/*" element={<NarrativeWorkspace />} />
             <Route path="deviations" element={<DeviationsPage />} />
@@ -119,6 +132,9 @@ export default function ApplicationRoutes() {
           <Route path="capabilities" element={<RequireAuth><CapabilitiesRoute /></RequireAuth>} />
           <Route path="components" element={<RequireAuth><ComponentsRoute /></RequireAuth>} />
           <Route path="authorizations/*" element={<RequireAuth><AuthorizationsPage /></RequireAuth>} />
+          <Route path="provider-changes" element={<RequireAuth><ProviderWorkspacePage view="changes" /></RequireAuth>} />
+          <Route path="provider-administration" element={<RequireAuth><ProviderWorkspacePage view="administration" /></RequireAuth>} />
+          <Route path="provider-oversight/systems" element={<RequireAuth><ProviderOversightRoute /></RequireAuth>} />
           <Route path="onboarding" element={<RequireAuth><OnboardingShell /></RequireAuth>} />
           <Route path="onboarding/tenant" element={<RequireAuth><TenantWizard /></RequireAuth>} />
           <Route path="onboarding/csp" element={<RequireAuth><CspWizard /></RequireAuth>} />
@@ -160,4 +176,12 @@ export default function ApplicationRoutes() {
 function PortfolioAliasRedirect() {
   const location = useLocation();
   return <Navigate to={{ pathname: '/', search: location.search, hash: location.hash }} state={location.state} replace />;
+}
+
+function ProviderOversightRoute() {
+  const session = useWorkspaceSession();
+  if (session?.target.kind !== 'csp' || session.workspace.permissions.canAccessCsp !== true) {
+    return <p role="alert" className="p-6 text-red-700">Provider workspace access is required.</p>;
+  }
+  return <CspSystemsPage />;
 }

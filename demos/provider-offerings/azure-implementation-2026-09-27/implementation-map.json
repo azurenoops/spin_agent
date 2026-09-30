@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "supplementId": "azure-implementation-2026-09-27",
+  "demonstrationNotice": "SYNTHETIC DEMONSTRATION ONLY. These are explicitly authored Azure implementation choices, not live resources, operational evidence, license entitlements or government authorizations. Validate regional and Azure Government feature availability before real deployment.",
+  "offeringName": "Azure IL5 · Shared services",
+  "baselineDataset": "azure-il5-shared-services/release-1.2",
+  "baselineManifestSha256": "b892d1e271911444c85ab35080b9550f4e4de62fc59de505965573bb2354ccbe",
+  "components": [
+    {
+      "key": "monitor",
+      "existingSourceId": "AZ-component-audit",
+      "name": "Azure Monitor Logs (Log Analytics)",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider-operated Log Analytics workspace for enrolled Azure resource and workload audit events, diagnostic settings, queries and ingestion checks. The scenario target is 90 days of searchable events; actual table plans, configuration and licensing require validation. Mission teams still enable and review their application events."
+    },
+    {
+      "key": "blob",
+      "existingSourceId": null,
+      "name": "Azure Blob Storage",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider-managed storage account and blob containers for exported audit records and versioned shared-configuration evidence. The scenario target is 365 days of archived audit evidence; retention, immutability, access controls and retrieval tests must be configured and validated. This is not a claim of automatic backup of every Azure resource."
+    },
+    {
+      "key": "firewall",
+      "existingSourceId": "AZ-component-network",
+      "name": "Azure Firewall",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Azure Firewall and reviewed firewall policies inspect permitted shared-hub traffic and record rule changes and diagnostic events. Workload ingress and customer-owned network security groups remain mission responsibilities."
+    },
+    {
+      "key": "vnet",
+      "existingSourceId": null,
+      "name": "Azure Virtual Network",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider hub virtual network, subnets, peering and user-defined routes establish the documented shared routing boundary. Network paths and private service connectivity require explicit design, deployment and testing; naming this component does not grant cloud access."
+    },
+    {
+      "key": "entra",
+      "existingSourceId": "AZ-component-identity",
+      "name": "Microsoft Entra ID (Privileged Identity Management)",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Microsoft Entra ID operator identities, MFA policies, role assignments and Privileged Identity Management activation procedures support time-limited provider administration. Required licenses and cloud-specific support must be verified. Mission account approval, access reviews and leaver processing remain customer-owned."
+    },
+    {
+      "key": "policy",
+      "existingSourceId": "AZ-component-configuration",
+      "name": "Azure Policy",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider policy definitions, initiatives, assignments and reviewed exemptions express shared configuration requirements and report noncompliance. Policy evaluation is not proof that every resource is correctly configured, and remediation is an explicitly approved operation. Versioned configuration evidence is retained separately in Azure Blob Storage."
+    },
+    {
+      "key": "keyvault",
+      "existingSourceId": "AZ-component-encryption",
+      "name": "Azure Key Vault",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider key vault retains encryption keys and controlled key-management configuration, including the customer-managed key selected for the Azure Backup design. Key rotation, recovery protection and least-privilege access require validation. Azure Key Vault manages keys; Azure Backup performs workload backup and restore."
+    },
+    {
+      "key": "sentinel",
+      "existingSourceId": "AZ-component-incident",
+      "name": "Microsoft Sentinel",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider analytics rules and incident workspaces correlate enrolled security signals and retain triage records for the shared-service boundary. Connector coverage and Azure Government feature availability must be validated. Human responders retain authority for containment and mission escalation."
+    },
+    {
+      "key": "logicapps",
+      "existingSourceId": null,
+      "name": "Azure Logic Apps",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Reviewed incident-notification workflows support the provider escalation process. Connector availability, permissions and delivery results require verification. Automated notifications do not make mission incident declarations, approve containment or issue authorization decisions."
+    },
+    {
+      "key": "defender",
+      "existingSourceId": "AZ-component-vulnerability",
+      "name": "Microsoft Defender for Cloud",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider security recommendations and supported vulnerability-assessment integrations identify shared-infrastructure exposure for review. Plans, assessed resource types, scan freshness and cloud availability must be verified. A recommendation or score is not a completed independent assessment."
+    },
+    {
+      "key": "updatemanager",
+      "existingSourceId": null,
+      "name": "Azure Update Manager",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provider-managed machine update assessment, maintenance configuration and installation-result review support patching of eligible shared-infrastructure hosts. Supported machine types, operating systems and cloud availability require validation; mission application dependency patching remains customer-owned."
+    },
+    {
+      "key": "backup",
+      "existingSourceId": "AZ-component-backup",
+      "name": "Azure Backup (Recovery Services vault)",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Azure Backup policies, protected items, recovery points and restore jobs protect supported provider-managed workloads in a Recovery Services vault. The design uses a customer-managed encryption key held in Azure Key Vault, with explicit vault identity permissions. Daily recovery-point monitoring and quarterly restore exercises target a 24-hour RPO and eight-hour RTO; targets are not verified results."
+    }
+  ],
+  "capabilities": [
+    {
+      "sourceId": "AZ-capability-audit",
+      "name": "Audit collection",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Collect enrolled Azure administrative and platform audit events using Azure Monitor Logs (Log Analytics), with reviewed exports to Azure Blob Storage. Scenario targets remain 90 days searchable and 365 days archived. Mission teams enable application audit sources and review mission-specific events. Azure product choices are authored in the September 27 implementation supplement.",
+      "componentKeys": ["monitor", "blob"]
+    },
+    {
+      "sourceId": "AZ-capability-network",
+      "name": "Network protection",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Azure Firewall and Azure Virtual Network implement the provider's reviewed shared-hub inspection and routing design for enrolled spokes. Mission teams remain responsible for application ingress, workload network security groups and endpoints outside the provider hub. Azure product choices are authored in the September 27 implementation supplement.",
+      "componentKeys": ["firewall", "vnet"]
+    },
+    {
+      "sourceId": "AZ-capability-identity",
+      "name": "Privileged identity",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Microsoft Entra ID and Privileged Identity Management support provider operator MFA, least-privilege role assignment and time-limited activation. Mission identities remain separately administered. Licensing, configured policy and enforcement require verification; no existing tenant entitlement is asserted.",
+      "componentKeys": ["entra"]
+    },
+    {
+      "sourceId": "AZ-capability-configuration",
+      "name": "Configuration baselines",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Azure Policy expresses reviewed shared-service configuration requirements and Azure Blob Storage retains versioned configuration evidence. Changes and exemptions require approval; mission application code and images are excluded. Evaluation and stored evidence do not establish successful remediation.",
+      "componentKeys": ["policy", "blob"]
+    },
+    {
+      "sourceId": "AZ-capability-encryption",
+      "name": "Encryption and key handling",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Azure Key Vault supports provider-owned encryption-key custody, controlled access and rotation procedures. Covered Azure services enforce their own encryption and transport configuration; Key Vault is not itself a transport gateway or a workload backup service. Customer key and certificate duties remain unchanged.",
+      "componentKeys": ["keyvault"]
+    },
+    {
+      "sourceId": "AZ-capability-incident",
+      "name": "Incident coordination",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Microsoft Sentinel incident records and approved Azure Logic Apps notification workflows support provider triage and coordination for the shared-service boundary. Human responders own escalation and containment approval; mission incident declarations and reporting remain customer-owned.",
+      "componentKeys": ["sentinel", "logicapps"]
+    },
+    {
+      "sourceId": "AZ-capability-vulnerability",
+      "name": "Vulnerability management",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Microsoft Defender for Cloud recommendations and supported vulnerability assessments inform triage; Azure Update Manager supports approved patching of eligible provider-managed machines. Follow-up verification is required. Customer applications, containers and mission hosts remain separately managed.",
+      "componentKeys": ["defender", "updatemanager"]
+    },
+    {
+      "sourceId": "AZ-capability-backup",
+      "name": "Backup and recovery",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Azure Backup (Recovery Services vault) provides backup policies, recovery points and restore operations for supported provider workloads. Azure Key Vault holds the customer-managed encryption key used by the documented backup design. Monitor daily recovery points and rehearse quarterly restores against the scenario's 24-hour RPO and eight-hour RTO. Key management is distinct from backup/restore, and mission recovery duties remain customer-owned.",
+      "componentKeys": ["backup", "keyvault"]
+    }
+  ],
+  "references": [
+    {
+      "title": "Azure Backup customer-managed encryption keys",
+      "url": "https://learn.microsoft.com/en-us/azure/backup/encryption-at-rest-with-cmk"
+    },
+    {
+      "title": "Azure products by region: validate deployment availability separately",
+      "url": "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/"
+    }
+  ]
+}

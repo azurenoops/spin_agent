@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext } from '@playwright/test';
 import axe from 'axe-core';
-import { installWorkspaceFixture } from '../fixtures/workspace-shell';
+import { installWorkspaceFixture, openWorkspaceContext } from '../fixtures/workspace-shell';
 import { allocation, allocationResponse, capability, adoption, relationship } from '../../src/__tests__/provider-relationships/fixtures';
 
 async function installEnvironment(context: BrowserContext) {
@@ -36,15 +36,17 @@ test('Environment exposes hosting while old association bookmarks remain compati
   await expect(page.getByRole('link', { name: 'Provider relationships', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Environment', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Hosting model' })).toBeVisible();
-  const hosting = page.getByRole('region', { name: 'Associated hosting & security capabilities' });
-  await expect(hosting.getByRole('link', { name: 'Associate hosting & capabilities' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Review hosting scope', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Choose provider hosting', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 1000 });
-  await hosting.getByRole('link', { name: 'Associate hosting & capabilities' }).click();
+  await page.getByRole('table', { name: 'Associated provider scope', exact: true }).getByRole('button', { name: 'Open', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Provider scope details', exact: true }).getByRole('link', { name: 'Open hosting task', exact: true }).click();
   await expect(page).toHaveURL('/workspaces/organizations/org-a/systems/system-a/profile/EnvironmentAndDeployment/hosting');
   await expect(page.getByRole('heading', { name: 'Choose provider', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Choose a different system' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Back to Environment' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Active workspace' })).toContainText('Synthetic Mission System');
+  await expect(await openWorkspaceContext(page)).toContainText('Synthetic Mission System');
+  await page.keyboard.press('Escape');
   await page.goto('/workspaces/organizations/org-a/systems/system-a/provider-relationships');
   // Assert
   await expect(page).toHaveURL('/workspaces/organizations/org-a/systems/system-a/provider-relationships');
@@ -73,13 +75,15 @@ for (const width of [1440, 390]) {
     await page.goto('/workspaces/organizations/org-a/systems/system-a/profile/EnvironmentAndDeployment');
     if (width === 390) await page.evaluate(() => document.documentElement.classList.add('dark'));
     await expect(page.getByRole('combobox', { name: 'Hosting model' })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: 'Environment description' })).toBeVisible();
-    await expect(page.getByLabel('Availability Tier')).not.toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Deployment description' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Cloud environment' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Availability Tier', exact: true })).toBeVisible();
     await expect(page.getByText('Profile Completeness', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Collapse panel', exact: true })).toHaveCount(0);
     expect(requests.filter(item => /assessment-environment|assessment-readiness/.test(item.path))).toEqual([]);
-    await page.getByRole('button', { name: 'Use these hosting details' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Review hosting details' });
+    await page.getByRole('table', { name: 'Associated provider scope' }).getByRole('button', { name: 'Open', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Provider scope details' }).getByRole('button', { name: 'Copy hosting description to draft' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Copy hosting description to draft' });
     // Assert
     await expect(dialog.getByRole('button', { name: 'Use in draft' })).toBeDisabled();
     expect(saved).toEqual([]);
@@ -92,7 +96,7 @@ for (const width of [1440, 390]) {
     // Act
     await dialog.getByRole('checkbox').check();
     await dialog.getByRole('button', { name: 'Use in draft' }).click();
-    await expect(page.getByRole('textbox', { name: 'Environment description' })).toHaveValue(/Harbor hosting/);
+    await expect(page.getByRole('textbox', { name: 'Deployment description' })).toHaveValue(/Harbor hosting/);
     expect(saved).toEqual([]);
     await page.getByRole('button', { name: 'Save Draft' }).click();
     // Assert

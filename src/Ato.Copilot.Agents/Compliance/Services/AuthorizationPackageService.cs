@@ -15,7 +15,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// Orchestrates authorization package assembly, background generation, and history.
 /// Implements evidence manifest generation and file bundling for the package ZIP.
 /// </summary>
-public class AuthorizationPackageService : IAuthorizationPackageService
+public partial class AuthorizationPackageService : IAuthorizationPackageService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IEvidenceArtifactService _evidenceService;
@@ -69,16 +69,23 @@ public class AuthorizationPackageService : IAuthorizationPackageService
         // Load all evidence artifacts for the system (paginate through all)
         var allArtifacts = new List<EvidenceArtifact>();
         int page = 1;
-        const int pageSize = 200;
+        const int pageSize = 100;
         while (true)
         {
-            var (items, _) = await _evidenceService.ListForSystemAsync(
+            var (items, totalCount) = await _evidenceService.ListForSystemAsync(
                 systemId, page, pageSize, cancellationToken: cancellationToken);
-            if (items.Count == 0) break;
+            if (items.Count == 0)
+            {
+                if (allArtifacts.Count < totalCount)
+                    throw new InvalidOperationException("Evidence listing ended before all reported artifacts were retrieved.");
+                break;
+            }
             allArtifacts.AddRange(items);
-            if (items.Count < pageSize) break;
+            if (allArtifacts.Count >= totalCount) break;
             page++;
         }
+        if (allArtifacts.Select(x => x.Id).Distinct().Count() != allArtifacts.Count)
+            throw new InvalidOperationException("Evidence pagination returned duplicate artifact identities. Revalidate before generating.");
 
         // Map each artifact to its control ID via ControlImplementation
         Dictionary<string, string> controlImplToControlId;
@@ -221,33 +228,63 @@ public class AuthorizationPackageService : IAuthorizationPackageService
 
     // ─── Package Orchestration (T034) ──────────────────────────────────────
 
+    public Task<AuthorizationPackage> EnqueuePackageAsync(
+        string systemId,
+        EvidenceMode evidenceMode = EvidenceMode.Embedded,
+        string generatedBy = "mcp-user",
+        CancellationToken cancellationToken = default) =>
+        EnqueuePackageAsync(systemId, PackagePurpose.Legacy, evidenceMode, generatedBy, cancellationToken);
+
     public async Task<AuthorizationPackage> EnqueuePackageAsync(
         string systemId,
+        PackagePurpose purpose,
         EvidenceMode evidenceMode = EvidenceMode.Embedded,
         string generatedBy = "mcp-user",
         CancellationToken cancellationToken = default)
     {
-        // Run readiness validation first
-        var validation = await _validationService.ValidateAsync(systemId, generatedBy, cancellationToken);
-        if (!validation.IsValid)
-        {
-            var errors = string.Join("; ", validation.Findings
-                .Where(f => f.Severity == ValidationSeverity.Error)
-                .Select(f => f.Description));
-            throw new InvalidOperationException($"Package readiness check failed with {validation.ErrorCount} error(s): {errors}");
-        }
-
+        if (!Enum.IsDefined(purpose)) throw new ArgumentOutOfRangeException(nameof(purpose));
+        if (purpose is PackagePurpose.AuthorizedBaselineArchive or PackagePurpose.ChangeSubmission)
+            throw new InvalidOperationException("This purpose requires an explicit retained baseline and recorded decision selection.");
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var readiness = scope.ServiceProvider.GetRequiredService<PackageReadinessService>();
+        var run = await readiness.ValidateAsync(systemId, new(purpose), generatedBy, cancellationToken);
+        return await EnqueueFromReadinessAsync(systemId, new(purpose), run.Id, run.SourceHash ?? "",
+            evidenceMode, generatedBy, cancellationToken);
+    }
 
+    public async Task<AuthorizationPackage> EnqueueFromReadinessAsync(string systemId, PackageReadinessSelection selection,
+        string runId, string expectedHash, EvidenceMode evidenceMode, string generatedBy, CancellationToken cancellationToken,
+        string? idempotencyKey = null)
+    {
+        if (!Enum.IsDefined(evidenceMode)) throw new ArgumentException("Use Embedded or ManifestOnly evidence mode.");
+        using var scope = _scopeFactory.CreateScope();
+        var readiness = scope.ServiceProvider.GetRequiredService<PackageReadinessService>();
+        var run = await readiness.RequireReadyAsync(systemId, selection, runId, expectedHash, generatedBy, cancellationToken);
+        if (selection.RetainedContext != null)
+            return await EnqueueRetainedWithRunAsync(systemId, selection.Purpose, selection.RetainedContext,
+                generatedBy, cancellationToken, idempotencyKey, run);
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var findings = PackageReadinessService.Checks(run).Where(x => x.Outcome == "FollowUp").Select(x => new ValidationFinding
+        {
+            TenantId = run.TenantId, Severity = ValidationSeverity.Warning, Category = x.Category,
+            Description = x.Why, Remediation = string.Join("\n", x.NextSteps)
+        }).ToList();
+        var validation = new PackageValidationResult
+        {
+            TenantId = run.TenantId, IsValid = true, ValidatedBy = generatedBy,
+            Findings = findings, WarningCount = findings.Count
+        };
         var package = new AuthorizationPackage
         {
+            TenantId = run.TenantId, ReadinessRunId = run.Id, ReadinessSourceHash = run.SourceHash,
             RegisteredSystemId = systemId,
             Status = PackageStatus.Pending,
+            Purpose = selection.Purpose,
             EvidenceMode = evidenceMode,
             GeneratedBy = generatedBy,
             GeneratedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(90)
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(90),
+            ValidationPassed = true, ValidationWarningCount = validation.WarningCount
         };
 
         db.AuthorizationPackages.Add(package);
@@ -259,8 +296,9 @@ public class AuthorizationPackageService : IAuthorizationPackageService
         await db.SaveChangesAsync(cancellationToken);
 
         // Enqueue the background job
-        var job = new PackageExportJob(package.Id, systemId, evidenceMode, generatedBy);
-        await _channel.Writer.WriteAsync(job, cancellationToken);
+        var job = new PackageExportJob(package.Id, systemId, evidenceMode, generatedBy, selection.Purpose,
+            run.TenantId, db.WorkspacePersonId);
+        await _channel.Writer.WriteAsync(job, CancellationToken.None);
 
         _logger.LogInformation("Enqueued package generation job {PackageId} for system {SystemId}", package.Id, systemId);
         return package;
@@ -304,7 +342,9 @@ public class AuthorizationPackageService : IAuthorizationPackageService
             .Take(limit)
             .Select(p => new PackageResponse
             {
+                ReadinessRunId = p.ReadinessRunId, SourceHash = p.ReadinessSourceHash,
                 PackageId = p.Id,
+                Purpose = p.Purpose.ToString(),
                 Status = p.Status.ToString(),
                 ArtifactCount = p.Artifacts.Count,
                 GeneratedBy = p.GeneratedBy,
@@ -335,12 +375,21 @@ public class AuthorizationPackageService : IAuthorizationPackageService
 
         if (package == null || string.IsNullOrEmpty(package.FilePath))
             return null;
+        if (package.RetainedContextJson != null)
+        {
+            if (ApprovedProfileDocumentData.Hash(package.RetainedContextJson) != package.RetainedContextHash)
+                throw new InvalidOperationException("Retained package context integrity check failed.");
+            await RetainedPackageContext.VerifyEvidenceAsync(scope.ServiceProvider,
+                RetainedPackageContext.Read(package.RetainedContextJson), db.WorkspacePersonId, cancellationToken);
+        }
 
         if (package.ExpiresAt < DateTimeOffset.UtcNow)
             throw new InvalidOperationException("Package has expired and is no longer available for download.");
 
         if (!File.Exists(package.FilePath))
             return null;
+        if (package.RetainedContextJson != null)
+            await RetainedPackageContext.RequireFileHashAsync(package.FilePath, package.ContentHash!, cancellationToken);
 
         return new FileStream(package.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
     }

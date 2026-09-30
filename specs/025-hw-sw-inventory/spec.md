@@ -1,5 +1,15 @@
 # Feature Specification: Hardware/Software Inventory
 
+> September 29, 2026 acceptance integration:
+> [Feature 079](../079-provider-system-workflow-consolidation/contracts/package-readiness-experience.md)
+> adds a scoped web register using the existing inventory service and a
+> purpose-specific documentation check. Empty active inventory or missing
+> type-specific required fields blocks InitialSubmission; Legacy exposes
+> follow-up instead. Coverage warnings are not universal physical-hardware
+> requirements for SaaS/PaaS. No automatic generic-component synchronization or
+> eMASS acceptance is implied. Current authoring route:
+> `/systems/{systemId}/security-capabilities/inventory?tab=hardware-software`.
+
 **Feature Branch**: `025-hw-sw-inventory`
 **Created**: 2026-03-11
 **Status**: Draft

@@ -33,6 +33,7 @@ public class DeviationServiceTests : IDisposable
             Id = SystemId,
             Name = "Test System",
         });
+        _db.Assessments.Add(new ComplianceAssessment { Id = "deviation-assessment", RegisteredSystemId = SystemId });
         _db.SaveChanges();
 
         _service = new DeviationService(factory, Mock.Of<ILogger<DeviationService>>());
@@ -135,6 +136,7 @@ public class DeviationServiceTests : IDisposable
     {
         var finding = new ComplianceFinding
         {
+            AssessmentId = "deviation-assessment",
             ControlId = "AC-2",
             Status = FindingStatus.Open,
         };
@@ -213,6 +215,7 @@ public class DeviationServiceTests : IDisposable
     {
         var finding = new ComplianceFinding
         {
+            AssessmentId = "deviation-assessment",
             ControlId = "AC-2",
             Status = FindingStatus.Open,
         };
@@ -235,6 +238,7 @@ public class DeviationServiceTests : IDisposable
     {
         var finding = new ComplianceFinding
         {
+            AssessmentId = "deviation-assessment",
             ControlId = "AC-2",
             Status = FindingStatus.Open,
         };
@@ -341,6 +345,7 @@ public class DeviationServiceTests : IDisposable
     {
         var finding = new ComplianceFinding
         {
+            AssessmentId = "deviation-assessment",
             ControlId = "AC-2",
             Status = FindingStatus.Open,
         };
@@ -432,6 +437,7 @@ public class DeviationServiceTests : IDisposable
     {
         var finding = new ComplianceFinding
         {
+            AssessmentId = "deviation-assessment",
             ControlId = "AC-2",
             Status = FindingStatus.Open,
         };

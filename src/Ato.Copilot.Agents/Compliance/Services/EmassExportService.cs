@@ -649,6 +649,10 @@ public class EmassExportService : IEmassExportService
         // Delegate to the dedicated OSCAL 1.1.2 SSP export service
         var result = await _oscalSspExportService.ExportAsync(
             system.Id, includeBackMatter: true, prettyPrint: true, cancellationToken);
+        if (result.ProviderProvenanceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.ProviderProvenanceGaps));
+        if (result.ProfileSourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.ProfileSourceGaps));
         return result.OscalJson;
     }
 
@@ -682,7 +686,7 @@ public class EmassExportService : IEmassExportService
             ["title"] = "Security Assessment Results",
             ["description"] = $"Assessment results for {system.Name}",
             ["start"] = effectivenessRecords.Any()
-                ? effectivenessRecords.Min(e => e.AssessedAt).ToString("o")
+                ? DateTime.SpecifyKind(effectivenessRecords.Min(e => e.AssessedAt), DateTimeKind.Utc).ToString("o")
                 : DateTime.UtcNow.ToString("o"),
             ["reviewed-controls"] = new Dictionary<string, object>
             {
@@ -724,7 +728,7 @@ public class EmassExportService : IEmassExportService
                 ["last-modified"] = DateTime.UtcNow.ToString("o"),
                 ["version"] = "1.0",
                 ["oscal-version"] = "1.1.2",
-                ["system-id"] = BuildOscalSystemIdentifiers(system)
+                ["props"] = BuildSourceSystemProperties(system)
             },
             ["results"] = new[] { resultDict }
         };
@@ -734,7 +738,7 @@ public class EmassExportService : IEmassExportService
         {
             arRoot["import-ap"] = new Dictionary<string, string>
             {
-                ["href"] = $"#sap-{sap.Id}"
+                ["href"] = "oscal-assessment-plan.json"
             };
         }
 
@@ -766,11 +770,11 @@ public class EmassExportService : IEmassExportService
                 ["last-modified"] = DateTime.UtcNow.ToString("o"),
                 ["version"] = "1.0",
                 ["oscal-version"] = "1.1.2",
-                ["system-id"] = BuildOscalSystemIdentifiers(system)
+                ["props"] = BuildSourceSystemProperties(system)
             },
             ["import-ssp"] = new Dictionary<string, string>
             {
-                ["href"] = $"#ssp-{system.Id}"
+                ["href"] = "oscal-ssp.json"
             },
             ["poam-items"] = poamItems.Select(p =>
                 new Dictionary<string, object>
@@ -778,7 +782,7 @@ public class EmassExportService : IEmassExportService
                     ["uuid"] = Guid.NewGuid().ToString(),
                     ["title"] = p.Weakness,
                     ["description"] = p.Comments ?? p.Weakness,
-                    ["props"] = new object[]
+                    ["props"] = new[]
                     {
                         new Dictionary<string, string>
                         {
@@ -799,15 +803,13 @@ public class EmassExportService : IEmassExportService
                         {
                             ["name"] = "status",
                             ["value"] = p.Status.ToString()
-                        }
-                    },
-                    ["related-findings"] = new[]
-                    {
+                        },
                         new Dictionary<string, string>
                         {
-                            ["finding-uuid"] = Guid.NewGuid().ToString()
+                            ["name"] = "source-finding-id",
+                            ["value"] = p.FindingId ?? ""
                         }
-                    }
+                    }.Where(property => !string.IsNullOrEmpty(property["value"])).ToArray()
                 }).ToList()
         };
 
@@ -844,6 +846,15 @@ public class EmassExportService : IEmassExportService
 
         return identifiers;
     }
+
+    private static List<Dictionary<string, string>> BuildSourceSystemProperties(RegisteredSystem system) =>
+        [
+            new() { ["name"] = "source-system-id", ["ns"] = "urn:ato-copilot:source", ["value"] = system.Id },
+            .. BuildOscalSystemIdentifiers(system).Select(identifier => new Dictionary<string, string>
+            {
+                ["name"] = "system-identifier", ["ns"] = identifier["identifier-type"], ["value"] = identifier["id"]
+            })
+        ];
 
     private static Dictionary<string, object> BuildOscalSystemInfo(
         RegisteredSystem system)

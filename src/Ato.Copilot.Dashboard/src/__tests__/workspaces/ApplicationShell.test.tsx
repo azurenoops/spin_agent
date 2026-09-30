@@ -5,7 +5,10 @@ import { EventType, type AccountInfo, type EventMessage } from '@azure/msal-brow
 import axios from 'axios';
 import App from '../../App';
 
-vi.mock('axios', () => ({ default: { get: vi.fn() } }));
+vi.mock('axios', async original => {
+  const actual = await original<typeof import('axios')>();
+  return { ...actual, default: { ...actual.default, get: vi.fn() } };
+});
 const auth = vi.hoisted(() => ({
   accounts: [] as AccountInfo[],
   active: null as AccountInfo | null,

@@ -11,6 +11,7 @@ import CreateRemediationTaskModal from '../../../components/remediation/CreateRe
 import type { PoamDetail } from '../../../types/poam';
 import type { SystemWorkspacePermissions } from '../../../features/workspaces/types';
 import { invokeClick } from '../../helpers/domainPermissions';
+import '../../helpers/dialog';
 
 const state = vi.hoisted(() => ({
   session: null as { roles?: string[]; systemAccess?: { systemId: string; permissions?: Partial<SystemWorkspacePermissions> } } | null,
@@ -29,16 +30,22 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('../../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => state.session }));
 vi.mock('../../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: { systemId: 'system-a' } }) }));
-vi.mock('../../../hooks/useSettings', () => ({ useSettings: () => ({ settings: { role: state.role } }) }));
+vi.mock('../../../hooks/useSettings', async importOriginal => ({
+  ...await importOriginal<typeof import('../../../hooks/useSettings')>(),
+  useSettings: () => ({ settings: { role: state.role } }),
+}));
 vi.mock('../../../hooks/usePoam', () => ({
   usePoamList: () => ({ data: { items: [], totalCount: 0 }, loading: false, refresh: vi.fn() }),
   usePoamMetrics: () => ({ data: null, loading: false, refresh: vi.fn() }),
   useCreatePoam: () => ({ create: state.create, loading: false }),
   usePoamDetail: () => ({ data: state.detail, loading: false, refresh: vi.fn() }),
 }));
+vi.mock('../../../hooks/usePoamQueue', () => ({
+  usePoamQueue: () => ({ data: { items: [], totalCount: 0, counts: { all: 0, overdue: 0, readyToVerify: 0, closed: 0 } }, loading: false, refresh: vi.fn() }),
+}));
 vi.mock('../../../api/poam', () => ({
   updatePoamStatus: (...args: unknown[]) => state.update(...args),
-  getTicketingConfig: async () => ({ provider: 'jira', baseUrl: 'https://example.test', projectKeyOrTableName: 'POAM' }),
+  getTicketingConfig: async () => ({ configured: true, provider: 'jira', baseUrl: 'https://example.test', projectKey: 'POAM' }),
   configureTicketing: (...args: unknown[]) => state.configure(...args),
   syncTicket: (...args: unknown[]) => state.sync(...args),
   linkComponents: (...args: unknown[]) => state.link(...args),
@@ -107,12 +114,12 @@ describe('#1017 POA&M domain mutation permissions', () => {
     // Arrange
     allow();
     const element = <PoamManagement />;
-    const { container, rerender } = mount(element);
+    const { rerender } = mount(element);
     fireEvent.click(screen.getByRole('button', { name: 'Add POA&M' }));
     // Act
     state.session = null;
     rerender(<MemoryRouter initialEntries={[canonical]}>{cloneElement(element)}</MemoryRouter>);
-    fireEvent.submit(container.querySelector('form')!);
+    fireEvent.submit(document.querySelector('form')!);
     // Assert
     expect(state.create).not.toHaveBeenCalled();
     expect(await screen.findByRole('alert')).toHaveTextContent(/permission/i);
@@ -124,7 +131,7 @@ describe('#1017 POA&M domain mutation permissions', () => {
     if (path === canonical) allow(); else state.session = null;
     mount(<PoamLifecycleActions detail={fixture} onStatusChanged={vi.fn()} />, path);
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Mark Completed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark completed (manual disposition)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     // Assert
     await waitFor(() => expect(state.update).toHaveBeenCalledWith('poam-a', expect.objectContaining({ status: 'Completed' })));
@@ -135,7 +142,7 @@ describe('#1017 POA&M domain mutation permissions', () => {
     // Act
     mount(<PoamLifecycleActions detail={fixture} onStatusChanged={vi.fn()} />);
     // Assert
-    for (const name of ['Mark Delayed', 'Mark Completed', 'Risk Accepted']) {
+    for (const name of ['Mark Delayed', 'Mark completed (manual disposition)', 'Risk Accepted']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();
     }
   });
@@ -145,7 +152,7 @@ describe('#1017 POA&M domain mutation permissions', () => {
     allow();
     const element = <PoamLifecycleActions detail={fixture} onStatusChanged={vi.fn()} />;
     const { rerender } = mount(element);
-    fireEvent.click(screen.getByRole('button', { name: 'Mark Completed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark completed (manual disposition)' }));
     // Act
     state.session = null;
     rerender(<MemoryRouter initialEntries={[canonical]}>{cloneElement(element)}</MemoryRouter>);
@@ -160,7 +167,7 @@ describe('#1017 POA&M domain mutation permissions', () => {
     allow();
     const element = <PoamLifecycleActions detail={{ ...fixture, remediationTaskId: 'task-a' }} onStatusChanged={vi.fn()} />;
     const { rerender } = mount(element);
-    fireEvent.click(screen.getByRole('button', { name: 'Mark Completed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark completed (manual disposition)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     await screen.findByRole('button', { name: 'Apply Cascade' });
     // Act
@@ -172,15 +179,16 @@ describe('#1017 POA&M domain mutation permissions', () => {
     expect(state.update).toHaveBeenCalledTimes(1);
   });
 
-  it('disables nested drawer links, task creation and unprojected ticket sync', () => {
+  it('disables component linkage for readers and exposes no legacy ticket mutations', () => {
     // Arrange
     // Act
     mount(<PoamDetailDrawer poamId="poam-a" onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Linked work' }));
+    fireEvent.click(screen.getByText('Affected components (1)'));
     // Assert
-    for (const name of ['+ Link', 'Create Task', 'Link Task', 'Sync to Ticketing System']) {
-      expect(screen.getByRole('button', { name })).toBeDisabled();
-    }
-    expect(screen.getByTitle('Unlink component')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Link components' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Unlink Component A' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Sync to Ticketing System' })).toBeNull();
   });
 
   it('allows projected component linkage but disables its open picker after revocation', async () => {
@@ -188,14 +196,16 @@ describe('#1017 POA&M domain mutation permissions', () => {
     allow();
     const element = <PoamDetailDrawer poamId="poam-a" onClose={vi.fn()} />;
     const { rerender } = mount(element);
-    fireEvent.click(screen.getByRole('button', { name: '+ Link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Linked work' }));
+    fireEvent.click(screen.getByText('Affected components (1)'));
+    fireEvent.click(screen.getByRole('button', { name: 'Link components' }));
     fireEvent.click(screen.getByRole('button', { name: 'Choose component' }));
     // Act
     state.session = null;
     rerender(<MemoryRouter initialEntries={[canonical]}>{cloneElement(element)}</MemoryRouter>);
-    await invokeClick(screen.getByRole('button', { name: 'Link 1 component(s)' }));
+    await invokeClick(screen.getByRole('button', { name: 'Link selected components' }));
     // Assert
-    expect(screen.getByRole('button', { name: 'Link 1 component(s)' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Link selected components' })).toBeDisabled();
     expect(state.link).not.toHaveBeenCalled();
   });
 
@@ -203,11 +213,13 @@ describe('#1017 POA&M domain mutation permissions', () => {
     // Arrange
     allow();
     mount(<PoamDetailDrawer poamId="poam-a" onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Linked work' }));
+    fireEvent.click(screen.getByText('Affected components (1)'));
     // Act
-    fireEvent.click(screen.getByTitle('Unlink component'));
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink Component A' }));
     // Assert
     await waitFor(() => expect(state.unlink).toHaveBeenCalledWith('poam-a', { componentIds: ['component-a'] }));
-    expect(screen.getByRole('button', { name: 'Sync to Ticketing System' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Sync to Ticketing System' })).toBeNull();
   });
 
   it('guards the post-import bulk creation prompt after permission loss', async () => {
@@ -247,11 +259,11 @@ describe('#1017 POA&M domain mutation permissions', () => {
     await waitFor(() => expect(state.createTask).toHaveBeenCalledWith('system-a', expect.objectContaining({ title: 'Repair' })));
   });
 
-  it.each([canonical, '/systems/system-a/poam'])('does not infer canonical ticket configuration, preserves legacy (%s)', async path => {
+  it.each([canonical, '/systems/system-a/poam'])('requires system management for canonical ticket configuration, preserves legacy UI (%s)', async path => {
     // Arrange
     if (path === canonical) allow(); else state.session = null;
     mount(<TicketingConfig systemId="system-a" />, path);
-    const save = await screen.findByRole('button', { name: 'Update Configuration' });
+    const save = await screen.findByRole('button', { name: 'Save connector' });
     // Act
     await invokeClick(save);
     // Assert
@@ -266,11 +278,14 @@ describe('#1017 POA&M domain mutation permissions', () => {
   it('submits a POA&M form using the explicit server permission', async () => {
     // Arrange
     allow();
-    const { container } = mount(<PoamManagement />);
+    mount(<PoamManagement />);
     fireEvent.click(screen.getByRole('button', { name: 'Add POA&M' }));
     fireEvent.change(screen.getByPlaceholderText('Describe the security weakness...'), { target: { value: 'Weakness A' } });
+    fireEvent.change(screen.getByLabelText('Control ID *'), { target: { value: 'AC-2' } });
+    fireEvent.change(screen.getByLabelText('Point of Contact *'), { target: { value: 'Owner' } });
+    fireEvent.change(screen.getByLabelText('Scheduled Completion Date *'), { target: { value: '2026-12-01' } });
     // Act
-    fireEvent.submit(container.querySelector('form')!);
+    fireEvent.submit(document.querySelector('form')!);
     // Assert
     await waitFor(() => expect(state.create).toHaveBeenCalledWith('system-a', expect.objectContaining({ weakness: 'Weakness A' })));
   });
@@ -279,48 +294,53 @@ describe('#1017 POA&M domain mutation permissions', () => {
     // Arrange
     allow();
     state.create.mockRejectedValueOnce(new Error('Create rejected by server'));
-    const { container } = mount(<PoamManagement />);
+    mount(<PoamManagement />);
     fireEvent.click(screen.getByRole('button', { name: 'Add POA&M' }));
+    fireEvent.change(screen.getByLabelText('Weakness *'), { target: { value: 'Weakness A' } });
+    fireEvent.change(screen.getByLabelText('Control ID *'), { target: { value: 'AC-2' } });
+    fireEvent.change(screen.getByLabelText('Point of Contact *'), { target: { value: 'Owner' } });
+    fireEvent.change(screen.getByLabelText('Scheduled Completion Date *'), { target: { value: '2026-12-01' } });
     // Act
-    fireEvent.submit(container.querySelector('form')!);
+    fireEvent.submit(document.querySelector('form')!);
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('Create rejected by server');
   });
 
-  it.each(['Push', 'Pull'])('guards unprojected %s handler even when invoked directly', async name => {
+  it('retains legacy ticket metadata without offering unsafe push or pull controls', () => {
     // Arrange
     allow();
     state.detail = { ...fixture, ticketSync: { externalTicketId: 'T-1', externalTicketUrl: null, syncStatus: 'Synced', lastSyncAt: '2026-09-01', lastSyncError: null } };
     mount(<PoamDetailDrawer poamId="poam-a" onClose={vi.fn()} />);
     // Act
-    await invokeClick(screen.getByRole('button', { name }));
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence & history' }));
     // Assert
-    expect(screen.getByRole('button', { name })).toBeDisabled();
+    expect(screen.getByText('T-1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Push' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Pull' })).toBeNull();
     expect(state.sync).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/permission denied/i);
   });
 
-  it('guards task unlink handlers without consulting a browser role', async () => {
+  it('does not offer ambiguous legacy scalar task unlinking', () => {
     // Arrange
     state.detail = { ...fixture, remediationTaskId: 'task-a' };
     mount(<PoamDetailDrawer poamId="poam-a" onClose={vi.fn()} />);
     // Act
-    await invokeClick(screen.getByRole('button', { name: 'Unlink' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Linked work' }));
     // Assert
     expect(state.unlinkTask).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Unlink' })).toBeDisabled();
-    expect(screen.getAllByRole('alert').some(alert => /permission denied/i.test(alert.textContent ?? ''))).toBe(true);
+    expect(screen.queryByRole('button', { name: /^Unlink$/ })).toBeNull();
   });
 
-  it('permits the projected POA&M-to-task creation endpoint', async () => {
+  it('does not ask users to paste raw board IDs to create remediation tasks', () => {
     // Arrange
     allow();
-    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('board-a');
+    const prompt = vi.spyOn(window, 'prompt');
     mount(<PoamDetailDrawer poamId="poam-a" onClose={vi.fn()} />);
     // Act
-    await invokeClick(screen.getByRole('button', { name: 'Create Task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Linked work' }));
     // Assert
-    expect(state.fromPoam).toHaveBeenCalledWith('poam-a', { boardId: 'board-a' });
+    expect(state.fromPoam).not.toHaveBeenCalled();
+    expect(prompt).not.toHaveBeenCalled();
     prompt.mockRestore();
   });
 
@@ -329,8 +349,10 @@ describe('#1017 POA&M domain mutation permissions', () => {
     allow();
     state.unlink.mockRejectedValueOnce(new Error('Link removal rejected'));
     mount(<PoamDetailDrawer poamId="poam-a" onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Linked work' }));
+    fireEvent.click(screen.getByText('Affected components (1)'));
     // Act
-    await invokeClick(screen.getByTitle('Unlink component'));
+    await invokeClick(screen.getByRole('button', { name: 'Unlink Component A' }));
     // Assert
     expect(screen.getByRole('alert')).toHaveTextContent('Link removal rejected');
   });

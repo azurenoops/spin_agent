@@ -1,5 +1,89 @@
 # Tasks: Mock-Aligned CSP and Organization Workspaces
 
+## PR 1050 CI repair (September 29, 2026)
+
+Run `36609347042` reports two verified failure causes: four responsibility test
+fixtures omit newly required baseline/provider-release metadata arguments, and
+the grounding scanner mistakes the isolated Playwright screenshot comparison's
+`setContent` page setup for an application document claim insertion.
+
+- [x] CI1050-1 Update only the affected fixture constructors to the current
+  responsibility contracts, preserving all assertions and unknown metadata.
+- [x] CI1050-2 Distinguish the exact browser-test page-setup call from production
+  prose insertion. Keep other APIs, production paths and evidence/claim rules
+  enforced; test those boundaries with the real scanner.
+- [ ] CI1050-3 Run the guard, unit/build checks and replacement remote CI;
+  preserve unrelated work and obtain approval before publishing.
+
+After restoring compilation, the full unit lane exposed stale fixture contracts:
+notification test hosts did not register the new assessment-workspace upload
+dependencies; readiness/package fixtures lacked the current services; scan status,
+retained findings, failed STIG collection and evidence-content fixtures still
+expected older semantics. Update fixtures to the current PR 1050 contracts without
+weakening authorization, provenance retention or truthful failure handling.
+Keep the one-second classifier performance assertion; its isolated regression
+passes and must not be relaxed to hide full-suite contention.
+
+Verified in an isolated clone of the published PR head, without unrelated working
+tree edits: Release solution build passed; all **7750 unit tests passed**; the
+repository grounding scan and **six scanner boundary tests passed**. The scanner
+exception applies only to `comparison.setContent` in the single isolated
+screenshot-comparison fixture; production setContent, other mutation APIs, bare
+claim nodes and unknown evidence spans remain checked. No production workflow,
+authorization or assessment semantics were weakened.
+
+Run locally:
+
+```bash
+node --test packages/ato-shared/scripts/check-grounding-port.test.mjs
+node packages/ato-shared/scripts/check-grounding-port.mjs
+dotnet build Ato.Copilot.sln -c Release --no-restore
+dotnet test tests/Ato.Copilot.Tests.Unit -c Release --no-build
+```
+
+Replacement remote integration/CI verification follows publication approval.
+
+Integration follow-up validation: **7754/7754 Release unit tests**, **114 targeted
+HTTP/isolation integration tests**, and **15 provider/export/authorization
+integration tests** passed. Final export tests retain approved-source,
+revoked-access, missing-identity and private-provider-byte exclusion assertions.
+The original user worktree remains untouched; these repairs are isolated from
+ongoing assessment, inventory and package changes.
+
+The next CI run passed all build/unit/guard checks and exposed integration
+host-registration drift plus two first-page-only tenant visibility assertions.
+Fix the test readers to inspect every actual page without weakening isolation.
+Evidence upload also rejected a legitimately applied local capability with no
+control mappings: system ownership must recognize the canonical system-capability
+link, not infer that every applied capability already has mapped controls.
+
+The simulation failure also exposed assessment cache writes missing `Size` under
+the production cache limit. Preserve the synthetic authentication test boundary,
+but fix both persistence cache write paths and verify save/cold-reload with a
+size-limited cache; do not merely hide the runtime exception behind a test mock.
+
+The unchanged one-second classifier threshold passed alone but failed twice when
+thousands of unrelated tests competed for CPU/SQLite execution. Its test class now
+uses a non-parallel xUnit collection so the wall-clock budget measures the
+classifier rather than cross-suite contention. It is neither skipped nor given a
+larger threshold; the full unit lane still executes the measured 1000-artifact
+operation and asserts all records were processed.
+
+The provider-to-mission integration regression now explicitly rejects promotion
+of working-profile previews and exercises the approved-source export route.
+Its failing-first downloaded-artifact check proves that final OSCAL generation
+omits the existing authorized evidence-summary and responsibility enrichment.
+Reuse those source-bound helpers for final generation, retain requester-bound
+permission verification and fail closed on unavailable evidence; never copy
+private provider attachments or relax working/approved source gates. Validate
+the actual final bytes, provenance, hash and no-invented-authorization assertions,
+then run the 15 owned integration cases and related document/export regressions.
+Verified locally under the clone's build lock: all 15 integration cases and 139
+related document/export checks pass. Regression coverage also rejects revoked
+access, unavailable summaries, missing requester identity and provider/support
+contexts replayed as ordinary mission requests. Manual acceptance remains
+available through the local preview/export workflow; no live data was changed.
+
 **Feature**: #1002
 
 **Delivery issues**: #1025-#1035
@@ -8,74 +92,6 @@
 
 Tasks are dependency ordered. Tests marked `RED` must fail for the intended
 reason before their production task begins. Every test follows Arrange/Act/Assert.
-
-## PR 1049 integration CI repair (September 29, 2026)
-
-CI run `36590187292`, integration job `109483043725`, built successfully but
-reported 14 failed tests (1434 passed; 20 unexecuted cases in the TRX inventory).
-The failed job log and uploaded TRX were read before inspecting implementation.
-
-- [x] CI1049-1 Fix incomplete global-reference cache publication: the CSP
-  bootstrap read is legitimately pre-tenant, but the interceptor treats a
-  partially populated dictionary as initialized. Publish a complete per-model
-  cache atomically; keep unknown/tenant tables denied without ambient context.
-- [x] CI1049-2 Reconcile relational HTTP fixture identities/role grants and GUID
-  materialization with the current persisted authorization contract; preserve
-  negative access and revocation assertions.
-- [x] CI1049-3 Verify why package lifecycle snapshots differ on
-  `AnalysisProfileVersion` during resume/review and fix the actual retention or
-  stale-fixture cause without weakening immutable-source assertions.
-- [x] CI1049-4 Preserve idempotent no-cookie support exit with the correct
-  authenticated identity contract and isolation between shared fixture tests.
-- [ ] CI1049-5 Run targeted failures, the CI-equivalent integration lane and
-  applicable compile/hygiene checks; publish only after push approval and verify
-  the replacement CI result.
-
-This repair targets `feature/1002-workspace-delivery-1037` in its existing
-checkout. PR 1050's worktree and the ongoing assessment-separation plan are not
-part of the repair. Unrelated design files remain untouched.
-
-Local failing-first evidence: two model-specific global-reference tests reproduce
-false rejection and cross-model exemption leakage. A separate HTTP regression
-reproduces leftover workspace/person/impersonation state in the shared legacy
-contract fixture. Package lifecycle investigation confirms PATCH retained raw
-payloads without checkpoint provenance, while GET recovered `AnalysisProfileVersion`.
-
-Targeted validation after repair: **7 tenant-query-guard unit tests and 67
-integration tests passed**, including all four CI failure classes. Existing
-tenant/unknown-table denial and role/reviewer/revocation checks are preserved.
-The new opaque-system-ID regression verifies tenant isolation without forcing
-string system identifiers through `Guid.Parse`.
-
-Local reproduction commands (run from the PR 1049 checkout):
-
-```bash
-dotnet test tests/Ato.Copilot.Tests.Unit --no-restore \
-  --filter 'FullyQualifiedName~TenantScopedQueryGuardGlobalReferenceTests'
-dotnet test tests/Ato.Copilot.Tests.Integration --no-restore \
-  --filter 'FullyQualifiedName~OrganizationCreationFlowTests|FullyQualifiedName~TenantScopedEndpointHttpPipelineTests|FullyQualifiedName~TenantsEndpointsContractTests|FullyQualifiedName~CspPackageLifecycleHttpTests'
-```
-
-No application authorization policy is broadened. No real organization, package,
-credential, role assignment or remote service is used by these synthetic tests.
-
-Release verification:
-
-- `dotnet build Ato.Copilot.sln -c Release --no-restore -nologo`: passed,
-  with existing repository warnings.
-- `dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj -c Release --no-build`:
-  **7231 passed, 0 failed, 0 skipped**.
-- Full integration lane with CI's `ATO_REQUIRE_DOCKER_TESTS=1`: **1406 passed,
-  45 failed** (1471 discovered; 20 pre-existing unexecuted cases). All 45 failures
-  report Docker/SQL Server fixture initialization unavailable; none are the
-  original 14 assertion/retention/context failures.
-- A bounded request to the active Docker Desktop socket also timed out. The
-  shared daemon was not restarted and required Docker tests were not disabled.
-  Required Linux Docker/RLS validation remains a remote CI gate, not a claimed
-  local success.
-
-Repair commits and verification are local pending explicit push approval.
-No untracked ConMon design assets or PR 1050 changes are included.
 
 ## System-level Security Capabilities (#1037)
 

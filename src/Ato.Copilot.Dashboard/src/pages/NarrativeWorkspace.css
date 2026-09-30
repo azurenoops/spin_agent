@@ -63,7 +63,7 @@
 .narrative-workspace pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px 0; }
 .narrative-workspace summary { cursor: pointer; color: var(--nw-muted); margin: 14px 0; }
 .nw-empty { padding: 36px 0; color: var(--nw-muted); }
-.narrative-workspace .overflow-hidden:has(> table) { overflow-x: auto; }
+.narrative-workspace .nw-table-scroll { overflow-x: auto; }
 .narrative-workspace table { width: 100%; min-width: 650px; }
 .nw-mobile-navigation { display: none; }
 @media (max-width: 767px) {
@@ -83,8 +83,8 @@
   .narrative-workspace tbody { display: block; }
   .narrative-workspace tbody > tr { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); padding: 8px 0; }
   .narrative-workspace tbody > tr > td { padding: 8px 4px; min-width: 0; }
-  .narrative-workspace tbody > tr > td:first-child:has(input[type=checkbox]) { display: none; }
-  .narrative-workspace tbody > tr:has(td[colspan]) { display: block; }
+  .narrative-workspace .nw-selection-cell { display: none; }
+  .narrative-workspace tbody > .nw-full-row { display: block; }
   .narrative-workspace td[colspan] { display: block; width: 100%; }
   .narrative-workspace td[colspan] .flex { flex-wrap: wrap; }
   .narrative-workspace td[colspan] .grid { grid-template-columns: minmax(0,1fr); }

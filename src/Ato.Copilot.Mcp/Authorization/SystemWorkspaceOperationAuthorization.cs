@@ -13,7 +13,7 @@ public enum SystemWorkspaceOperation
     CreateSystem, ManageSystem, AuthorNarratives, ReviewNarratives, ManageEvidence,
     RunAssessments, ManageRemediation, DecideAuthorization,
     GenerateSap, FinalizeSap, GenerateSar, CreateRemediationTask, MoveRemediationTask,
-    AssignSystemRole, ManageValidationLinks
+    AssignSystemRole, ManageValidationLinks, ReadSystem
 }
 
 /// <summary>Enforces scoped permissions before a mapped handler can perform any mutation.</summary>
@@ -47,14 +47,19 @@ public static class SystemWorkspaceOperationAuthorization
             if (systemId is null && http.Request.RouteValues.GetValueOrDefault("poamId") is { } poamId)
                 systemId = await db.PoamItems.Where(p => p.Id == poamId.ToString())
                     .Select(p => p.RegisteredSystemId).SingleOrDefaultAsync(http.RequestAborted);
+            if (systemId is null && http.Request.RouteValues.GetValueOrDefault("deviationId") is { } deviationId)
+                systemId = await db.Deviations.Where(d => d.Id == deviationId.ToString() && d.TenantId == tenant.EffectiveTenantId)
+                    .Select(d => d.RegisteredSystemId).SingleOrDefaultAsync(http.RequestAborted);
             if (systemId is null && http.Request.RouteValues.GetValueOrDefault("artifactId") is { } artifactId)
                 systemId = await db.EvidenceArtifacts.Where(e => e.Id == artifactId.ToString() && !e.IsDeleted)
                     .Select(e => e.RegisteredSystemId).SingleOrDefaultAsync(http.RequestAborted);
             if (systemId is null && http.Request.RouteValues.GetValueOrDefault("taskId") is { } taskId)
-                systemId = await (from task in db.RemediationTasks
-                                  join board in db.RemediationBoards on task.BoardId equals board.Id
-                                  where task.Id == taskId.ToString()
-                                  select board.SubscriptionId).SingleOrDefaultAsync(http.RequestAborted);
+            {
+                var task = await db.RemediationTasks.SingleOrDefaultAsync(t => t.Id == taskId.ToString()
+                    && t.TenantId == tenant.EffectiveTenantId, http.RequestAborted);
+                if (task is not null)
+                    systemId = await Ato.Copilot.Core.Services.RemediationScope.TaskSystemAsync(db, task, http.RequestAborted);
+            }
             if (string.IsNullOrWhiteSpace(systemId)) return NotFound();
             if (http.Request.RouteValues.GetValueOrDefault("sapId") is { } sapId
                 && !await db.SecurityAssessmentPlans.AnyAsync(s => s.Id == sapId.ToString()
@@ -77,6 +82,7 @@ public static class SystemWorkspaceOperationAuthorization
             if (!access.Permissions.CanRead) return NotFound();
             var allowed = operation switch
             {
+                SystemWorkspaceOperation.ReadSystem => access.Permissions.CanRead,
                 SystemWorkspaceOperation.ManageSystem => access.Permissions.CanManageSystem,
                 SystemWorkspaceOperation.AuthorNarratives => access.Permissions.CanAuthorNarratives,
                 SystemWorkspaceOperation.ReviewNarratives => access.Permissions.CanReviewNarratives,

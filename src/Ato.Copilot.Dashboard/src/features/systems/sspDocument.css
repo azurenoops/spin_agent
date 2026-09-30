@@ -1,0 +1,81 @@
+.ssp-preview-root .ssp-paper {
+  min-width: 0;
+  padding: 36px;
+  border: 1px solid #c5ccd6;
+  border-radius: 2px;
+  background: #fff;
+  color: #202936;
+  box-shadow: 0 4px 18px #172b4d12;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11pt;
+  line-height: 1.55;
+}
+.ssp-preview-root .ssp-paper :is(p, dd, span, summary) { color: inherit; }
+.ssp-preview-root .ssp-paper :is(h2, h3) { color: #233b57; }
+.ssp-preview-root .ssp-paper dt { color: #596574; }
+.ssp-preview-root .ssp-paper a { color: #234b76; }
+.ssp-paper .ssp-cover {
+  display: flex;
+  min-height: 500px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 42px 16px;
+  border-top: 5px solid #233b57;
+  border-bottom: 1px solid #9caaba;
+  text-align: center;
+}
+.ssp-preview-root .ssp-paper .ssp-kicker {
+  color: #4a6078;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.ssp-paper .ssp-cover h2 {
+  max-width: 620px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.ssp-paper .ssp-cover-system { font-size: 17px; overflow-wrap: anywhere; }
+.ssp-paper .ssp-draft-notice {
+  max-width: 540px;
+  padding: 12px 18px;
+  border: 1px solid #b89a63;
+  background: #fffaf0;
+  font-size: 12px;
+}
+.ssp-paper .ssp-front-matter { margin: 34px 0; }
+.ssp-paper .ssp-front-matter > h3,
+.ssp-paper .ssp-generated-section > h3 {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #9caaba;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  font-weight: 700;
+}
+.ssp-paper .ssp-control-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ssp-paper .ssp-control-table :is(th, td) {
+  padding: 9px 12px;
+  border: 1px solid #b9c3cf;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.ssp-paper .ssp-control-table th { width: 34%; background: #eef2f6; font-weight: 600; }
+.ssp-paper .ssp-toc { display: grid; gap: 9px; margin-top: 18px; font-size: 13px; }
+.ssp-paper .ssp-toc a { text-decoration: none; border-bottom: 1px dotted #ccd3dc; padding-bottom: 5px; }
+.ssp-paper .ssp-generated-section { margin: 32px 0; padding: 0; border: 0; scroll-margin-top: 20px; }
+.ssp-paper .ssp-profile-contribution { border-radius: 0; }
+.ssp-paper details { border-radius: 0; }
+.ssp-paper .ssp-document-footer { margin-top: 38px; border-top: 1px solid #9caaba; padding-top: 12px; font-size: 10px; }
+@media (max-width: 650px) {
+  .ssp-preview-root .ssp-paper { padding: 18px; font-size: 10pt; }
+  .ssp-paper .ssp-cover { min-height: 350px; padding: 28px 0; gap: 18px; }
+  .ssp-paper .ssp-cover h2 { font-size: 24px; }
+  .ssp-paper .ssp-control-table :is(th, td) { padding: 8px; }
+}

@@ -5,16 +5,20 @@
 
 ## Summary
 
-Add version history, line-level diffing, rollback, and ISSM approval workflows to per-control SSP narratives (`ControlImplementation`). Introduces two new entities (`NarrativeVersion`, `NarrativeReview`), enhances `ControlImplementation` with approval status tracking, and delivers 8 new MCP tools plus enhancements to the existing `compliance_write_narrative` tool. Uses DiffPlex for unified diff generation. Follows the existing `SspSection` version/review lifecycle pattern and `BaseTool`/`BaseAgent` architecture.
+Add version history, line-level diffing, rollback, ISSM approval workflows, and
+a control-oriented dashboard workspace to per-control SSP narratives
+(`ControlImplementation`). The dashboard reuses the current implementation,
+proposal, reference, evidence, responsibility, and immutable version stores through
+an aggregate read projection; it does not add a parallel narrative store.
 
 ## Technical Context
 
-**Language/Version**: C# 13 / .NET 9.0  
-**Primary Dependencies**: ASP.NET Core, EF Core 9.0.0, Serilog, DiffPlex (new — MIT, .NET Standard 2.0)  
+**Language/Version**: C# 13 / .NET 9.0; TypeScript 5.7 / React 19
+**Primary Dependencies**: ASP.NET Core, EF Core 9.0.0, Serilog, DiffPlex, React Router, Axios
 **Storage**: SQLite (dev) / SQL Server (prod) via EF Core dual-provider  
 **Testing**: xUnit, FluentAssertions, Moq  
 **Target Platform**: Azure Government (Linux containers)  
-**Project Type**: MCP server (web-service)  
+**Project Type**: MCP server plus React dashboard
 **Performance Goals**: Simple queries <5s, batch operations (≤50 controls) <5s  
 **Constraints**: <512MB steady-state memory, paginated result sets (default 50)  
 **Scale/Scope**: ~325 controls per Moderate baseline, unlimited version retention
@@ -25,7 +29,7 @@ Add version history, line-level diffing, rollback, and ISSM approval workflows t
 
 | # | Principle | Status | Notes |
 |---|-----------|--------|-------|
-| I | Documentation as Source of Truth | ✅ PASS | FR-027–FR-032 require doc updates for all new tools, entities, and persona guides |
+| I | Documentation as Source of Truth | ✅ PASS | Dashboard scope is documented in FR-033–FR-047 and tracked by azurenoops/spin_agent#1048 |
 | II | BaseAgent/BaseTool Architecture | ✅ PASS | All 8 new tools extend `BaseTool`; registered via `RegisterTool()` in `ComplianceAgent` |
 | III | Testing Standards | ✅ PASS | Unit tests (service layer) + integration tests (tool endpoints) + boundary/edge cases specified |
 | IV | Azure Government & Compliance | ✅ PASS | No new Azure interactions; narrative governance maps to NIST CM-3, CM-5, AU-12 |
@@ -34,7 +38,8 @@ Add version history, line-level diffing, rollback, and ISSM approval workflows t
 | VII | User Experience Consistency | ✅ PASS | Standard `{ status, data, metadata }` response envelope; actionable error messages with codes |
 | VIII | Performance Requirements | ✅ PASS | Paginated history (default 50), batch ops ≤5s for 50 controls, `CancellationToken` support |
 
-**Gate result**: ✅ ALL PASS — no violations.
+**Gate result**: ✅ ALL PASS — the user approved and the dashboard redesign is
+tracked by azurenoops/spin_agent#1048.
 
 **Post-Phase 1 re-check**: ✅ Design artifacts (data-model.md, contracts/) confirm all principles satisfied. DiffPlex is MIT-licensed and .NET Standard 2.0 compatible. No new Azure service dependencies.
 
@@ -102,6 +107,15 @@ docs/
     ├── engineer-guide.md                          # MODIFY: Narrative versioning workflows
     ├── issm-guide.md                              # MODIFY: Review/approval workflows
     └── sca-guide.md                               # MODIFY: Audit trail access
+
+src/Ato.Copilot.Dashboard/
+├── src/pages/NarrativeWorkspace.tsx               # MODIFY: compact page composition and preserved sub-workflows
+├── src/features/narratives/                       # NEW: list, drawer, statement/evidence/history presentation
+├── src/api/narratives.ts                          # MODIFY: validated workspace projection/detail/history contract
+└── src/__tests__/pages/                           # MODIFY: list/detail/navigation/permission regressions
+
+src/Ato.Copilot.Mcp/Endpoints/Dashboard/
+└── DashboardNarrativeWorkspaceEndpoints.cs        # NEW: tenant-scoped aggregate read projection
 ```
 
 **Structure Decision**: Follows the existing project structure — models in `Ato.Copilot.Core`, service + tools in `Ato.Copilot.Agents`, tests in dedicated test projects. New service (`INarrativeGovernanceService`) keeps `ISspService` focused. New tool file (`NarrativeGovernanceTools.cs`) keeps `SspAuthoringTools.cs` manageable.

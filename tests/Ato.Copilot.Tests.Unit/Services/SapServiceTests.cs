@@ -22,6 +22,23 @@ namespace Ato.Copilot.Tests.Unit.Services;
 /// </summary>
 public class SapServiceTests : IDisposable
 {
+    [Fact]
+    public async Task UpdateSap_StoresManualDraftFields_RendersContent_AndRejectsStaleEdit()
+    {
+        // Arrange
+        SeedBaseline();
+        var draft = await _service.GenerateSapAsync(new SapGenerationInput(TestSystemId), "author");
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(draft.Content))).ToLowerInvariant();
+        var input = new SapUpdateInput(draft.SapId, ScopeNotes: "Reviewed mission boundary",
+            Title: "Initial mission assessment", AssessmentLead: "Assigned assessor", AssessmentApproach: "Examine, interview and test", ExpectedContentHash: hash);
+        // Act
+        var updated = await _service.UpdateSapAsync(input);
+        // Assert
+        updated.Title.Should().Be("Initial mission assessment");
+        updated.Content.Should().Contain("Assigned assessor").And.Contain("Examine, interview and test").And.Contain("Reviewed mission boundary");
+        await FluentActions.Awaiting(() => _service.UpdateSapAsync(input)).Should().ThrowAsync<InvalidOperationException>().WithMessage("*changed*");
+    }
+
     private const string TestSystemId = "sys-001";
     private const string TestAssessmentId = "assess-001";
 
@@ -365,20 +382,20 @@ public class SapServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateSapAsync_DraftOverwrite_DeletesExistingDraft()
+    public async Task GenerateSapAsync_RetryRetainsExistingDraftAndChildren()
     {
+        // Arrange
         SeedBaseline();
         SeedScaRoleAssignment();
 
-        // Generate first SAP
         var first = await _service.GenerateSapAsync(CreateDefaultInput());
         first.Status.Should().Be("Draft");
 
-        // Generate second SAP — should overwrite the Draft
+        // Act
         var second = await _service.GenerateSapAsync(CreateDefaultInput());
         second.Status.Should().Be("Draft");
 
-        // First SAP should no longer exist
+        // Assert
         using var scope = _serviceProvider.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var allSaps = await ctx.SecurityAssessmentPlans
@@ -387,6 +404,8 @@ public class SapServiceTests : IDisposable
 
         allSaps.Should().ContainSingle();
         allSaps[0].Id.Should().Be(second.SapId);
+        second.SapId.Should().Be(first.SapId);
+        second.Content.Should().Be(first.Content);
     }
 
     [Fact]
@@ -1024,9 +1043,9 @@ public class SapServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetSapAsync_BySystemId_PrefersFinalizedOverDraft()
+    public async Task GetSapAsync_BySystemId_PrefersWorkingDraftOverFinalizedHistory()
     {
-        // Generate and finalize first SAP
+        // Arrange
         var first = await GenerateDraftSapAsync();
         await _service.FinalizeSapAsync(first.SapId);
 
@@ -1034,12 +1053,13 @@ public class SapServiceTests : IDisposable
         var secondInput = new SapGenerationInput(SystemId: TestSystemId);
         var second = await _service.GenerateSapAsync(secondInput);
 
-        // Retrieve by system_id — should prefer Finalized
+        // Act
         var result = await _service.GetSapAsync(systemId: TestSystemId);
 
+        // Assert
         result.Should().NotBeNull();
-        result.SapId.Should().Be(first.SapId);
-        result.Status.Should().Be("Finalized");
+        result.SapId.Should().Be(second.SapId);
+        result.Status.Should().Be("Draft");
     }
 
     [Fact]
@@ -1179,7 +1199,7 @@ public class SapServiceTests : IDisposable
 
         var docTemplateMock = new Mock<IDocumentTemplateService>();
         docTemplateMock
-            .Setup(s => s.RenderDocxAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.RenderDocxAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>(), It.IsAny<string>()))
             .ReturnsAsync(fakeDocxBytes);
 
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
@@ -1197,7 +1217,7 @@ public class SapServiceTests : IDisposable
         result.Format.Should().Be("docx");
         result.Content.Should().Be(Convert.ToBase64String(fakeDocxBytes));
         docTemplateMock.Verify(
-            s => s.RenderDocxAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>()),
+            s => s.RenderDocxAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>(), result.SapId),
             Times.Once);
     }
 
@@ -1209,7 +1229,7 @@ public class SapServiceTests : IDisposable
 
         var docTemplateMock = new Mock<IDocumentTemplateService>();
         docTemplateMock
-            .Setup(s => s.RenderPdfAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>()))
+            .Setup(s => s.RenderPdfAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>(), It.IsAny<string>()))
             .ReturnsAsync(fakePdfBytes);
 
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
@@ -1227,7 +1247,7 @@ public class SapServiceTests : IDisposable
         result.Format.Should().Be("pdf");
         result.Content.Should().Be(Convert.ToBase64String(fakePdfBytes));
         docTemplateMock.Verify(
-            s => s.RenderPdfAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>()),
+            s => s.RenderPdfAsync(TestSystemId, "sap", null, It.IsAny<CancellationToken>(), result.SapId),
             Times.Once);
     }
 

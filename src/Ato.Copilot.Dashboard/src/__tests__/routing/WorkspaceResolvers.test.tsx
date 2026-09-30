@@ -18,6 +18,9 @@ vi.mock('../../pages/ComponentLibrary', () => ({ default: () => <div>Organizatio
 vi.mock('../../pages/CapabilityLibrary', () => ({ default: () => <div>Organization capabilities</div> }));
 vi.mock('../../pages/ControlCatalog', () => ({ default: ({ scope = 'org' }: { scope?: string }) => <div>Controls {scope}</div> }));
 vi.mock('../../features/csp-dashboard/CspDashboardPage', () => ({ default: () => <div>Provider portfolio</div> }));
+vi.mock('../../features/provider-workspace/ProviderWorkspacePage', () => ({
+  default: ({ view }: { view: string }) => <div>{view === 'missions' ? 'Provider service relationships' : 'Provider task overview'}</div>,
+}));
 vi.mock('../../features/csp-dashboard/CspSystemsPage', () => ({ default: () => <div>Provider systems</div> }));
 vi.mock('../../features/csp-inherited-components/CspInheritedComponentsPage', () => ({ default: () => <div>Provider components</div> }));
 vi.mock('../../features/csp-inherited-components/CspCapabilitiesPage', () => ({ default: () => <div>Provider capabilities</div> }));
@@ -55,6 +58,12 @@ describe('server-validated workspace route resolution', () => {
         expect(screen.getByLabelText('Current location')).toHaveTextContent(
           `${prefix}/security-capabilities?search=threat&grouping=${label === 'components' ? 'component' : 'capability'}#source`,
         );
+      } else if (kind === 'csp' && label === 'portfolio') {
+        expect(screen.getByText('Provider task overview')).toBeInTheDocument();
+        expect(screen.queryByText('Provider portfolio')).not.toBeInTheDocument();
+      } else if (kind === 'csp' && label === 'systems') {
+        expect(screen.getByText('Provider service relationships')).toBeInTheDocument();
+        expect(screen.queryByText('Provider systems')).not.toBeInTheDocument();
       } else {
         expect(screen.getByText(`${kind === 'csp' ? 'Provider' : 'Organization'} ${label}`)).toBeInTheDocument();
       }

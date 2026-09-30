@@ -6,7 +6,7 @@ import SystemLayout, { useSystemContext } from '../../components/layout/SystemLa
 
 vi.mock('../../components/layout/PageLayout', () => ({
   default: ({ children, leftPanel, sidePanel }: { children: ReactNode; leftPanel: ReactNode; sidePanel: ReactNode }) =>
-    <><nav aria-label="System navigation">{leftPanel}</nav><main>{children}</main><aside aria-label="System context">{sidePanel}</aside></>,
+    <>{leftPanel}<main>{children}</main><aside aria-label="System context">{sidePanel}</aside></>,
 }));
 vi.mock('../../hooks/usePolling', () => ({ usePolling: (fetch: () => void) => useEffect(() => { void fetch(); }, [fetch]) }));
 vi.mock('../../hooks/useSettings', () => ({ useSettings: () => ({ settings: { role: 'ISSM' } }) }));
@@ -38,7 +38,9 @@ describe('system capability layout integration', () => {
     // Assert
     await screen.findByRole('heading', { name: 'Applied security capabilities' });
     const navigation = screen.getByRole('navigation', { name: 'System navigation' });
-    expect(within(navigation).getByRole('link', { name: 'Security Capabilities' })).toHaveAttribute('href', '/systems/system-a/security-capabilities');
+    expect(within(navigation).getByRole('link', { name: 'Controls & evidence' })).toHaveAttribute('href', '/systems/system-a/baseline');
+    expect(within(screen.getByRole('navigation', { name: 'System task views' })).getByRole('link', { name: 'Applied capabilities' }))
+      .toHaveAttribute('href', '/systems/system-a/security-capabilities');
     expect(screen.getByRole('link', { name: 'Mission Alpha' })).toHaveAttribute('href', '/systems/system-a');
     expect(await screen.findByRole('heading', { name: 'System capability follow-up' })).toBeVisible();
     // Act

@@ -258,7 +258,7 @@ public sealed class ProviderFindingService(ProviderAuthorizationStore store, IFi
     private static ProviderFindingEvidenceResponse EvidenceResponse(ProviderFindingEvidence row, long findingRevision,
         ProviderFindingReviewResponse? review) =>
         new(row.Id, row.FindingId, row.OfferingId, findingRevision, row.FileName, row.MediaType,
-            row.ByteLength, row.Sha256, row.Description, row.State, row.CreatedAt, review);
+            row.ByteLength, row.Sha256, row.Description, row.State, row.CreatedAt, review) { EvidenceRevision = row.Revision };
 
     private static ProviderFindingReviewResponse ReviewResponse(ProviderFindingReview row) =>
         new(row.Id, row.FindingId, row.OfferingId, row.Revision, Read<Guid[]>(row.EvidenceIdsJson),

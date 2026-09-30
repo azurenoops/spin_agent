@@ -796,6 +796,11 @@ public class DocumentMetadata
 [TenantScoped]
 public class ComplianceAssessment
 {
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public string? WorkspaceOperationKey { get; set; }
+    [System.ComponentModel.DataAnnotations.ConcurrencyCheck]
+    public string? ResultProvenanceJson { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
@@ -1914,6 +1919,10 @@ public class MonitoringConfiguration
     /// <summary>When the last monitoring check ran.</summary>
     public DateTimeOffset? LastRunAt { get; set; }
 
+    public DateTimeOffset? LastAttemptAt { get; set; }
+    public DateTimeOffset? LastFailureAt { get; set; }
+    public string? CollectionError { get; set; }
+
     /// <summary>High-water mark for event-driven monitoring (last event timestamp processed).</summary>
     public DateTimeOffset? LastEventCheckAt { get; set; }
 
@@ -2166,6 +2175,19 @@ public sealed class RmfPhaseTransitionAuditDetails
 [TenantScoped]
 public class AlertRule
 {
+    public string? RegisteredSystemId { get; set; }
+    public string? BoundaryDefinitionId { get; set; }
+    public string? ReviewedScopeJson { get; set; }
+    public string? BaselineReference { get; set; }
+    public string? OwnerId { get; set; }
+    public string? LastModifiedBy { get; set; }
+    public string Signal { get; set; } = "Alert";
+    public string Response { get; set; } = "CreateImpactReview";
+    public int CadenceMinutes { get; set; } = 60;
+    public long Version { get; set; } = 1;
+    public DateTimeOffset? LastEvaluatedAt { get; set; }
+    public long NextEvaluationUtcTicks { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

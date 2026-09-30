@@ -8,6 +8,31 @@ The Component Inventory tracks all elements of your system using the **People, P
 
 ## Overview
 
+### Detailed hardware/software register
+
+The generic component registry and the detailed hardware/software register have
+different purposes. Use **Manage hardware/software register** on the system
+component page, or open
+`/systems/{systemId}/security-capabilities/inventory?tab=hardware-software`.
+This view reuses the canonical inventory service and records used by HW/SW
+workbook export; adding a generic component does not automatically populate it.
+
+- **Add inventory item** records hardware or software details. **Open** edits an
+  existing item, and **Retire item** retains its history with a rationale.
+- **Export HW/SW workbook** downloads the existing inventory workbook. Download
+  is not proof of eMASS submission or acceptance.
+- Standalone managed software/SaaS/PaaS needs documented vendor, function and
+  version information, not a fabricated physical server, serial number or IP.
+  Hardware retains its function-specific requirements.
+- Initial-submission readiness checks for an active register and required
+  fields. Hardware/software and legacy-boundary coverage warnings remain
+  follow-up items requiring applicability review; the check does not certify
+  that the inventory exhaustively covers the system.
+- Changes invalidate previously evaluated readiness. Use **Return to package
+  readiness** when arriving from a gap, then explicitly recheck.
+- Server system-management permission controls editing. Readers can inspect
+  the register but do not gain mutation authority from a displayed role name.
+
 Every information system consists of three types of components:
 
 | Type | Description | Examples |
@@ -139,6 +164,68 @@ Components can be assigned to specific authorization boundaries:
 ## Org-Wide Component Library (Feature 036)
 
 Components can be created at the **organization level** (not tied to a specific system) and then assigned to one or more registered systems.
+
+### Policies for this system
+
+Open **Controls & evidence → Policies** inside an authorized system workspace.
+This uses the existing organization Policy component library, not another library.
+The **Organization policy library** link opens the library with its Policy filter.
+
+When no references exist, the page shows **No policies linked yet**, one **Add
+policy** button, and no empty table, search, or pagination. Populated systems have
+search, source-status/source-change filters, accurate totals, and paging.
+
+**Add policy** is a two-step drawer:
+
+1. **Choose policy** searches authorized organization records by name/topic and
+   shows source status and actual revision metadata. Already assigned sources are
+   identified. **View source** reads the authorized source rather than treating
+   an Active status as applicability approval.
+2. **Explain & add** keeps the target system and selected source visible. Enter
+   a system-specific rationale (1-500 characters), review its actual character
+   count and save preview, then choose **Add system reference**.
+
+**Common references** are suggestions, not automatic requirements. Find the
+suggestion in the library first. If missing, an authorized library author can
+explicitly create it using **Create a library policy** (name up to 200 characters,
+topic up to 100, description up to 2000). That save creates only the shared source
+and returns to selection; it does not assign it. Canceling the later system flow
+does not delete an explicitly created library record.
+
+**Retained details** show rationale, source snapshot, current source/change
+indication, actual related controls, and audit history. Editing rationale does
+not replace the source snapshot. A stale source or assignment requires refresh
+and renewed selection/review, not an automatic overwrite.
+
+Sources do not currently have native numbered policy versions. The page uses
+actual created/updated/capture metadata and retained source fingerprints rather
+than inventing version numbers. Older assignments without snapshots are
+explicitly labeled unretained. Policy presence through a linked capability is
+distinct from a direct assignment and is not silently removed by unlinking.
+
+**Unlink from system** previews the scoped impact and removes only that system
+reference. The shared source and other system assignments remain; history is
+auditable. Available actions come from server authorization, not the role label.
+
+Applicability review is not implemented by the current assignment contract.
+Source status and review information are displayed separately. No link, Active
+source, or saved rationale proves control implementation, approves a narrative,
+or grants an ATO.
+
+#### SSP and narrative connections
+
+Current SSP/OSCAL code can export Policy records as generic component inventory.
+The narrative enrichment template handles Things, People, and Places, but does
+not currently include Policy components as supporting-reference context.
+The new retained snapshot/rationale is not yet mapped automatically into SSP
+supporting citations or all eMASS outputs. Inspect generated documents rather
+than infer submission readiness from a saved assignment.
+
+The separate legal-authority section-mapping issue remains tracked by
+[azurenoops/spin_agent#970](https://github.com/azurenoops/spin_agent/issues/970).
+Policy narrative-context gaps are tracked by
+[azurenoops/spin_agent#972](https://github.com/azurenoops/spin_agent/issues/972).
+The page makes no unsupported FedRAMP section-number claim.
 
 ### Creating Org-Wide Components
 

@@ -15,6 +15,7 @@ import * as exportsApi from '../../api/exports';
 import * as scans from '../../api/scanImport';
 import * as packageShortcuts from '../../api/packages';
 import { downloadAuthenticatedFile } from '../../api/downloads';
+import '../helpers/dialog';
 
 const mocks = vi.hoisted(() => ({
   me: { data: null, isLoading: false, error: null, refetch: () => {} } as UseMeResult,
@@ -32,7 +33,7 @@ vi.mock('../../features/auth/msalInstance', () => ({
 }));
 vi.mock('../../features/notifications/capabilities', () => ({ getNotificationCapabilities: mocks.capabilities }));
 vi.mock('../../api/package', () => ({
-  generatePackage: vi.fn(), getPackageDetail: vi.fn(), validatePackage: vi.fn(),
+  generatePackage: vi.fn(), getPackageDetail: vi.fn(), validatePackage: vi.fn(), getPackageContextOptions: vi.fn(),
   downloadPackageUrl: () => '/api/v1/systems/system-a/packages/package-a/download',
 }));
 vi.mock('../../api/packages', () => ({
@@ -41,7 +42,7 @@ vi.mock('../../api/packages', () => ({
 }));
 vi.mock('../../api/downloads', () => ({ downloadAuthenticatedFile: vi.fn() }));
 vi.mock('../../api/exports', () => ({
-  requestExport: vi.fn(), getExport: vi.fn(), listTemplates: vi.fn(),
+  requestExport: vi.fn(), requestPreviewExport: vi.fn(), getExport: vi.fn(), listTemplates: vi.fn(),
   downloadExportUrl: () => '/api/dashboard/systems/system-a/exports/export-a/download',
 }));
 vi.mock('../../api/scanImport', () => ({
@@ -97,7 +98,7 @@ beforeEach(() => {
   mocks.stop.mockResolvedValue(undefined);
   mocks.invoke.mockResolvedValue(undefined);
   vi.mocked(packages.validatePackage).mockResolvedValue({ isValid: true, errorCount: 0, warningCount: 0,
-    validatedAt: '2026-09-21T12:00:00Z', findings: [] });
+    validatedAt: '2026-09-21T12:00:00Z', findings: [], sourceContextHash: 'c'.repeat(64) });
   vi.mocked(packages.generatePackage).mockResolvedValue({ packageId: 'package-a', status: 'Pending', message: 'Queued' });
   vi.mocked(packages.getPackageDetail).mockResolvedValue(packageDetail);
   vi.mocked(exportsApi.requestExport).mockResolvedValue({ ...exportDetail, status: 'Pending' });
@@ -112,6 +113,101 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('cookie-session progress clients', () => {
+  it('requires visible retained-source reselection after a failed archive generation', async () => {
+    // Arrange
+    vi.mocked(packages.getPackageContextOptions).mockResolvedValue({
+      baselines: [{ id: 'baseline-a', purpose: 'InitialSubmission', generatedAt: '2026-09-01', contentHash: 'baseline-hash' }],
+      decisions: [{ id: 'decision-a', decisionType: 'ATO', decisionDate: '2026-09-02', issuer: 'Recorded issuer', snapshotHash: 'decision-hash' }],
+      previews: [],
+    });
+    vi.mocked(packages.generatePackage).mockRejectedValue(new Error('Selected source changed'));
+    mount(<PackageGenerationDialog systemId="system-a" onClose={vi.fn()} />);
+    await screen.findByRole('button', { name: 'Generate Package' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Package purpose' }), { target: { value: 'AuthorizedBaselineArchive' } });
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Retained baseline package' }), { target: { value: 'baseline-a' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Recorded authorization decision' }), { target: { value: 'decision-a' } });
+    await screen.findByRole('button', { name: 'Generate Package' });
+    expect(screen.queryByText('Evidence Bundling')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate Package' }));
+    await screen.findByText('Selected source changed');
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: /^Retry$/ }));
+    // Assert
+    expect(await screen.findByRole('combobox', { name: 'Retained baseline package' })).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Generate Package' })).not.toBeInTheDocument();
+    expect(packages.generatePackage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not generate an archive until the baseline and decision are explicitly pinned', async () => {
+    // Arrange
+    vi.mocked(packages.getPackageContextOptions).mockResolvedValue({
+      baselines: [{ id: 'baseline-a', purpose: 'InitialSubmission', generatedAt: '2026-09-01', contentHash: 'baseline-hash' }],
+      decisions: [{ id: 'decision-a', decisionType: 'ATO', decisionDate: '2026-09-02', issuer: 'Recorded issuer', snapshotHash: 'decision-hash' }],
+      previews: [],
+    });
+    mount(<PackageGenerationDialog systemId="system-a" onClose={vi.fn()} />);
+    await screen.findByRole('button', { name: 'Generate Package' });
+    // Act
+    fireEvent.change(screen.getByRole('combobox', { name: 'Package purpose' }), { target: { value: 'AuthorizedBaselineArchive' } });
+    // Assert
+    expect(screen.queryByRole('button', { name: 'Generate Package' })).not.toBeInTheDocument();
+    // Act
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Retained baseline package' }), { target: { value: 'baseline-a' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Recorded authorization decision' }), { target: { value: 'decision-a' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate Package' }));
+    // Assert
+    await screen.findByText('Package Generated Successfully');
+    expect(packages.generatePackage).toHaveBeenCalledWith('system-a', 'ManifestOnly', expect.any(AbortSignal), 'AuthorizedBaselineArchive', {
+      baselinePackageId: 'baseline-a', baselineContentHash: 'baseline-hash', authorizationDecisionId: 'decision-a',
+      expectedDecisionSnapshotHash: 'decision-hash', expectedSourceContextHash: 'c'.repeat(64),
+    });
+  });
+
+  it('uses the shared native modal shell for package and document exports', async () => {
+    // Arrange
+    const packageView = mount(<PackageGenerationDialog systemId="system-a" onClose={vi.fn()} />);
+    // Act / Assert
+    expect(await screen.findByRole('dialog', { name: 'Generate Authorization Package' })).toHaveProperty('tagName', 'DIALOG');
+    expect(screen.getByRole('dialog')).toHaveAttribute('open');
+    packageView.unmount();
+    // Act
+    mount(<ExportSspDialog systemId="system-a" onClose={vi.fn()} />);
+    // Assert
+    expect(await screen.findByRole('dialog', { name: 'Export SSP Document' })).toHaveProperty('tagName', 'DIALOG');
+    expect(screen.getByRole('dialog')).toHaveAttribute('open');
+  });
+  it('exports only the selected retained preview through the existing progress flow', async () => {
+    // Arrange
+    vi.mocked(exportsApi.requestPreviewExport).mockResolvedValue({ ...exportDetail, format: 'json', status: 'Pending' });
+    vi.mocked(exportsApi.getExport).mockResolvedValue({ ...exportDetail, format: 'json', sourcePreviewId: 'preview-a' });
+    mount(<ExportSspDialog systemId="system-a" sourcePreviewId="preview-a" sourceContentHash="synthetic" onClose={vi.fn()} />);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    // Assert
+    expect(await screen.findByRole('link', { name: 'Download OSCAL JSON (.json)' })).toBeVisible();
+    expect(exportsApi.requestPreviewExport).toHaveBeenCalledWith('system-a', 'preview-a', expect.any(String), expect.any(AbortSignal));
+    expect(exportsApi.requestExport).not.toHaveBeenCalled();
+    expect(screen.queryByText('ATO Package Downloads')).not.toBeInTheDocument();
+    expect(exportsApi.listTemplates).not.toHaveBeenCalled();
+  });
+
+  it('carries explicit initial-submission purpose through validation and generation', async () => {
+    // Arrange
+    vi.mocked(packages.validatePackage).mockResolvedValueOnce({
+      isValid: false, errorCount: 1, warningCount: 0, validatedAt: '2026-09-21T12:00:00Z',
+      findings: [{ category: 'authorization-decision', severity: 'error', artifactType: null, description: 'Legacy authorization required', remediation: null }],
+    }).mockResolvedValue({ isValid: true, errorCount: 0, warningCount: 0, validatedAt: '2026-09-21T12:00:00Z', findings: [] });
+    mount(<PackageGenerationDialog systemId="system-a" onClose={vi.fn()} />);
+    await screen.findByText('Legacy authorization required');
+    // Act
+    fireEvent.change(screen.getByRole('combobox', { name: 'Package purpose' }), { target: { value: 'InitialSubmission' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate Package' }));
+    // Assert
+    await screen.findByText('Package Generated Successfully');
+    expect(packages.validatePackage).toHaveBeenLastCalledWith('system-a', expect.any(AbortSignal), 'InitialSubmission');
+    expect(packages.generatePackage).toHaveBeenCalledWith('system-a', 'Embedded', expect.any(AbortSignal), 'InitialSubmission');
+  });
+
   it('completes package generation through authorized status polling without a bearer hub', async () => {
     // Arrange
     const onComplete = vi.fn();
@@ -326,6 +422,35 @@ describe('cookie-session progress clients', () => {
     // Assert
     expect(screen.getByText('Import complete')).toBeInTheDocument();
     expect(complete).toHaveBeenCalledExactlyOnceWith('Completed');
+  });
+
+  it.each(['polling', 'realtime'] as const)('preserves warning completion and result identity through %s', async transport => {
+    // Arrange
+    const completion = { id: 'scan-a', status: 'CompletedWithWarnings' as const, processedCount: 2,
+      totalCount: 2, errorMessage: null, cancelRequested: false,
+      resultId: 'import:scan-a', warnings: ['Two rules need manual review.'] };
+    const complete = vi.fn();
+    if (transport === 'realtime') {
+      mocks.capabilities.mockResolvedValue({ ...cookieCapabilities,
+        realtime: { ...cookieCapabilities.realtime, available: true, reasonCode: null } });
+      vi.mocked(scans.getScanImportStatus).mockResolvedValue({ id: 'scan-a', status: 'Processing',
+        processedCount: 0, totalCount: 2, errorMessage: null, cancelRequested: false });
+    } else vi.mocked(scans.getScanImportStatus).mockResolvedValue(completion);
+    mount(<ScanImportProgressBar systemId="system-a" importJobId="scan-a" onComplete={complete} />);
+    // Act
+    if (transport === 'realtime') {
+      await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('JoinImportGroup', 'scan-a'));
+      const progress = mocks.handlers.get('ImportProgress');
+      if (!progress) throw new Error('Expected import progress subscription.');
+      await act(async () => progress({ ...completion, jobId: completion.id }));
+    }
+    // Assert
+    expect(await screen.findByText('Imported with warnings — review retained observations')).toBeInTheDocument();
+    expect(screen.getByText('Two rules need manual review.')).toBeInTheDocument();
+    expect(screen.queryByText('Import complete')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel import' })).not.toBeInTheDocument();
+    expect(complete).toHaveBeenCalledExactlyOnceWith('CompletedWithWarnings',
+      { resultId: 'import:scan-a', warnings: ['Two rules need manual review.'] });
   });
 
   it('handles package shortcut completion with an authenticated cancellable download', async () => {

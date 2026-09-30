@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useParams } from 'react-router-dom';
+import { Link } from '../features/workspaces/workspaceNavigation';
 import { usePolling } from '../hooks/usePolling';
 import { useSettings } from '../hooks/useSettings';
 import { getNarratives, bulkUpdateNarratives, saveNarrative, regenerateNarrative, getAvailableControls, createNarrative } from '../api/narratives';
@@ -68,7 +69,7 @@ function parseControlActivities(narrative: string | null | undefined): ControlAc
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(normalized)) !== null) {
     const name = (match[1] ?? '').trim();
-    const description = (match[2] ?? '').replace(/^[-:\s]+/, '').trim();
+    const description = (match[2] ?? '').replace(/^(?:-|:|\s)+/, '').trim();
     if (!name && !description) continue;
     activities.push({ name, description });
   }
@@ -582,7 +583,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
         )}
 
         {/* Summary cards */}
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
           <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
             <p className="text-xs font-medium text-gray-500 uppercase">Total</p>
             <p className="mt-1 text-2xl font-bold text-gray-900">{stats.total}</p>
@@ -678,7 +679,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
 
         {/* Table */}
         {narratives && (
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="nw-table-scroll overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -703,7 +704,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {items.length === 0 ? (
-                  <tr>
+                  <tr className="nw-full-row">
                     <td colSpan={9} className="px-4 py-12 text-center">
                       {/* fix/431: Provide actionable CTA when no baseline is configured */}
                       <div className="flex flex-col items-center gap-3">
@@ -712,22 +713,22 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                         </svg>
                         <p className="text-sm font-medium text-gray-500">No narratives found.</p>
                         <p className="text-xs text-gray-400">
-                          This system has no security baseline selected. Select a baseline in the
-                          RMF Wizard to auto-populate control narratives.
+                          No implementation statements were returned for the current filters.
+                          Review the applicable baseline or adjust the filters.
                         </p>
-                        <a
-                          href={`/systems/${systemId}/categorize`}
+                        <Link
+                          to={`/systems/${systemId}/baseline`}
                           className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                         >
                           Select Baseline
-                        </a>
+                        </Link>
                       </div>
                     </td>
                   </tr>
                 ) : items.map((n) => (
                   <Fragment key={n.id}>
                     <tr className={`hover:bg-gray-50 ${selected.has(n.controlId) ? 'bg-indigo-50' : ''}`}>
-                      <td className="px-3 py-3">
+                      <td className="nw-selection-cell px-3 py-3">
                         <input
                           type="checkbox"
                           disabled={!canAuthor || Boolean(onGenerateDraft)}
@@ -760,7 +761,7 @@ export default function Narratives({ onGenerateDraft, proposals = [], canGenerat
                       </td>
                     </tr>
                     {expanded.has(n.id) && (
-                      <tr className="bg-gray-50">
+                      <tr className="nw-full-row bg-gray-50">
                         <td colSpan={9} className="px-6 py-4">
                           {(() => {
                             const policyKey = `${n.controlId}:policy`;

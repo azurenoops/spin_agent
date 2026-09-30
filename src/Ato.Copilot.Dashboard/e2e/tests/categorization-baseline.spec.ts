@@ -13,16 +13,11 @@ for (const width of [1440, 390]) {
         id: 'profile-data',
         sectionType: 'DataTypes',
         governanceStatus: 'UnderReview',
-        draftContent: null,
-        approvedContent: null,
         completionPercentage: 100,
         lastEditedBy: 'System Owner',
         lastEditedAt: '2026-09-02T00:00:00Z',
         submittedBy: 'System Owner',
         submittedAt: '2026-09-02T00:00:00Z',
-        reviewedBy: null,
-        reviewedAt: null,
-        reviewerComments: null,
         userCategories: [],
         dataTypeEntries: [{
           id: 'data-a',
@@ -94,14 +89,6 @@ for (const width of [1440, 390]) {
 
     // Assert
     await expect(page.getByRole('heading', { name: 'Categorization & control baseline' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Applied capabilities' })).toHaveAttribute(
-      'href',
-      `${systemRoot}/security-capabilities`,
-    );
-    await expect(page.getByRole('link', { name: 'Responsibilities' })).toHaveAttribute(
-      'href',
-      `${systemRoot}/inheritance/subscriptions`,
-    );
     await expect(page.getByRole('link', { name: 'Preview contribution' })).toHaveAttribute(
       'href',
       `${systemRoot}/documents#ssp-sections`,

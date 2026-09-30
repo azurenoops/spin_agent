@@ -1,431 +1,136 @@
-import { useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { usePolling } from '../hooks/usePolling';
-import {
-  getComponents,
-  listComponents,
-  createOrgComponent,
-  assignToSystem,
-  removeAssignment,
-  type OrgComponentDto,
-} from '../api/components';
-import type { CreateComponentRequest, SystemComponentDto } from '../types/dashboard';
-
-const COMMON_POLICIES = [
-  { name: 'FISMA 2014', description: 'Federal Information Security Modernization Act — requires federal agencies to implement information security programs.' },
-  { name: 'Privacy Act of 1974', description: 'Governs the collection, maintenance, use, and dissemination of personally identifiable information by federal agencies.' },
-  { name: 'E-Government Act of 2002', description: 'Requires federal agencies to conduct privacy impact assessments for electronic information systems.' },
-  { name: 'OMB Circular A-130', description: 'Managing Information as a Strategic Resource — establishes policy for the planning, budgeting, governance, and security of federal information resources.' },
-  { name: 'HIPAA', description: 'Health Insurance Portability and Accountability Act — sets standards for the protection of health information.' },
-  { name: 'FIPS 199', description: 'Standards for Security Categorization of Federal Information and Information Systems.' },
-  { name: 'FIPS 200', description: 'Minimum Security Requirements for Federal Information and Information Systems.' },
-  { name: 'NIST SP 800-53 Rev 5', description: 'Security and Privacy Controls for Information Systems and Organizations.' },
-  { name: 'NIST SP 800-37 Rev 2', description: 'Risk Management Framework for Information Systems and Organizations.' },
-  { name: 'FedRAMP Authorization Act', description: 'Codifies the Federal Risk and Authorization Management Program for cloud security assessment.' },
-];
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { FileText, Plus, Search } from 'lucide-react';
+import { Link, useLocation, useParams, useSearchParams } from '../features/workspaces/workspaceNavigation';
+import { getPolicyWorkspace, policyError, type PolicyQuery, type PolicyReference, type PolicyWorkspace } from '../api/policyWorkspace';
+import AddPolicyDrawer from '../features/policies/AddPolicyDrawer';
+import PolicyReferenceDrawer from '../features/policies/PolicyReferenceDrawer';
+import '../features/policies/PolicyWorkspace.css';
 
 export default function LegalRegulatory() {
-  const { id: systemId } = useParams<{ id: string }>();
-  const [search, setSearch] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [showAssign, setShowAssign] = useState(false);
-  const [removeConfirm, setRemoveConfirm] = useState<{ componentId: string; name: string } | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-
-  // Form fields for new items
-  const [formName, setFormName] = useState('');
-  const [formDescription, setFormDescription] = useState('');
-  const [formSubType, setFormSubType] = useState('');
-
-  // Org library items for "Assign Existing"
-  const [orgItems, setOrgItems] = useState<OrgComponentDto[]>([]);
-  const [orgSearch, setOrgSearch] = useState('');
-  const [loadingOrg, setLoadingOrg] = useState(false);
-
-  // System-scoped: only policies assigned to THIS system
-  const fetcher = useCallback(
-    () => systemId
-      ? getComponents(systemId, { type: 'Policy', search: search || undefined, pageSize: 200 })
-      : Promise.reject('No systemId'),
-    [systemId, search],
-  );
-  const { data, refresh } = usePolling<{ systemId: string; items: SystemComponentDto[]; totalCount: number }>(fetcher, 30000);
-  const items = data?.items ?? [];
-
-  const resetForm = () => {
-    setFormName('');
-    setFormDescription('');
-    setFormSubType('');
-    setFormError(null);
+  const { id } = useParams<{ id: string }>();
+  return id ? <PolicyWorkspacePage key={id} systemId={id} /> : <p role="alert">Select a system to view policy references.</p>;
+}
+function PolicyWorkspacePage({ systemId }: { systemId: string }) {
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const [data, setData] = useState<PolicyWorkspace | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [notice, setNotice] = useState('');
+  const [loadedKey, setLoadedKey] = useState('');
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const adding = params.get('policyAction') === 'add';
+  const selected = params.get('reference');
+  const open = adding || !!selected;
+  const query: PolicyQuery = {
+    search: params.get('search') ?? '', status: params.get('status') ?? '', sourceChanged: params.get('sourceChanged') ?? '',
+    page: Math.max(1, Math.floor(Number(params.get('page')) || 1)), pageSize: 25,
   };
-
-  const openCreate = () => {
-    resetForm();
-    setShowCreate(true);
+  const queryKey = JSON.stringify(query);
+  const current = queryKey === loadedKey ? data : null;
+  const refresh = useCallback(() => setRevision(value => value + 1), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true); setError(null);
+    const requestQuery: PolicyQuery = JSON.parse(queryKey);
+    getPolicyWorkspace(systemId, requestQuery, controller.signal)
+      .then(value => { if (!controller.signal.aborted) { setData(value); setLoadedKey(queryKey); } })
+      .catch(reason => { if (!controller.signal.aborted) setError(policyError(reason)); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [systemId, queryKey, revision]);
+  const change = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    if (key !== 'page') next.delete('page');
+    setParams(next, { replace: key === 'search' });
   };
-
-  // Create org-wide policy and assign to this system
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName.trim() || !systemId) { setFormError('Name is required'); return; }
-    setSubmitting(true);
-    setFormError(null);
-    const request: CreateComponentRequest = {
-      name: formName.trim(),
-      componentType: 'Policy',
-      subType: formSubType.trim() || undefined,
-      description: formDescription.trim() || undefined,
-      status: 'Active',
-    };
-    try {
-      const orgComp = await createOrgComponent(request);
-      await assignToSystem(orgComp.id, { registeredSystemId: systemId });
-      setShowCreate(false);
-      resetForm();
-      refresh();
-    } catch (err: any) {
-      setFormError(err?.response?.data?.error ?? 'Failed to save');
-    } finally {
-      setSubmitting(false);
-    }
+  const show = (key: 'policyAction' | 'reference', value: string, element: HTMLElement) => {
+    returnFocus.current = element; setNotice('');
+    const next = new URLSearchParams(params); next.delete('policyAction'); next.delete('policySource'); next.delete('reference'); next.set(key, value);
+    setParams(next);
   };
-
-  // Remove assignment from this system (not the org-wide component)
-  const handleRemoveAssignment = async (componentId: string) => {
-    if (!systemId) return;
-    try {
-      // Find the assignment for this system
-      const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
-      const comp = orgData.items.find(c => c.id === componentId);
-      const assignment = comp?.systemAssignments?.find(a => a.registeredSystemId === systemId);
-      if (assignment) {
-        await removeAssignment(componentId, assignment.id);
-      }
-      setRemoveConfirm(null);
-      refresh();
-    } catch { /* ignore */ }
+  const close = useCallback(() => {
+    const next = new URLSearchParams(location.search); next.delete('policyAction'); next.delete('policySource'); next.delete('reference');
+    setParams(next, { replace: true });
+  }, [location.search, setParams]);
+  const previousOpen = useRef(open);
+  useEffect(() => {
+    if (previousOpen.current && !open) (returnFocus.current?.isConnected ? returnFocus.current : heading.current)?.focus({ preventScroll: true });
+    previousOpen.current = open;
+  }, [open]);
+  const added = (reference: PolicyReference) => {
+    const next = new URLSearchParams(params); next.delete('policyAction'); next.delete('policySource'); next.set('reference', reference.id);
+    setParams(next, { replace: true }); setNotice('System reference added. No applicability approval was recorded.'); refresh();
   };
-
-  // Quick Add: create org-wide (if not exists) and assign to system
-  const handleQuickAdd = async (policy: typeof COMMON_POLICIES[number]) => {
-    if (!systemId) return;
-    setSubmitting(true);
-    try {
-      // Check org-wide library first
-      const orgData = await listComponents({ type: 'Policy', search: policy.name, pageSize: 10 });
-      let orgComp = orgData.items.find(c => c.name === policy.name);
-      if (!orgComp) {
-        orgComp = await createOrgComponent({
-          name: policy.name,
-          componentType: 'Policy',
-          description: policy.description,
-          status: 'Active',
-        });
-      }
-      // Assign to this system (ignore 409 if already assigned)
-      try {
-        await assignToSystem(orgComp.id, { registeredSystemId: systemId });
-      } catch { /* already assigned */ }
-      refresh();
-    } catch { /* duplicate or error — ignore */ }
-    finally { setSubmitting(false); }
-  };
-
-  // Open assign-from-library dialog
-  const openAssignExisting = async () => {
-    setShowAssign(true);
-    setLoadingOrg(true);
-    setOrgSearch('');
-    try {
-      const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
-      setOrgItems(orgData.items);
-    } catch { setOrgItems([]); }
-    finally { setLoadingOrg(false); }
-  };
-
-  const handleAssignExisting = async (comp: OrgComponentDto) => {
-    if (!systemId) return;
-    setSubmitting(true);
-    try {
-      await assignToSystem(comp.id, { registeredSystemId: systemId });
-      refresh();
-      // Refresh org list to update assignment state
-      const orgData = await listComponents({ type: 'Policy', pageSize: 200 });
-      setOrgItems(orgData.items);
-    } catch { /* already assigned or error */ }
-    finally { setSubmitting(false); }
-  };
-
-  const assignedIds = new Set(items.map((i) => i.id));
-  const existingNames = new Set(items.map((i) => i.name));
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Legal &amp; Regulatory</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Laws, regulations, and policies applicable to this system — required for FedRAMP SSP Section 13.
-          </p>
+  const canAssign = !loading && !error && current?.permissions.canAssign === true;
+  const addButton = <button type="button" className="pw-primary" disabled={!canAssign}
+    onClick={event => { if (canAssign) show('policyAction', 'add', event.currentTarget); }}>
+    <Plus size={17} />Add policy</button>;
+  return <section className={`pw-page${open ? ' pw-open' : ''}`} aria-labelledby="policy-heading">
+    <header className="pw-page-header"><div><h1 ref={heading} tabIndex={-1} id="policy-heading">Policies for this system</h1>
+      <p>Keep the policies you rely on and explain why they apply.</p></div>
+      <Link to="/components?type=Policy">Organization policy library ↗</Link>
+    </header>
+    {notice && <p className="pw-notice" role="status">{notice}</p>}
+    {loading && <p className="pw-loading" role="status">Loading system policy references…</p>}
+    {error && <div className="pw-error" role="alert"><p>{error}</p><button type="button" onClick={refresh}>Retry policies</button></div>}
+    {data && data.unfilteredTotal > 0 && <div className="pw-toolbar">
+      <label className="pw-search"><Search size={16} /><input aria-label="Search policy references"
+        placeholder="Search policy references…" value={query.search} onChange={e => change('search', e.target.value)} /></label>
+      <label className="pw-filter">Source status<select value={query.status} onChange={e => change('status', e.target.value)}>
+        <option value="">All statuses</option><option>Active</option><option>Planned</option><option>Decommissioned</option></select></label>
+      <label className="pw-filter">Source updates<select value={query.sourceChanged} onChange={e => change('sourceChanged', e.target.value)}>
+        <option value="">All sources</option><option value="true">Changed</option><option value="false">Unchanged</option></select></label>
+      {addButton}
+    </div>}
+    {current && !loading && !error && <>
+      {current.unfilteredTotal === 0 ? <>
+        <div className="pw-empty"><div className="pw-empty-icon"><FileText size={45} /></div>
+          <h2>No policies linked yet</h2><p>Choose a policy from your organization library to get started.</p>{addButton}
+          {!current.permissions.canAssign && <p className="pw-hint">{current.permissions.assignReason}</p>}
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setShowQuickAdd(!showQuickAdd)}
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Quick Add Common
-          </button>
-          <button
-            type="button"
-            onClick={openAssignExisting}
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Assign Existing
-          </button>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            + Legal &amp; Regulatory
-          </button>
+        <ol className="pw-howto"><li><span>1</span><div><strong>Choose a source</strong><p>Select a policy from your organization library.</p></div></li>
+          <li><span>2</span><div><strong>Explain applicability</strong><p>Record why it applies to this system.</p></div></li>
+          <li><span>3</span><div><strong>Save system reference</strong><p>Keep the policy version and your rationale.</p></div></li></ol>
+      </> : <div className="pw-list-card">
+        {!current.permissions.canAssign && <p className="pw-hint">{current.permissions.assignReason}</p>}
+        {current.items.length ? <div className="pw-table-scroll"><table aria-label="System policy references"><thead><tr>
+          <th>Policy &amp; retained source</th><th>Why it applies</th><th>Source status</th><th>Applicability review</th><th>Next step</th>
+        </tr></thead><tbody>{current.items.map(reference => <tr key={reference.id} className={selected === reference.id ? 'pw-selected' : ''}>
+          <td><strong>{reference.name}</strong><small>{reference.retainedVersionLabel ?? (reference.retention === 'Indirect' ? 'Through a linked capability' : 'No retained source version')}</small>
+            {reference.sourceChanged && <span className="pw-change">Source changed</span>}</td>
+          <td><p className="pw-prose">{reference.rationale ?? 'Rationale not recorded'}</p></td>
+          <td><span className="pw-pill">{reference.sourceStatus ?? 'Unavailable'} source</span></td>
+          <td><small>Not recorded<br />Review workflow unavailable</small></td>
+          <td><button type="button" className="pw-link-button" aria-label={`View reference ${reference.name}`}
+            onClick={event => show('reference', reference.id, event.currentTarget)}>View reference →</button></td>
+        </tr>)}</tbody></table></div> : <div className="pw-no-results"><h2>No matching policy references.</h2>
+          <p>Adjust the filters or return to the first page.</p><button type="button" onClick={() => {
+            const next = new URLSearchParams(params); ['search', 'status', 'sourceChanged', 'page'].forEach(key => next.delete(key)); setParams(next);
+          }}>Clear filters</button></div>}
+        <div className="pw-list-footer"><span>{current.totalCount} matching {current.totalCount === 1 ? 'reference' : 'references'}</span>
+          {current.items.length > 0 && current.totalCount > current.pageSize && <nav className="pw-pager" aria-label="Policy pages">
+            <button type="button" disabled={query.page <= 1} onClick={() => change('page', String(query.page - 1))}>Previous</button>
+            <span>{query.page} of {Math.ceil(current.totalCount / current.pageSize)}</span>
+            <button type="button" disabled={query.page * current.pageSize >= current.totalCount} onClick={() => change('page', String(query.page + 1))}>Next</button>
+          </nav>}
         </div>
-      </div>
-
-      {/* Quick Add Panel */}
-      {showQuickAdd && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <h3 className="text-sm font-semibold text-amber-800 mb-2">Common Laws &amp; Regulations</h3>
-          <p className="text-xs text-amber-600 mb-3">Click to add items not already in your list.</p>
-          <div className="flex flex-wrap gap-2">
-            {COMMON_POLICIES.map((p) => {
-              const alreadyAdded = existingNames.has(p.name);
-              return (
-                <button
-                  key={p.name}
-                  type="button"
-                  disabled={alreadyAdded || submitting}
-                  onClick={() => handleQuickAdd(p)}
-                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    alreadyAdded
-                      ? 'border-green-300 bg-green-50 text-green-600 cursor-default'
-                      : 'border-amber-300 bg-white text-amber-700 hover:bg-amber-100 cursor-pointer'
-                  }`}
-                >
-                  {alreadyAdded ? '✓ ' : '+ '}{p.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Search */}
-      <div className="flex gap-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search policies..."
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-        <span className="self-center text-sm text-gray-500">
-          {items.length} item{items.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Description</th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {items.map((item) => (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
-                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{item.subType || '—'}</td>
-                <td className="px-6 py-4 text-sm text-gray-500 max-w-md truncate">{item.description || '—'}</td>
-                <td className="whitespace-nowrap px-6 py-4">
-                  <span className="inline-flex rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 border border-green-200">
-                    {item.status}
-                  </span>
-                </td>
-                <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                  <button
-                    type="button"
-                    onClick={() => setRemoveConfirm({ componentId: item.id, name: item.name })}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-500">
-                  No policies or regulations added yet. Click "+ Legal &amp; Regulatory" or use Quick Add to get started.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Create / Edit Modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Add Legal &amp; Regulatory Item
-            </h3>
-            {formError && <p className="mb-3 text-sm text-red-600">{formError}</p>}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="e.g., FISMA 2014"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select
-                  value={formSubType}
-                  onChange={(e) => setFormSubType(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                >
-                  <option value="">Select category...</option>
-                  <option value="Federal Law">Federal Law</option>
-                  <option value="Regulation">Regulation</option>
-                  <option value="Executive Order">Executive Order</option>
-                  <option value="OMB Policy">OMB Policy</option>
-                  <option value="NIST Standard">NIST Standard</option>
-                  <option value="DoD Policy">DoD Policy</option>
-                  <option value="Agency Policy">Agency Policy</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description / Citation</label>
-                <textarea
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Brief description or legal citation..."
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowCreate(false); resetForm(); }}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {submitting ? 'Saving...' : 'Add'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Remove Assignment Confirmation */}
-      {removeConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Remove from System?</h3>
-            <p className="mb-4 text-sm text-gray-600">
-              This will remove <strong>{removeConfirm.name}</strong> from this system. The item will remain in the organization library.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setRemoveConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-              <button type="button" onClick={() => handleRemoveAssignment(removeConfirm.componentId)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Remove</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Assign Existing from Org Library */}
-      {showAssign && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Assign from Organization Library</h3>
-            <input
-              type="text"
-              value={orgSearch}
-              onChange={(e) => setOrgSearch(e.target.value)}
-              placeholder="Search policies..."
-              className="mb-4 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            {loadingOrg ? (
-              <p className="text-sm text-gray-500">Loading...</p>
-            ) : (
-              <div className="space-y-2">
-                {orgItems
-                  .filter(c => !orgSearch || c.name.toLowerCase().includes(orgSearch.toLowerCase()))
-                  .map((comp) => {
-                    const isAssigned = assignedIds.has(comp.id);
-                    return (
-                      <div key={comp.id} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">{comp.name}</span>
-                          {comp.description && <p className="text-xs text-gray-500 truncate max-w-xs">{comp.description}</p>}
-                        </div>
-                        {isAssigned ? (
-                          <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Assigned ✓</span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={submitting}
-                            onClick={() => handleAssignExisting(comp)}
-                            className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                          >
-                            Assign
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                {orgItems.filter(c => !orgSearch || c.name.toLowerCase().includes(orgSearch.toLowerCase())).length === 0 && (
-                  <p className="text-sm text-gray-500 text-center py-4">No policies found in the organization library.</p>
-                )}
-              </div>
-            )}
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowAssign(false)}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+      </div>}
+    </>}
+    <details className="pw-ssp"><summary><span>How policy references support your SSP<small>Source versions and system rationale stay traceable.</small></span></summary>
+      <p>These references document which policy sources your system relies on and why. An Active source is not approval of system applicability,
+        control implementation, narrative approval, or an authorization decision.</p>
+      <p>Policy records can appear as generic component inventory in SSP/OSCAL output. Linking a policy does not currently inject it into implementation narratives
+        or supporting-reference citations. The retained source and rationale do not yet flow through every SSP/eMASS output.
+        Review the actual generated documents; saving a reference does not establish submission readiness.</p>
+      <p>Applicability review is not implemented in the current policy-assignment contract. No review approval is implied by linking.</p>
+    </details>
+    {adding && current && !error && <AddPolicyDrawer key={systemId} systemId={systemId} systemName={current.systemName}
+      permissions={current.permissions} initialSourceId={params.get('policySource')} onClose={close} onAdded={added} />}
+    {selected && !adding && <PolicyReferenceDrawer key={`${systemId}:${selected}`} systemId={systemId} id={selected}
+      onClose={close} onChanged={refresh} />}
+  </section>;
 }

@@ -37,12 +37,30 @@ public class EvidenceStorageService : IEvidenceStorageService
     }
 
     /// <inheritdoc />
-    public async Task<ComplianceEvidence> CollectEvidenceAsync(
+    public Task<ComplianceEvidence> CollectEvidenceAsync(
         string controlId,
         string subscriptionId,
         string? resourceGroup = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        CollectCoreAsync(controlId, subscriptionId, null, null, cancellationToken);
+
+    public Task<ComplianceEvidence> CollectForAssessmentAsync(string systemId, string assessmentId,
+        string controlId, string subscriptionId, CancellationToken cancellationToken = default) =>
+        CollectCoreAsync(controlId, subscriptionId, systemId, assessmentId, cancellationToken);
+
+    private async Task<ComplianceEvidence> CollectCoreAsync(string controlId, string subscriptionId,
+        string? systemId, string? assessmentId, CancellationToken cancellationToken)
     {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        if (systemId is not null)
+        {
+            if (!await db.Assessments.AnyAsync(a => a.Id == assessmentId && a.RegisteredSystemId == systemId, cancellationToken)
+                || !await db.ControlImplementations.AnyAsync(c => c.RegisteredSystemId == systemId && c.ControlId == controlId, cancellationToken))
+                throw new KeyNotFoundException("Assessment or control not found in this system.");
+            var system = await db.RegisteredSystems.SingleOrDefaultAsync(s => s.Id == systemId, cancellationToken);
+            if (system?.AzureProfile?.SubscriptionIds?.Contains(subscriptionId) != true)
+                throw new ArgumentException("Subscription is not configured for this system.");
+        }
         _logger.LogInformation(
             "Collecting evidence for control {ControlId} in subscription {SubId}",
             controlId, subscriptionId);
@@ -62,11 +80,11 @@ public class EvidenceStorageService : IEvidenceStorageService
             Content = content,
             CollectedBy = "Security Posture Intelligence Navigator (automated)",
             EvidenceCategory = DetermineCategory(family),
-            ContentHash = ComputeHash(content)
+            ContentHash = ComputeHash(content),
+            AssessmentId = assessmentId
         };
 
         // Persist
-        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         db.Evidence.Add(evidence);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -127,17 +145,10 @@ public class EvidenceStorageService : IEvidenceStorageService
                 _ => await CollectPolicyEvidenceAsync(subscriptionId, controlId, cancellationToken)
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TimeoutException or Azure.RequestFailedException)
         {
-            _logger.LogWarning(ex, "Evidence collection failed for {ControlId}, using error snapshot", controlId);
-            return JsonSerializer.Serialize(new
-            {
-                controlId,
-                subscriptionId,
-                error = ex.Message,
-                collectedAt = DateTime.UtcNow,
-                note = "Evidence collection encountered an error. Manual evidence collection may be required."
-            }, new JsonSerializerOptions { WriteIndented = true });
+            _logger.LogWarning(ex, "Evidence collection failed for {ControlId}; no evidence was persisted", controlId);
+            throw;
         }
     }
 

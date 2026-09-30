@@ -62,6 +62,10 @@ public class SystemProfileSection
     [MaxLength(16000)]
     public string? ApprovedContent { get; set; }
 
+    /// <summary>Exact retained approval audit entry including scalar and structured row values.</summary>
+    [MaxLength(36)]
+    public string? ApprovedSnapshotId { get; set; }
+
     /// <summary>Computed completeness of this individual section's fields (0–100%).</summary>
     [Range(0, 100)]
     public int CompletionPercentage { get; set; }
@@ -126,6 +130,25 @@ public class SystemProfileSection
 [TenantScoped]
 public class UserCategory
 {
+    public SspSectionStatus GovernanceStatus { get; set; } = SspSectionStatus.Draft;
+
+    [ConcurrencyCheck]
+    public int Revision { get; set; } = 1;
+
+    [MaxLength(200)]
+    public string? SubmittedBy { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    [MaxLength(200)]
+    public string? ReviewedBy { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    [MaxLength(2000)]
+    public string? ReviewerComments { get; set; }
+    [MaxLength(36)]
+    public string? ApprovedSnapshotId { get; set; }
+
+    /// <summary>Removal is a working change until independently approved; retained snapshots survive.</summary>
+    public bool PendingDeletion { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).
@@ -453,6 +476,17 @@ public class BusinessContextControlFlag
 [TenantScoped]
 public class ProfileAuditEntry
 {
+    /// <summary>Optional row identity retained even after an unapproved row is removed.</summary>
+    [MaxLength(36)]
+    public string? UserCategoryId { get; set; }
+    public int? UserCategoryRevision { get; set; }
+
+    /// <summary>Immutable reviewed scalar and child-row content; null for legacy or non-approval entries.</summary>
+    public string? SnapshotJson { get; set; }
+
+    [MaxLength(64)]
+    public string? SnapshotHash { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

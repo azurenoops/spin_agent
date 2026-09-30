@@ -1,5 +1,10 @@
 # Spec 075 — CSP Integration: AWS Commercial, AWS GovCloud, GCP
 
+> Coordination: [Feature 079](../079-provider-system-workflow-consolidation/spec.md)
+> limits its additional service-model work to concrete manual/SaaS relationships
+> without fictitious Azure identifiers. It does not authorize new live
+> connectors, revive this broader scope, or reopen closed issue #84.
+
 **Epic:** #84 — Feature 049: CSP Integration (AWS, GCP)
 **GitHub Issue:** #84
 **Wave:** 9 — Core UX & Integrations

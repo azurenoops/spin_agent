@@ -3,6 +3,11 @@ import { Link, Navigate, useLocation, useNavigate } from '../workspaces/workspac
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import PageLayout from '../../components/layout/PageLayout';
 import PageHero from '../../components/layout/PageHero';
+import WorkspacePageHeader from '../../components/layout/WorkspacePageHeader';
+import { ProviderBadge, ProviderPanel } from '../provider-authorizations/ProviderPresentation';
+import { OfferingSectionNavigation } from '../provider-authorizations/OfferingSectionNavigation';
+import { authorizationHref } from '../provider-authorizations/api';
+import { readProviderCapabilitySources } from './providerCapabilitySources';
 import { Organizations, OrganizationDetailView } from './OrganizationPages';
 import AddOrganization from './AddOrganizationPage';
 import Provisioning from './OrganizationProvisioningPage';
@@ -131,7 +136,9 @@ function ProviderCatalog() {
           <tbody>{state.data.items.map(item => <tr key={`${item.componentId}:${item.capabilityId ?? ''}`} className="border-t dark:border-gray-700">
             <td className="px-5 py-5"><Link className="font-semibold text-indigo-700 hover:underline dark:text-indigo-300"
               to={item.capabilityId ? `/security-capabilities/${item.capabilityId}` : `/security-capabilities?grouping=capability&componentId=${encodeURIComponent(item.componentId)}`}>{item.name}</Link>
-              <p className="mt-1 text-xs text-slate-500">{item.supportingComponents?.length ? item.supportingComponents.map(component => component.name).join(' · ') : `${item.componentName} · ${item.componentType}`}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.supportingComponents?.length
+                ? item.supportingComponents.map(component => component.name).join(' · ')
+                : item.workingRevision != null ? 'No delivery components recorded.' : `${item.componentName} · ${item.componentType}`}</p>
               <button type="button" className="mt-2 text-xs text-slate-500 underline"
               onClick={event => {
                 sourceInvoker.current = event.currentTarget;
@@ -179,6 +186,9 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
   const { params, set } = useQueryState();
   const tab = params.get('tab') ?? 'implementation';
   const catalog = useRemote(signal => api.getProviderCapability(capabilityId, signal), [capabilityId]);
+  const sourceContext = useRemote(signal => catalog.data
+    ? readProviderCapabilitySources(capabilityId, catalog.data.sourceArtifacts, signal) : Promise.resolve(null),
+  [capabilityId, catalog.data]);
   const working = useRemote(async signal => {
     try {
       return await api.getWorkingRevision(capabilityId, signal);
@@ -192,6 +202,7 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
   const subscriberPage = Number(params.get('subscriberPage') ?? 1);
   const subscribers = useRemote(signal => api.listProviderSubscribers(capabilityId, subscriberPage, signal), [capabilityId, subscriberPage]);
   const [linking, setLinking] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [linkedComponents, setLinkedComponents] = useState<ProviderCatalogItem[]>([]);
   const [evidenceReviewed, setEvidenceReviewed] = useState(false);
   const [dutiesReviewed, setDutiesReviewed] = useState(false);
@@ -234,7 +245,7 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
     setConflict(null);
     setBusy(false);
     setHydratedCapabilityId(null);
-    setLinking(false); setLinkedComponents([]); setEvidenceReviewed(false); setDutiesReviewed(false);
+    setLinking(false); setEditorOpen(false); setLinkedComponents([]); setEvidenceReviewed(false); setDutiesReviewed(false);
     return () => mutationController.current?.abort();
   }, [capabilityId]);
 
@@ -311,10 +322,11 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
         contributors: parseList(contributors), controlDuties: dutyMap,
       }, request.controller.signal);
       if (!mutationIsCurrent(request)) return;
-      setSaved(next);
+      loadRevision(next);
       setApproved(null);
       setPreview(null);
       publicationKey.current = crypto.randomUUID();
+      setEditorOpen(false); setLinking(false);
     } catch (reason) {
       if (!mutationIsCurrent(request)) return;
       const isConflict = (reason as { status?: number }).status === 409;
@@ -412,15 +424,17 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
     }
   };
   const primaryId = item?.componentId.toLowerCase();
+  const hasWorkingRevision = !!saved || !!working.data || item?.workingRevision != null;
   const contributorIds = parseList(contributors).map(id => id.toLowerCase());
   const unresolvedContributors = catalog.data?.unresolvedContributorIds.filter(id => contributorIds.includes(id.toLowerCase())) ?? [];
   const deliveryComponents = [
-    ...(catalog.data?.supportingComponents ?? []).filter(component => component.id.toLowerCase() === primaryId || contributorIds.includes(component.id.toLowerCase())),
+    ...(catalog.data?.supportingComponents ?? []).filter(component => (!hasWorkingRevision && component.id.toLowerCase() === primaryId)
+      || contributorIds.includes(component.id.toLowerCase())),
     ...linkedComponents.filter(component => contributorIds.includes(component.componentId.toLowerCase())
       && !catalog.data?.supportingComponents.some(existing => existing.id.toLowerCase() === component.componentId.toLowerCase()))
       .map(component => ({ id: component.componentId, name: component.name, componentType: component.componentType, source: 'provider', description: component.description })),
   ];
-  const editor = <section className="mt-4 grid gap-4 text-sm">
+  const editor = <fieldset disabled={busy || !canWrite} className="mt-4 grid gap-4 text-sm">
     <label className="grid gap-1">Classification<input className={inputClass} value={classification}
       onChange={event => setClassification(event.target.value)} /></label>
     <label className="grid gap-1">Service category<input className={inputClass} value={serviceCategory}
@@ -434,37 +448,66 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
       disabled={!canWrite || busy || !!conflict || !revisionReady || (!saved && !firstRevision) || !classification.trim() || !serviceCategory.trim()}
       onClick={() => void save()}>
       Save working revision</button>
+  </fieldset>;
+  const offering = sourceContext.data?.offering;
+  const conflictPanel = conflict && <section role="region" aria-label="Revision conflict comparison" className={`${warningClass} space-y-3 p-4`}>
+    <h2 className="font-semibold">Reconciliation required</h2>
+    <p>Editing revision {conflict.editing?.revision ?? 'unsaved'} · Latest revision {conflict.latest?.revision ?? 'loading'}</p>
+    <p>Your form has not been rebound to the latest concurrency token.</p>
+    <button type="button" className={secondaryButtonClass} disabled={!conflict.latest || busy}
+      onClick={() => conflict.latest && loadRevision(conflict.latest)}>Reload latest revision</button>
   </section>;
-  return <PageLayout title="Capability authoring"><PageHero eyebrow="Provider catalog · Provider offering"
+  const openEditor = (selectComponents = false) => { setEditorOpen(true); setLinking(selectComponents); };
+  const responsibilitySources = sourceContext.data?.sources.flatMap(source =>
+    source.duties.map(duty => ({ ...duty, packageId: source.packageId }))) ?? [];
+  return <PageLayout title="Capability authoring"><div className="provider-workspace">
+    <nav aria-label="Capability breadcrumb" className="provider-breadcrumb"><Link to="/">Provider</Link> / {offering
+      ? <><Link to="/authorizations">Offerings</Link> / <Link to={authorizationHref(offering.offeringId)}>{offering.name}</Link></>
+      : <Link to="/security-capabilities">Capabilities</Link>}</nav>
+    <div className="provider-page-head"><WorkspacePageHeader eyebrow={offering?.name ?? 'Provider capability'}
     title={tab === 'review' ? 'Review & publish revision' : item?.name ?? 'Capability authoring'}
-    description={tab === 'review' ? 'See what changed and who needs to review it before making a revision available.' : 'Provider components, source evidence and customer obligations in one place.'}
-    actions={tab !== 'review' && <button className={heroAction} type="button" onClick={() => set({ tab: 'review' })}>Review publication</button>} />
+    description={tab === 'review' ? 'See what changed and who needs to review it before making a revision available.' : 'Review the implementation, supporting evidence, and customer duties as one service contract.'}
+    actions={tab !== 'review' && <button className="provider-primary" type="button" onClick={() => set({ tab: 'review' })}>Review publication</button>} /></div>
+    {offering && <OfferingSectionNavigation offeringId={offering.offeringId} activePath="inherited-coverage?task=capabilities" />}
     <div className="space-y-5">
       <Link className="inline-flex items-center gap-2 text-sm text-indigo-700 dark:text-indigo-300"
-        to={tab === 'review' ? `/security-capabilities/${capabilityId}` : '/security-capabilities'}><ArrowLeft size={15} aria-hidden="true" />{tab === 'review' ? 'Capability details' : 'Provider catalog'}</Link>
-      <div role="tablist" aria-label="Capability authoring sections" className="flex flex-wrap gap-5 border-b border-slate-200 dark:border-gray-700"
+        to={tab === 'review' ? `/security-capabilities/${capabilityId}` : offering
+          ? authorizationHref(offering.offeringId, 'inherited-coverage?task=capabilities') : '/security-capabilities'}>
+        <ArrowLeft size={15} aria-hidden="true" />{tab === 'review' ? 'Capability details' : offering ? 'Back to offering capabilities' : 'Provider catalog'}</Link>
+      <div role="tablist" aria-label="Capability authoring sections" className="flex flex-wrap gap-2"
         onKeyDown={moveTabFocus}>
         {[['implementation', 'Implementation'], ['responsibilities', 'Coverage & duties'], ['subscribers', 'Subscribers'], ['review', 'Review and publish']].map(([value, label]) =>
-          <button key={value} role="tab" aria-selected={tab === value} className={`border-b-2 pb-3 text-sm ${tab === value ? 'border-indigo-500 font-semibold text-indigo-700 dark:text-indigo-300' : 'border-transparent text-slate-500'}`}
+          <button key={value} id={`capability-tab-${value}`} role="tab" aria-controls={`capability-panel-${value}`} aria-selected={tab === value}
+            tabIndex={tab === value ? 0 : -1} disabled={busy} className={tab === value ? 'provider-primary' : 'provider-secondary'}
             onClick={() => set({ tab: value })}>{label}</button>)}
       </div>
       <Status loading={catalog.loading || working.loading} error={catalog.error ?? working.error}
         retry={() => { catalog.retry(); working.retry(); }} />
       {firstRevision && <p role="status" className={warningClass}>No working revision yet. Enter classification and service category to save the first revision.</p>}
-      {error && <p role="alert" className={errorClass}>{error}</p>}
-      {conflict && <section role="region" aria-label="Revision conflict comparison"
-        className={`${warningClass} space-y-3 p-4`}>
-        <h2 className="font-semibold">Reconciliation required</h2>
-        <p>Editing revision {conflict.editing?.revision ?? 'unsaved'} · Latest revision {conflict.latest?.revision ?? 'loading'}</p>
-        <p>Your form has not been rebound to the latest concurrency token.</p>
-        <button type="button" className={secondaryButtonClass} disabled={!conflict.latest}
-          onClick={() => conflict.latest && loadRevision(conflict.latest)}>Reload latest revision</button>
-      </section>}
+      {error && !editorOpen && <p role="alert" className={errorClass}>{error}</p>}
+      {!editorOpen && conflictPanel}
       {result && <p role="status" className="rounded border border-green-300 bg-green-50 p-3 text-green-800 dark:border-green-700 dark:bg-green-950 dark:text-green-100">{result}</p>}
       {hasUnsavedChanges && <p role="status" className={warningClass}>Unsaved working changes. Save the working revision before generating or approving publication.</p>}
-      {(tab === 'implementation' || tab === 'responsibilities') && <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+      {(tab === 'implementation' || tab === 'responsibilities') && <>
+        <div className="provider-banner provider-banner-release">
+          <div><strong>{saved && item?.releasedRevision != null && saved.revision > item.releasedRevision
+            ? `Working revision ${saved.revision} remains separate from published revision ${item.releasedRevision}`
+            : item?.releasedRevision != null ? `Published revision ${item.releasedRevision}` : 'No published release recorded'}</strong>
+            <p>Provider publication does not apply a capability to a mission or accept customer duties.</p></div>
+          <ProviderBadge>{saved?.serviceCategory || 'Service category not recorded'}</ProviderBadge>
+        </div>
+      <div role="tabpanel" id={`capability-panel-${tab}`} aria-labelledby={`capability-tab-${tab}`} className="provider-grid">
         <div className="min-w-0 space-y-5">
-          <section className={workspaceCard}>
+          {tab === 'implementation' ? <>
+          <ProviderPanel title="What this capability provides">
+            <p className="text-sm">{item?.description || 'No capability description recorded.'}</p>
+            <div className="my-4 flex flex-wrap gap-2">{catalog.data?.mappedControlIds.map(control => <ProviderBadge key={control} tone="neutral">{control}</ProviderBadge>)}</div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><h3>Published</h3><p className="mt-2 text-sm">{item?.releasedRevision != null ? `Revision ${item.releasedRevision}` : 'Not published'}</p><p className="mt-2 text-xs">Selected customer releases remain unchanged until an authorized adoption.</p></div>
+              <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4"><h3>Working revision</h3><p className="mt-2 text-sm">{saved ? `Revision ${saved.revision} · ${saved.approvalState}` : 'Not created'}</p><p className="mt-2 text-xs">{saved?.revision === item?.releasedRevision ? 'No newer working revision recorded.' : 'Review exact changes before publication.'}</p></div>
+            </div>
+          </ProviderPanel>
+          <section className="provider-panel">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-4 dark:border-gray-700">
               <h2 className="text-lg font-semibold">Components that deliver this capability</h2>
               {saved && <StateBadge tone="indigo">Working revision v{saved.revision}</StateBadge>}
@@ -473,36 +516,67 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
             {!deliveryComponents.length && <p className="py-4 text-sm text-slate-500">No delivery components recorded.</p>}
             {!!unresolvedContributors.length && <p className="py-3 text-xs text-amber-800 dark:text-amber-200">Unresolved contributor references: {unresolvedContributors.join(', ')}. Review their source identities before publication.</p>}
             <button type="button" className="mt-3 text-sm text-indigo-700 dark:text-indigo-300" disabled={!canWrite || busy}
-              aria-expanded={linking} onClick={() => setLinking(value => !value)}>Link another existing component</button>
-            {linking && <div className="mt-4"><ProviderComponentPicker selected={parseList(contributors)} onSelect={component => {
-              setContributors(current => {
-                const ids = parseList(current);
-                return (ids.some(id => id.toLowerCase() === component.componentId.toLowerCase())
-                  ? ids.filter(id => id.toLowerCase() !== component.componentId.toLowerCase()) : [...ids, component.componentId]).join('\n');
-              });
-              setLinkedComponents(current => current.some(item => item.componentId === component.componentId) ? current : [...current, component]);
-            }} /><p className="mt-3 text-xs text-slate-500">Selections are staged. Save the working revision to persist them.</p></div>}
+              aria-expanded={editorOpen && linking} onClick={() => openEditor(true)}>Link another existing component</button>
           </section>
           <section className={workspaceCard}><h2 className="mb-3 font-semibold">Provider implementation narrative</h2>
             <p className="whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-gray-300">{catalog.data?.implementationNarrative ?? 'No provider implementation narrative recorded.'}</p>
             <Link to="/narrative-library" className="mt-3 inline-block text-xs text-indigo-700 underline dark:text-indigo-300">Open provider narrative library</Link>
           </section>
-          <details className={workspaceCard} open={tab === 'responsibilities' || linking || firstRevision}><summary className="cursor-pointer font-semibold">Edit working revision</summary>{editor}</details>
+          </> : <>
+            <ProviderPanel title="Responsibility split">
+              <p className="mb-4 text-sm">Saved control-duty allocation for working revision {saved?.revision ?? 'not created'}. These assignments do not confirm that a mission completed its work.</p>
+              <div className="provider-table-wrap"><table className="provider-table" aria-label="Control responsibility allocation">
+                <thead><tr><th>Control</th><th>Responsible party</th><th>Review boundary</th></tr></thead>
+                <tbody>{Object.entries(saved?.controlDuties ?? {}).map(([control, duty]) => <tr key={control}>
+                  <td>{control}</td><td><ProviderBadge tone="neutral">{duty}</ProviderBadge></td><td>Provider definition; mission confirmation remains separate</td>
+                </tr>)}</tbody>
+              </table></div>
+              {(!saved || !Object.keys(saved.controlDuties).length) && <p className="mt-3 text-sm">No saved control duties recorded. Missing duties are not waived.</p>}
+            </ProviderPanel>
+            <ProviderPanel title="Source-stated provider, customer and shared duties">
+              <Status loading={sourceContext.loading} error={sourceContext.error} retry={sourceContext.retry} />
+              {responsibilitySources.filter(duty => duty.description.trim()).map(duty => <article key={`${duty.packageId}:${duty.candidateId}`} className="min-w-0 border-b border-slate-200 py-4 last:border-0">
+                <div className="space-y-2 break-words text-sm"><h3 className="font-semibold">{duty.name}</h3><p>{duty.description}</p><p className="text-xs">Source review: {duty.reviewState} · Revision {duty.revision}</p>
+                  <Link className="provider-text" to={offering ? authorizationHref(offering.offeringId, `packages/${duty.packageId}/candidates/${duty.candidateId}`) : `/security-capabilities/imports/${duty.packageId}`}>Review duty source</Link>
+                </div>
+              </article>)}
+              {!!responsibilitySources.some(duty => !duty.description.trim()) && <details className="mt-4 text-xs"><summary className="provider-text">Additional source mapping records</summary>
+                <ul className="mt-2 space-y-2">{responsibilitySources.filter(duty => !duty.description.trim()).map(duty => <li key={duty.candidateId}>
+                  {duty.name} · {duty.reviewState} · Revision {duty.revision}
+                </li>)}</ul>
+              </details>}
+              {!sourceContext.loading && !sourceContext.error && !responsibilitySources.some(duty => duty.description.trim()) && <p>No separately linked duty statements returned. Review the source package before inferring provider or customer obligations.</p>}
+            </ProviderPanel>
+          </>}
+          <button type="button" className="provider-secondary" disabled={!canWrite || busy} onClick={() => openEditor()}>Edit working revision</button>
         </div>
-        <aside className="min-w-0 space-y-5">
-          <section className={workspaceCard}><h2 className="mb-5 text-lg font-semibold">Publication readiness</h2>
+        <aside className="provider-support">
+          <ProviderPanel title="Contributes to the system package"><ol className="list-decimal space-y-2 pl-4"><li>Control implementation narrative</li><li>Provider and customer responsibility references</li><li>Evidence and monitoring references</li></ol></ProviderPanel>
+          <ProviderPanel title="Publication readiness">
             <ProviderVersions item={item} working={saved} />
             <button type="button" className={`${buttonClass} mt-5 w-full`} disabled={!saved || busy || hasUnsavedChanges} onClick={() => set({ tab: 'review' })}>Review publication impact</button>
-          </section>
-          <section className={workspaceCard}><h2 className="mb-2 font-semibold">Source evidence</h2>
-            <p className="mb-4 text-sm text-slate-500">No separately identified source evidence recorded.</p>
+          </ProviderPanel>
+          <ProviderPanel title="Used by mission systems"><p>{item?.distinctAdoptionCount ?? 'Count unavailable'} recorded adopting systems. Provider publication and mission acceptance are separate actions.</p>
+            <button type="button" className="provider-text mt-3" onClick={() => set({ tab: 'subscribers' })}>Review affected systems →</button>
+          </ProviderPanel>
+        </aside>
+      </div>
+      <section className="provider-panel" aria-label="Sources and supporting evidence"><h2 className="mb-3 font-semibold">Sources and supporting evidence</h2>
+            {tab !== 'responsibilities' && <Status loading={sourceContext.loading} error={sourceContext.error} retry={sourceContext.retry} />}
+            {offering && <div className="flex flex-wrap gap-3">
+              {sourceContext.data?.sources.map((source, index) => <Link key={source.packageId} className="provider-secondary"
+                to={authorizationHref(offering.offeringId, `packages/${source.packageId}`)}>View source package{(sourceContext.data?.sources.length ?? 0) > 1 ? ` ${index + 1}` : ''}</Link>)}
+              <Link className="provider-secondary" to={authorizationHref(offering.offeringId, 'findings')}>View offering evidence</Link></div>}
+            <p className="mt-3 text-xs text-slate-500">No separately identified capability evidence returned. Offering evidence access and relevance require their own review.</p>
+            <details className="mt-4"><summary className="provider-text">Record details &amp; provenance</summary>
             <h3 className="border-t border-slate-200 pt-4 text-sm font-semibold dark:border-gray-700">Source package provenance</h3>
+            {item && <p className="mt-2 text-xs text-slate-500">Source component: {item.componentName}</p>}
             <ProviderArtifacts items={catalog.data?.sourceArtifacts ?? []} />
             <p className="mt-4 text-xs text-slate-500">Package references remain traceable for consumers; they do not by themselves establish verified evidence.</p>
-          </section>
-        </aside>
-      </div>}
-      {tab === 'subscribers' && <section className={workspaceCard}><h2 className="text-lg font-semibold">Authorized subscriber systems</h2>
+            </details>
+      </section>
+      </>}
+      {tab === 'subscribers' && <section role="tabpanel" id="capability-panel-subscribers" aria-labelledby="capability-tab-subscribers" className={workspaceCard}><h2 className="text-lg font-semibold">Authorized subscriber systems</h2>
         <Status loading={subscribers.loading} error={subscribers.error} retry={subscribers.retry} />
         {!subscribers.loading && subscribers.data?.items.length === 0 && <p>No authorized subscribers.</p>}
         <ul className="divide-y">{subscribers.data?.items.map((subscriber: ProviderSubscriber) =>
@@ -510,7 +584,7 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
             <span className="ml-2 text-gray-600 dark:text-gray-300">Revision {subscriber.sourceRevision ?? 'unavailable'} · {subscriber.reviewState}</span></li>)}</ul>
         {subscribers.data && <Pager {...subscribers.data} onPage={page => set({ subscriberPage: page })} />}
       </section>}
-      {tab === 'review' && <section className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      {tab === 'review' && <section role="tabpanel" id="capability-panel-review" aria-labelledby="capability-tab-review" className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-5">
         {!preview && <section className={workspaceCard}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{item?.name ?? 'Capability'} · {item?.releasedRevision ? `v${item.releasedRevision}` : 'Unpublished'} → v{saved?.revision ?? '—'}</h2>
@@ -557,8 +631,22 @@ function ProviderCapability({ capabilityId }: { capabilityId: string }) {
         </aside>
       </section>}
     </div>
+    {editorOpen && <SetupDialog title="Edit working revision" busy={busy} onClose={() => setEditorOpen(false)}
+      description="Edit a private working revision. Saving does not publish a release or accept mission responsibilities.">
+      {error && <p role="alert" className={errorClass}>{error}</p>}
+      {conflictPanel}
+      {linking && <><ProviderComponentPicker selected={parseList(contributors)} onSelect={component => {
+        setContributors(current => {
+          const ids = parseList(current);
+          return (ids.some(id => id.toLowerCase() === component.componentId.toLowerCase()) ? ids.filter(id => id.toLowerCase() !== component.componentId.toLowerCase()) : [...ids, component.componentId]).join('\n');
+        });
+        setLinkedComponents(current => current.some(item => item.componentId === component.componentId) ? current : [...current, component]);
+      }} /><p className="mt-3 text-xs text-slate-500">Selections are staged. Save the working revision to persist them.</p></>}
+      {editor}
+      <button type="button" className={`${secondaryButtonClass} mt-4`} disabled={busy} onClick={() => setEditorOpen(false)}>Close editor</button>
+    </SetupDialog>}
     <WorkspaceFootnote />
-  </PageLayout>;
+  </div></PageLayout>;
 }
 
 function PublicationImpact({ preview, current, subscribers, components, title, approved, regenerate, disabled }: {

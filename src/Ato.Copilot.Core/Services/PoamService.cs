@@ -26,6 +26,16 @@ public class PoamService
 
     // ─── CRUD ────────────────────────────────────────────────────────────────
 
+    /// <summary>Read the complete saved register, including completed items, without pagination or mutation.</summary>
+    public Task<List<PoamItem>> GetWorkingRegisterAsync(string systemId, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(systemId);
+        return _db.PoamItems.AsNoTracking()
+            .Include(x => x.Milestones).Include(x => x.ComponentLinks).Include(x => x.History)
+            .Where(x => x.RegisteredSystemId == systemId)
+            .OrderBy(x => x.ScheduledCompletionDate).ThenBy(x => x.Id).ToListAsync(ct);
+    }
+
     /// <summary>Creates a new POA&amp;M item with optional component links and milestones.</summary>
     public async Task<PoamItem> CreateAsync(
         string systemId,
@@ -51,17 +61,14 @@ public class PoamService
 
         if (!string.IsNullOrWhiteSpace(findingId))
         {
-            var belongsToSystem = await _db.Findings.AnyAsync(f =>
-                f.Id == findingId &&
-                _db.Assessments.Any(a =>
-                    a.Id == f.AssessmentId && a.RegisteredSystemId == systemId), ct);
-
-            if (!belongsToSystem)
+            var finding = await _db.Findings.SingleOrDefaultAsync(f => f.Id == findingId && f.TenantId == system.TenantId, ct);
+            if (finding is null || await RemediationScope.FindingSystemAsync(_db, finding, ct) != systemId)
                 throw new InvalidOperationException($"Finding '{findingId}' does not belong to system '{systemId}'.");
         }
 
         var poam = new PoamItem
         {
+            TenantId = system.TenantId,
             RegisteredSystemId = systemId,
             Weakness = weakness,
             WeaknessSource = weaknessSource,
@@ -295,6 +302,10 @@ public class PoamService
 
         // Validate transitions per FR-007
         ValidateTransition(poam, newStatus, delayReason, revisedDate, deviationId);
+        if (newStatus == PoamStatus.RiskAccepted && !await _db.Deviations.AnyAsync(d =>
+            d.Id == deviationId && d.TenantId == poam.TenantId && d.RegisteredSystemId == poam.RegisteredSystemId &&
+            d.Status == DeviationStatus.Approved && d.ExpirationDate > DateTime.UtcNow, ct))
+            throw new InvalidOperationException("POAM_EFFECTIVE_DEVIATION_REQUIRED: Risk acceptance requires a current approved exception in this system.");
 
         poam.Status = newStatus;
         poam.ModifiedAt = DateTime.UtcNow;
@@ -375,6 +386,7 @@ public class PoamService
     {
         _db.PoamHistoryEntries.Add(new PoamHistoryEntry
         {
+            TenantId = poam.TenantId,
             PoamItemId = poam.Id,
             EventType = eventType,
             OldValue = oldValue,
@@ -1028,6 +1040,7 @@ public class PoamService
         CancellationToken ct = default)
     {
         var items = await GetFilteredPoamsForExport(systemId, statusFilter, severityFilter, includeAll, ct);
+        var references = await GetConnectedExportReferencesAsync(_db, items, ct);
 
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("POA&M");
@@ -1072,7 +1085,10 @@ public class PoamService
                 ? p.WeaknessSource
                 : $"{p.WeaknessSource} (Finding: {p.FindingId})";
             sheet.Cell(row, 10).Value = p.Status.ToString();
-            sheet.Cell(row, 11).Value = p.Comments ?? "";
+            var refs = references[p.Id];
+            sheet.Cell(row, 11).Value = string.Join(" | ", new[] { p.Comments,
+                refs.Tasks.Length > 0 ? $"Tasks: {string.Join("; ", refs.Tasks)}" : null,
+                refs.Evidence.Length > 0 ? $"Evidence: {string.Join("; ", refs.Evidence)}" : null }.Where(x => !string.IsNullOrEmpty(x)));
             sheet.Cell(row, 12).Value = p.CatSeverity.ToString();
             sheet.Cell(row, 13).Value = "";
             sheet.Cell(row, 14).Value = "";
@@ -1084,7 +1100,7 @@ public class PoamService
             sheet.Cell(row, 20).Value = p.PointOfContact;
             sheet.Cell(row, 21).Value = p.CostEstimate?.ToString("C") ?? "";
             sheet.Cell(row, 22).Value = p.ActualCompletionDate?.ToString("yyyy-MM-dd") ?? "";
-            sheet.Cell(row, 23).Value = "";
+            sheet.Cell(row, 23).Value = string.Join("; ", refs.Exceptions);
             sheet.Cell(row, 24).Value = p.ExternalTicketRef ?? "";
             row++;
         }
@@ -1104,6 +1120,7 @@ public class PoamService
         CancellationToken ct = default)
     {
         var items = await GetFilteredPoamsForExport(systemId, statusFilter, severityFilter, includeAll, ct);
+        var references = await GetConnectedExportReferencesAsync(_db, items, ct);
 
         var oscalPoams = items.Select(p => new
         {
@@ -1121,6 +1138,9 @@ public class PoamService
                 .Concat(string.IsNullOrEmpty(p.FindingId)
                     ? Array.Empty<object>()
                     : new object[] { new { name = "source-finding-id", value = p.FindingId } })
+                .Concat(references[p.Id].Tasks.Select(id => new { name = "remediation-task-id", value = id }))
+                .Concat(references[p.Id].Evidence.Select(id => new { name = "remediation-evidence-id", value = id }))
+                .Concat(references[p.Id].Exceptions.Select(id => new { name = "exception-reference", value = id }))
                 .ToArray(),
             start = p.CreatedAt.ToString("o"),
             end = p.ActualCompletionDate?.ToString("o"),
@@ -1170,9 +1190,10 @@ public class PoamService
         CancellationToken ct = default)
     {
         var items = await GetFilteredPoamsForExport(systemId, statusFilter, severityFilter, includeAll, ct);
+        var references = await GetConnectedExportReferencesAsync(_db, items, ct);
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("ID,SecurityControlNumber,Weakness,WeaknessSource,FindingId,CatSeverity,Status,POC,POCEmail,ScheduledCompletionDate,ActualCompletionDate,ResourcesRequired,CostEstimate,ExternalTicketRef,Comments");
+        sb.AppendLine("ID,SecurityControlNumber,Weakness,WeaknessSource,FindingId,CatSeverity,Status,POC,POCEmail,ScheduledCompletionDate,ActualCompletionDate,ResourcesRequired,CostEstimate,ExternalTicketRef,Comments,RemediationTaskIds,EvidenceReferences,ExceptionReferences");
 
         foreach (var p in items)
         {
@@ -1191,10 +1212,38 @@ public class PoamService
                 CsvEscape(p.ResourcesRequired ?? ""),
                 CsvEscape(p.CostEstimate?.ToString("F2") ?? ""),
                 CsvEscape(p.ExternalTicketRef ?? ""),
-                CsvEscape(p.Comments ?? "")));
+                CsvEscape(p.Comments ?? ""),
+                CsvEscape(string.Join("; ", references[p.Id].Tasks)),
+                CsvEscape(string.Join("; ", references[p.Id].Evidence)),
+                CsvEscape(string.Join("; ", references[p.Id].Exceptions))));
         }
 
         return System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
+    public static async Task<Dictionary<string, (string[] Tasks, string[] Evidence, string[] Exceptions)>> GetConnectedExportReferencesAsync(
+        AtoCopilotContext db, IReadOnlyCollection<PoamItem> poams, CancellationToken ct)
+    {
+        var result = new Dictionary<string, (string[], string[], string[])>();
+        foreach (var poam in poams)
+        {
+            var ids = await db.PoamTaskLinks.Where(l => l.TenantId == poam.TenantId &&
+                l.RegisteredSystemId == poam.RegisteredSystemId && l.PoamItemId == poam.Id)
+                .Select(l => l.RemediationTaskId).ToListAsync(ct);
+            if (poam.RemediationTaskId is not null) ids.Add(poam.RemediationTaskId);
+            var candidates = await db.RemediationTasks.Where(t => t.TenantId == poam.TenantId &&
+                (ids.Contains(t.Id) || t.PoamItemId == poam.Id)).ToListAsync(ct);
+            var tasks = new List<Ato.Copilot.Core.Models.Kanban.RemediationTask>();
+            foreach (var task in candidates)
+                if (await RemediationScope.TaskSystemAsync(db, task, ct) == poam.RegisteredSystemId) tasks.Add(task);
+            var evidence = tasks.SelectMany(t => System.Text.Json.JsonSerializer.Deserialize<Ato.Copilot.Core.Dtos.Dashboard.RemediationEvidence[]>(
+                t.EvidenceReferencesJson) ?? []).Select(e => $"{e.Id} (sha256:{e.ContentHash})").Distinct().Order().ToArray();
+            var deviations = await db.Deviations.Where(d => d.TenantId == poam.TenantId && d.RegisteredSystemId == poam.RegisteredSystemId &&
+                (d.Id == poam.DeviationId || d.PoamEntryId == poam.Id)).ToListAsync(ct);
+            result[poam.Id] = (tasks.Select(t => t.Id).Distinct().Order().ToArray(), evidence,
+                deviations.Select(d => $"{d.Id} ({d.DeviationType}; {d.Status}; effective={d.Status == DeviationStatus.Approved && d.ExpirationDate > DateTime.UtcNow}; expires={d.ExpirationDate:O})").ToArray());
+        }
+        return result;
     }
 
     private async Task<List<PoamItem>> GetFilteredPoamsForExport(

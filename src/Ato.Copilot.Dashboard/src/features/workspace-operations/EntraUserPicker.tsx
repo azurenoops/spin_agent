@@ -3,7 +3,7 @@ import { Cloud, Search, UserRound, ArrowRight } from 'lucide-react';
 import * as api from './api';
 import { buttonClass, errorClass, inputClass, message, secondaryButtonClass, Status, useRemote } from './workspaceUi';
 
-export function EntraUserPicker({ onSelect }: { onSelect: (user: api.DirectoryUser) => void }) {
+export function EntraUserPicker({ onSelect, purpose = 'administrator' }: { onSelect: (user: api.DirectoryUser) => void; purpose?: 'administrator' | 'lookup' }) {
   const connections = useRemote(signal => api.getDirectoryConnections(signal), []);
   const [chosen, setChosen] = useState('');
   const [query, setQuery] = useState('');
@@ -25,9 +25,9 @@ export function EntraUserPicker({ onSelect }: { onSelect: (user: api.DirectoryUs
   };
   return <section aria-label="Entra directory search" className="space-y-5">
     <div className="flex items-start gap-3"><span className="rounded-xl bg-sky-50 p-3 text-sky-700 dark:bg-sky-950 dark:text-sky-200"><Cloud size={22} /></span>
-      <div><h3 className="font-semibold">Find your administrator in Microsoft Entra</h3><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Search by the beginning of a name or email, then select the right person.</p></div></div>
+      <div><h3 className="font-semibold">{purpose === 'lookup' ? 'Find a user in Microsoft Entra' : 'Find your administrator in Microsoft Entra'}</h3><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Search by the beginning of a name or email, then select the right person.</p></div></div>
     <Status loading={connections.loading} error={connections.error} retry={connections.retry} />
-    {connections.data?.length === 0 && <p role="status" className="rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800">No Entra directory is connected for your provider. Ask your deployment administrator to configure a connection. You can enter identity details manually or enroll later.</p>}
+    {connections.data?.length === 0 && <p role="status" className="rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800">No Entra directory is connected for your provider. Ask your deployment administrator to configure a connection.{purpose === 'administrator' && ' You can enter identity details manually or enroll later.'}</p>}
     {!!connections.data?.length && <>
       <div className="grid gap-1.5"><label htmlFor="entra-directory" className="text-sm font-medium">Directory</label>
         <select id="entra-directory" className={`${inputClass} w-full`} value={directory?.id ?? ''} onChange={event => { reset(); setChosen(event.target.value); }}>

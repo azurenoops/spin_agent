@@ -60,7 +60,9 @@ public sealed partial class WorkspaceOperationsService
         {
             revisions.TryGetValue(capability.Id, out var revision);
             var contributors = revision?.Contributors ?? [];
-            var resolved = new List<CspInheritedComponent> { capability.CspInheritedComponent };
+            var resolved = revision is null
+                ? new List<CspInheritedComponent> { capability.CspInheritedComponent }
+                : [];
             var unresolved = new List<string>();
             foreach (var contributor in contributors.Distinct(StringComparer.OrdinalIgnoreCase))
             {
@@ -82,7 +84,8 @@ public sealed partial class WorkspaceOperationsService
                 counts?.Systems ?? 0, revision?.Revision, releases.TryGetValue(capability.Id, out var release) ? release : null,
                 summaries, counts?.Organizations ?? 0, revision?.ApprovalState);
             return new ProviderCapabilityDetail(item, summaries, unresolved,
-                resolved.Where(x => !string.IsNullOrWhiteSpace(x.SourceFileName)
+                resolved.Prepend(primary).DistinctBy(x => x.Id)
+                    .Where(x => !string.IsNullOrWhiteSpace(x.SourceFileName)
                     || !string.IsNullOrWhiteSpace(x.SourceArtifactReference)).Select(ProviderArtifact).ToArray(),
                 capability.MappedNistControlIds.ToArray());
         }).ToArray();

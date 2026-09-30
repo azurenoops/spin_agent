@@ -624,8 +624,9 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
             <p className="text-sm font-medium text-indigo-900">Generate a New ConMon Report</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-gray-600">Report Type</label>
+                <label htmlFor="conmon-report-type" className="block text-xs font-medium uppercase tracking-wider text-gray-600">Report Type</label>
                 <select
+                  id="conmon-report-type"
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   value={reportType}
                   onChange={(e) => setReportType(e.target.value)}
@@ -636,8 +637,9 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-gray-600">Period</label>
+                <label htmlFor="conmon-report-period" className="block text-xs font-medium uppercase tracking-wider text-gray-600">Period</label>
                 <input
+                  id="conmon-report-period"
                   type="month"
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   value={period}
@@ -645,7 +647,7 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
                 />
               </div>
             </div>
-            {generateError ? <p className="text-sm text-red-600">{generateError}</p> : null}
+            {generateError ? <p role="alert" className="text-sm text-red-600">{generateError}</p> : null}
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => { setShowGenerateForm(false); setGenerateError(null); }}
@@ -712,7 +714,7 @@ function ReportsSection({ reports, systemId, onRefresh }: { reports: ConMonRepor
   );
 }
 
-export default function ConMon() {
+export default function ConMon({ view = 'overview' }: { view?: 'overview' | 'reports' }) {
   const { detail } = useSystemContext();
   const fetcher = useCallback(() => getConMonOverview(detail.systemId), [detail.systemId]);
   const { data, loading, error, refresh } = usePolling<ConMonOverviewResponse>(fetcher, 30000);
@@ -721,14 +723,23 @@ export default function ConMon() {
     return <p className="text-gray-500">Loading continuous monitoring data...</p>;
   }
 
-  if (error || !data) {
+  if (error || !data || data.systemId !== detail.systemId) {
     return (
       <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
         <p className="text-yellow-800 font-medium">Continuous monitoring data unavailable</p>
         <p className="mt-1 text-sm text-yellow-700">Unable to load the ConMon overview for this system.</p>
+        <button type="button" className="mt-3 rounded border px-3 py-2 text-sm" onClick={refresh}>Retry monitoring data</button>
       </div>
     );
   }
+
+  if (view === 'reports') return <div className="min-w-0 space-y-6">
+    <header>
+      <h1 className="text-2xl font-bold text-gray-900">Continuous monitoring reports</h1>
+      <p className="mt-1 text-sm text-gray-500">Compile period-specific results and retained monitoring metrics for {data.systemName}.</p>
+    </header>
+    <ReportsSection reports={data.reports} systemId={detail.systemId} onRefresh={refresh} />
+  </div>;
 
   return (
     <div className="space-y-6">

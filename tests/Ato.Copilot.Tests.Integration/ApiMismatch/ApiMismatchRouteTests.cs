@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
@@ -321,6 +322,10 @@ public class ApiMismatchRouteTests : IAsyncLifetime
         builder.Services.AddAtoCopilotMcpForTesting(builder.Configuration, _dbName);
         builder.Services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         builder.Services.TryAddScoped<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
+        // Dashboard route binding needs the same workspace services registered by Program.cs.
+        builder.Services.AddScoped<RemediationWorkspaceService>();
+        builder.Services.AddScoped<AssessmentPlanWorkspaceService>();
+        builder.Services.AddScoped<AssessmentResultsWorkspaceService>();
         builder.Services.AddScoped<IWorkspaceNotificationService>(_ =>
             new Mock<IWorkspaceNotificationService>(MockBehavior.Strict).Object);
         builder.Services.AddScoped<INotificationCapabilitiesService>(_ =>

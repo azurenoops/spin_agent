@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Onboarding;
 using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Models.Compliance;
 
 namespace Ato.Copilot.Agents.Compliance.Services.Onboarding.AzureSubscriptions;
 
@@ -84,11 +85,14 @@ public sealed class AzureSubscriptionRegistrationService : IAzureSubscriptionReg
             if (existingById.TryGetValue(subId, out var row))
             {
                 row.Status = SubscriptionStatus.Selected;
-                row.LastSeenVisibleAt = now;
                 row.UpdatedAt = now;
                 row.UpdatedBy = actorUserId;
                 if (visibleById.TryGetValue(subId, out var info))
                 {
+                    if ((row.ParentTenantId != info.ParentTenantId || row.Environment != info.Environment)
+                        && await HasEnvironmentReferencesAsync(db, row, ct))
+                        throw new InvalidOperationException("A referenced subscription changed Azure directory or cloud. Reconcile its retained allocations and environments before updating identity.");
+                    row.LastSeenVisibleAt = now;
                     row.DisplayName = info.DisplayName;
                     row.ParentTenantId = info.ParentTenantId;
                     row.Environment = info.Environment;
@@ -126,9 +130,15 @@ public sealed class AzureSubscriptionRegistrationService : IAzureSubscriptionReg
             var stillVisible = visibleById.ContainsKey(row.SubscriptionId);
             if (!stillSelected && stillVisible)
             {
-                db.AzureSubscriptionRegistrations.Remove(row);
+                if (await HasEnvironmentReferencesAsync(db, row, ct))
+                {
+                    row.Status = SubscriptionStatus.Unavailable;
+                    row.UpdatedAt = now;
+                    row.UpdatedBy = actorUserId;
+                }
+                else db.AzureSubscriptionRegistrations.Remove(row);
             }
-            else if (stillSelected && !stillVisible)
+            else if (!stillVisible)
             {
                 row.Status = SubscriptionStatus.Unavailable;
                 row.UpdatedAt = now;
@@ -158,7 +168,13 @@ public sealed class AzureSubscriptionRegistrationService : IAzureSubscriptionReg
         var row = await db.AzureSubscriptionRegistrations
             .FirstOrDefaultAsync(s => s.Id == registrationId && s.TenantId == tenantId, ct);
         if (row is null) return;
-        db.AzureSubscriptionRegistrations.Remove(row);
+        if (await HasEnvironmentReferencesAsync(db, row, ct))
+        {
+            row.Status = SubscriptionStatus.Unavailable;
+            row.UpdatedAt = DateTimeOffset.UtcNow;
+            row.UpdatedBy = actorUserId;
+        }
+        else db.AzureSubscriptionRegistrations.Remove(row);
         await db.SaveChangesAsync(ct);
         await _audit.RecordAsync(
             tenantId, actorUserId, WizardAuditAction.SubscriptionRemoved,
@@ -168,6 +184,13 @@ public sealed class AzureSubscriptionRegistrationService : IAzureSubscriptionReg
             effectsJson: null,
             correlationId: Guid.NewGuid(), ct);
     }
+
+    private static async Task<bool> HasEnvironmentReferencesAsync(
+        AtoCopilotContext db, AzureSubscriptionRegistration registration, CancellationToken ct) =>
+        await db.Set<SystemEnvironmentAttachmentRecord>().IgnoreQueryFilters()
+            .AnyAsync(x => x.RegistrationId == registration.Id, ct)
+        || await db.Set<ProviderEnvironmentAllocationRecord>().IgnoreQueryFilters()
+            .AnyAsync(x => x.RegistrationId == registration.Id && x.RegistrationOwnerTenantId == registration.TenantId, ct);
 }
 
 /// <summary>

@@ -15,6 +15,7 @@ export function responsibilitySnapshotJson(overrides: Record<string, unknown> = 
 export function responsibilityItem(state = 'MissingAllocation', controlId = 'AC-1'): CapabilityResponsibilityItem {
   return {
     subscriptionId: 'subscription-a', capabilityId: 'capability-a', componentId: 'component-a', cspProfileId: 'provider-a',
+    providerName: 'Flankspeed',
     controlId, sourceRevision: 'source-1', reviewRevision: 'review-1', state, reviewedSourceRevision: null,
     confirmedBy: null, confirmedAt: null, allocation: null, effectiveInheritanceType: null, designationSource: null,
     sourceAvailable: true, sourceSnapshotJson: responsibilitySnapshotJson(), reviewedSourceSnapshotJson: null,

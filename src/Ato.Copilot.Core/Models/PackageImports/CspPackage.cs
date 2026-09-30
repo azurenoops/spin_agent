@@ -25,6 +25,13 @@ public sealed class CspPackage
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     [MaxLength(254)] public string CreatedBy { get; set; } = "";
+    public DateTimeOffset? ArchivedAt { get; set; }
+    [MaxLength(254)] public string? ArchivedBy { get; set; }
+    [MaxLength(2000)] public string? ArchiveReason { get; set; }
+    public Guid? SupersededByPackageId { get; set; }
+    public DateTimeOffset? SupersededAt { get; set; }
+    [MaxLength(254)] public string? SupersededBy { get; set; }
+    [MaxLength(2000)] public string? SupersedeReason { get; set; }
 }
 
 /// <summary>Original or expanded entry retained outside the public provider catalog.</summary>

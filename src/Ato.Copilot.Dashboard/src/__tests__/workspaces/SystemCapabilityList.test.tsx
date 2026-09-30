@@ -5,11 +5,22 @@ import '../helpers/dialog';
 import SystemCapabilityList from '../../features/workspace-operations/system-capabilities/SystemCapabilityList';
 import * as api from '../../features/workspace-operations/system-capabilities/systemCapabilityApi';
 import type { SystemCapabilityDetail, SystemCapabilityItem, SystemCapabilityPage } from '../../features/workspace-operations/system-capabilities/systemCapabilityTypes';
+import { systemSetupOperationFixture } from '../fixtures/systemCapabilityDetailSetup';
 
 vi.mock('../../features/workspace-operations/system-capabilities/systemCapabilityApi', () => ({
   listSystemCapabilities: vi.fn(), getSystemCapability: vi.fn(),
+  prepareSystemCapabilitySetup: vi.fn(), getSystemCapabilityOperation: vi.fn(),
+  completeSystemCapabilityOperation: vi.fn(),
 }));
-vi.mock('../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({}) }));
+vi.mock('../../components/layout/SystemLayout', () => ({
+  useSystemContext: () => ({ detail: { systemId: 'system-a', name: 'Mission Alpha' } }),
+}));
+vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
+  useWorkspaceSession: () => ({
+    workspace: { displayName: 'Example organization', kind: 'organization', tenantId: 'org-a', mode: 'ordinary' },
+    identity: { directoryTenantId: 'directory-a', oid: 'actor-a' },
+  }),
+}));
 const permissions = {
   canRead: true, canManage: true, canReviewResponsibilities: false,
   canManageEvidence: false, canAuthorNarratives: false, canReviewNarratives: false,
@@ -40,6 +51,27 @@ const componentDetail: SystemCapabilityDetail = {
   permissions, baselineId: null, controls: [], evidence: [], narratives: [],
   relationshipRevision: 'relationship-a', responsibilityReviewUrl: '/systems/system-a/inheritance/subscriptions',
 };
+const capabilityDetail: SystemCapabilityDetail = {
+  item: capability,
+  permissions,
+  baselineId: 'baseline-a',
+  controls: [{
+    controlId: 'AU-2',
+    providerCoverage: 'Collect audit records',
+    organizationDuty: 'Review audit records',
+    allocation: 'Shared',
+    reviewState: 'PendingReview',
+    confirmedSourceRevision: null,
+    availableSourceRevision: 'r1',
+    reviewRevision: 'review-a',
+    sourceSnapshot: null,
+    confirmedSourceSnapshot: null,
+  }],
+  evidence: [],
+  narratives: [],
+  relationshipRevision: 'relationship-a',
+  responsibilityReviewUrl: '/systems/system-a/inheritance/subscriptions',
+};
 function Location() { const location = useLocation(); return <output aria-label="Route">{location.pathname}{location.search}</output>; }
 function mount(route = '/systems/system-a/security-capabilities') {
   return render(<MemoryRouter initialEntries={[route]}>
@@ -51,7 +83,8 @@ function mount(route = '/systems/system-a/security-capabilities') {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.listSystemCapabilities).mockResolvedValue(page);
-  vi.mocked(api.getSystemCapability).mockResolvedValue(componentDetail);
+  vi.mocked(api.getSystemCapability).mockImplementation(async (_tenantId, _systemId, key) =>
+    key.recordType === 'component' ? componentDetail : capabilityDetail);
 });
 
 describe('applied system security capability views', () => {
@@ -60,13 +93,48 @@ describe('applied system security capability views', () => {
     mount();
     // Assert
     expect(await screen.findByRole('link', { name: 'Audit monitoring' })).toHaveAttribute('href', '/systems/system-a/security-capabilities/provider/cap-a');
-    expect(screen.getByRole('heading', { name: 'Security Capabilities' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Applied security capabilities' })).toBeVisible();
     expect(screen.getByText(/Mission Alpha/)).toBeVisible();
     expect(api.listSystemCapabilities).toHaveBeenCalledWith('org-a', 'system-a', expect.objectContaining({ scope: 'applied', grouping: 'capability' }), expect.any(AbortSignal));
     expect(screen.getByRole('navigation', { name: 'Pagination' })).toHaveTextContent('31 total records');
     expect(within(screen.getByRole('table')).getByText('Operations')).toBeVisible();
     expect(screen.getByText(/Development.*Excluded/)).toBeVisible();
     expect(screen.getByText(/does not confirm responsibilities/i)).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Preview contribution' })).toHaveAttribute(
+      'href',
+      '/systems/system-a/documents#ssp-sections',
+    );
+    expect(screen.getByRole('link', { name: 'View package readiness' })).toHaveAttribute(
+      'href',
+      '/systems/system-a',
+    );
+  });
+
+  it('opens an applied capability review drawer with real review and placement actions', async () => {
+    // Arrange
+    mount();
+
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Audit monitoring' }));
+
+    // Assert
+    const drawer = await screen.findByRole('dialog', { name: 'Review applied capability' });
+    expect(await within(drawer).findByRole('heading', { name: 'Audit monitoring' })).toBeVisible();
+    expect(api.getSystemCapability).toHaveBeenCalledWith('org-a', 'system-a', {
+      source: 'provider', recordType: 'capability', recordId: 'cap-a',
+    }, expect.any(AbortSignal));
+    expect(within(drawer).getByText('Collect audit records')).toBeVisible();
+    expect(within(drawer).getByText('Review audit records')).toBeVisible();
+    expect(within(drawer).getByRole('link', { name: 'Review responsibilities' })).toHaveAttribute(
+      'href',
+      '/systems/system-a/inheritance/subscriptions',
+    );
+    expect(within(drawer).getByRole('link', { name: 'Review evidence and narratives' })).toHaveAttribute(
+      'href',
+      '/systems/system-a/security-capabilities/provider/cap-a?tab=evidence',
+    );
+    expect(within(drawer).getByRole('button', { name: 'Manage Provider SOC placement' })).toBeEnabled();
+    expect(screen.getByLabelText('Route')).toHaveTextContent('capabilityId=cap-a');
   });
 
   it('keeps available offerings in a separate add flow and retains inventory tools', async () => {
@@ -74,10 +142,65 @@ describe('applied system security capability views', () => {
     mount();
     await screen.findByRole('link', { name: 'Audit monitoring' });
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Add from library' }));
+    expect(screen.getByRole('link', { name: 'Add CSP hosting & capabilities' })).toHaveAttribute(
+      'href',
+      '/systems/system-a/provider-relationships/setup',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add organization capability' }));
     // Assert
-    expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/security-capabilities/add');
+    const drawer = await screen.findByRole('dialog', { name: 'Add organization capability' });
+    expect(drawer).toBeVisible();
+    expect(drawer).toHaveClass('max-w-3xl');
+    expect(within(drawer).getByTestId('capability-options')).toHaveClass('grid-cols-1');
+    expect(within(drawer).getByTestId('selection-summary')).toHaveClass('order-first');
+    expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/security-capabilities');
     expect(screen.getByRole('link', { name: 'Manage inventory' })).toHaveAttribute('href', '/systems/system-a/security-capabilities/inventory');
+  });
+
+  it('refreshes the applied table only after setup completes on the server', async () => {
+    // Arrange
+    const added = { ...capability, recordId: 'cap-new', name: 'Identity management', isApplied: false, reviewRequiredCount: 0 };
+    let completed = false;
+    vi.mocked(api.listSystemCapabilities).mockImplementation(async (_tenantId, _systemId, query) =>
+      query.scope === 'available'
+        ? { ...page, items: [added], total: 1, scope: 'available' }
+        : { ...page, items: completed ? [capability, { ...added, isApplied: true }] : [capability], total: completed ? 2 : 1 });
+    vi.mocked(api.prepareSystemCapabilitySetup).mockImplementation(async (_tenantId, _systemId, body) => ({
+      existing: false,
+      operation: {
+        ...systemSetupOperationFixture(),
+        tenantId: 'org-a',
+        revision: 0,
+        idempotencyKey: body.idempotencyKey,
+        selections: body.selections,
+      },
+    }));
+    vi.mocked(api.getSystemCapabilityOperation).mockResolvedValue({
+      ...systemSetupOperationFixture(),
+      tenantId: 'org-a',
+      revision: 0,
+    });
+    vi.mocked(api.completeSystemCapabilityOperation).mockImplementation(async () => {
+      completed = true;
+      return { ...systemSetupOperationFixture('Setup', 'Completed'), tenantId: 'org-a' };
+    });
+    mount();
+    await screen.findByRole('link', { name: 'Audit monitoring' });
+
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Add organization capability' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Add organization capability' });
+    fireEvent.click(within(drawer).getByRole('checkbox', { name: 'Select Identity management' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Continue to applicability' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Continue to review' }));
+    fireEvent.click(await within(drawer).findByRole('checkbox', { name: /reviewed.*exact.*plan/i }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Add to system' }));
+
+    // Assert
+    expect(await screen.findByRole('link', { name: 'Identity management' })).toBeVisible();
+    expect(api.completeSystemCapabilityOperation).toHaveBeenCalledOnce();
+    expect(api.listSystemCapabilities).toHaveBeenLastCalledWith('org-a', 'system-a',
+      expect.objectContaining({ scope: 'applied' }), expect.any(AbortSignal));
   });
 
   it('includes directly assigned components without fabricating a delivering capability', async () => {
@@ -141,7 +264,7 @@ describe('applied system security capability views', () => {
     mount();
     // Assert
     await screen.findByRole('link', { name: 'Audit monitoring' });
-    expect(screen.getByRole('button', { name: 'Add from library' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add organization capability' })).toBeDisabled();
     expect(screen.getByText(/system-management permission/i)).toBeVisible();
   });
 

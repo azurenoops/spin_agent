@@ -1,0 +1,359 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 7 /Kids [5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R 17 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4715 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Azure IL5 shared services: Azure implementation guide) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (SYNTHETIC DEMONSTRATION ONLY. These are explicitly authored Azure implementation choices, not) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 688 Td (live resources, operational evidence, license entitlements or government authorizations.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 674 Td (Validate regional and Azure Government feature availability before real deployment.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 653 Td (Status and provenance) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Implementation supplement dated September 27, 2026. These Azure product choices are) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 616 Td (explicitly authored for the provider demonstration; they were not extracted from the older) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 602 Td (generic source package. The original source edition 1.2 and its immutable publication history) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 588 Td (remain intact. This supplement does not itself publish a release or accept mission) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 574 Td (responsibilities.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 553 Td (Use this guide as the current product-mapping document alongside the baseline responsibility) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 539 Td (matrix, assessment summary and corrective plan. In the customer bundle, those earlier) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 525 Td (documents are under baseline/ so they are not mistaken for revised Azure-specific sources.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 504 Td (This enriches the Azure demonstration only. The application remains multi-cloud capable.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 490 Td (Microsoft 365 stays a separate Microsoft SaaS offering, not an Azure subscription or resource) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 476 Td (allocation.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 455 Td (Azure service components) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 432 Td (Azure Monitor Logs \(Log Analytics\)) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 409 Td (SYNTHETIC DEMONSTRATION ONLY. Provider-operated Log Analytics workspace for enrolled Azure) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 395 Td (resource and workload audit events, diagnostic settings, queries and ingestion checks. The) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 381 Td (scenario target is 90 days of searchable events; actual table plans, configuration and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 367 Td (licensing require validation. Mission teams still enable and review their application events.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 346 Td (Azure Blob Storage) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 323 Td (SYNTHETIC DEMONSTRATION ONLY. Provider-managed storage account and blob containers for) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 309 Td (exported audit records and versioned shared-configuration evidence. The scenario target is) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 295 Td (365 days of archived audit evidence; retention, immutability, access controls and retrieval) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 281 Td (tests must be configured and validated. This is not a claim of automatic backup of every) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 267 Td (Azure resource.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 246 Td (Azure Firewall) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 223 Td (SYNTHETIC DEMONSTRATION ONLY. Azure Firewall and reviewed firewall policies inspect permitted) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 209 Td (shared-hub traffic and record rule changes and diagnostic events. Workload ingress and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 195 Td (customer-owned network security groups remain mission responsibilities.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 174 Td (Azure Virtual Network) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 151 Td (SYNTHETIC DEMONSTRATION ONLY. Provider hub virtual network, subnets, peering and user-defined) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 137 Td (routes establish the documented shared routing boundary. Network paths and private service) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 123 Td (connectivity require explicit design, deployment and testing; naming this component does not) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 109 Td (grant cloud access.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 88 Td (Microsoft Entra ID \(Privileged Identity Management\)) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 7) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4578 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (SYNTHETIC DEMONSTRATION ONLY. Microsoft Entra ID operator identities, MFA policies, role) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (assignments and Privileged Identity Management activation procedures support time-limited) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (provider administration. Required licenses and cloud-specific support must be verified.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 688 Td (Mission account approval, access reviews and leaver processing remain customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 667 Td (Azure Policy) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 644 Td (SYNTHETIC DEMONSTRATION ONLY. Provider policy definitions, initiatives, assignments and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (reviewed exemptions express shared configuration requirements and report noncompliance.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 616 Td (Policy evaluation is not proof that every resource is correctly configured, and remediation) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 602 Td (is an explicitly approved operation. Versioned configuration evidence is retained separately) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 588 Td (in Azure Blob Storage.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 567 Td (Azure Key Vault) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 544 Td (SYNTHETIC DEMONSTRATION ONLY. Provider key vault retains encryption keys and controlled) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 530 Td (key-management configuration, including the customer-managed key selected for the Azure) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 516 Td (Backup design. Key rotation, recovery protection and least-privilege access require) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 502 Td (validation. Azure Key Vault manages keys; Azure Backup performs workload backup and restore.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 481 Td (Microsoft Sentinel) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 458 Td (SYNTHETIC DEMONSTRATION ONLY. Provider analytics rules and incident workspaces correlate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 444 Td (enrolled security signals and retain triage records for the shared-service boundary.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 430 Td (Connector coverage and Azure Government feature availability must be validated. Human) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 416 Td (responders retain authority for containment and mission escalation.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 395 Td (Azure Logic Apps) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 372 Td (SYNTHETIC DEMONSTRATION ONLY. Reviewed incident-notification workflows support the provider) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 358 Td (escalation process. Connector availability, permissions and delivery results require) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 344 Td (verification. Automated notifications do not make mission incident declarations, approve) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 330 Td (containment or issue authorization decisions.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 309 Td (Microsoft Defender for Cloud) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 286 Td (SYNTHETIC DEMONSTRATION ONLY. Provider security recommendations and supported) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 272 Td (vulnerability-assessment integrations identify shared-infrastructure exposure for review.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 258 Td (Plans, assessed resource types, scan freshness and cloud availability must be verified. A) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 244 Td (recommendation or score is not a completed independent assessment.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 223 Td (Azure Update Manager) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 200 Td (SYNTHETIC DEMONSTRATION ONLY. Provider-managed machine update assessment, maintenance) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 186 Td (configuration and installation-result review support patching of eligible) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 172 Td (shared-infrastructure hosts. Supported machine types, operating systems and cloud) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 158 Td (availability require validation; mission application dependency patching remains) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 144 Td (customer-owned.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 123 Td (Azure Backup \(Recovery Services vault\)) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 2 of 7) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 4932 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (SYNTHETIC DEMONSTRATION ONLY. Azure Backup policies, protected items, recovery points and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (restore jobs protect supported provider-managed workloads in a Recovery Services vault. The) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (design uses a customer-managed encryption key held in Azure Key Vault, with explicit vault) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 688 Td (identity permissions. Daily recovery-point monitoring and quarterly restore exercises target) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 674 Td (a 24-hour RPO and eight-hour RTO; targets are not verified results.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 653 Td (Capability implementation and unchanged customer duties) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 630 Td (Audit collection) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 607 Td (SYNTHETIC DEMONSTRATION ONLY. Collect enrolled Azure administrative and platform audit events) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 593 Td (using Azure Monitor Logs \(Log Analytics\), with reviewed exports to Azure Blob Storage.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 579 Td (Scenario targets remain 90 days searchable and 365 days archived. Mission teams enable) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 565 Td (application audit sources and review mission-specific events. Azure product choices are) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 551 Td (authored in the September 27 implementation supplement.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 530 Td (Implementing components: Azure Monitor Logs \(Log Analytics\); Azure Blob Storage.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 509 Td (Control references: AU-2, AU-6, AU-11.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 488 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Operate collector health checks every 15) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 474 Td (minutes; reconcile ingestion counts daily; protect archived events from routine operator) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 460 Td (modification. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 446 Td (sample.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 425 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Agree event categories and triage escalation with) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 411 Td (each mission; investigate missing source intervals jointly within one business day. Evidence:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 397 Td (AZ-E01: seven-day collector reconciliation and archive retrieval sample.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 376 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Enable workload audit sources, review) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 362 Td (mission-specific events each business day, and set longer retention when mission policy) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 348 Td (requires it. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 334 Td (sample.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 313 Td (Network protection) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 290 Td (SYNTHETIC DEMONSTRATION ONLY. Azure Firewall and Azure Virtual Network implement the) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 276 Td (provider's reviewed shared-hub inspection and routing design for enrolled spokes. Mission) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 262 Td (teams remain responsible for application ingress, workload network security groups and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 248 Td (endpoints outside the provider hub. Azure product choices are authored in the September 27) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 234 Td (implementation supplement.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 213 Td (Implementing components: Azure Firewall; Azure Virtual Network.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 192 Td (Control references: SC-7.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 171 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Maintain deny-by-default hub rules, review) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 157 Td (exceptions monthly, and record firewall changes with rollback instructions. Evidence: AZ-E02:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 143 Td (approved rule sample, route inventory and denied-flow test.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 122 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Approve traffic purpose and route changes jointly;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 108 Td (exercise a denied-traffic test before connecting a new spoke. Evidence: AZ-E02: approved rule) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 94 Td (sample, route inventory and denied-flow test.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 3 of 7) Tj ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 4525 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Manage application ingress, workload NSGs, DNS) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (dependencies and endpoints outside the provider hub. Evidence: AZ-E02: approved rule sample,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (route inventory and denied-flow test.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 681 Td (Privileged identity) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 658 Td (SYNTHETIC DEMONSTRATION ONLY. Microsoft Entra ID and Privileged Identity Management support) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 644 Td (provider operator MFA, least-privilege role assignment and time-limited activation. Mission) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (identities remain separately administered. Licensing, configured policy and enforcement) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 616 Td (require verification; no existing tenant entitlement is asserted.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 595 Td (Implementing components: Microsoft Entra ID \(Privileged Identity Management\).) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 574 Td (Control references: IA-2, AC-2.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 553 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Require MFA for operators; review privileged) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 539 Td (membership monthly; remove provider leavers within four hours of confirmed notice. Evidence:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 525 Td (AZ-E03: synthetic access review, activation record and leaver test.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 504 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Maintain named escalation contacts and reconcile) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 490 Td (emergency access use after every activation. Evidence: AZ-E03: synthetic access review,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 476 Td (activation record and leaver test.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 455 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Approve mission accounts, enforce mission MFA,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 441 Td (perform access reviews, and disable customer leavers. Evidence: AZ-E03: synthetic access) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 427 Td (review, activation record and leaver test.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 406 Td (Configuration baselines) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 383 Td (SYNTHETIC DEMONSTRATION ONLY. Azure Policy expresses reviewed shared-service configuration) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 369 Td (requirements and Azure Blob Storage retains versioned configuration evidence. Changes and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 355 Td (exemptions require approval; mission application code and images are excluded. Evaluation and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 341 Td (stored evidence do not establish successful remediation.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 320 Td (Implementing components: Azure Policy; Azure Blob Storage.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 299 Td (Control references: CM-2, CM-3.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 278 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Record baseline version, approver, test result) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 264 Td (and rollback plan; compare deployed shared settings weekly. Evidence: AZ-E04: baseline) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 250 Td (revision, drift review and approved change sample.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 229 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Assess mission impact before changing shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 215 Td (defaults; agree maintenance windows and exception expiration. Evidence: AZ-E04: baseline) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 201 Td (revision, drift review and approved change sample.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 180 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Maintain application baselines and approve) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 166 Td (workload changes; remediate customer-owned configuration drift. Evidence: AZ-E04: baseline) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 152 Td (revision, drift review and approved change sample.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 131 Td (Encryption and key handling) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 4 of 7) Tj ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 14 0 R >>
+endobj
+14 0 obj
+<< /Length 4869 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (SYNTHETIC DEMONSTRATION ONLY. Azure Key Vault supports provider-owned encryption-key custody,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (controlled access and rotation procedures. Covered Azure services enforce their own) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (encryption and transport configuration; Key Vault is not itself a transport gateway or a) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 688 Td (workload backup service. Customer key and certificate duties remain unchanged.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 667 Td (Implementing components: Azure Key Vault.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 646 Td (Control references: SC-12, SC-13.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 625 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Restrict key administration, test rotation every) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 611 Td (90 days, record custody, and enforce TLS 1.2 or higher on covered endpoints. Evidence:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 597 Td (AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 576 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Document key ownership and coordinate rotation) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 562 Td (windows for dependent workloads; test trust-chain changes jointly. Evidence: AZ-E05:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 548 Td (synthetic rotation rehearsal and endpoint protocol inventory.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 527 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Configure workload encryption and certificates;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 513 Td (manage customer keys and classify data before using a covered endpoint. Evidence: AZ-E05:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 499 Td (synthetic rotation rehearsal and endpoint protocol inventory.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 478 Td (Incident coordination) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 455 Td (SYNTHETIC DEMONSTRATION ONLY. Microsoft Sentinel incident records and approved Azure Logic) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 441 Td (Apps notification workflows support provider triage and coordination for the shared-service) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 427 Td (boundary. Human responders own escalation and containment approval; mission incident) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 413 Td (declarations and reporting remain customer-owned.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 392 Td (Implementing components: Microsoft Sentinel; Azure Logic Apps.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 371 Td (Control references: IR-4, IR-6.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 350 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Acknowledge severity-one tickets within 30) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 336 Td (minutes in the scenario; preserve provider records and issue initial impact notices.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 322 Td (Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 301 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Exercise incident handoffs quarterly; coordinate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 287 Td (containment approval where provider action affects mission service. Evidence: AZ-E06:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 273 Td (tabletop timeline, escalation roster and notification template.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 252 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Own mission incident declarations, regulatory) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 238 Td (reporting, application containment and mission recovery decisions. Evidence: AZ-E06: tabletop) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 224 Td (timeline, escalation roster and notification template.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 203 Td (Vulnerability management) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 180 Td (SYNTHETIC DEMONSTRATION ONLY. Microsoft Defender for Cloud recommendations and supported) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 166 Td (vulnerability assessments inform triage; Azure Update Manager supports approved patching of) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 152 Td (eligible provider-managed machines. Follow-up verification is required. Customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 138 Td (applications, containers and mission hosts remain separately managed.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 117 Td (Implementing components: Microsoft Defender for Cloud; Azure Update Manager.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 96 Td (Control references: RA-5, SI-2.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 5 of 7) Tj ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 16 0 R >>
+endobj
+16 0 obj
+<< /Length 4762 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Triage critical results within one business day,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (schedule fixes by risk, and verify remediation with a follow-up scan. Evidence: AZ-E07:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (synthetic scan sample, patch ticket and clean rescan.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 681 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Agree outage windows and compensating controls for) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 667 Td (shared infrastructure exceptions; review overdue items weekly. Evidence: AZ-E07: synthetic) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 653 Td (scan sample, patch ticket and clean rescan.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 632 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Scan and patch customer applications, containers) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 618 Td (and mission hosts; document mission risk acceptance separately. Evidence: AZ-E07: synthetic) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 604 Td (scan sample, patch ticket and clean rescan.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 583 Td (Backup and recovery) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 560 Td (SYNTHETIC DEMONSTRATION ONLY. Azure Backup \(Recovery Services vault\) provides backup) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 546 Td (policies, recovery points and restore operations for supported provider workloads. Azure Key) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 532 Td (Vault holds the customer-managed encryption key used by the documented backup design. Monitor) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 518 Td (daily recovery points and rehearse quarterly restores against the scenario's 24-hour RPO and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 504 Td (eight-hour RTO. Key management is distinct from backup/restore, and mission recovery duties) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 490 Td (remain customer-owned.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 469 Td (Implementing components: Azure Backup \(Recovery Services vault\); Azure Key Vault.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 448 Td (Control references: CP-9, CP-10.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 427 Td (Provider duty: SYNTHETIC DEMONSTRATION ONLY. Monitor backup jobs daily, protect recovery) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 413 Td (copies from ordinary operator deletion, and record restore results quarterly. Evidence:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 399 Td (AZ-E08: backup reconciliation and shared-configuration restore exercise.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 378 Td (Shared duty: SYNTHETIC DEMONSTRATION ONLY. Agree recovery sequence and validate shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 364 Td (dependencies during a joint recovery exercise. Evidence: AZ-E08: backup reconciliation and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 350 Td (shared-configuration restore exercise.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 329 Td (Customer duty: SYNTHETIC DEMONSTRATION ONLY. Back up mission data and applications, define) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 315 Td (mission RTO/RPO, and validate business transactions after recovery. Evidence: AZ-E08: backup) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 301 Td (reconciliation and shared-configuration restore exercise.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 280 Td (Backup and key management are separate) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 257 Td (Azure Backup owns backup policy, protected items, recovery points and restore jobs. Azure Key) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 243 Td (Vault owns the customer-managed encryption key and its access/rotation/recovery) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 229 Td (configuration. The vault identity requires explicitly configured access to the selected key.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 215 Td (A key vault is not a substitute for workload backups. Configuration exports in Azure Blob) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 201 Td (Storage are likewise not proof that Azure Backup protects every Azure resource.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 180 Td (The scenario's 24-hour RPO and eight-hour RTO remain design targets, not measured recovery) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 166 Td (results. Keep the existing finding and corrective milestones open until reviewed evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 152 Td (supports closure.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 131 Td (Verification before real deployment) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 6 of 7) Tj ET
+endstream
+endobj
+17 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 18 0 R >>
+endobj
+18 0 obj
+<< /Length 1382 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (Validate region and Azure Government service/feature availability, licensing, supported) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (workload types, network access, identity permissions, encryption compatibility, retention and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (restore behavior. Neither the service names nor the IL5 demonstration title certify an) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 688 Td (authorization boundary. No real Azure tenant, subscription, resource or government decision) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 674 Td (is asserted.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 653 Td (Public product references) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Azure Backup customer-managed encryption keys:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 616 Td (https://learn.microsoft.com/en-us/azure/backup/encryption-at-rest-with-cmk) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 595 Td (Azure products by region: validate deployment availability separately:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 581 Td (https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 7 of 7) Tj ET
+endstream
+endobj
+xref
+0 19
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000161 00000 n 
+0000000258 00000 n 
+0000000360 00000 n 
+0000000496 00000 n 
+0000005263 00000 n 
+0000005399 00000 n 
+0000010029 00000 n 
+0000010166 00000 n 
+0000015151 00000 n 
+0000015289 00000 n 
+0000019867 00000 n 
+0000020005 00000 n 
+0000024927 00000 n 
+0000025065 00000 n 
+0000029880 00000 n 
+0000030018 00000 n 
+trailer
+<< /Size 19 /Root 1 0 R >>
+startxref
+31453
+%%EOF

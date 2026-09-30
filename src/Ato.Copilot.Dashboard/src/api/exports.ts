@@ -18,6 +18,132 @@ export interface ExportDetail extends ExportSummary {
   systemId: string;
   contentHash: string | null;
   expiresAt: string;
+  sourcePreviewId?: string | null;
+  sourceManifest?: DocumentSourceManifest | null;
+}
+
+export interface DocumentSourceReference {
+  kind: string;
+  recordId: string;
+  versionId: string;
+  contentHash: string;
+}
+
+export interface DocumentSourceManifest {
+  scope: string;
+  profiles: DocumentSourceReference[];
+  providerSources: DocumentSourceReference[];
+  narratives: DocumentSourceReference[];
+  otherSources: string;
+  previewOnly?: boolean;
+}
+
+export interface SspPreview {
+  previewId?: string | null;
+  sourceManifest?: DocumentSourceManifest | null;
+  systemId: string;
+  format: 'json';
+  contentType: 'application/json';
+  content: string;
+  contentHash: string;
+  generatedAt: string;
+  sourceGaps: { code: string; message: string }[];
+  isPreview: true;
+  sourceState: 'CurrentWorkingData';
+  canGenerate?: boolean;
+}
+
+export type AdditionalDocumentType = 'sap' | 'sar' | 'poam';
+export type DocumentRecordReference = Omit<DocumentSourceReference, 'versionId'> & { versionId: string | null };
+
+export interface AdditionalDocumentPreview extends SspPreview {
+  documentType: AdditionalDocumentType;
+  systemName: string;
+  available: true;
+  documentStatus?: string | null;
+  sourceRecords?: DocumentRecordReference[];
+}
+
+export interface UnavailableDocumentPreview {
+  systemId: string;
+  systemName: string;
+  documentType: AdditionalDocumentType;
+  available: false;
+  reasonCode: string;
+  message: string;
+}
+
+export async function getAdditionalDocumentPreview(
+  systemId: string, documentType: AdditionalDocumentType, signal?: AbortSignal,
+): Promise<AdditionalDocumentPreview | UnavailableDocumentPreview> {
+  const { data } = await apiClient.get<AdditionalDocumentPreview | UnavailableDocumentPreview>(
+    `/systems/${encodeURIComponent(systemId)}/documents/${documentType}/preview`, { signal },
+  );
+  if (!data || data.systemId !== systemId || data.documentType !== documentType || typeof data.systemName !== 'string') {
+    throw new Error('The server returned a differently scoped document preview.');
+  }
+  if (data.available === false) {
+    if (typeof data.reasonCode !== 'string' || !data.reasonCode || typeof data.message !== 'string' || !data.message.trim()) {
+      throw new Error('The server returned an incomplete document preview availability state.');
+    }
+    return data;
+  }
+  if (data.available !== true || data.canGenerate !== false) throw new Error('The server returned an invalid read-only document preview.');
+  checkedPreview(data, systemId);
+  if (data.sourceRecords !== undefined && (!Array.isArray(data.sourceRecords) || data.sourceRecords.some(item =>
+    !item || typeof item.kind !== 'string' || typeof item.recordId !== 'string'
+      || item.versionId !== null && typeof item.versionId !== 'string' || typeof item.contentHash !== 'string'))) {
+    throw new Error('The server returned invalid document preview source records.');
+  }
+  return data;
+}
+
+export async function getSspPreview(systemId: string, signal?: AbortSignal): Promise<SspPreview> {
+  const { data } = await apiClient.get<SspPreview>(
+    `/systems/${encodeURIComponent(systemId)}/documents/ssp/preview`, { signal },
+  );
+  return checkedPreview(data, systemId);
+}
+
+function checkedPreview(data: SspPreview, systemId: string): SspPreview {
+  if (data?.systemId !== systemId || data.format !== 'json' || data.contentType !== 'application/json'
+    || data.isPreview !== true || data.sourceState !== 'CurrentWorkingData'
+    || typeof data.content !== 'string' || typeof data.contentHash !== 'string'
+    || typeof data.generatedAt !== 'string' || !Array.isArray(data.sourceGaps)
+    || data.sourceGaps.some(gap => !gap || typeof gap.code !== 'string' || typeof gap.message !== 'string')) {
+    throw new Error('The server returned an invalid or differently scoped document preview.');
+  }
+  if (data.sourceManifest && (!Array.isArray(data.sourceManifest.profiles)
+    || !Array.isArray(data.sourceManifest.providerSources) || !Array.isArray(data.sourceManifest.narratives)
+    || typeof data.sourceManifest.scope !== 'string' || typeof data.sourceManifest.otherSources !== 'string'
+    || [...data.sourceManifest.profiles, ...data.sourceManifest.providerSources, ...data.sourceManifest.narratives]
+      .some(item => !item || typeof item.kind !== 'string' || typeof item.recordId !== 'string'
+        || typeof item.versionId !== 'string' || typeof item.contentHash !== 'string'))) {
+    throw new Error('The server returned an invalid document source manifest.');
+  }
+  if (data.canGenerate !== undefined && typeof data.canGenerate !== 'boolean'
+    || data.sourceManifest?.scope === 'WorkingProfilePreview' && (data.sourceManifest.previewOnly !== true || data.canGenerate !== false)) {
+    throw new Error('The server returned an invalid working-preview export authority.');
+  }
+  return data;
+}
+
+export async function retainSspPreview(systemId: string, key: string, signal?: AbortSignal): Promise<SspPreview> {
+  const { data } = await apiClient.post<SspPreview>(
+    `/systems/${encodeURIComponent(systemId)}/documents/ssp/preview`, {},
+    { headers: { 'Idempotency-Key': key }, signal },
+  );
+  const result = checkedPreview(data, systemId);
+  if (typeof result.previewId !== 'string' || !result.previewId) throw new Error('The server did not return a retained preview identity.');
+  return result;
+}
+
+export async function requestPreviewExport(systemId: string, previewId: string, key: string, signal?: AbortSignal): Promise<ExportSummary> {
+  const { data } = await apiClient.post<ExportSummary>(
+    `/systems/${encodeURIComponent(systemId)}/exports`, { format: 'json', sourcePreviewId: previewId },
+    { headers: { 'Idempotency-Key': key }, signal },
+  );
+  return data;
 }
 
 export interface TemplateInfo {

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Link } from '../features/workspaces/workspaceNavigation';
+import { Link, useSearchParams } from '../features/workspaces/workspaceNavigation';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import { usePolling } from '../hooks/usePolling';
@@ -28,6 +28,7 @@ import {
   type CspInheritedComponent,
 } from '../features/csp-inherited-components/api';
 import type { CreateComponentRequest, ComponentType, ComponentStatus, SecurityCapabilityDto, DiscoveredResource } from '../types/dashboard';
+import { policyError } from '../api/policyWorkspace';
 
 const TYPE_OPTIONS: ComponentType[] = ['Person', 'Place', 'Thing', 'Policy'];
 const STATUS_OPTIONS: ComponentStatus[] = ['Active', 'Planned', 'Decommissioned'];
@@ -40,12 +41,14 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function ComponentLibrary() {
+  const [urlParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState(() => TYPE_OPTIONS.some(type => type === urlParams.get('type')) ? urlParams.get('type')! : '');
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editingComp, setEditingComp] = useState<OrgComponentDto | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [impactPreview, setImpactPreview] = useState<ComponentImpactPreview | null>(null);
@@ -270,8 +273,8 @@ export default function ComponentLibrary() {
       await createOrgComponent(req);
       setShowCreate(false);
       refresh();
-    } catch (err: any) {
-      setFormError(err?.response?.data?.error ?? 'Failed to create component');
+    } catch (err: unknown) {
+      setFormError(policyError(err));
     } finally {
       setSubmitting(false);
     }
@@ -292,8 +295,9 @@ export default function ComponentLibrary() {
           setPendingUpdate(req);
           return;
         }
-      } catch {
-        // Preview failed — proceed anyway
+      } catch (reason) {
+        setFormError(policyError(reason));
+        return;
       } finally {
         setSubmitting(false);
       }
@@ -311,14 +315,15 @@ export default function ComponentLibrary() {
       setImpactPreview(null);
       setPendingUpdate(null);
       refresh();
-    } catch (err: any) {
-      setFormError(err?.response?.data?.error ?? 'Failed to update component');
+    } catch (err: unknown) {
+      setFormError(policyError(err));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteWithPreview = async (id: string) => {
+    setDeleteError(null);
     try {
       const preview = await getComponentImpactPreview(id);
       if (preview.totalNarratives > 0) {
@@ -327,21 +332,23 @@ export default function ComponentLibrary() {
         setDeleteConfirm(null);
         return;
       }
-    } catch {
-      // Preview failed — proceed anyway
+    } catch (reason) {
+      setDeleteError(policyError(reason));
+      return;
     }
     await handleDelete(id);
   };
 
   const handleDelete = async (id: string) => {
+    setDeleteError(null);
     try {
       await deleteOrgComponent(id);
       setDeleteConfirm(null);
       setImpactPreview(null);
       setPendingDeleteId(null);
       refresh();
-    } catch {
-      /* ignore */
+    } catch (reason) {
+      setDeleteError(policyError(reason));
     }
   };
 
@@ -492,7 +499,7 @@ export default function ComponentLibrary() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDeleteConfirm(comp.id)}
+                    onClick={() => { setDeleteError(null); setDeleteConfirm(comp.id); }}
                     className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
                     title="Delete"
                   >
@@ -550,8 +557,11 @@ export default function ComponentLibrary() {
             <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Component?</h3>
               <p className="mb-4 text-sm text-gray-600">
-                This will remove the component and all system assignments. Affected narratives will be regenerated.
+                {components.find(component => component.id === deleteConfirm)?.componentType === 'Policy'
+                  ? 'Shared policies cannot be deleted while direct system references exist. Unlink those references in their system policy workflows first; review any remaining capability impact before deleting the source.'
+                  : 'This will remove the component and all system assignments. Affected narratives will be regenerated.'}
               </p>
+              {deleteError && <p role="alert" className="mb-4 text-sm text-red-700">{deleteError}</p>}
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setDeleteConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
                 <button type="button" onClick={() => handleDeleteWithPreview(deleteConfirm)} className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Delete</button>
@@ -564,6 +574,7 @@ export default function ComponentLibrary() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">Narrative Impact Preview</h3>
+              {deleteError && <p role="alert" className="mb-4 text-sm text-red-700">{deleteError}</p>}
               <p className="text-sm text-gray-600 mb-4">
                 This change will regenerate narratives across {impactPreview.totalSystems} system{impactPreview.totalSystems !== 1 ? 's' : ''}.
               </p>
@@ -1300,4 +1311,3 @@ function ComponentFormInline({
     </form>
   );
 }
-

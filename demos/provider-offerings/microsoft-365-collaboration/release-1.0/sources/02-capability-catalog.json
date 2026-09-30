@@ -1,0 +1,70 @@
+{
+  "capabilities": [
+    {
+      "id": "M365-capability-exchange",
+      "name": "Exchange Online collaboration mail",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provide a fictional SaaS collaboration mail configuration for Flank Speed Demo; no Azure subscription resources are included.",
+      "componentIds": [
+        "M365-component-exchange"
+      ],
+      "controlIds": [
+        "AC-2",
+        "SC-7"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-teams",
+      "name": "Teams meetings and messaging",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Cover tenant-level meeting and messaging policy templates; voice carrier connectivity and endpoint configuration are excluded.",
+      "componentIds": [
+        "M365-component-teams"
+      ],
+      "controlIds": [
+        "AC-2",
+        "AC-4"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-sharepoint",
+      "name": "SharePoint and OneDrive content",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Cover fictional site-sharing templates and document access policy; no customer content is imported.",
+      "componentIds": [
+        "M365-component-sharepoint"
+      ],
+      "controlIds": [
+        "AC-3",
+        "AC-6"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-purview",
+      "name": "Purview retention and audit",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Describe configured collaboration audit categories and a fictional 365-day retention design, not a purchased license entitlement.",
+      "componentIds": [
+        "M365-component-purview"
+      ],
+      "controlIds": [
+        "AU-2",
+        "AU-6",
+        "AU-11"
+      ],
+      "responsibility": "Shared"
+    },
+    {
+      "id": "M365-capability-identity",
+      "name": "Tenant access safeguards",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Cover SaaS collaboration access policy templates for the demo tenant, independently of Azure shared-service operations.",
+      "componentIds": [
+        "M365-component-identity"
+      ],
+      "controlIds": [
+        "IA-2",
+        "AC-2"
+      ],
+      "responsibility": "Shared"
+    }
+  ]
+}

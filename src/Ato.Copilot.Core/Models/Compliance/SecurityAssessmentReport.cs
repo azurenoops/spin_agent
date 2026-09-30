@@ -12,6 +12,10 @@ namespace Ato.Copilot.Core.Models.Compliance;
 [TenantScoped]
 public class SecurityAssessmentReport
 {
+    [MaxLength(64)]
+    public string? WorkspaceOperationKey { get; set; }
+    public string? SourceSnapshotJson { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

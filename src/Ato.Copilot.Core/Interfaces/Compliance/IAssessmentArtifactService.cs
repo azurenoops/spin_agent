@@ -9,6 +9,11 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </summary>
 public interface IAssessmentArtifactService
 {
+    Task<ControlEffectiveness> AssessControlInContextAsync(
+        Ato.Copilot.Core.Data.Context.AtoCopilotContext context, string assessmentId, string controlId,
+        string determination, string? method, List<string>? evidenceIds, string? notes,
+        string? catSeverity, string assessorId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Record an SCA's effectiveness determination for a specific control.
     /// Creates a <see cref="ControlEffectiveness"/> record and, if the determination

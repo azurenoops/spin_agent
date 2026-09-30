@@ -40,7 +40,7 @@ public static class ProviderMissionEndpoints
         group.MapPost("/provider-capability-adoptions", (string systemId, AdoptProviderCapabilityRequest body,
             HttpContext http, IProviderMissionService service, CancellationToken ct) =>
             ExecuteProjectionAsync(http, () => service.AdoptAsync(systemId, body, Actor(http), ct, Key(http))))
-            .WithName("AdoptExactProviderCapability").WithSummary("Use canonical ISSM/ISSO subscription permission and retain exact release/context pins.")
+            .WithName("AdoptExactProviderCapability").WithSummary("Assigned mission adopters select exact release/context pins; responsibility confirmation remains ISSM/ISSO-only.")
             .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(409).Produces(503);
         return app;
     }

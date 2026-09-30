@@ -24,17 +24,20 @@ public class ConMonService : IConMonService
     private readonly IComplianceWatchService? _watchService;
     private readonly IAlertManager? _alertManager;
     private readonly ILogger<ConMonService> _logger;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     public ConMonService(
         IServiceScopeFactory scopeFactory,
         ILogger<ConMonService> logger,
         IComplianceWatchService? watchService = null,
-        IAlertManager? alertManager = null)
+        IAlertManager? alertManager = null,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _watchService = watchService;
         _alertManager = alertManager;
+        _environmentGuard = environmentGuard;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -808,6 +811,21 @@ public class ConMonService : IConMonService
         AtoCopilotContext db,
         CancellationToken cancellationToken)
     {
+        if (_environmentGuard is not null)
+        {
+            try
+            {
+                await _environmentGuard.EnsureSystemAsync(systemId, EnvironmentScopePurpose.Monitoring, cancellationToken);
+            }
+            catch (AssessmentEnvironmentException failure)
+            {
+                report.MonitoringEnabled = false;
+                report.LastMonitoringCheck = null;
+                report.ReportContent += $"\n\n## Environment coverage\n\nCollection unavailable: {failure.Message}\n\n{failure.Suggestion}";
+                _logger.LogWarning("Report monitoring coverage unavailable for {SystemId}: {Reason}", systemId, failure.ErrorCode);
+                return;
+            }
+        }
         if (_watchService == null)
             return;
 
@@ -856,7 +874,7 @@ public class ConMonService : IConMonService
             report.AutoRemediationRuleCount = await db.AutoRemediationRules
                 .AsNoTracking()
                 .CountAsync(r =>
-                    subscriptionIds.Contains(r.SubscriptionId) &&
+                    r.SubscriptionId != null && subscriptionIds.Contains(r.SubscriptionId) &&
                     r.IsEnabled,
                     cancellationToken);
 

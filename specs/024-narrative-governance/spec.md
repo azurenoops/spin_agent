@@ -3,6 +3,7 @@
 **Feature Branch**: `024-narrative-governance`
 **Created**: 2026-03-11
 **Status**: Draft
+**Tracking Issue**: [azurenoops/spin_agent#1048](https://github.com/azurenoops/spin_agent/issues/1048)
 **Input**: User description: "Create the full spec file for Spec 024: Narrative Governance — Version Control + Approval Workflow (Phase 3)"
 
 ---
@@ -116,6 +117,51 @@ As an ISSO working on a narrative that another team member may also be editing, 
 
 ---
 
+### User Story 6 — Control Narrative Workspace (Priority: P1)
+
+As an authorized system user, I need a concise control-oriented narrative workspace
+with an inspectable detail drawer so that I can understand missing statements,
+review proposed updates, inspect evidence and history, and take only the actions
+authorized for my current system assignment without losing my list context.
+
+**Why this priority**: The current dashboard separates direct narrative editing,
+proposal review, source references, evidence, and history across competing views.
+That makes it difficult to distinguish completeness, approval, freshness,
+implementation, and authorization outcomes and can expose conflicting next actions.
+
+**Independent Test**: Load a system containing missing, draft, approved, proposed,
+and stale Policy/Technical statements; verify consistent view counts and filters,
+open a deep-linked control drawer, inspect statement/evidence/history data, exercise
+authorized actions, and confirm that stale or foreign mutations fail closed.
+
+**Acceptance Scenarios**:
+
+1. **Given** controls with independently populated Policy and Technical content,
+   **When** the workspace loads, **Then** each row shows the readable control title,
+   control ID, separate statement states, and one truthful next action.
+2. **Given** the Needs attention, All controls, and Approved statements views,
+   **When** filters are changed, **Then** the displayed rows and counts use the same
+   documented inclusion rules and never substitute failed requests with zero counts.
+3. **Given** an authorized direct link to a control and narrative type, **When** it
+   opens, refreshes, or participates in browser back/forward navigation, **Then** the
+   drawer restores the selected control without clearing search, filters, page, or
+   scroll position.
+4. **Given** a control with a current statement and a proposal, **When** the drawer
+   opens, **Then** it shows retained content, readable proposed changes, proposal
+   cause, provenance, source revisions, evidence, responsibility dependencies, and
+   the server-authorized next action.
+5. **Given** an Approved version and a newer Draft or proposal, **When** the drawer
+   opens, **Then** the approved snapshot remains identifiable and is not replaced
+   until an authorized reviewer accepts a valid current proposal.
+6. **Given** a view-only system user, **When** the drawer opens, **Then** authorized
+   records remain readable while authoring and review controls are absent or
+   explicitly blocked with the server-derived reason.
+7. **Given** a stale proposal, stale narrative version, foreign system/control, or
+   mismatched narrative type, **When** a mutation is attempted, **Then** the server
+   rejects it without changing active or approved content.
+
+---
+
 ### Edge Cases
 
 - What happens when a narrative in InReview status is rolled back? The rollback is rejected — narratives under active review cannot be modified until the review completes (approve or reject).
@@ -190,6 +236,24 @@ As an ISSO working on a narrative that another team member may also be editing, 
 - **FR-031**: Persona guide documentation (`docs/guides/`) MUST be updated for ISSO (`engineer-guide.md`), ISSM (`issm-guide.md`), and SCA (`sca-guide.md`) guides to reflect narrative governance workflows, version history access, and approval procedures.
 - **FR-032**: The existing `compliance_write_narrative` entry in the Agent Tool Catalog MUST be updated to document the new `expected_version` and `change_reason` parameters and the version-creating behavior.
 
+**Control Narrative Workspace**
+
+- **FR-033**: The dashboard MUST present the heading “Document how your controls work” and explanation “Policy and technical statements for your system security plan.”
+- **FR-034**: The dashboard MUST provide Needs attention, All controls, and Approved statements views whose counts and rows use one server-defined inclusion contract.
+- **FR-035**: Needs attention MUST include controls with a missing Policy or Technical statement, an unapproved current version, a current actionable proposal, a stale/source-changed proposal, or a recorded conflict/evidence gap; it MUST NOT infer attention from implementation or assessment outcomes alone.
+- **FR-036**: Approved statements MUST include only controls whose authoritative approved snapshot contains both nonblank Policy and Technical statements; implementation status remains separately reported.
+- **FR-037**: The list projection MUST include readable NIST control names, separate Policy and Technical display states, implementation status, version/provenance metadata, actionable-proposal counts, and server-authorized action permissions.
+- **FR-038**: The detail drawer MUST support Statements, Evidence, and History tabs; Policy and Technical statement selection MUST be independent within Statements.
+- **FR-039**: Direct drawer links MUST validate tenant, system, control, narrative type, proposal identity, and revision and MUST preserve list filters, pagination, scroll position, refresh, browser navigation, and keyboard focus.
+- **FR-040**: Empty statements MUST render an explicit empty state; placeholder guidance MUST NOT be persisted or displayed as saved narrative content.
+- **FR-041**: Proposed changes MUST show a readable comparison, creation cause, retained provenance, source revisions, supporting evidence gaps, responsibility dependencies, and stale/conflict state.
+- **FR-042**: Available actions MUST be derived from existing server authorization and per-proposal authorization. Displayed persona or client state MUST NOT grant authoring or review permission.
+- **FR-043**: Narrative completeness, approval, source freshness, control implementation, assessment results, and authorization decisions MUST remain separate in API and UI labels.
+- **FR-044**: Failed list/detail requests MUST remain explicit loading, unavailable, permission-denied, validation, conflict, or retry states and MUST NOT become success-shaped empty counts.
+- **FR-045**: Existing direct editing, proposal generation/review, reference-library, and authorized bulk workflows MUST remain reachable without creating a parallel narrative store.
+- **FR-046**: A collapsed “How these statements contribute to your SSP” section MUST describe the verified document/export consumers and identify any path that does not consistently select the approved snapshot.
+- **FR-047**: The responsive drawer MUST use a full-width layout on smaller screens and provide focus entry, close focus restoration, Escape handling, and labeled tab/statement controls.
+
 ### Key Entities
 
 - **NarrativeVersion**: Append-only record of a single version of a control narrative (content is immutable once created; `Status` transitions through the approval lifecycle). Key attributes: version number, control ID, system ID, content, author identity, authored timestamp, status (Draft/InReview/Approved/NeedsRevision), submission tracking (submitter, submission timestamp), change reason. Linked to the parent `ControlImplementation` entity. Ordered by version number (ascending) per control.
@@ -211,3 +275,7 @@ As an ISSO working on a narrative that another team member may also be editing, 
 - **SC-008**: Every narrative state transition is captured in the audit trail with actor, action, and timestamp — meeting CM-3 (Configuration Change Control) and AU-12 (Audit Record Generation) requirements.
 - **SC-009**: Existing tools (`compliance_write_narrative`, `compliance_suggest_narrative`, `compliance_batch_populate_narratives`, `compliance_narrative_progress`) continue to function without breaking changes for callers that do not use the new version/approval parameters.
 - **SC-010**: All project documentation (agent tool catalog, data model, persona test cases, environment checklist, tool validation, persona guides) is updated to reflect the new tools, entities, and workflows introduced by this feature.
+- **SC-011**: View counts and displayed rows remain consistent for every combination of primary view, search, family, and disclosed advanced filter.
+- **SC-012**: A keyboard user can open, navigate, deep-link, refresh, and close the control drawer without losing list state or focus context.
+- **SC-013**: View-only, author, and reviewer test identities see only actions authorized by the server; stale or foreign proposal mutations fail without changing retained content.
+- **SC-014**: The workspace accurately identifies which SSP, OSCAL, and eMASS consumers use current versus approved narrative content and does not represent a saved statement as package or authorization readiness.

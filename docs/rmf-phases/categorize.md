@@ -18,6 +18,13 @@
 
 ## Persona Responsibilities
 
+The Systems dashboard's categorization and baseline POST actions use the same
+persisted `ManageSystem` workspace permission as the rest of system management.
+An assigned ISSM can apply them through HTTP; profile-edit access or read access
+alone (including Mission Owner, ISSO, or SCA) does not grant these mutations.
+The selected tenant and system remain enforced server-side. Legacy non-workspace
+requests use the existing `ComplianceWriter` policy.
+
 ### ISSM (Lead)
 
 **Tasks in this phase**:

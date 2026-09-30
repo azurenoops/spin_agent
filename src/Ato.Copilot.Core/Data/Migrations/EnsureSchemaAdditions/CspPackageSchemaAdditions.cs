@@ -58,6 +58,13 @@ public static class CspPackageSchemaAdditions
         {
             ["CspPackages"] = new()
             {
+                ["ArchivedAt"] = sqlServer ? "datetimeoffset NULL" : "TEXT NULL",
+                ["ArchivedBy"] = sqlServer ? "nvarchar(254) NULL" : "TEXT NULL",
+                ["ArchiveReason"] = sqlServer ? "nvarchar(2000) NULL" : "TEXT NULL",
+                ["SupersededByPackageId"] = sqlServer ? "uniqueidentifier NULL" : "TEXT NULL",
+                ["SupersededAt"] = sqlServer ? "datetimeoffset NULL" : "TEXT NULL",
+                ["SupersededBy"] = sqlServer ? "nvarchar(254) NULL" : "TEXT NULL",
+                ["SupersedeReason"] = sqlServer ? "nvarchar(2000) NULL" : "TEXT NULL",
                 ["AnalysisProfileVersion"] = $"{integer} NOT NULL DEFAULT 1",
                 ["TargetAnalysisProfileVersion"] = $"{integer} NULL",
                 ["FamilyCoverageJson"] = $"{text} NOT NULL DEFAULT '{{}}'",

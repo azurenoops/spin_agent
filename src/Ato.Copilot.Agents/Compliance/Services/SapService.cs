@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data.Queries;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 
@@ -55,6 +56,10 @@ public class SapService : ISapService
     {
         cancellationToken.ThrowIfCancellationRequested();
         var sw = Stopwatch.StartNew();
+        if (input.Format.ToLowerInvariant() is not ("markdown" or "docx" or "pdf"))
+            throw new InvalidOperationException($"Unsupported format '{input.Format}'. Valid formats: markdown, docx, pdf.");
+        if (input.Format.ToLowerInvariant() is "docx" or "pdf" && _documentTemplateService is null)
+            throw new InvalidOperationException("Document template service is not available for DOCX/PDF export.");
 
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
@@ -66,6 +71,48 @@ public class SapService : ISapService
             .FirstOrDefaultAsync(s => s.Id == input.SystemId, cancellationToken)
             ?? throw new InvalidOperationException($"System '{input.SystemId}' not found.");
 
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            context, input.SystemId, permission => permission.CanGenerateSap, cancellationToken);
+
+        // A retained draft is never regenerated or deleted. Operation/source keys also
+        // resolve retries after that draft has subsequently been finalized.
+        var retained = (await context.SecurityAssessmentPlans
+            .Where(s => s.RegisteredSystemId == input.SystemId &&
+                (s.Status == SapStatus.Draft
+                 || input.GenerationRequestId != null && s.GenerationRequestId == input.GenerationRequestId
+                 || input.PreviousPlanId != null && s.PreviousPlanId == input.PreviousPlanId))
+            .OrderByDescending(s => input.GenerationRequestId != null && s.GenerationRequestId == input.GenerationRequestId)
+            .ThenByDescending(s => s.GeneratedAt)
+            .ThenBy(s => s.Id).Take(1)
+            .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault();
+        if (input.PreviousPlanId is not null)
+        {
+            var previous = await context.SecurityAssessmentPlans.AsNoTracking()
+                .SingleOrDefaultAsync(s => s.Id == input.PreviousPlanId && s.RegisteredSystemId == input.SystemId, cancellationToken)
+                ?? throw new InvalidOperationException("Previous SAP does not belong to this system.");
+            if (previous.Status != SapStatus.Finalized)
+                throw new InvalidOperationException("Only a finalized plan can be revised into a new draft.");
+            if (input.ExpectedContentHash is not null && input.ExpectedContentHash != HashContent(previous.Content))
+                throw new DbUpdateConcurrencyException("The source SAP changed. Reload before revising.");
+        }
+        if (retained is not null)
+        {
+            if (input.GenerationRequestId is not null && retained.GenerationRequestId == input.GenerationRequestId
+                && retained.PreviousPlanId != input.PreviousPlanId)
+                throw new InvalidOperationException("The request ID was already used for a different plan source.");
+            if (input.GenerationRequestId is null && retained.Status == SapStatus.Draft &&
+                (input.ScopeNotes is not null || input.RulesOfEngagement is not null || input.TeamMembers is not null
+                 || input.MethodOverrides is not null || input.ScheduleStart.HasValue || input.ScheduleEnd.HasValue))
+                return await FormatDocumentAsync(await UpdateSapAsync(new SapUpdateInput(retained.Id, input.ScheduleStart, input.ScheduleEnd,
+                    input.ScopeNotes, input.RulesOfEngagement, input.TeamMembers, input.MethodOverrides,
+                    ExpectedRevision: retained.Revision, ExpectedContentHash: HashContent(retained.Content), UpdatedBy: generatedBy), cancellationToken),
+                    input.Format, cancellationToken);
+            return await FormatDocumentAsync(MapToSapDocument(retained), input.Format, cancellationToken);
+        }
+        if (input.GenerationRequestId is not null && input.PreviousPlanId is null
+            && await context.SecurityAssessmentPlans.AnyAsync(s => s.RegisteredSystemId == input.SystemId, cancellationToken))
+            throw new InvalidOperationException("Select the finalized plan to revise before creating another draft.");
+
         var baseline = await context.ControlBaselines
             .Include(b => b.Inheritances)
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == input.SystemId, cancellationToken)
@@ -75,6 +122,54 @@ public class SapService : ISapService
         if (baseline.ControlIds == null || baseline.ControlIds.Count == 0)
             throw new InvalidOperationException(
                 $"Control baseline for system '{input.SystemId}' has no controls. Select a baseline with controls before generating a SAP.");
+
+        if (input.PreviousPlanId is not null)
+        {
+            var previous = (await context.SecurityAssessmentPlans
+                .Where(p => p.Id == input.PreviousPlanId && p.RegisteredSystemId == input.SystemId)
+                .LoadRetainedDetailsAsync(cancellationToken)).Single();
+            var revision = (SecurityAssessmentPlan)context.Entry(previous).CurrentValues.ToObject();
+            revision.Id = Guid.NewGuid().ToString();
+            revision.Status = SapStatus.Draft;
+            revision.Revision = 1;
+            revision.ContentHash = null;
+            revision.FinalizedAt = null;
+            revision.FinalizedBy = null;
+            revision.GeneratedAt = DateTime.UtcNow;
+            revision.GeneratedBy = generatedBy;
+            revision.UpdatedAt = null;
+            revision.UpdatedBy = null;
+            revision.GenerationRequestId = input.GenerationRequestId;
+            revision.PreviousPlanId = previous.Id;
+            foreach (var original in previous.ControlEntries)
+            {
+                var copy = (SapControlEntry)context.Entry(original).CurrentValues.ToObject();
+                copy.Id = Guid.NewGuid().ToString();
+                copy.SecurityAssessmentPlanId = revision.Id;
+                copy.AssessmentMethods = [.. original.AssessmentMethods];
+                copy.AssessmentObjectives = [.. original.AssessmentObjectives];
+                copy.EvidenceRequirements = [.. original.EvidenceRequirements];
+                copy.StigBenchmarks = [.. original.StigBenchmarks];
+                revision.ControlEntries.Add(copy);
+            }
+            foreach (var original in previous.TeamMembers)
+            {
+                var copy = (SapTeamMember)context.Entry(original).CurrentValues.ToObject();
+                copy.Id = Guid.NewGuid().ToString();
+                copy.SecurityAssessmentPlanId = revision.Id;
+                revision.TeamMembers.Add(copy);
+                if (revision.AssessmentLeadUserId == "team:" + original.Id)
+                    revision.AssessmentLeadUserId = "team:" + copy.Id;
+            }
+            var revisionRoles = await context.RmfRoleAssignments
+                .Where(r => r.RegisteredSystemId == input.SystemId && r.IsActive).ToListAsync(cancellationToken);
+            revision.Content = RenderSapMarkdown(revision, revision.ControlEntries.ToList(),
+                revision.ControlEntries.Where(e => !e.IsExcluded).SelectMany(e => e.StigBenchmarks)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase), system, baseline, revisionRoles);
+            context.SecurityAssessmentPlans.Add(revision);
+            await context.SaveChangesAsync(cancellationToken);
+            return await FormatDocumentAsync(MapToSapDocument(revision), input.Format, cancellationToken);
+        }
 
         // Warn if not in Assess phase
         if (system.CurrentRmfStep != RmfPhase.Assess)
@@ -102,22 +197,6 @@ public class SapService : ISapService
             }
         }
 
-        // ── Draft overwrite: delete existing Draft for this system ───────
-        var existingDraft = await context.SecurityAssessmentPlans
-            .Include(s => s.ControlEntries)
-            .Include(s => s.TeamMembers)
-            .FirstOrDefaultAsync(
-                s => s.RegisteredSystemId == input.SystemId && s.Status == SapStatus.Draft,
-                cancellationToken);
-
-        if (existingDraft != null)
-        {
-            context.SapTeamMembers.RemoveRange(existingDraft.TeamMembers);
-            context.SapControlEntries.RemoveRange(existingDraft.ControlEntries);
-            context.SecurityAssessmentPlans.Remove(existingDraft);
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
         // ── T010: Control scope assembly ─────────────────────────────────
         var inheritanceMap = baseline.Inheritances
             .ToDictionary(i => i.ControlId, i => i, StringComparer.OrdinalIgnoreCase);
@@ -129,9 +208,14 @@ public class SapService : ISapService
             .ToDictionary(m => m.ControlId, m => m, StringComparer.OrdinalIgnoreCase)
             ?? new Dictionary<string, SapMethodOverrideInput>(StringComparer.OrdinalIgnoreCase);
 
-        // Batch-load evidence counts per control for this system's baseline
-        var evidenceCounts = await context.Evidence
-            .Where(e => baseline.ControlIds.Contains(e.ControlId))
+        // Control/subscription matches alone do not establish system ownership.
+        var evidenceCounts = await (
+            from evidence in context.Evidence
+            join assessment in context.Assessments on evidence.AssessmentId equals assessment.Id
+            where evidence.TenantId == system.TenantId && assessment.TenantId == system.TenantId
+                && assessment.RegisteredSystemId == system.Id
+                && baseline.ControlIds.Contains(evidence.ControlId)
+            select evidence)
             .GroupBy(e => e.ControlId)
             .Select(g => new { ControlId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.ControlId, g => g.Count, StringComparer.OrdinalIgnoreCase, cancellationToken);
@@ -236,7 +320,10 @@ public class SapService : ISapService
         var sapTitle = $"Security Assessment Plan — {system.Name} — {DateTime.UtcNow:yyyy-MM-dd}";
         var sap = new SecurityAssessmentPlan
         {
+            TenantId = system.TenantId,
             RegisteredSystemId = input.SystemId,
+            GenerationRequestId = input.GenerationRequestId,
+            PreviousPlanId = input.PreviousPlanId,
             AssessmentId = resolvedAssessmentId,
             Status = SapStatus.Draft,
             Title = sapTitle,
@@ -257,6 +344,7 @@ public class SapService : ISapService
         // Link control entries to SAP
         foreach (var entry in controlEntries)
         {
+            entry.TenantId = system.TenantId;
             entry.SecurityAssessmentPlanId = sap.Id;
             sap.ControlEntries.Add(entry);
         }
@@ -319,13 +407,13 @@ public class SapService : ISapService
             if (format == "docx")
             {
                 var docxBytes = await _documentTemplateService.RenderDocxAsync(
-                    input.SystemId, "sap", templateId: null, cancellationToken);
+                    input.SystemId, "sap", templateId: null, cancellationToken, sap.Id);
                 outputContent = Convert.ToBase64String(docxBytes);
             }
             else // pdf
             {
                 var pdfBytes = await _documentTemplateService.RenderPdfAsync(
-                    input.SystemId, "sap", progress: null, cancellationToken);
+                    input.SystemId, "sap", progress: null, cancellationToken, sap.Id);
                 outputContent = Convert.ToBase64String(pdfBytes);
             }
         }
@@ -369,25 +457,41 @@ public class SapService : ISapService
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         // ── T023: Load Draft SAP ─────────────────────────────────────────
-        var sap = await context.SecurityAssessmentPlans
-            .Include(s => s.ControlEntries)
-            .Include(s => s.TeamMembers)
-            .FirstOrDefaultAsync(s => s.Id == input.SapId, cancellationToken)
+        var sap = (await context.SecurityAssessmentPlans
+            .Where(s => s.Id == input.SapId)
+            .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault()
             ?? throw new InvalidOperationException($"SAP '{input.SapId}' not found.");
 
         if (sap.Status == SapStatus.Finalized)
             throw new InvalidOperationException(
                 $"SAP '{input.SapId}' is finalized and cannot be modified. Generate a new SAP using compliance_generate_sap.");
 
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            context, sap.RegisteredSystemId, permission => permission.CanGenerateSap, cancellationToken);
+        if (input.ExpectedRevision.HasValue && input.ExpectedRevision != sap.Revision)
+            throw new DbUpdateConcurrencyException("The SAP revision changed. Refresh and review before saving.");
+        if (input.ExpectedContentHash is not null && !string.Equals(input.ExpectedContentHash,
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sap.Content))).ToLowerInvariant(),
+            StringComparison.Ordinal))
+            throw new InvalidOperationException("The SAP draft changed. Refresh and review before saving.");
+        if (input.Title is not null && (string.IsNullOrWhiteSpace(input.Title) || input.Title.Length > 500)
+            || input.AssessmentLead?.Length > 200 || input.AssessmentApproach?.Length > 4000 || input.ScopeNotes?.Length > 4000)
+            throw new InvalidOperationException("Review the assessment title, lead, scope and approach field lengths.");
+        if (input.Title is not null) sap.Title = input.Title.Trim();
+        if (input.AssessmentLead is not null) sap.AssessmentLead = input.AssessmentLead.Trim();
+        if (input.ReplaceLead || input.AssessmentLeadUserId is not null)
+            sap.AssessmentLeadUserId = input.AssessmentLeadUserId;
+        if (input.AssessmentApproach is not null) sap.AssessmentApproach = input.AssessmentApproach.Trim();
+
         var updatedFields = new List<string>();
 
         // ── T023: Apply scalar field updates ─────────────────────────────
-        if (input.ScheduleStart.HasValue)
+        if (input.ReplaceSchedule || input.ScheduleStart.HasValue)
         {
             sap.ScheduleStart = input.ScheduleStart;
             updatedFields.Add("schedule_start");
         }
-        if (input.ScheduleEnd.HasValue)
+        if (input.ReplaceSchedule || input.ScheduleEnd.HasValue)
         {
             sap.ScheduleEnd = input.ScheduleEnd;
             updatedFields.Add("schedule_end");
@@ -401,6 +505,23 @@ public class SapService : ISapService
         {
             sap.RulesOfEngagement = input.RulesOfEngagement;
             updatedFields.Add("rules_of_engagement");
+        }
+        if (sap.ScheduleStart.HasValue && sap.ScheduleEnd.HasValue && sap.ScheduleEnd < sap.ScheduleStart)
+            throw new ArgumentException("Schedule end must not precede schedule start.");
+        if (input.IncludedControlIds is not null)
+        {
+            var included = input.IncludedControlIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var actual = sap.ControlEntries.Select(e => e.ControlId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var reasons = input.ExclusionReasons is null ? null
+                : new Dictionary<string, string>(input.ExclusionReasons, StringComparer.OrdinalIgnoreCase);
+            if (!included.IsSubsetOf(actual) || input.ExclusionReasons?.Keys.Any(id => !actual.Contains(id)) == true)
+                throw new ArgumentException("Scope choices must belong to the retained SAP control entries.");
+            foreach (var entry in sap.ControlEntries)
+            {
+                entry.IsExcluded = !included.Contains(entry.ControlId);
+                entry.ExclusionRationale = entry.IsExcluded
+                    ? reasons?.GetValueOrDefault(entry.ControlId) : null;
+            }
         }
 
         // ── T024: Per-control method override persistence ────────────────
@@ -417,9 +538,11 @@ public class SapService : ISapService
                             $"Invalid assessment method '{method}' for control '{mo.ControlId}'. Valid methods are: Examine, Interview, Test.");
                 }
 
-                // Find existing entry or skip if control not in SAP
+                // Never accept an unrelated control through the focused procedures editor.
                 var entry = sap.ControlEntries.FirstOrDefault(
                     e => string.Equals(e.ControlId, mo.ControlId, StringComparison.OrdinalIgnoreCase));
+                if (entry is null && input.ExpectedRevision.HasValue)
+                    throw new ArgumentException($"Control '{mo.ControlId}' is outside this SAP.");
                 if (entry != null)
                 {
                     entry.AssessmentMethods = new List<string>(mo.Methods);
@@ -466,8 +589,17 @@ public class SapService : ISapService
             .Where(r => r.RegisteredSystemId == sap.RegisteredSystemId && r.IsActive)
             .ToListAsync(cancellationToken);
 
-        sap.Content = RenderSapMarkdown(sap, sap.ControlEntries.ToList(), 
-            sap.ControlEntries.SelectMany(e => e.StigBenchmarks).ToHashSet(StringComparer.OrdinalIgnoreCase),
+        var includedEntries = sap.ControlEntries.Where(e => !e.IsExcluded).ToList();
+        sap.TotalControls = includedEntries.Count;
+        sap.CustomerControls = includedEntries.Count(e => e.InheritanceType == InheritanceType.Customer);
+        sap.InheritedControls = includedEntries.Count(e => e.InheritanceType == InheritanceType.Inherited);
+        sap.SharedControls = includedEntries.Count(e => e.InheritanceType == InheritanceType.Shared);
+        sap.StigBenchmarkCount = includedEntries.SelectMany(e => e.StigBenchmarks).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        sap.Revision++;
+        sap.UpdatedAt = DateTime.UtcNow;
+        sap.UpdatedBy = input.UpdatedBy;
+        sap.Content = RenderSapMarkdown(sap, sap.ControlEntries.ToList(),
+            includedEntries.SelectMany(e => e.StigBenchmarks).ToHashSet(StringComparer.OrdinalIgnoreCase),
             system, baseline, roles);
 
         await context.SaveChangesAsync(cancellationToken);
@@ -478,6 +610,7 @@ public class SapService : ISapService
 
         // Build family summaries
         var familySummaries = sap.ControlEntries
+            .Where(e => !e.IsExcluded)
             .GroupBy(e => e.ControlFamily)
             .OrderBy(g => g.Key)
             .Select(g => new SapFamilySummary
@@ -496,6 +629,9 @@ public class SapService : ISapService
             SystemId = sap.RegisteredSystemId,
             AssessmentId = sap.AssessmentId,
             Title = sap.Title,
+            AssessmentLead = sap.AssessmentLead,
+            AssessmentApproach = sap.AssessmentApproach,
+            ScopeNotes = sap.ScopeNotes,
             Status = "Draft",
             Format = sap.Format,
             BaselineLevel = sap.BaselineLevel,
@@ -505,18 +641,24 @@ public class SapService : ISapService
             InheritedControls = sap.InheritedControls,
             SharedControls = sap.SharedControls,
             StigBenchmarkCount = sap.StigBenchmarkCount,
-            ControlsWithObjectives = sap.ControlEntries.Count(e => e.AssessmentObjectives.Count > 0),
-            EvidenceGaps = sap.ControlEntries.Count(e => e.EvidenceCollected < e.EvidenceExpected),
+            ControlsWithObjectives = sap.ControlEntries.Count(e => !e.IsExcluded && e.AssessmentObjectives.Count > 0),
+            EvidenceGaps = sap.ControlEntries.Count(e => !e.IsExcluded && e.EvidenceCollected < e.EvidenceExpected),
             FamilySummaries = familySummaries,
             GeneratedAt = sap.GeneratedAt
         };
     }
 
     /// <inheritdoc />
-    public async Task<SapDocument> FinalizeSapAsync(
+    public Task<SapDocument> FinalizeSapAsync(
         string sapId,
         string finalizedBy = "mcp-user",
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        FinalizeSapAsync(sapId, finalizedBy, cancellationToken, null, null);
+
+    /// <inheritdoc />
+    public async Task<SapDocument> FinalizeSapAsync(
+        string sapId, string finalizedBy, CancellationToken cancellationToken,
+        string? expectedContentHash, long? expectedRevision)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -524,15 +666,19 @@ public class SapService : ISapService
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         // ── T026: Load SAP and validate status ───────────────────────────
-        var sap = await context.SecurityAssessmentPlans
-            .Include(s => s.ControlEntries)
-            .FirstOrDefaultAsync(s => s.Id == sapId, cancellationToken)
+        var sap = (await context.SecurityAssessmentPlans.Where(s => s.Id == sapId)
+            .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault()
             ?? throw new InvalidOperationException($"SAP '{sapId}' not found.");
 
         if (sap.Status == SapStatus.Finalized)
             throw new InvalidOperationException(
                 $"SAP '{sapId}' is already finalized and cannot be re-finalized.");
 
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            context, sap.RegisteredSystemId, permission => permission.CanFinalizeSap, cancellationToken);
+        if (expectedRevision.HasValue && expectedRevision != sap.Revision
+            || expectedContentHash is not null && expectedContentHash != HashContent(sap.Content))
+            throw new DbUpdateConcurrencyException("The SAP changed. Refresh and review before finalizing.");
         // ── T026: Compute SHA-256 of Content ─────────────────────────────
         using var sha256 = SHA256.Create();
         var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(sap.Content));
@@ -543,6 +689,9 @@ public class SapService : ISapService
         sap.FinalizedBy = finalizedBy;
         sap.FinalizedAt = DateTime.UtcNow;
         sap.ContentHash = contentHash;
+        sap.Revision++;
+        sap.UpdatedAt = sap.FinalizedAt;
+        sap.UpdatedBy = finalizedBy;
 
         await context.SaveChangesAsync(cancellationToken);
 
@@ -552,6 +701,7 @@ public class SapService : ISapService
 
         // Build family summaries
         var familySummaries = sap.ControlEntries
+            .Where(e => !e.IsExcluded)
             .GroupBy(e => e.ControlFamily)
             .OrderBy(g => g.Key)
             .Select(g => new SapFamilySummary
@@ -570,6 +720,9 @@ public class SapService : ISapService
             SystemId = sap.RegisteredSystemId,
             AssessmentId = sap.AssessmentId,
             Title = sap.Title,
+            AssessmentLead = sap.AssessmentLead,
+            AssessmentApproach = sap.AssessmentApproach,
+            ScopeNotes = sap.ScopeNotes,
             Status = "Finalized",
             Format = sap.Format,
             BaselineLevel = sap.BaselineLevel,
@@ -580,12 +733,25 @@ public class SapService : ISapService
             InheritedControls = sap.InheritedControls,
             SharedControls = sap.SharedControls,
             StigBenchmarkCount = sap.StigBenchmarkCount,
-            ControlsWithObjectives = sap.ControlEntries.Count(e => e.AssessmentObjectives.Count > 0),
-            EvidenceGaps = sap.ControlEntries.Count(e => e.EvidenceCollected < e.EvidenceExpected),
+            ControlsWithObjectives = sap.ControlEntries.Count(e => !e.IsExcluded && e.AssessmentObjectives.Count > 0),
+            EvidenceGaps = sap.ControlEntries.Count(e => !e.IsExcluded && e.EvidenceCollected < e.EvidenceExpected),
             FamilySummaries = familySummaries,
             GeneratedAt = sap.GeneratedAt,
             FinalizedAt = sap.FinalizedAt
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<SecurityAssessmentPlan?> GetWorkingSapAsync(
+        string systemId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(systemId);
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        return (await db.SecurityAssessmentPlans.AsNoTracking()
+            .Where(x => x.RegisteredSystemId == systemId)
+            .OrderWorkingFirst().Take(1)
+            .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault();
     }
 
     /// <inheritdoc />
@@ -607,22 +773,17 @@ public class SapService : ISapService
         if (!string.IsNullOrWhiteSpace(sapId))
         {
             // ── T036: sapId takes precedence ─────────────────────────────
-            sap = await context.SecurityAssessmentPlans
-                .Include(s => s.ControlEntries)
-                .Include(s => s.TeamMembers)
-                .FirstOrDefaultAsync(s => s.Id == sapId, cancellationToken)
+            sap = (await context.SecurityAssessmentPlans.Where(s => s.Id == sapId)
+                .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault()
                 ?? throw new InvalidOperationException($"SAP '{sapId}' not found.");
         }
         else
         {
-            // ── T036: system_id — prefer Finalized, fallback to Draft ────
-            sap = await context.SecurityAssessmentPlans
-                .Include(s => s.ControlEntries)
-                .Include(s => s.TeamMembers)
+            // System lookups share the same working-plan preference as the workspace.
+            sap = (await context.SecurityAssessmentPlans
                 .Where(s => s.RegisteredSystemId == systemId)
-                .OrderByDescending(s => s.Status == SapStatus.Finalized ? 1 : 0)
-                .ThenByDescending(s => s.GeneratedAt)
-                .FirstOrDefaultAsync(cancellationToken)
+                .OrderWorkingFirst().Take(1)
+                .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault()
                 ?? throw new InvalidOperationException($"SAP not found for system '{systemId}'.");
         }
 
@@ -645,10 +806,9 @@ public class SapService : ISapService
 
         // ── T037: All SAPs for system, ordered by GeneratedAt descending ─
         var saps = await context.SecurityAssessmentPlans
-            .Include(s => s.ControlEntries)
             .Where(s => s.RegisteredSystemId == systemId)
-            .OrderByDescending(s => s.GeneratedAt)
-            .ToListAsync(cancellationToken);
+            .OrderByDescending(s => s.GeneratedAt).ThenBy(s => s.Id)
+            .LoadRetainedDetailsAsync(cancellationToken);
 
         _logger.LogInformation(
             "Listed SAPs for system '{SystemId}': count={SapCount}",
@@ -667,17 +827,17 @@ public class SapService : ISapService
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        var sap = await context.SecurityAssessmentPlans
-            .Include(s => s.ControlEntries)
-            .Include(s => s.TeamMembers)
-            .FirstOrDefaultAsync(s => s.Id == sapId, cancellationToken)
+        var sap = (await context.SecurityAssessmentPlans
+            .Where(s => s.Id == sapId)
+            .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault()
             ?? throw new InvalidOperationException($"SAP '{sapId}' not found.");
 
         var result = new SapValidationResult();
 
         // ── Control coverage ─────────────────────────────────────────────
-        var entries = sap.ControlEntries.ToList();
+        var entries = sap.ControlEntries.Where(e => !e.IsExcluded).ToList();
         result.ControlsCovered = entries.Count;
+        if (entries.Count == 0) result.Warnings.Add("No controls are included in the assessment scope.");
 
         // Controls missing assessment objectives
         var missingObjectives = entries.Count(e => e.AssessmentObjectives == null || e.AssessmentObjectives.Count == 0);
@@ -729,14 +889,11 @@ public class SapService : ISapService
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        // Return latest SAP — prefer Finalized, then most recent Draft
-        var sap = await context.SecurityAssessmentPlans
-            .Include(s => s.ControlEntries)
-            .Include(s => s.TeamMembers)
+        // Return the same working plan selected by the plan/results workspace.
+        var sap = (await context.SecurityAssessmentPlans
             .Where(s => s.RegisteredSystemId == systemId)
-            .OrderByDescending(s => s.Status == SapStatus.Finalized ? 1 : 0)
-            .ThenByDescending(s => s.GeneratedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+            .OrderWorkingFirst().Take(1)
+            .LoadRetainedDetailsAsync(cancellationToken)).SingleOrDefault();
 
         if (sap == null)
             return null;
@@ -775,6 +932,7 @@ public class SapService : ISapService
 
         // SAP planned control IDs
         var plannedControlIds = sap.ControlEntries
+            .Where(e => !e.IsExcluded)
             .Select(e => e.ControlId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -806,10 +964,26 @@ public class SapService : ISapService
     // Private Helpers
     // ═══════════════════════════════════════════════════════════════════════
 
+    public static string HashContent(string content) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
+
+    private async Task<SapDocument> FormatDocumentAsync(SapDocument document, string format, CancellationToken ct)
+    {
+        document.Format = format;
+        if (format.Equals("docx", StringComparison.OrdinalIgnoreCase))
+            document.Content = Convert.ToBase64String(await _documentTemplateService!.RenderDocxAsync(
+                document.SystemId, "sap", templateId: null, ct, document.SapId));
+        else if (format.Equals("pdf", StringComparison.OrdinalIgnoreCase))
+            document.Content = Convert.ToBase64String(await _documentTemplateService!.RenderPdfAsync(
+                document.SystemId, "sap", progress: null, ct, document.SapId));
+        return document;
+    }
+
     /// <summary>Map a SecurityAssessmentPlan entity to a SapDocument DTO.</summary>
     private static SapDocument MapToSapDocument(SecurityAssessmentPlan sap, bool includeContent = true)
     {
         var familySummaries = sap.ControlEntries
+            .Where(e => !e.IsExcluded)
             .GroupBy(e => e.ControlFamily)
             .OrderBy(g => g.Key)
             .Select(g => new SapFamilySummary
@@ -828,6 +1002,9 @@ public class SapService : ISapService
             SystemId = sap.RegisteredSystemId,
             AssessmentId = sap.AssessmentId,
             Title = sap.Title,
+            AssessmentLead = sap.AssessmentLead,
+            AssessmentApproach = sap.AssessmentApproach,
+            ScopeNotes = sap.ScopeNotes,
             Status = sap.Status.ToString(),
             Format = sap.Format,
             BaselineLevel = sap.BaselineLevel,
@@ -838,8 +1015,8 @@ public class SapService : ISapService
             InheritedControls = sap.InheritedControls,
             SharedControls = sap.SharedControls,
             StigBenchmarkCount = sap.StigBenchmarkCount,
-            ControlsWithObjectives = sap.ControlEntries.Count(e => e.AssessmentObjectives.Count > 0),
-            EvidenceGaps = sap.ControlEntries.Count(e => e.EvidenceCollected < e.EvidenceExpected),
+            ControlsWithObjectives = sap.ControlEntries.Count(e => !e.IsExcluded && e.AssessmentObjectives.Count > 0),
+            EvidenceGaps = sap.ControlEntries.Count(e => !e.IsExcluded && e.EvidenceCollected < e.EvidenceExpected),
             FamilySummaries = familySummaries,
             GeneratedAt = sap.GeneratedAt,
             FinalizedAt = sap.FinalizedAt
@@ -878,11 +1055,17 @@ public class SapService : ISapService
         List<RmfRoleAssignment> roles)
     {
         var sb = new StringBuilder();
+        var excluded = controlEntries.Where(e => e.IsExcluded).ToList();
+        controlEntries = controlEntries.Where(e => !e.IsExcluded).ToList();
 
         // ── Section 1: Introduction ──────────────────────────────────────
         sb.AppendLine("# Security Assessment Plan (SAP)");
         sb.AppendLine();
         sb.AppendLine($"**Title**: {sap.Title}");
+        if (!string.IsNullOrWhiteSpace(sap.AssessmentLead))
+            sb.AppendLine($"**Assessment lead**: {sap.AssessmentLead}");
+        if (!string.IsNullOrWhiteSpace(sap.AssessmentApproach))
+            sb.AppendLine($"**Assessment approach**: {sap.AssessmentApproach}");
         sb.AppendLine($"**Generated**: {sap.GeneratedAt:yyyy-MM-dd HH:mm:ss} UTC");
         sb.AppendLine($"**Generated By**: {sap.GeneratedBy}");
         sb.AppendLine($"**Status**: {sap.Status}");
@@ -934,10 +1117,21 @@ public class SapService : ISapService
         sb.AppendLine();
         sb.AppendLine("Detailed per-control assessment procedures are listed in Appendix A — Control Matrix.");
         sb.AppendLine();
+        foreach (var entry in controlEntries.OrderBy(e => e.ControlId))
+        {
+            sb.AppendLine($"### {entry.ControlId} — {entry.ControlTitle}");
+            sb.AppendLine($"**Methods**: {string.Join(", ", entry.AssessmentMethods)}");
+            if (!string.IsNullOrWhiteSpace(entry.OverrideRationale))
+                sb.AppendLine($"**Method rationale**: {entry.OverrideRationale}");
+            foreach (var objective in entry.AssessmentObjectives) sb.AppendLine($"- {objective}");
+            sb.AppendLine();
+        }
 
         // ── Section 7: Excluded Controls ─────────────────────────────────
         sb.AppendLine("## 7. Excluded Controls");
         sb.AppendLine();
+        foreach (var entry in excluded.OrderBy(e => e.ControlId))
+            sb.AppendLine($"- **{entry.ControlId}** ({entry.ControlTitle}) — Excluded from scope: {entry.ExclusionRationale ?? "No rationale recorded"}");
         var inherited = controlEntries.Where(e => e.InheritanceType == InheritanceType.Inherited).ToList();
         if (inherited.Count > 0)
         {
@@ -949,7 +1143,7 @@ public class SapService : ISapService
         }
         else
         {
-            sb.AppendLine("No controls are excluded from direct assessment.");
+            if (excluded.Count == 0) sb.AppendLine("No controls are excluded from direct assessment.");
             sb.AppendLine();
         }
 

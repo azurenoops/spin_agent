@@ -8,15 +8,19 @@ export interface ScanUploadResponse {
   detectedFileType: string;
   fileName: string;
   fileSizeBytes: number;
+  resultId?: string;
+  message?: string;
 }
 
 export interface ScanImportStatusDto {
   id: string;
-  status: 'Queued' | 'Processing' | 'Completed' | 'Failed' | 'Cancelled';
+  status: 'Queued' | 'Processing' | 'Completed' | 'CompletedWithWarnings' | 'Failed' | 'Cancelled';
   processedCount: number;
   totalCount: number;
   errorMessage: string | null;
   cancelRequested: boolean;
+  resultId?: string | null;
+  warnings?: string[];
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
@@ -28,9 +32,13 @@ export interface ScanImportStatusDto {
 export async function uploadScan(
   systemId: string,
   file: File,
+  capture?: { planId?: string | null; expectedPlanHash?: string | null; requestId: string },
 ): Promise<ScanUploadResponse> {
   const form = new FormData();
   form.append('file', file);
+  if (capture?.planId) form.append('planId', capture.planId);
+  if (capture?.expectedPlanHash) form.append('expectedPlanHash', capture.expectedPlanHash);
+  if (capture?.requestId) form.append('requestId', capture.requestId);
 
   const res = await apiClient.post<ScanUploadResponse>(
     `/systems/${systemId}/scans/import`,

@@ -14,19 +14,22 @@ public sealed partial class ProviderMissionService
     public async Task<PagedResult<ApplicableProviderCapabilityResponse>> ApplicableAsync(string systemId, int page, int pageSize,
         Guid? assignmentId, Guid? offeringId, string? environment, Guid? capabilityId, Guid? releaseId, CancellationToken ct)
     {
-        await AuthorizeAsync(systemId, false, false, ct);
+        var permission = await AccessAsync(systemId, ct);
         if (page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize)
             throw new ArgumentException("Use page >=1 and pageSize between1 and100.");
-        if (environment is not (null or "AzureCloud" or "AzureUSGovernment"))
-            throw new ArgumentException("Use AzureCloud or AzureUSGovernment.");
+        if (environment is not (null or "AzureCloud" or "AzureUSGovernment" or "Microsoft365DoD" or "ManualService"))
+            throw new ArgumentException("Use a supported Azure or explicitly documented service environment.");
         var allocations = await Allocations(systemId).Where(x =>
-            (!assignmentId.HasValue || x.Id == assignmentId) && (!offeringId.HasValue || x.OfferingId == offeringId)).ToListAsync(ct);
-        var canAdopt = await responsibilities.AuthorizeAsync(systemId, false, ct);
+            (!assignmentId.HasValue || x.Id == assignmentId) && (!offeringId.HasValue || x.OfferingId == offeringId)
+            && !db.Set<Ato.Copilot.Core.Models.Compliance.SystemProviderScopeSelection>().Any(s =>
+                s.TenantId == TenantId && s.SystemId == systemId && s.AssignmentId == x.Id && s.State == "Removed")).ToListAsync(ct);
+        var canAdopt = CanAssociate(permission);
+        var canConfirm = await responsibilities.AuthorizeAsync(systemId, false, ct);
         var results = new List<ApplicableProviderCapabilityResponse>();
         foreach (var allocation in allocations.OrderBy(x => x.Id))
         {
-            var scopes = Read<ProviderAzureScope[]>(allocation.AssignedScopesJson);
-            if (environment is not null && !scopes.Any(x => x.Cloud == environment)) continue;
+            var scopes = Read<ProviderScope[]>(allocation.AssignedScopesJson);
+            if (environment is not null && !scopes.Any(x => x.ScopeEnvironment == environment)) continue;
             var offering = await OfferingAsync(allocation, ct);
             var hosting = await HostingAsync(allocation, ct);
             var relationship = await Relationships(systemId).AsNoTracking().SingleOrDefaultAsync(x =>
@@ -103,15 +106,21 @@ public sealed partial class ProviderMissionService
                 if (relationship is null) decisions.Add("MissionAssociationRequired");
                 if (relationshipSummary.ReviewRequired) decisions.Add("AuthorizationRelationshipReviewRequired");
                 reasons = reasons.Distinct().Order(StringComparer.Ordinal).ToList();
+                var subscription = await db.CapabilitySubscriptions.AsNoTracking().SingleOrDefaultAsync(x =>
+                    x.RegisteredSystemId == systemId && x.RoutingTenantId == TenantId
+                    && x.CspInheritedCapabilityId.ToLower() == capability.Id.ToString(), ct);
                 var preview = Hash(Json(new { context.Id, context.SnapshotHash, ReleaseId = release.Id,
                     ReleaseHash = release.SnapshotHash, ReleaseContentHash = Hash(release.SnapshotJson),
                     AssignmentId = allocation.Id, allocation.Revision, allocation.AssignedScopesJson,
-                    RelationshipId = relationship?.Id, RelationshipRevision = relationship?.Revision, Reasons = reasons }));
+                    RelationshipId = relationship?.Id, RelationshipRevision = relationship?.Revision, Reasons = reasons,
+                    SubscriptionId = subscription?.Id, SubscriptionActive = subscription?.IsActive,
+                    CurrentAdoptionSnapshotId = subscription?.CurrentAdoptionSnapshotId,
+                    AdoptionSelectionRevision = subscription?.AdoptionSelectionRevision }));
                 results.Add(new(capability.Id, release.Id, release.Revision, release.SnapshotHash, offering.Id,
                     allocation.Id, allocation.Revision, new(context.Id, context.Revision, context.SnapshotHash),
                     preview, reasons.Count == 0 ? "Applicable" : "ReviewRequired", reasons, relationshipSummary.State,
                     relationshipSummary.ReviewRequired, Duties("Provider"), Duties("Shared"), Duties("Customer"),
-                    decisions, references.Distinct().ToArray(), canAdopt && relationship is not null && reasons.Count == 0, canAdopt,
+                    decisions, references.Distinct().ToArray(), canAdopt && relationship is not null && reasons.Count == 0, canConfirm,
                     capability.Name, offering.Name));
                 string[] Duties(string kind) => duties.Where(x => x.Value == kind).Select(x => x.Key).Order(StringComparer.Ordinal).ToArray();
             }
@@ -123,12 +132,10 @@ public sealed partial class ProviderMissionService
         string actor, CancellationToken ct, string? key = null)
     {
         await AuthorizeAsync(systemId, true, false, ct);
-        await responsibilities.AuthorizeAsync(systemId, true, ct);
         var allocation = await AllocationAsync(systemId, request.AssignmentId, ct);
         return await WriteAsync(allocation, "Adopt", key, request, actor, async () =>
         {
             await AuthorizeAsync(systemId, true, false, ct);
-            await responsibilities.AuthorizeAsync(systemId, true, ct);
             allocation = await AllocationAsync(systemId, request.AssignmentId, ct);
             Expected(allocation, request.ExpectedAssignmentRevision);
             var candidates = await ApplicableAsync(systemId, 1, 1, allocation.Id, allocation.OfferingId, null,
@@ -137,7 +144,7 @@ public sealed partial class ProviderMissionService
             if (selected is null || !selected.CanProposeAdoption || selected.Applicability.SnapshotHash != request.ContextSnapshotHash
                 || selected.ApplicabilityPreviewHash != request.ApplicabilityPreviewHash)
                 throw new DbUpdateConcurrencyException("The selected release or applicability context changed. Reload the exact capability.");
-            var subscription = await responsibilities.SubscribeAsync(systemId, request.CapabilityId, actor, ct);
+            var subscription = await responsibilities.SubscribeForAdoptionAsync(systemId, request.CapabilityId, actor, ct);
             var row = new CapabilityAdoptionSnapshot
             {
                 ProviderId = allocation.ProviderId, OfferingId = allocation.OfferingId, TenantId = TenantId, SystemId = systemId,
@@ -147,6 +154,10 @@ public sealed partial class ProviderMissionService
             };
             row.SnapshotHash = Hash(row.SnapshotJson);
             db.Add(row);
+            var current = await db.CapabilitySubscriptions.SingleAsync(x => x.Id == subscription.Id
+                && x.RegisteredSystemId == systemId && x.RoutingTenantId == TenantId && x.IsActive, ct);
+            current.CurrentAdoptionSnapshotId = row.Id;
+            current.AdoptionSelectionRevision = checked(current.AdoptionSelectionRevision + 1);
             return new ProviderCapabilityAdoptionResponse(subscription, row.Id, request.ReleaseId, request.ContextSnapshotHash);
         }, ct);
     }

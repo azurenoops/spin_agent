@@ -12,6 +12,9 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy;
 
 namespace Ato.Copilot.Tests.Unit.Services;
 
@@ -31,12 +34,16 @@ public class SspExportServiceTests : IDisposable
     private readonly Channel<SspExportJob> _channel;
     private readonly ExportSettings _settings;
     private readonly string _dbName;
+    private readonly TenantContextAccessor _tenantAccessor = new();
+    private readonly Mock<ISystemWorkspaceAccessService> _workspaceAccess = new();
 
     public SspExportServiceTests()
     {
         _dbName = $"SspExport_{Guid.NewGuid()}";
 
         var services = new ServiceCollection();
+        services.AddSingleton<ITenantContextAccessor>(_tenantAccessor);
+        services.AddSingleton(_workspaceAccess.Object);
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(_dbName));
         _serviceProvider = services.BuildServiceProvider();
@@ -56,7 +63,7 @@ public class SspExportServiceTests : IDisposable
 
         _settings = new ExportSettings
         {
-            DataPath = Path.Combine(Path.GetTempPath(), $"ssptest_{Guid.NewGuid()}"),
+            DataPath = Path.Combine(Directory.GetCurrentDirectory(), $"ssptest_{Guid.NewGuid()}"),
             RetentionDays = 30,
             MaxExportSizeBytes = 52_428_800,
             MaxTemplateSizeBytes = 10_485_760,
@@ -93,6 +100,196 @@ public class SspExportServiceTests : IDisposable
     }
 
     // ─── EnqueueExportAsync ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task Enqueue_CapturesOrdinaryRequester_NotProviderSupportPrivilege()
+    {
+        // Arrange
+        var tenant = new TenantContext
+        {
+            TenantId = Guid.NewGuid(), PersonId = Guid.NewGuid(),
+            Status = TenantStatus.Active, IsWorkspaceRequest = true
+        };
+        using var binding = _tenantAccessor.Push(tenant);
+
+        // Act
+        var ordinary = await _service.EnqueueExportAsync("sys-001", "json", null, "actor");
+        tenant.IsCspAdmin = true;
+        tenant.ImpersonatedTenantId = tenant.TenantId;
+        var support = await _service.EnqueueExportAsync("sys-001", "json", null, "actor");
+
+        // Assert
+        ordinary.SourceTenantId.Should().Be(tenant.TenantId);
+        ordinary.RequestedPersonId.Should().Be(tenant.PersonId);
+        support.RequestedPersonId.Should().BeNull("support privileges cannot become an ordinary worker identity");
+    }
+
+    [Fact]
+    public async Task ProcessExport_RevokedRequester_FailsBeforeGeneratingOrWriting()
+    {
+        // Arrange
+        var tenant = Guid.NewGuid();
+        var person = Guid.NewGuid();
+        var export = await _service.EnqueueExportAsync("sys-001", "json", null, "actor");
+        await using (var db = CreateDb())
+        {
+            var row = await db.SspExports.FindAsync(export.Id);
+            row!.SourceTenantId = tenant;
+            row.RequestedPersonId = person;
+            await db.SaveChangesAsync();
+        }
+        _workspaceAccess.Setup(access => access.CanReadAsync(tenant, person, "sys-001", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var job = await _channel.Reader.ReadAsync();
+
+        // Act
+        await _service.ProcessExportAsync(job);
+
+        // Assert
+        var result = await _service.GetExportAsync(export.Id);
+        result!.Status.Should().Be("Failed");
+        await using var stored = CreateDb();
+        (await stored.SspExports.FindAsync(export.Id))!.ErrorMessage.Should().Contain("no longer has access");
+        _oscalServiceMock.Verify(service => service.ExportAsync(It.IsAny<string>(), It.IsAny<bool>(),
+            It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        Directory.Exists(_settings.ExportsPath).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RetentionWorker_UsesCanonicalKeyPreservingPurge()
+    {
+        // Arrange
+        var service = new Mock<ISspExportService>();
+        service.Setup(s => s.PurgeExpiredExportsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(0);
+        using var services = new ServiceCollection().AddSingleton(service.Object).BuildServiceProvider();
+        using var worker = new SspExportRetentionService(services.GetRequiredService<IServiceScopeFactory>(),
+            Mock.Of<ILogger<SspExportRetentionService>>());
+
+        // Act
+        await worker.StartAsync(CancellationToken.None);
+        await worker.StopAsync(CancellationToken.None);
+
+        // Assert
+        service.Verify(s => s.PurgeExpiredExportsAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SnapshotRequests_ReplaySameKeyWithoutRegenerationOrDuplicateJob_RejectChangedIntent()
+    {
+        // Arrange
+        await using var db = CreateDb();
+        db.RegisteredSystems.Add(new RegisteredSystem { Id = "mission", Name = "DEMO mission", TenantId = Guid.NewGuid() });
+        await db.SaveChangesAsync();
+        // Approved-only payloads here exercise compatibility with legacy retained snapshots.
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalExportResult("{}", [], new OscalStatistics(0, 0, 0, 0, 0)));
+
+        // Act
+        var first = await _service.CreatePreviewAsync("mission", "owner", idempotencyKey: "preview-request");
+        var replay = await _service.CreatePreviewAsync("mission", "owner", idempotencyKey: "preview-request");
+        var other = await _service.CreatePreviewAsync("mission", "owner", idempotencyKey: "different-preview");
+        var export = await _service.EnqueueFromPreviewAsync("mission", first.PreviewId!.Value, "owner", idempotencyKey: "export-request");
+        var exportReplay = await _service.EnqueueFromPreviewAsync("mission", first.PreviewId.Value, "owner", idempotencyKey: "export-request");
+        var changed = () => _service.EnqueueFromPreviewAsync("mission", other.PreviewId!.Value, "owner", idempotencyKey: "export-request");
+
+        // Assert
+        replay.PreviewId.Should().Be(first.PreviewId);
+        replay.ContentHash.Should().Be(first.ContentHash);
+        exportReplay.Id.Should().Be(export.Id);
+        await changed.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        _oscalServiceMock.Verify(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        _channel.Reader.TryRead(out var job).Should().BeTrue();
+        job!.ExportId.Should().Be(export.Id);
+        _channel.Reader.TryRead(out _).Should().BeFalse();
+        (await db.SspExports.CountAsync()).Should().Be(3);
+    }
+
+    [Fact]
+    public async Task SnapshotRequestKey_IsActorScoped_AndExpiredKeyCannotRecompute()
+    {
+        // Arrange
+        await using var db = CreateDb();
+        db.RegisteredSystems.Add(new RegisteredSystem { Id = "mission", Name = "DEMO mission", TenantId = Guid.NewGuid() });
+        await db.SaveChangesAsync();
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalExportResult("{}", [], new OscalStatistics(0, 0, 0, 0, 0)));
+        var first = await _service.CreatePreviewAsync("mission", "owner-a", idempotencyKey: "shared-key");
+        var other = await _service.CreatePreviewAsync("mission", "owner-b", idempotencyKey: "shared-key");
+        (await db.SspExports.SingleAsync(e => e.Id == first.PreviewId)).ExpiresAt = DateTimeOffset.UtcNow.AddDays(-1);
+        await db.SaveChangesAsync();
+
+        // Act
+        await _service.PurgeExpiredExportsAsync();
+        var retry = () => _service.CreatePreviewAsync("mission", "owner-a", idempotencyKey: "shared-key");
+
+        // Assert
+        first.PreviewId!.Value.Should().NotBe(other.PreviewId!.Value);
+        await retry.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        (await db.SspExports.CountAsync()).Should().Be(2);
+        _oscalServiceMock.Verify(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task RetainedPreview_FinalJsonUsesIdenticalBytes_NotRegeneratedWorkingData()
+    {
+        // Arrange
+        var source = "{\"system-security-plan\":{\"uuid\":\"DEMO retained bytes\"}}";
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalExportResult(source, [], new OscalStatistics(7, 0, 0, 0, 0))
+            {
+                SourceManifest = new("GeneratedOscalContent", [new("ApprovedProfile", "section", "approval-v1", "hash-v1")], [])
+            });
+
+        // Act
+        var preview = await _service.CreatePreviewAsync("mission", "reviewer");
+        (await _service.ListExportsAsync("mission")).Should().BeEmpty("a retained preview is not a generated final export");
+        _oscalServiceMock.Setup(s => s.ExportAsync("mission", true, true, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Live source changed; must not be read again."));
+        var export = await _service.EnqueueFromPreviewAsync("mission", preview.PreviewId!.Value, "reviewer");
+        _channel.Reader.TryRead(out var job).Should().BeTrue();
+        await _service.ProcessExportAsync(job!);
+        var detail = await _service.GetExportAsync(export.Id);
+        var file = await _service.GetExportFileStreamAsync(export.Id);
+        using var reader = new StreamReader(file!.Value.Stream!);
+
+        // Assert
+        detail!.Status.Should().Be("Completed");
+        detail.ContentHash.Should().Be(preview.ContentHash);
+        (await reader.ReadToEndAsync()).Should().Be(source);
+        detail.SourcePreviewId.Should().Be(preview.PreviewId);
+        detail.SourceManifest!.Profiles.Single().VersionId.Should().Be("approval-v1");
+    }
+
+    [Theory]
+    [InlineData("WrongSystem")]
+    [InlineData("Expired")]
+    [InlineData("ProfileGap")]
+    [InlineData("ProviderGap")]
+    [InlineData("Tampered")]
+    public async Task RetainedPreview_RejectsUnusableSnapshotBeforeQueueing(string invalid)
+    {
+        // Arrange
+        _oscalServiceMock.Setup(s => s.PreviewAsync("mission", true, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalExportResult("{}", [], new OscalStatistics(0, 0, 0, 0, 0))
+            {
+                ProfileSourceGaps = invalid == "ProfileGap" ? ["Profile approval missing."] : [],
+                ProviderProvenanceGaps = invalid == "ProviderGap" ? ["Provider authority unverified."] : []
+            });
+        var preview = await _service.CreatePreviewAsync("mission", "reviewer");
+        await using var db = CreateDb();
+        var row = await db.SspExports.SingleAsync();
+        if (invalid == "Expired") { row.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1); await db.SaveChangesAsync(); }
+        if (invalid == "Tampered") await File.WriteAllTextAsync(Path.Combine(_settings.ExportsPath, row.FilePath!), "tampered");
+
+        // Act
+        var enqueue = () => _service.EnqueueFromPreviewAsync(invalid == "WrongSystem" ? "other" : "mission",
+            preview.PreviewId!.Value, "reviewer");
+
+        // Assert
+        await enqueue.Should().ThrowAsync<Exception>();
+        (await db.SspExports.CountAsync(x => x.Status == "Pending")).Should().Be(0);
+        _channel.Reader.TryRead(out _).Should().BeFalse();
+    }
 
     [Fact]
     public async Task EnqueueExportAsync_CreatesPendingEntity()
@@ -136,6 +333,29 @@ public class SspExportServiceTests : IDisposable
         result.ExpiresAt.Should().BeCloseTo(
             DateTimeOffset.UtcNow.AddDays(_settings.RetentionDays),
             TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task ProcessExportAsync_WithProviderProvenanceGap_MarksExportFailedWithoutWritingFile()
+    {
+        // Arrange
+        _oscalServiceMock.Setup(service => service.ExportAsync("sys-gap", true, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OscalExportResult("{}", [], new OscalStatistics(0, 0, 0, 0, 0))
+            {
+                ProviderProvenanceGaps = ["Provider authorization: source issue date is unknown."]
+            });
+        var export = await _service.EnqueueExportAsync("sys-gap", "json", null, "user@test.com");
+        _channel.Reader.TryRead(out var job).Should().BeTrue();
+
+        // Act
+        await _service.ProcessExportAsync(job!);
+
+        // Assert
+        await using var db = CreateDb();
+        var failed = await db.SspExports.FindAsync(export.Id);
+        failed!.Status.Should().Be("Failed");
+        failed.ErrorMessage.Should().Contain("Provider authorization");
+        Directory.Exists(Path.Combine(_settings.ExportsPath, "sys-gap")).Should().BeFalse();
     }
 
     [Fact]

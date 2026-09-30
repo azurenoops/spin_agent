@@ -15,6 +15,7 @@ export default function AzureSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [registrationListConfirmed, setRegistrationListConfirmed] = useState(false);
 
   const [newSubId, setNewSubId] = useState('');
   const [registering, setRegistering] = useState(false);
@@ -24,10 +25,12 @@ export default function AzureSettingsPage() {
 
   async function loadRegistrations() {
     setLoading(true);
+    setRegistrationListConfirmed(false);
     setError(null);
     try {
       const regs = await onboarding.listAzureRegistrations();
       setRegistrations(regs);
+      setRegistrationListConfirmed(true);
     } catch (e: unknown) {
       const err = e as { message?: string };
       setError(err.message ?? 'Failed to load Azure registrations.');
@@ -43,12 +46,13 @@ export default function AzureSettingsPage() {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = newSubId.trim();
-    if (!trimmed) return;
+    if (!trimmed || !registrationListConfirmed || registering) return;
     setRegistering(true);
     setError(null);
     setSuccess(null);
     try {
-      const updated = await onboarding.putAzureRegistrations([trimmed]);
+      const selected = [...new Set([...registrations.map(row => row.subscriptionId.toLowerCase()), trimmed.toLowerCase()])];
+      const updated = await onboarding.putAzureRegistrations(selected);
       setRegistrations(updated);
       setNewSubId('');
       setSuccess(`Subscription ${trimmed} registered successfully.`);
@@ -107,7 +111,10 @@ export default function AzureSettingsPage() {
         <div className="rounded-md bg-green-50 p-4 text-sm text-green-800">{success}</div>
       )}
       {error && (
-        <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>
+        <div role="alert" className="rounded-md bg-red-50 p-4 text-sm text-red-800">{error}
+          {!registrationListConfirmed && <button type="button" className="ml-3 underline"
+            onClick={() => void loadRegistrations()}>Retry registrations</button>}
+        </div>
       )}
 
       {/* Register form */}
@@ -132,7 +139,7 @@ export default function AzureSettingsPage() {
           </div>
           <button
             type="submit"
-            disabled={registering || !newSubId.trim()}
+            disabled={registering || !registrationListConfirmed || !newSubId.trim()}
             className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
           >
             {registering ? 'Registering…' : 'Register'}

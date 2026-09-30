@@ -18,6 +18,122 @@
 
 ## Persona Responsibilities
 
+### Scoped system monitoring workspace (Feature 079)
+
+Within a system, **Continuous monitoring** separates **Coverage & health**,
+**Rules**, **Detected changes**, **Impact reviews**, and the existing **Reports**.
+The server uses in-scope component assignments to boundary definitions, not
+subscription membership, to attribute resource observations. A resource shared
+by systems can create separate mission reviews. Delivered provider release
+impacts also require the matching provider-component boundary dependency.
+Unlinked/shared alerts enter the retained, system-scoped observation ledger on
+the next Compliance Watch tick. Request handlers never widen tenant or
+system-role filters to read those alerts.
+
+Rule authors record the boundary snapshot they reviewed, a baseline reference,
+owner, severity, cadence (1–10,080 minutes), and an executable condition. The
+baseline reference is a reviewer-supplied reference, not a new approval record.
+Changing the current assignments makes evaluation **ScopeReviewRequired** until
+the rule is reviewed and saved again.
+
+- Signals currently supported: persisted compliance **Alert** observations and
+  delivered **ProviderRelease** impacts. No new cloud or eMASS connectors are
+  installed.
+- Condition fields: `Type`, `Severity`, `ControlId`, `ControlFamily`, and
+  `Change.<property>`. Operators: `Equals`, `NotEquals`, and `Becomes` (change
+  properties only). Missing/invalid values do not match. `Change` supports both
+  property/oldValue/newValue events and the watch engine's baseline/current
+  JSON snapshots. Only properties actually present in the collected source can
+  be tested; the current compliance snapshot does not supply arbitrary Azure
+  configuration properties.
+- **Test saved rule** is read-only. Scheduled evaluation uses the existing
+  Compliance Watch worker and retains rule versions, input fingerprints,
+  outcomes, and owner-attributed review work. A disabled rule creates no new
+  evaluation or review work. Replaying the same input under the same version
+  does not create duplicate work.
+- **Missing**, **Failed**, **Stale**, **Disabled**, and **ProviderDependency**
+  collection states are not **Healthy**. A provider dependency label is not a
+  claim of live provider connector health. Mixed-scope observations are marked
+  unknown; their cross-scope details are not disclosed.
+  Local alert rules evaluate collection health for local components only;
+  provider dependencies use their separate signal path. Missing or unmapped
+  local components still make local alert collection unavailable.
+- Mission review outcomes are **NoImpact**, **StageNarrativeReview**, and
+  **RecommendReassessment**. Narrative staging enters the existing proposal
+  queue, with `Monitoring` provenance, and still requires normal generation,
+  review, and approval. It never overwrites the approved narrative or issues an
+  AO decision. A provider's source disposition is not changed by mission review.
+
+The workspace returns server-derived `canManageRules` and `canReviewImpacts`.
+Applicable system-management authority is required for rule changes; narrative
+review authority is required for impact disposition. Stale version tokens
+return HTTP 409 instead of overwriting another reviewer's work.
+
+API base: `/api/dashboard/systems/{systemId}/conmon`.
+
+| Operation | Route |
+|-----------|-------|
+| Read scoped rules, coverage, observations, history, and reviews | `GET /workspace` |
+| Create a reviewed rule | `POST /rules` |
+| Save a new rule version (including disable) | `PUT /rules/{ruleId}` |
+| Read-only evaluation against stored inputs | `POST /rules/{ruleId}/test` |
+| Record mission disposition | `POST /impacts/{impactId}/disposition` |
+
+Local acceptance: use two systems with different in-scope resources in one
+subscription; verify each Detected changes screen shows only its attributed
+resource. Create and test a rule; test must not create review work. Allow the
+existing worker to evaluate, then replay the same input and confirm no duplicate
+review. Disable the rule and confirm no new work. Record a narrative-review
+disposition and inspect the pending proposal and unchanged approved narrative.
+Repeat with a read-only assignment and a different tenant; writes must fail and
+foreign-system records must remain inaccessible.
+
+### Provider-owned offering monitoring (Feature 079)
+
+The provider **Service monitoring** screen selects an owning offering and a
+concrete retained source. Ordinary provider administration is required;
+organization roles and support impersonation are rejected by the provider store.
+This screen does not grant access to a mission system.
+
+| Signal | Reviewed fact | Condition |
+|--------|---------------|-----------|
+| `AuthorizationExpiry` | Current recorded external decision's source-stated expiration | `Change.daysUntilExpiry` with a numeric day threshold |
+| `AuthorizationWithdrawal` | Effective recorded withdrawal of that current decision | `Change.withdrawn` equals `true` or `false` |
+| `EvidenceFreshness` | Reviewed provider evidence, measured from its retained upload timestamp | `Change.ageDays` with a numeric day threshold |
+| `PublishedReleaseChange` | Offering-linked published release backed by accepted provider impact review | `Change.releaseChanged` compared with the rule's saved release baseline |
+
+Numeric operators are `LessThanOrEqual` and `GreaterThanOrEqual`. Boolean
+operators are `Equals` and `NotEquals`. Missing dates, unavailable sources, and
+unreviewed evidence are unavailable collection facts, not healthy no-match
+results. Source availability is database availability; no Azure, multicloud,
+or eMASS connector is created or represented as connected.
+
+Rules retain source, condition, cadence, owner, response, and source baseline.
+Saving records an immutable version snapshot. **Test saved rule** creates no
+work. **Evaluate now**, or the existing Compliance Watch scheduler, records an
+evaluation and creates a pending entry in the existing provider impact-review
+ledger when matched. Repeated observations under the same rule revision reuse
+the retained evaluation/review.
+
+**Review provider impact** opens the existing impact workflow. The reviewer
+must select exact current context and review a fresh preview. Publication is
+still a separate explicit action; only the existing reviewed publication and
+dependency delivery workflow can hand release changes to missions. Monitoring
+does not publish, adopt, confirm responsibilities, or make mission/AO decisions.
+
+Provider API base: `/api/csp/offerings/{offeringId}/monitoring`.
+`GET` reads the workspace; `POST /rules` creates a rule;
+`PUT /rules/{ruleId}` saves a new revision; `POST /rules/{ruleId}/test` is
+read-only; `POST /rules/{ruleId}/evaluate` evaluates retained facts. Writes other
+than testing require `Idempotency-Key`; updates and evaluation use the expected
+rule revision. A source revision token can fence the selected reviewed source.
+
+Storage extends the explicit provider ownership model with
+`ProviderMonitoringRules` and `ProviderMonitoringEvaluations`. Separate storage
+is necessary because the existing mission rules and evaluations are
+tenant/system-scoped. Provider operations/audits and impact reviews reuse their
+existing ledgers; no parallel review workflow or scheduler is introduced.
+
 ### ISSM (Lead — Oversight)
 
 **Tasks in this phase**:

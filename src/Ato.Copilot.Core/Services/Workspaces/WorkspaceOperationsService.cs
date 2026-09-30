@@ -1170,6 +1170,8 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             .Where(x => providerIds.Contains(x.Id) && x.Status == Models.Tenancy.CspInheritedCapabilityStatus.Mapped
                 && x.CspInheritedComponent.Status == Models.Tenancy.CspInheritedComponentStatus.Published)
             .ToDictionaryAsync(x => x.Id, ct);
+        var providerDetails = (await ExpandProviderCapabilitiesAsync(db, capabilities.Values.ToArray(), ct))
+            .ToDictionary(x => x.Capability.CapabilityId!.Value);
         var profileIds = capabilities.Values.Select(x => x.CspInheritedComponent.CspProfileId).Distinct().ToArray();
         var providerNames = await db.CspProfiles.AsNoTracking().Where(x => profileIds.Contains(x.Id))
             .Select(x => new { x.Id, x.DisplayName }).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
@@ -1214,8 +1216,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
                 continue;
             }
             var component = capability.CspInheritedComponent;
-            var support = new[] { new SupportingComponentSummary(component.Id.ToString("D"), component.Name,
-                component.ComponentType.ToString(), "provider", component.Description) };
+            var support = providerDetails[capabilityId].SupportingComponents;
             var controls = capability.MappedNistControlIds.Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).Order().ToArray();
             var sourceRevision = CspResponsibilitySourceTracker.Revision(CspResponsibilitySourceTracker.Snapshot(capability));
@@ -1671,6 +1672,11 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
                 {
                     subscription.CspInheritedCapabilityId = request.RecordId;
                     subscription.RoutingCapabilityId = request.RecordId;
+                    if (!subscription.IsActive)
+                    {
+                        subscription.CurrentAdoptionSnapshotId = null;
+                        subscription.AdoptionSelectionRevision = checked(subscription.AdoptionSelectionRevision + 1);
+                    }
                     subscription.IsActive = true;
                 }
                 row.SubscriptionState = "Completed";

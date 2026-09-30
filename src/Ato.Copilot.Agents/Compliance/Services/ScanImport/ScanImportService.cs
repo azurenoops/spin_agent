@@ -166,6 +166,9 @@ public class ScanImportService : IScanImportService
         // ── Step 7: Create ScanImportRecord ──────────────────────────────
         var importRecord = new ScanImportRecord
         {
+            Id = ScanImportCapture.Current?.RecordId ?? Guid.NewGuid().ToString(),
+            WorkspaceOperationKey = ScanImportCapture.Current?.OperationKey,
+            ResultProvenanceJson = ScanImportCapture.Current?.ProvenanceJson,
             RegisteredSystemId = systemId,
             AssessmentId = resolvedAssessmentId,
             ImportType = ScanImportType.Ckl,
@@ -383,6 +386,7 @@ public class ScanImportService : IScanImportService
 
         var evidence = new ComplianceEvidence
         {
+            Id = ScanImportCapture.Current?.RecordId ?? Guid.NewGuid().ToString(),
             ControlId = affectedNistControls.FirstOrDefault() ?? string.Empty,
             SubscriptionId = string.Empty,
             EvidenceType = "StigChecklist",
@@ -417,6 +421,9 @@ public class ScanImportService : IScanImportService
 
             foreach (var controlId in affectedNistControls)
             {
+                if (importFindings.Any(x => x.ResolvedNistControlIds.Contains(controlId)
+                    && x.ImportAction is ImportFindingAction.NotReviewed or ImportFindingAction.Error))
+                    continue;
                 controlFindingMap.TryGetValue(controlId, out var controlFindings);
                 var findingsForControl = controlFindings ?? new List<ComplianceFinding>();
 
@@ -513,32 +520,11 @@ public class ScanImportService : IScanImportService
         // ── Step 12: Persist (unless dry-run) (T027) ─────────────────────
         if (!dryRun)
         {
-            ctx.ScanImportRecords.Add(importRecord);
-            ctx.Evidence.Add(evidence);
-
-            // Batch-insert in 100-record chunks to avoid SQL Server parameter limits
-            // and keep memory pressure proportional (Task #175 / Epic #131).
-            const int BatchSize = 100;
-            foreach (var batch in importFindings.Chunk(BatchSize))
-            {
-                ctx.ScanImportFindings.AddRange(batch);
-                await ctx.SaveChangesAsync(ct);
-                ctx.ChangeTracker.Clear();
-            }
-            if (newFindings.Count > 0)
-            {
-                foreach (var batch in newFindings.Chunk(BatchSize))
-                {
-                    ctx.Findings.AddRange(batch);
-                    await ctx.SaveChangesAsync(ct);
-                    ctx.ChangeTracker.Clear();
-                }
-            }
-            else
-            {
-                // Updated findings tracked by EF change tracker — flush
-                await ctx.SaveChangesAsync(ct);
-            }
+            await RetainImportAsync(ctx, importRecord, importFindings, newFindings, ct);
+            if (!await ctx.Evidence.AnyAsync(x => x.Id == evidence.Id, ct)) ctx.Evidence.Add(evidence);
+            ctx.Findings.AddRange(newFindings);
+            ctx.ScanImportFindings.AddRange(importFindings);
+            await ctx.SaveChangesAsync(ct);
         }
 
         sw.Stop();
@@ -654,6 +640,9 @@ public class ScanImportService : IScanImportService
         // ── Step 7: Create ScanImportRecord ──────────────────────────────
         var importRecord = new ScanImportRecord
         {
+            Id = ScanImportCapture.Current?.RecordId ?? Guid.NewGuid().ToString(),
+            WorkspaceOperationKey = ScanImportCapture.Current?.OperationKey,
+            ResultProvenanceJson = ScanImportCapture.Current?.ProvenanceJson,
             RegisteredSystemId = systemId,
             AssessmentId = resolvedAssessmentId,
             ImportType = ScanImportType.Xccdf,
@@ -872,6 +861,7 @@ public class ScanImportService : IScanImportService
 
         var evidence = new ComplianceEvidence
         {
+            Id = ScanImportCapture.Current?.RecordId ?? Guid.NewGuid().ToString(),
             ControlId = affectedNistControls.FirstOrDefault() ?? string.Empty,
             SubscriptionId = string.Empty,
             EvidenceType = "XccdfScanResult",
@@ -903,6 +893,9 @@ public class ScanImportService : IScanImportService
             foreach (var controlId in affectedNistControls)
             {
                 controlFindingMap.TryGetValue(controlId, out var controlFindings);
+                if (importFindings.Any(x => x.ResolvedNistControlIds.Contains(controlId)
+                    && x.ImportAction is ImportFindingAction.NotReviewed or ImportFindingAction.Error))
+                    continue;
                 var findingsForControl = controlFindings ?? new List<ComplianceFinding>();
 
                 var anyOpen = findingsForControl.Any(f =>
@@ -982,30 +975,11 @@ public class ScanImportService : IScanImportService
         // ── Step 12: Persist (unless dry-run) ────────────────────────────
         if (!dryRun)
         {
-            ctx.ScanImportRecords.Add(importRecord);
-            ctx.Evidence.Add(evidence);
-
-            // Batch-insert in 100-record chunks (Task #175 / Epic #131).
-            const int BatchSize = 100;
-            foreach (var batch in importFindings.Chunk(BatchSize))
-            {
-                ctx.ScanImportFindings.AddRange(batch);
-                await ctx.SaveChangesAsync(ct);
-                ctx.ChangeTracker.Clear();
-            }
-            if (newFindings.Count > 0)
-            {
-                foreach (var batch in newFindings.Chunk(BatchSize))
-                {
-                    ctx.Findings.AddRange(batch);
-                    await ctx.SaveChangesAsync(ct);
-                    ctx.ChangeTracker.Clear();
-                }
-            }
-            else
-            {
-                await ctx.SaveChangesAsync(ct);
-            }
+            await RetainImportAsync(ctx, importRecord, importFindings, newFindings, ct);
+            if (!await ctx.Evidence.AnyAsync(x => x.Id == evidence.Id, ct)) ctx.Evidence.Add(evidence);
+            ctx.Findings.AddRange(newFindings);
+            ctx.ScanImportFindings.AddRange(importFindings);
+            await ctx.SaveChangesAsync(ct);
         }
 
         sw.Stop();
@@ -1428,7 +1402,7 @@ public class ScanImportService : IScanImportService
     /// <summary>
     /// Get an existing active assessment for the system, or create one.
     /// </summary>
-    private static async Task<string> GetOrCreateAssessmentAsync(
+    public static async Task<string> GetOrCreateAssessmentAsync(
         AtoCopilotContext ctx,
         string systemId,
         string importedBy,
@@ -1437,6 +1411,7 @@ public class ScanImportService : IScanImportService
         // Try to find an active (non-completed, non-cancelled) assessment for this system
         var existing = await ctx.Assessments
             .Where(a => a.RegisteredSystemId == systemId &&
+                        (a.ScanType == "import" || a.ProgressMessage == "Created for STIG/SCAP import") &&
                         a.Status != AssessmentStatus.Completed &&
                         a.Status != AssessmentStatus.Cancelled &&
                         a.Status != AssessmentStatus.Failed)
@@ -1461,6 +1436,43 @@ public class ScanImportService : IScanImportService
         await ctx.SaveChangesAsync(ct);
 
         return assessment.Id;
+    }
+
+    private static async Task RetainImportAsync(AtoCopilotContext ctx, ScanImportRecord record,
+        List<ScanImportFinding> rows, List<ComplianceFinding> findings, CancellationToken ct)
+    {
+        var existing = await ctx.ScanImportRecords.SingleOrDefaultAsync(x => x.Id == record.Id, ct);
+        if (existing?.ImportStatus == ScanImportStatus.Cancelled)
+            throw new OperationCanceledException("Import was cancelled before persistence.");
+        if (ScanImportCapture.Current is { } capture && existing is not null)
+        {
+            var expected = AssessmentResultProvenance.Read(capture.ProvenanceJson);
+            var current = AssessmentResultProvenance.Read(existing.ResultProvenanceJson);
+            if (expected.ExecutionToken != current.ExecutionToken || current.ExecutionLeaseExpiresAt <= DateTime.UtcNow)
+                throw new DbUpdateConcurrencyException("Import execution expired or was replaced by a retry.");
+        }
+        var provenance = AssessmentResultProvenance.Read(existing?.ResultProvenanceJson ?? record.ResultProvenanceJson);
+        provenance.SourceResultId = "import:" + record.Id;
+        provenance.SystemId = record.RegisteredSystemId;
+        if (ScanImportCapture.Current is not null) provenance.EvidenceIds = [record.Id];
+        var linkedIds = rows.Select(x => x.ComplianceFindingId).Where(x => x != null).ToArray();
+        var retainedFindings = await ctx.Findings.Where(x => linkedIds.Contains(x.Id)).ToListAsync(ct);
+        provenance.Findings ??= retainedFindings.Concat(findings).DistinctBy(x => x.Id)
+            .Select(ResultFindingSnapshot.From).ToList();
+        provenance.ObservedControlIds ??= rows.Where(x => x.ImportAction != ImportFindingAction.NotReviewed
+            && x.ImportAction != ImportFindingAction.Error).SelectMany(x => x.ResolvedNistControlIds)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order().ToArray();
+        record.ResultProvenanceJson = provenance.Serialize();
+        if (ScanImportCapture.Current is not null) record.ImportStatus = ScanImportStatus.Processing;
+        if (existing is null) ctx.ScanImportRecords.Add(record);
+        else
+        {
+            record.TenantId = existing.TenantId;
+            ctx.Entry(existing).CurrentValues.SetValues(record);
+            var previous = await ctx.ScanImportFindings.Where(x => x.ScanImportRecordId == record.Id).ToListAsync(ct);
+            rows.RemoveAll(row => previous.Any(p => p.VulnId == row.VulnId && p.RuleId == row.RuleId
+                && p.RawStatus == row.RawStatus && p.FindingDetails == row.FindingDetails));
+        }
     }
 
     // ─── Utilities ───────────────────────────────────────────────────────
@@ -1727,6 +1739,9 @@ public class ScanImportService : IScanImportService
         // ── Create import record ─────────────────────────────────────────
         var importRecord = new ScanImportRecord
         {
+            Id = ScanImportCapture.Current?.RecordId ?? Guid.NewGuid().ToString(),
+            WorkspaceOperationKey = ScanImportCapture.Current?.OperationKey,
+            ResultProvenanceJson = ScanImportCapture.Current?.ProvenanceJson,
             RegisteredSystemId = systemId,
             AssessmentId = resolvedAssessmentId,
             ImportType = importType,
@@ -2617,6 +2632,9 @@ public class ScanImportService : IScanImportService
 
         var importRecord = new ScanImportRecord
         {
+            Id = ScanImportCapture.Current?.RecordId ?? Guid.NewGuid().ToString(),
+            WorkspaceOperationKey = ScanImportCapture.Current?.OperationKey,
+            ResultProvenanceJson = ScanImportCapture.Current?.ProvenanceJson,
             RegisteredSystemId = systemId,
             AssessmentId = resolvedAssessmentId,
             ImportType = ScanImportType.NessusXml,
@@ -2825,6 +2843,7 @@ public class ScanImportService : IScanImportService
         var evidence = new ComplianceEvidence
         {
             ControlId = "RA-5",
+            Id = ScanImportCapture.Current?.RecordId ?? Guid.NewGuid().ToString(),
             SubscriptionId = string.Empty,
             EvidenceType = "VulnerabilityScan",
             Description = $"Nessus Import: {fileName} ({parsed.ReportName})",
@@ -3010,10 +3029,10 @@ public class ScanImportService : IScanImportService
         // ── Step 11: Persist (unless dry-run) ────────────────────────────
         if (!dryRun)
         {
-            ctx.ScanImportRecords.Add(importRecord);
+            await RetainImportAsync(ctx, importRecord, importFindings, newFindings, ct);
             ctx.ScanImportFindings.AddRange(importFindings);
             ctx.Findings.AddRange(newFindings);
-            ctx.Evidence.Add(evidence);
+            if (!await ctx.Evidence.AnyAsync(x => x.Id == evidence.Id, ct)) ctx.Evidence.Add(evidence);
             await ctx.SaveChangesAsync(ct);
         }
 

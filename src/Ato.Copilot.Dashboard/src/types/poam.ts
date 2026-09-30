@@ -21,6 +21,8 @@ export interface PoamListItem {
   dueDate: string;
   daysRemaining: number;
   milestoneProgress: { completed: number; total: number };
+  nextMilestone?: PoamMilestoneDto | null;
+  readyToVerify?: boolean;
   deviationType: string | null;
   externalTicketRef: string | null;
   remediationTaskId: string | null;
@@ -203,10 +205,8 @@ export interface BulkCreateResponse {
 export interface ConfigureTicketingRequest {
   provider: 'jira' | 'servicenow';
   baseUrl: string;
-  projectKeyOrTableName: string;
-  issueType?: string;
-  authToken: string;
-  fieldMapping: Record<string, string>;
+  projectKey: string;
+  apiKeySecretName: string;
   syncEnabled?: boolean;
 }
 
@@ -217,6 +217,7 @@ export interface SyncTicketRequest {
 // ─── Query Params ───────────────────────────────────────────────────────────
 
 export interface PoamListQuery {
+  view?: 'all' | 'overdue' | 'ready' | 'closed';
   page?: number;
   pageSize?: number;
   sortBy?: string;

@@ -17,6 +17,7 @@ public class AzureResourceService : IAzureResourceService
     private readonly ArmClient _armClient;
     private readonly IMemoryCache _cache;
     private readonly ILogger<AzureResourceService> _logger;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private const int MaxResourcesPerQuery = 5000;
@@ -27,14 +28,17 @@ public class AzureResourceService : IAzureResourceService
     /// <param name="armClient">ARM client for Azure resource management.</param>
     /// <param name="cache">Memory cache for resource query results.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="environmentGuard">Current environment authority checked before cache or Azure access.</param>
     public AzureResourceService(
         ArmClient armClient,
         IMemoryCache cache,
-        ILogger<AzureResourceService> logger)
+        ILogger<AzureResourceService> logger,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _armClient = armClient;
         _cache = cache;
         _logger = logger;
+        _environmentGuard = environmentGuard;
     }
 
     /// <inheritdoc />
@@ -44,6 +48,8 @@ public class AzureResourceService : IAzureResourceService
         string? resourceType = null,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         var cacheKey = $"resources:{subscriptionId}:{resourceGroup ?? "all"}:{resourceType ?? "all"}";
 
         if (_cache.TryGetValue<IReadOnlyList<GenericResource>>(cacheKey, out var cached) && cached is not null)
@@ -106,6 +112,8 @@ public class AzureResourceService : IAzureResourceService
         string subscriptionId,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         var cacheKey = $"roleassignments:{subscriptionId}";
 
         if (_cache.TryGetValue<IReadOnlyList<RoleAssignmentResource>>(cacheKey, out var cached) && cached is not null)
@@ -141,6 +149,8 @@ public class AzureResourceService : IAzureResourceService
         string subscriptionId,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         _logger.LogInformation("Pre-warming resource cache for Sub={Sub}", subscriptionId);
 
         // Pre-warm common resource types in parallel
@@ -166,6 +176,8 @@ public class AzureResourceService : IAzureResourceService
         string resourceId,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureResourceAsync(resourceId, cancellationToken);
         var cacheKey = $"diagnostics:{resourceId}";
 
         if (_cache.TryGetValue<IReadOnlyList<DiagnosticSettingResource>>(cacheKey, out var cached) && cached is not null)
@@ -200,6 +212,8 @@ public class AzureResourceService : IAzureResourceService
         string? resourceGroup = null,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         var cacheKey = $"locks:{subscriptionId}:{resourceGroup ?? "all"}";
 
         if (_cache.TryGetValue<IReadOnlyList<ManagementLockResource>>(cacheKey, out var cached) && cached is not null)

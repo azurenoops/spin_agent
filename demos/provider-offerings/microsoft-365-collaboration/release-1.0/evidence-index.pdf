@@ -1,0 +1,94 @@
+%PDF-1.4
+%ту╧╙
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4348 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Microsoft 365 ╖ Collaboration) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (Evidence index) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.0 | Scenario date: 2026-09-15 | SaaS collaboration) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 609 Td (M365-E01 Ч Exchange Online collaboration mail) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 586 Td (Scope: synthetic mail-flow review and mailbox access sample. Controls: AC-2, SC-7.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 565 Td (Location: service-guide.md, heading 'Exchange Online collaboration mail'. This is a narrative) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 551 Td (specimen describing expected review material, not an attached real export. Owner: Harbor) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 537 Td (Collaboration Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 523 Td (CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 502 Td (M365-E02 Ч Teams meetings and messaging) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 479 Td (Scope: synthetic meeting-policy export and guest access test. Controls: AC-2, AC-4.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 458 Td (Location: service-guide.md, heading 'Teams meetings and messaging'. This is a narrative) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 444 Td (specimen describing expected review material, not an attached real export. Owner: Harbor) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 430 Td (Collaboration Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 416 Td (CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 395 Td (M365-E03 Ч SharePoint and OneDrive content) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 372 Td (Scope: synthetic site-sharing review and access revocation test. Controls: AC-3, AC-6.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 351 Td (Location: service-guide.md, heading 'SharePoint and OneDrive content'. This is a narrative) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 337 Td (specimen describing expected review material, not an attached real export. Owner: Harbor) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 323 Td (Collaboration Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 309 Td (CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 288 Td (M365-E04 Ч Purview retention and audit) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 265 Td (Scope: synthetic audit-delivery ledger and retention retrieval rehearsal. Controls: AU-2,) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 251 Td (AU-6, AU-11.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 230 Td (Location: service-guide.md, heading 'Purview retention and audit'. This is a narrative) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 216 Td (specimen describing expected review material, not an attached real export. Owner: Harbor) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 202 Td (Collaboration Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution:) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 188 Td (CUSTOMER-DEMO.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 167 Td (M365-E05 Ч Tenant access safeguards) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 144 Td (Scope: synthetic MFA policy review and emergency-access rehearsal. Controls: IA-2, AC-2.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 123 Td (Location: service-guide.md, heading 'Tenant access safeguards'. This is a narrative specimen) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 109 Td (describing expected review material, not an attached real export. Owner: Harbor Collaboration) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 95 Td (Demo Team. Sampling window: 2026-08-18 to 2026-08-24. Distribution: CUSTOMER-DEMO.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 2) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 672 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 730 Td (M365-PRIVATE-WP-001 Ч restricted working paper) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 707 Td (Controls: AU-6, AU-11. Seven-row invented timing ledger. PRIVATE; unavailable in the customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 693 Td (download. The customer assessment summary preserves the finding and corrective plan without) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (the detailed working paper.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 2 of 2) Tj ET
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000224 00000 n 
+0000000326 00000 n 
+0000000462 00000 n 
+0000004862 00000 n 
+0000004998 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+5721
+%%EOF

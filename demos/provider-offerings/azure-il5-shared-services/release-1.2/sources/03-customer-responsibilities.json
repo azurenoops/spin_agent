@@ -1,0 +1,172 @@
+{
+  "responsibilities": [
+    {
+      "id": "AZ-capability-audit-provider",
+      "name": "Audit collection — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Operate collector health checks every 15 minutes; reconcile ingestion counts daily; protect archived events from routine operator modification. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.",
+      "capabilityId": "AZ-capability-audit",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-audit-shared",
+      "name": "Audit collection — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Agree event categories and triage escalation with each mission; investigate missing source intervals jointly within one business day. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.",
+      "capabilityId": "AZ-capability-audit",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-audit-customer",
+      "name": "Audit collection — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Enable workload audit sources, review mission-specific events each business day, and set longer retention when mission policy requires it. Evidence: AZ-E01: seven-day collector reconciliation and archive retrieval sample.",
+      "capabilityId": "AZ-capability-audit",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "AZ-capability-network-provider",
+      "name": "Network protection — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Maintain deny-by-default hub rules, review exceptions monthly, and record firewall changes with rollback instructions. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.",
+      "capabilityId": "AZ-capability-network",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-network-shared",
+      "name": "Network protection — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Approve traffic purpose and route changes jointly; exercise a denied-traffic test before connecting a new spoke. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.",
+      "capabilityId": "AZ-capability-network",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-network-customer",
+      "name": "Network protection — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Manage application ingress, workload NSGs, DNS dependencies and endpoints outside the provider hub. Evidence: AZ-E02: approved rule sample, route inventory and denied-flow test.",
+      "capabilityId": "AZ-capability-network",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "AZ-capability-identity-provider",
+      "name": "Privileged identity — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Require MFA for operators; review privileged membership monthly; remove provider leavers within four hours of confirmed notice. Evidence: AZ-E03: synthetic access review, activation record and leaver test.",
+      "capabilityId": "AZ-capability-identity",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-identity-shared",
+      "name": "Privileged identity — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Maintain named escalation contacts and reconcile emergency access use after every activation. Evidence: AZ-E03: synthetic access review, activation record and leaver test.",
+      "capabilityId": "AZ-capability-identity",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-identity-customer",
+      "name": "Privileged identity — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Approve mission accounts, enforce mission MFA, perform access reviews, and disable customer leavers. Evidence: AZ-E03: synthetic access review, activation record and leaver test.",
+      "capabilityId": "AZ-capability-identity",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "AZ-capability-configuration-provider",
+      "name": "Configuration baselines — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Record baseline version, approver, test result and rollback plan; compare deployed shared settings weekly. Evidence: AZ-E04: baseline revision, drift review and approved change sample.",
+      "capabilityId": "AZ-capability-configuration",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-configuration-shared",
+      "name": "Configuration baselines — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Assess mission impact before changing shared defaults; agree maintenance windows and exception expiration. Evidence: AZ-E04: baseline revision, drift review and approved change sample.",
+      "capabilityId": "AZ-capability-configuration",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-configuration-customer",
+      "name": "Configuration baselines — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Maintain application baselines and approve workload changes; remediate customer-owned configuration drift. Evidence: AZ-E04: baseline revision, drift review and approved change sample.",
+      "capabilityId": "AZ-capability-configuration",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "AZ-capability-encryption-provider",
+      "name": "Encryption and key handling — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Restrict key administration, test rotation every 90 days, record custody, and enforce TLS 1.2 or higher on covered endpoints. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.",
+      "capabilityId": "AZ-capability-encryption",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-encryption-shared",
+      "name": "Encryption and key handling — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Document key ownership and coordinate rotation windows for dependent workloads; test trust-chain changes jointly. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.",
+      "capabilityId": "AZ-capability-encryption",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-encryption-customer",
+      "name": "Encryption and key handling — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Configure workload encryption and certificates; manage customer keys and classify data before using a covered endpoint. Evidence: AZ-E05: synthetic rotation rehearsal and endpoint protocol inventory.",
+      "capabilityId": "AZ-capability-encryption",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "AZ-capability-incident-provider",
+      "name": "Incident coordination — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Acknowledge severity-one tickets within 30 minutes in the scenario; preserve provider records and issue initial impact notices. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.",
+      "capabilityId": "AZ-capability-incident",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-incident-shared",
+      "name": "Incident coordination — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Exercise incident handoffs quarterly; coordinate containment approval where provider action affects mission service. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.",
+      "capabilityId": "AZ-capability-incident",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-incident-customer",
+      "name": "Incident coordination — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Own mission incident declarations, regulatory reporting, application containment and mission recovery decisions. Evidence: AZ-E06: tabletop timeline, escalation roster and notification template.",
+      "capabilityId": "AZ-capability-incident",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "AZ-capability-vulnerability-provider",
+      "name": "Vulnerability management — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Triage critical results within one business day, schedule fixes by risk, and verify remediation with a follow-up scan. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.",
+      "capabilityId": "AZ-capability-vulnerability",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-vulnerability-shared",
+      "name": "Vulnerability management — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Agree outage windows and compensating controls for shared infrastructure exceptions; review overdue items weekly. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.",
+      "capabilityId": "AZ-capability-vulnerability",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-vulnerability-customer",
+      "name": "Vulnerability management — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Scan and patch customer applications, containers and mission hosts; document mission risk acceptance separately. Evidence: AZ-E07: synthetic scan sample, patch ticket and clean rescan.",
+      "capabilityId": "AZ-capability-vulnerability",
+      "responsibility": "Customer"
+    },
+    {
+      "id": "AZ-capability-backup-provider",
+      "name": "Backup and recovery — Provider duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Monitor backup jobs daily, protect recovery copies from ordinary operator deletion, and record restore results quarterly. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.",
+      "capabilityId": "AZ-capability-backup",
+      "responsibility": "Provider"
+    },
+    {
+      "id": "AZ-capability-backup-shared",
+      "name": "Backup and recovery — Shared duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Agree recovery sequence and validate shared dependencies during a joint recovery exercise. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.",
+      "capabilityId": "AZ-capability-backup",
+      "responsibility": "Shared"
+    },
+    {
+      "id": "AZ-capability-backup-customer",
+      "name": "Backup and recovery — Customer duties",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Back up mission data and applications, define mission RTO/RPO, and validate business transactions after recovery. Evidence: AZ-E08: backup reconciliation and shared-configuration restore exercise.",
+      "capabilityId": "AZ-capability-backup",
+      "responsibility": "Customer"
+    }
+  ]
+}

@@ -1,10 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Ato.Copilot.Core.Configuration;
-using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
@@ -46,43 +43,9 @@ public class SspExportRetentionService : BackgroundService
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-            var settings = scope.ServiceProvider.GetRequiredService<IOptions<ExportSettings>>().Value;
-
-            var now = DateTime.UtcNow;
-            var expired = await db.SspExports
-                .Where(e => e.ExpiresAt != null && e.ExpiresAt < now)
-                .ToListAsync(ct);
-
-            if (expired.Count == 0)
-            {
-                _logger.LogDebug("Retention cleanup: no expired exports found");
-                return;
-            }
-
-            var deletedFiles = 0;
-            foreach (var export in expired)
-            {
-                if (!string.IsNullOrEmpty(export.FilePath) && File.Exists(export.FilePath))
-                {
-                    try
-                    {
-                        File.Delete(export.FilePath);
-                        deletedFiles++;
-                    }
-                    catch (IOException ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to delete export file: {FilePath}", export.FilePath);
-                    }
-                }
-            }
-
-            db.SspExports.RemoveRange(expired);
-            await db.SaveChangesAsync(ct);
-
-            _logger.LogInformation(
-                "Retention cleanup complete: {RecordCount} records removed, {FileCount} files deleted",
-                expired.Count, deletedFiles);
+            var service = scope.ServiceProvider.GetRequiredService<ISspExportService>();
+            var cleaned = await service.PurgeExpiredExportsAsync(ct);
+            _logger.LogInformation("Retention cleanup complete: {Count} exports cleaned; keyed request metadata retained", cleaned);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

@@ -1,306 +1,135 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import '../helpers/dialog';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import apiClient from '../../api/client';
 import Assessments from '../../pages/Assessments';
-import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
-import { workspaceSession } from '../helpers/domainPermissions';
-import {
-  configurationUrl, deferred, historicalAssessment, otherSystemId, readiness,
-  readinessPath, systemDetail, systemId,
-} from '../fixtures/assessmentEnvironment';
-
-const context = vi.hoisted(() => ({ systemId: 'assessment-system-a' }));
-vi.mock('../../components/layout/SystemLayout', () => ({
-  useSystemContext: () => ({ detail: { ...systemDetail, systemId: context.systemId }, refetch: vi.fn() }),
+import * as api from '../../api/assessmentWorkspace';
+import { planWorkspace, resultsWorkspace, resultDetail } from '../fixtures/assessmentWorkspace';
+const context = vi.hoisted(() => ({ systemId: 'system-a' }));
+vi.mock('../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: { systemId: context.systemId, name: 'System' } }) }));
+vi.mock('../../api/assessmentWorkspace', async original => ({
+  ...await original<typeof api>(), getAssessmentPlan: vi.fn(), getAssessmentResults: vi.fn(), collectAssessmentResults: vi.fn(),
 }));
-vi.mock('../../api/client', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
-vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
-vi.mock('../../api/sap', () => ({
-  getLatestSap: vi.fn().mockResolvedValue(null), generateSap: vi.fn(), finalizeSap: vi.fn(),
-}));
-vi.mock('../../api/sar', () => ({
-  getLatestSar: vi.fn().mockResolvedValue(null), createSar: vi.fn(),
-}));
-vi.mock('../../components/remediation/CreateRemediationTaskModal', () => ({ default: () => null }));
-vi.mock('../../components/AddDeviationDialog', () => ({ default: () => null }));
-
-const responses = new Map<string, () => unknown>();
-const runButton = () => screen.getByRole('button', { name: 'Run Assessment' });
-const renderPage = () => render(<MemoryRouter><Assessments /></MemoryRouter>);
-
 beforeEach(() => {
-  vi.clearAllMocks();
-  vi.mocked(apiClient.post).mockReset();
-  context.systemId = systemId;
-  vi.mocked(useWorkspaceSession).mockReturnValue(null);
-  responses.clear();
-  responses.set('/assessments', () => [historicalAssessment]);
-  responses.set(readinessPath(), () => readiness());
-  vi.mocked(apiClient.get).mockImplementation(async (url) => {
-    const respond = responses.get(url);
-    if (!respond) throw new Error(`Unmocked GET ${url}`);
-    return { data: await respond() };
-  });
-  vi.mocked(apiClient.post).mockResolvedValue({ data: { assessmentId: 'azure-run', status: 'Completed', systemId } });
+  vi.clearAllMocks(); context.systemId = 'system-a';
+  vi.mocked(api.getAssessmentPlan).mockResolvedValue(planWorkspace);
+  vi.mocked(api.getAssessmentResults).mockResolvedValue(resultsWorkspace);
+  vi.mocked(api.collectAssessmentResults).mockResolvedValue({ status: 'Completed', message: 'Collection retained; review required.', resultIds: [] });
 });
-
 afterEach(cleanup);
+const page = (withPlan = true) => <MemoryRouter initialEntries={[`/systems/system-a/assessments?tab=results${withPlan ? '&plan=sap-a' : ''}`]}><Assessments /></MemoryRouter>;
 
-describe('Assessments Azure admission (#981)', () => {
-  it('keeps Run visible and disabled while readiness is loading', async () => {
+describe('Assessment collection admission and recovery', () => {
+  it('does not expose an executable run while readiness is unknown', async () => {
     // Arrange
-    const pending = deferred<ReturnType<typeof readiness>>();
-    responses.set(readinessPath(), () => pending.promise);
-    renderPage();
-
+    vi.mocked(api.getAssessmentResults).mockReturnValue(new Promise(() => {}));
     // Act
-    await act(async () => { await Promise.resolve(); });
-
+    render(page());
     // Assert
-    expect(runButton()).toBeVisible();
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByText(/checking.*(Azure|environment|readiness)/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(await screen.findByText('Loading collection access and retained results…')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Run Azure checks' })).not.toBeInTheDocument();
+    expect(api.collectAssessmentResults).not.toHaveBeenCalled();
   });
-
-  it('explains missing configuration and cannot open or submit a run', async () => {
-    // Arrange
-    renderPage();
-
-    // Act
-    await screen.findByText(readiness().message);
-    fireEvent.click(runButton());
-
-    // Assert
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByText(readiness().suggestion!)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-    expect(apiClient.post).not.toHaveBeenCalled();
-  });
-
   it.each([
-    ['CLOUD_MISMATCH', 'The environment does not match the deployment cloud.'],
-    ['CLOUD_UNSUPPORTED', 'Air-gapped assessments are not supported.'],
-    ['SUBSCRIPTION_UNAVAILABLE', 'The attached subscription is unavailable.'],
-  ])('blocks a normal not-ready response: %s', async (errorCode, message) => {
+    ['NotConfigured', 'Configure the system assessment subscriptions.'],
+    ['CloudMismatch', 'The environment does not match the deployment cloud.'],
+    ['Unsupported', 'This execution scope is not supported.'],
+    ['Unavailable', 'The attached subscription is unavailable.'],
+    ['Denied', 'Select an authorized organization before assessing this system.'],
+  ])('explains %s without fabricating connectivity or results', async (state, message) => {
     // Arrange
-    responses.set(readinessPath(), () => ({ ...readiness(), errorCode, message }));
-    renderPage();
-
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace, collection: { ...resultsWorkspace.collection,
+      runReason: message, azure: { ...resultsWorkspace.collection.azure, state, message } } });
     // Act
-    await screen.findByText(message);
-
+    render(page());
     // Assert
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
+    expect((await screen.findAllByText(message))[0]).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Run Azure checks' })).toBeDisabled();
+    expect(api.collectAssessmentResults).not.toHaveBeenCalled();
   });
-
-  it('renders normalized provider errors and retries without allowing an assessment', async () => {
+  it('keeps historical results visible when Azure access is unavailable', async () => {
     // Arrange
-    const error = { error: 'Azure access could not be verified.', errorCode: 'AZURE_ACCESS_DENIED', suggestion: 'Ask an administrator to grant the assessment identity read access.' };
-    responses.set(readinessPath(), () => { throw error; });
-    renderPage();
-
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace, items: [resultDetail.item], totalCount: 1 });
     // Act
-    await screen.findByText(error.error);
-
+    render(page());
     // Assert
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByText(error.suggestion)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
-
-    // Act
-    responses.set(readinessPath(), () => readiness(true));
-    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-
-    // Assert
-    await waitFor(() => expect(runButton()).toBeEnabled());
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: 'Open result Azure configuration checks' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Run Azure checks' })).toBeDisabled();
+    expect(screen.getByText('Not reviewed')).toBeVisible();
   });
-
-  it('requires explicit CSP organization selection and never silently executes under All organizations', async () => {
+  it('refreshes readiness without executing collection', async () => {
     // Arrange
-    const blocked = {
-      ...readiness(),
-      errorCode: 'ASSESSMENT_AZURE_ORGANIZATION_REQUIRED',
-      message: 'Select the system organization before assessing its Azure environment.',
-      suggestion: 'Use the organization selector to choose the system organization, then retry.',
-    };
-    responses.set(readinessPath(), () => blocked);
-    renderPage();
-
+    render(page());
+    await screen.findByRole('button', { name: 'Run Azure checks' });
+    fireEvent.click(screen.getByText('Scope and access requirements'));
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace,
+      collection: { ...resultsWorkspace.collection, canRunAzure: true, runReason: null, azure: { ...resultsWorkspace.collection.azure, state: 'Ready', message: 'Scope verified.' } } });
     // Act
-    await screen.findByText(blocked.message);
-    fireEvent.click(runButton());
-
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh readiness' }));
     // Assert
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByText(blocked.suggestion)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-    expect(apiClient.post).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run Azure checks' })).toBeEnabled());
+    expect(api.collectAssessmentResults).not.toHaveBeenCalled();
   });
-
-  it('treats a normalized readiness writer-forbidden rejection as blocked rather than ready', async () => {
+  it('prevents double submission and retains a stable key when retrying a failed request', async () => {
     // Arrange
-    const error = {
-      error: 'You do not have permission to run assessments.',
-      errorCode: 'ASSESSMENT_PERMISSION_REQUIRED',
-      suggestion: 'Ask a ComplianceWriter to configure and run this assessment.',
-    };
-    responses.set(readinessPath(), () => { throw error; });
-    renderPage();
-
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace,
+      collection: { ...resultsWorkspace.collection, canRunAzure: true, runReason: null,
+        azure: { ...resultsWorkspace.collection.azure, state: 'Ready' } } });
+    vi.mocked(api.collectAssessmentResults).mockRejectedValueOnce(new Error('Connection interrupted; retained work may exist.'));
+    render(page());
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Azure checks' }));
     // Act
-    await screen.findByText(error.error);
-    fireEvent.click(runButton());
-
+    fireEvent.click(screen.getByRole('button', { name: 'Start scoped checks' }));
     // Assert
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByText(error.suggestion)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
-    expect(screen.queryByRole('button', { name: /retry readiness/i })).not.toBeInTheDocument();
-    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Connection interrupted');
+    const first = vi.mocked(api.collectAssessmentResults).mock.calls[0]![1];
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Start scoped checks' }));
+    // Assert
+    await waitFor(() => expect(api.collectAssessmentResults).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.collectAssessmentResults).mock.calls[1]![1].requestId).toBe(first.requestId);
   });
-
-  it('allows a ready system to run and disables duplicate submissions while posting', async () => {
+  it('allows preliminary collection without a finalized SAP', async () => {
     // Arrange
-    responses.set(readinessPath(), () => readiness(true));
-    const pending = deferred<{ data: { assessmentId: string; status: string; systemId: string } }>();
-    vi.mocked(apiClient.post).mockReturnValue(pending.promise);
-    renderPage();
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith(readinessPath()));
-    await waitFor(() => expect(runButton()).toBeEnabled());
-
+    vi.mocked(api.getAssessmentPlan).mockResolvedValue({ ...planWorkspace, plan: null, plans: [] });
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace,
+      collection: { ...resultsWorkspace.collection, canRunAzure: true, runReason: null,
+        azure: { ...resultsWorkspace.collection.azure, state: 'Ready' } } });
+    render(page(false));
     // Act
-    fireEvent.click(runButton());
-    fireEvent.click(screen.getAllByRole('button', { name: 'Run Assessment' }).at(-1)!);
-
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Azure checks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start scoped checks' }));
     // Assert
-    expect(screen.getByRole('button', { name: /running/i })).toBeDisabled();
-    expect(apiClient.post).toHaveBeenCalledTimes(1);
-    expect(apiClient.post).toHaveBeenCalledWith(`/systems/${systemId}/run-assessment`);
-
-    // Act
-    await act(async () => pending.resolve({ data: { assessmentId: 'azure-run', status: 'Completed', systemId } }));
-
-    // Assert
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    await waitFor(() => expect(api.collectAssessmentResults).toHaveBeenCalledWith('system-a',
+      expect.objectContaining({ planId: null, expectedPlanHash: null })));
   });
-
-  it.each([401, 403])('shows access guidance, not Retry, for empty-body HTTP %s readiness errors', async status => {
+  it('reports partial work as partial rather than successful assessment', async () => {
     // Arrange
-    responses.set(readinessPath(), () => {
-      throw Object.assign(new Error(`Request failed with status code ${status}`), {
-        isAxiosError: true, response: { status, data: '' },
-      });
-    });
-    renderPage();
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace,
+      collection: { ...resultsWorkspace.collection, canRunAzure: true, runReason: null,
+        azure: { ...resultsWorkspace.collection.azure, state: 'Ready' } } });
+    vi.mocked(api.collectAssessmentResults).mockResolvedValue({ status: 'Partial', message: 'One configured scope failed. Completed observations were retained.', resultIds: ['assessment:run-a'] });
+    render(page());
     // Act
-    await screen.findByText('Azure assessment access required');
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Azure checks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start scoped checks' }));
     // Assert
-    expect(runButton()).toBeDisabled();
-    expect(screen.queryByRole('button', { name: /retry readiness/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl());
+    expect(await screen.findByRole('alert')).toHaveTextContent('One configured scope failed');
   });
-
-  it('avoids readiness reads when canonical system permissions deny assessment execution', async () => {
+  it('cancels stale system reads and does not show their late result', async () => {
     // Arrange
-    vi.mocked(useWorkspaceSession).mockReturnValue(workspaceSession(systemId));
-    render(<MemoryRouter initialEntries={[`/workspaces/organizations/tenant-a/systems/${systemId}/assessments`]}><Assessments /></MemoryRouter>);
+    let resolve!: (value: typeof resultsWorkspace) => void;
+    vi.mocked(api.getAssessmentResults).mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    const view = render(page());
+    await screen.findByText('Loading collection access and retained results…');
+    const signal = vi.mocked(api.getAssessmentResults).mock.calls[0]![2]!;
     // Act
-    await screen.findByText('Azure assessment access required');
+    context.systemId = 'system-b';
+    vi.mocked(api.getAssessmentPlan).mockResolvedValue({ ...planWorkspace, systemId: 'system-b' });
+    vi.mocked(api.getAssessmentResults).mockResolvedValue({ ...resultsWorkspace, systemId: 'system-b' });
+    await act(async () => { view.rerender(page()); resolve({ ...resultsWorkspace, items: [resultDetail.item], totalCount: 1 }); });
     // Assert
-    expect(apiClient.get).not.toHaveBeenCalledWith(readinessPath());
-    expect(runButton()).toBeDisabled();
-    expect(screen.queryByRole('button', { name: /retry readiness/i })).not.toBeInTheDocument();
-  });
-
-  it('keeps a normalized POST prerequisite rejection actionable after previously being ready', async () => {
-    // Arrange
-    responses.set(readinessPath(), () => readiness(true));
-    const error = { error: 'The Azure environment was detached.', errorCode: 'ASSESSMENT_ENVIRONMENT_NOT_CONFIGURED', suggestion: 'Attach an Azure subscription before trying again.' };
-    vi.mocked(apiClient.post).mockRejectedValue(error);
-    renderPage();
-    await act(async () => { await Promise.resolve(); });
-
-    // Act
-    fireEvent.click(runButton());
-    fireEvent.click(screen.getAllByRole('button', { name: 'Run Assessment' }).at(-1)!);
-
-    // Assert
-    expect(await screen.findByText(error.error)).toBeInTheDocument();
-    expect(screen.getByText(error.suggestion)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /configure environment/i })[0]).toHaveAttribute('href', configurationUrl());
-    expect(screen.queryByText('Assessment failed')).not.toBeInTheDocument();
-  });
-
-  it('immediately discards ready state and the open run dialog when the system changes', async () => {
-    // Arrange
-    responses.set(readinessPath(), () => readiness(true));
-    responses.set(readinessPath(otherSystemId), () => new Promise<never>(() => {}));
-    const page = renderPage();
-    await act(async () => { await Promise.resolve(); });
-    fireEvent.click(runButton());
-
-    // Act
-    await act(async () => {
-      context.systemId = otherSystemId;
-      page.rerender(<MemoryRouter><Assessments /></MemoryRouter>);
-    });
-
-    // Assert
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl(otherSystemId));
-  });
-
-  it('ignores a late ready response from the previous system', async () => {
-    // Arrange
-    const previous = deferred<ReturnType<typeof readiness>>();
-    responses.set(readinessPath(), () => previous.promise);
-    responses.set(readinessPath(otherSystemId), () => readiness(false, otherSystemId));
-    const page = renderPage();
-
-    // Act
-    context.systemId = otherSystemId;
-    page.rerender(<MemoryRouter><Assessments /></MemoryRouter>);
-    await screen.findByText(readiness().message);
-    await act(async () => previous.resolve(readiness(true)));
-
-    // Assert
-    expect(runButton()).toBeDisabled();
-    expect(screen.getByRole('link', { name: /configure environment/i })).toHaveAttribute('href', configurationUrl(otherSystemId));
-    expect(apiClient.post).not.toHaveBeenCalled();
-  });
-
-  it('preserves historical manual assessment provenance and SAP/SAR controls while blocked', async () => {
-    // Arrange
-    responses.set('/assessments/historical-manual-assessment', () => ({
-      ...historicalAssessment, findings: [], familyResults: [], notAssessedControls: 0,
-      completedAt: historicalAssessment.assessedAt, executiveSummary: null,
-      criticalCount: 0, highCount: 0, mediumCount: 1, lowCount: 0,
-    }));
-    responses.set(`/systems/${systemId}/assessments/historical-manual-assessment/component-risks`, () => null);
-    renderPage();
-
-    // Act
-    const table = await screen.findByRole('table');
-    await waitFor(() => expect(within(table).getByText('75%')).toBeInTheDocument());
-
-    // Assert
-    expect(within(table).getByText('Completed')).toBeInTheDocument();
-    expect(within(table).queryByText(/Azure/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /generate SAP/i })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /generate SAR/i })).toBeEnabled();
-
-    // Act
-    fireEvent.click(within(table).getByRole('button', { name: /view/i }));
-
-    // Assert
-    expect(await screen.findByText('Manual')).toBeInTheDocument();
+    expect(signal.aborted).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Open result Azure configuration checks' })).not.toBeInTheDocument();
   });
 });

@@ -11,12 +11,17 @@ public sealed record PreviewMissionProviderRelationshipRequest(long ExpectedRevi
     IReadOnlyList<ProviderCitation> Evidence, string Rationale);
 /// <summary>Confirm a fresh exact relationship preview.</summary>
 public sealed record ReviewMissionProviderRelationshipRequest(long ExpectedRevision, Guid PreviewId, string PreviewHash, string Rationale);
-/// <summary>Retained mission relationship and technical assignment projection.</summary>
+/// <summary>
+/// Retained mission relationship and technical assignment projection. Review permissions require an
+/// existing relationship and current hosting allocation; covered review additionally requires assigned
+/// AO decision authority. They do not bypass exact preview, revision or evidence validation.
+/// </summary>
 public sealed record MissionProviderRelationshipResponse(Guid? RelationshipId, long Revision, Guid AssignmentId,
     long AssignmentRevision, Guid OfferingId, string SystemId, string State, bool ReviewRequired,
     Guid? AuthorizationRevisionId, Guid? BoundaryRevisionId, string? ReviewedBy, DateTimeOffset? ReviewedAt,
-    IReadOnlyList<ProviderAzureScope> AssignedScopes, string? OfferingName = null, string? ProviderName = null,
-    string? SystemName = null, string? HostingScopeName = null, bool CanAssociate = false);
+    IReadOnlyList<ProviderScope> AssignedScopes, string? OfferingName = null, string? ProviderName = null,
+    string? SystemName = null, string? HostingScopeName = null, bool CanAssociate = false,
+    bool CanReviewRelationship = false, bool CanReviewCoveredScope = false);
 /// <summary>Exact relationship review input and blocking prerequisites.</summary>
 public sealed record MissionProviderRelationshipPreviewResponse(Guid PreviewId, string PreviewHash, long Revision,
     string ContextSnapshotHash, IReadOnlyList<ProviderImpactBlocker> Blockers, bool CanReview);

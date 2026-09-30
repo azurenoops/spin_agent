@@ -13,6 +13,31 @@
 
 ## Phase 1: Setup
 
+### US6 - Policies for this system
+
+External tracking approval pending for a user story under
+[azurenoops/spin_agent#218](https://github.com/azurenoops/spin_agent/issues/218);
+related failure semantics are tracked by
+[azurenoops/spin_agent#973](https://github.com/azurenoops/spin_agent/issues/973).
+
+- [ ] POLICY01 Approve/create and link the user-story issue; mirror this checklist.
+- [X] POLICY02 Add failing persistence/HTTP tests for scoped policy sources, assignments, snapshots, rationale, duplicate/stale conflicts, permissions and unlink audit.
+- [X] POLICY03 Extend the existing assignment model/schema and component service with retained policy-reference metadata and scoped operations; no new policy library.
+- [X] POLICY04 Add failing frontend tests for the guided flow, real character counts, explicit creation/return, errors, and state isolation.
+- [X] POLICY05 Implement the mock-aligned empty/populated page and Choose policy / Explain & add drawer, plus retained-reference details/edit/unlink.
+- [X] POLICY06 Verify source/library ownership and downstream SSP/narrative/export consumers; document gaps and manual steps.
+- [X] POLICY07 Run static checks, targeted backend/frontend tests, and browser checks for navigation, focus, themes, responsive layout and full add flow.
+- [X] POLICY08 Deploy locally for manual acceptance; report actual results and remaining gates. No push.
+
+Local verification: 24 backend integration/schema/compatibility tests, dashboard
+static checking/build, and four desktop/mobile/light/dark browser cases pass.
+The API is deployed as `ato-copilot-mcp:policy-workspace-20260928`; seven additive
+assignment columns were verified in the configured SQL Server database.
+Full-solution/unit compilation remains blocked by unrelated responsibility DTO
+constructor mismatches. Manual organization acceptance requires an assigned
+organization identity; the currently shared browser has provider access only.
+POLICY01 is still deferred pending explicit GitHub write approval.
+
 **Purpose**: Create new entity files and modify existing models for org-wide component support
 
 - [X] T001 [P] Create ComponentSystemAssignment entity in src/Ato.Copilot.Core/Models/Compliance/ComponentSystemAssignment.cs

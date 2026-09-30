@@ -10,7 +10,7 @@ namespace Ato.Copilot.Core.Services;
 /// <summary>
 /// Service for System Component CRUD (Person/Place/Thing inventory).
 /// </summary>
-public class ComponentService
+public partial class ComponentService
 {
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly ILogger<ComponentService> _logger;
@@ -231,6 +231,8 @@ public class ComponentService
 
         if (entity is null) return null;
 
+        GuardPolicySourceType(entity, request);
+
         entity.Name = request.Name;
         entity.SubType = request.SubType;
         entity.Description = request.Description;
@@ -285,51 +287,50 @@ public class ComponentService
         string deletedBy,
         CancellationToken cancellationToken = default)
     {
-        await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
-
-        var entity = await _db.SystemComponents
-            .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
-            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
-
-        if (entity is null) return null;
-
-        var flagged = new List<FlaggedCapabilityDto>();
-
-        if (entity.Status == ComponentStatus.Active && entity.CapabilityLinks.Any())
+        var result = await ExecutePolicyMutationAsync<DeleteComponentResponse?>(async _db =>
         {
-            foreach (var link in entity.CapabilityLinks)
+            var entity = await _db.SystemComponents
+                .Include(c => c.CapabilityLinks).ThenInclude(cl => cl.SecurityCapability)
+                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+
+            if (entity is null) return null;
+            // Serialize this guard with policy capture so a source deletion cannot cascade a newly retained reference.
+            if (entity.ComponentType == ComponentType.Policy
+                && await _db.ComponentSystemAssignments.AnyAsync(a => a.TenantId == entity.TenantId
+                    && a.SystemComponentId == id, cancellationToken))
+                throw new PolicyReferenceWorkflowRequiredException(
+                    "This policy has system references. Unlink them through each system's policy workspace with the expected revision before deleting the library source.");
+
+            var flagged = new List<FlaggedCapabilityDto>();
+            if (entity.Status == ComponentStatus.Active && entity.CapabilityLinks.Any())
             {
-                flagged.Add(new FlaggedCapabilityDto
+                foreach (var link in entity.CapabilityLinks)
                 {
-                    CapabilityId = link.SecurityCapabilityId,
-                    CapabilityName = link.SecurityCapability.Name,
-                    Message = "Linked component removed — review capability",
-                });
-
-                _db.DashboardActivities.Add(new DashboardActivity
-                {
-                    RegisteredSystemId = entity.RegisteredSystemId,
-                    EventType = "ComponentDeleted",
-                    Actor = deletedBy,
-                    Summary = $"Component '{entity.Name}' deleted — capability '{link.SecurityCapability.Name}' flagged for review",
-                    RelatedEntityType = "SecurityCapability",
-                    RelatedEntityId = link.SecurityCapabilityId,
-                });
+                    flagged.Add(new FlaggedCapabilityDto
+                    {
+                        CapabilityId = link.SecurityCapabilityId,
+                        CapabilityName = link.SecurityCapability.Name,
+                        Message = "Linked component removed — review capability",
+                    });
+                    _db.DashboardActivities.Add(new DashboardActivity
+                    {
+                        RegisteredSystemId = entity.RegisteredSystemId,
+                        EventType = "ComponentDeleted",
+                        Actor = deletedBy,
+                        Summary = $"Component '{entity.Name}' deleted — capability '{link.SecurityCapability.Name}' flagged for review",
+                        RelatedEntityType = "SecurityCapability",
+                        RelatedEntityId = link.SecurityCapabilityId,
+                    });
+                }
             }
-        }
-
-        _db.ComponentCapabilityLinks.RemoveRange(entity.CapabilityLinks);
-        _db.SystemComponents.Remove(entity);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation("Deleted component {ComponentId} '{Name}': {FlaggedCount} capabilities flagged",
-            id, entity.Name, flagged.Count);
-
-        return new DeleteComponentResponse
-        {
-            DeletedId = id,
-            FlaggedCapabilities = flagged,
-        };
+            _db.ComponentCapabilityLinks.RemoveRange(entity.CapabilityLinks);
+            _db.SystemComponents.Remove(entity);
+            return new DeleteComponentResponse { DeletedId = id, FlaggedCapabilities = flagged };
+        }, cancellationToken);
+        if (result is not null)
+            _logger.LogInformation("Deleted component {ComponentId}: {FlaggedCount} capabilities flagged",
+                id, result.FlaggedCapabilities.Count);
+        return result;
     }
 
     private static SystemComponentDto MapToDto(SystemComponent entity)
@@ -1365,6 +1366,8 @@ public class ComponentService
 
         if (entity is null) return null;
 
+        GuardPolicySourceType(entity, request);
+
         var cascadeNeeded = entity.Name != request.Name ||
                             entity.Description != request.Description ||
                             entity.Owner != request.Owner;
@@ -1482,13 +1485,17 @@ public class ComponentService
     {
         await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
-        var componentExists = await _db.SystemComponents
-            .AnyAsync(c => c.Id == componentId, cancellationToken);
-        if (!componentExists) return (null, "Component not found");
+        var component = await _db.SystemComponents
+            .FirstOrDefaultAsync(c => c.Id == componentId, cancellationToken);
+        if (component is null) return (null, "Component not found");
 
         var systemExists = await _db.RegisteredSystems
             .AnyAsync(s => s.Id == request.RegisteredSystemId && s.IsActive, cancellationToken);
         if (!systemExists) return (null, "System not found");
+
+        if (component.ComponentType == ComponentType.Policy)
+            throw new PolicyReferenceWorkflowRequiredException(
+                "Assign this policy through the system policy workspace to review the source revision and record a rationale.");
 
         // Check duplicate
         var duplicate = await _db.ComponentSystemAssignments
@@ -1561,6 +1568,11 @@ public class ComponentService
 
         if (assignment is null) return false;
 
+        if (assignment.PolicySourceSnapshotJson is not null || assignment.PolicyRevision > 0
+            || await _db.SystemComponents.AnyAsync(c => c.Id == componentId && c.ComponentType == ComponentType.Policy, cancellationToken))
+            throw new PolicyReferenceWorkflowRequiredException(
+                "Unlink this policy through its system policy workspace with the expected reference revision so history is preserved.");
+
         _db.ComponentSystemAssignments.Remove(assignment);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -1586,6 +1598,10 @@ public class ComponentService
         CancellationToken cancellationToken)
     {
         await using var _db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        // Applicability changes are not narrative approval: policy sources must never regenerate reviewed content.
+        if (await _db.SystemComponents.AnyAsync(c => c.Id == componentId && c.ComponentType == ComponentType.Policy, cancellationToken))
+            return;
 
         // Find all capabilities linked to this component
         var linkedCapabilityIds = await _db.ComponentCapabilityLinks

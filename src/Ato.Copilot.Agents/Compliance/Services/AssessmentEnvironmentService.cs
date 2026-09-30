@@ -27,6 +27,7 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
     private readonly string _deploymentCloud;
     private readonly OnboardingOptions _onboarding;
     private readonly ILogger<AssessmentEnvironmentService> _logger;
+    private readonly ISystemEnvironmentScopeResolver? _environments;
 
     /// <summary>Creates the tenant-scoped admission service.</summary>
     /// <param name="factory">Tenant-filtered database contexts.</param>
@@ -36,11 +37,13 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
     /// <param name="onboarding">Existing organization subscription limits.</param>
     /// <param name="armClients">Factory that owns the actual default assessment client.</param>
     /// <param name="logger">Structured logger.</param>
+    /// <param name="environments">Canonical attachment authority, resolved before legacy admission.</param>
     public AssessmentEnvironmentService(
         IDbContextFactory<AtoCopilotContext> factory, ITenantContextAccessor tenants,
         IAzureAssessmentConnectionProbe probe, IOptions<GatewayOptions> gateway,
         IOptions<OnboardingOptions> onboarding, ArmClientFactory armClients,
-        ILogger<AssessmentEnvironmentService> logger)
+        ILogger<AssessmentEnvironmentService> logger,
+        ISystemEnvironmentScopeResolver? environments = null)
     {
         _factory = factory;
         _tenants = tenants;
@@ -49,6 +52,7 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
         _deploymentCloud = armClients.DefaultCloud;
         _onboarding = onboarding.Value;
         _logger = logger;
+        _environments = environments;
     }
 
     /// <inheritdoc />
@@ -63,6 +67,18 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
         try
         {
             EnsureActiveOrganization(system);
+            if (_environments is not null)
+            {
+                var scopes = await _environments.ResolveAsync(systemId, EnvironmentScopePurpose.Assessment, cancellationToken);
+                if (CanonicalEnvironmentExecutionGate.IsCanonical(scopes))
+                {
+                    subscriptions = scopes.Sources.Select(source => new AssessmentSubscriptionResponse(
+                        source.Registration.SubscriptionId.ToString(), source.Registration.DisplayName,
+                        source.AttachmentId, source.Eligible ? "ScopeUnsupported" : "Ineligible",
+                        source.Eligible ? CanonicalEnvironmentExecutionGate.ScopeMessage : source.IneligibleReason)).ToArray();
+                    throw CanonicalEnvironmentExecutionGate.Failure(scopes);
+                }
+            }
             if (!_gateway.Azure.Enabled)
                 throw DeploymentFailure("Azure assessment access is disabled for this deployment.");
             var cloud = ResolveDeploymentCloud();
@@ -95,6 +111,7 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
         var system = await FindSystemAsync(db, systemId, cancellationToken);
         EnsureActiveOrganization(system);
+        await RequireLegacyConfigurationAsync(systemId, cancellationToken);
         var cloud = ResolveDeploymentCloud();
         var registrations = await LoadOrganizationRegistrationsAsync(db, system.TenantId, cancellationToken);
         return Configuration(system, cloud, registrations);
@@ -110,6 +127,7 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
         var system = await FindSystemAsync(db, systemId, cancellationToken);
         EnsureActiveOrganization(system);
+        await RequireLegacyConfigurationAsync(systemId, cancellationToken);
         var cloud = ResolveDeploymentCloud();
         if (!Enum.TryParse<AzureCloudEnvironment>(request.CloudEnvironment, true, out var requestedCloud) ||
             !string.Equals(requestedCloud.ToString(), request.CloudEnvironment, StringComparison.OrdinalIgnoreCase))
@@ -143,6 +161,7 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
         var system = await FindSystemAsync(db, systemId, cancellationToken);
         EnsureActiveOrganization(system);
+        await RequireLegacyConfigurationAsync(systemId, cancellationToken);
         if (system.AzureProfile is null)
         {
             _logger.LogInformation("Azure assessment attachment already absent for system {SystemId}", systemId);
@@ -164,6 +183,16 @@ public sealed class AssessmentEnvironmentService : IAssessmentEnvironmentService
             ?? throw new AssessmentEnvironmentException(AssessmentEnvironmentErrors.SystemNotFound,
                 "The system was not found in the current organization.",
                 "Select an accessible active system and try again.");
+    }
+
+    private async Task RequireLegacyConfigurationAsync(string systemId, CancellationToken cancellationToken)
+    {
+        if (_environments is null) return;
+        var scopes = await _environments.ResolveAsync(systemId, EnvironmentScopePurpose.Documentation, cancellationToken);
+        if (CanonicalEnvironmentExecutionGate.IsCanonical(scopes))
+            throw new AssessmentEnvironmentException(CanonicalEnvironmentExecutionGate.SharedSourceRequired,
+                "This system uses the shared Connected environments source; the legacy assessment selector cannot change it.",
+                CanonicalEnvironmentExecutionGate.Suggestion);
     }
 
     private void EnsureActiveOrganization(RegisteredSystem system)

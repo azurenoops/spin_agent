@@ -23,6 +23,9 @@ using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Authentication;
 using Ato.Copilot.Mcp.Endpoints;
 using Ato.Copilot.Mcp.Services;
+using Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
+using Ato.Copilot.Core.Interfaces.Workspaces;
+using Ato.Copilot.Agents.Compliance.Services;
 
 namespace Ato.Copilot.Tests.Integration.Evidence;
 
@@ -35,6 +38,9 @@ public class EvidenceEndpointsTests : IAsyncLifetime
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private readonly string _systemId = "sys-integration-test";
+    private readonly Mock<IProviderEvidenceSharingService> _provider = new();
+    private readonly Mock<IFileStorageProvider> _storage = new();
+    private readonly Mock<IAzurePolicyComplianceService> _policy = new();
     private readonly JsonSerializerOptions _json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -50,7 +56,7 @@ public class EvidenceEndpointsTests : IAsyncLifetime
 
         var dbName = $"EvidenceEndpoints_{Guid.NewGuid():N}";
 
-        var storageProvider = new Mock<IFileStorageProvider>();
+        var storageProvider = _storage;
         storageProvider
             .Setup(s => s.SaveAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -76,7 +82,12 @@ public class EvidenceEndpointsTests : IAsyncLifetime
             lifetime: ServiceLifetime.Singleton);
         builder.Services.AddSingleton<IFileStorageProvider>(storageProvider.Object);
         builder.Services.AddSingleton<IEvidenceArtifactService, EvidenceArtifactService>();
-        builder.Services.AddSingleton(Mock.Of<IEvidenceStorageService>());
+        _provider.Setup(s => s.ListMissionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<ProviderEvidenceShareResponse>([], 1, 100, 0));
+        builder.Services.AddSingleton(_provider.Object);
+        builder.Services.AddSingleton(_policy.Object);
+        builder.Services.AddSingleton(Mock.Of<IDefenderForCloudService>());
+        builder.Services.AddSingleton<IEvidenceStorageService, EvidenceStorageService>();
         builder.Services.AddSingleton(Mock.Of<IEvidenceCorrelationEngine>());
         builder.Services.AddSingleton(Mock.Of<IEvidenceFreshnessService>());
         builder.Services.AddSingleton(Mock.Of<IEvidenceAuditService>());
@@ -145,6 +156,364 @@ public class EvidenceEndpointsTests : IAsyncLifetime
     }
 
     // ─── Upload Evidence ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Catalog_GloballyPagesScopedSourcesAndReturnsKnownLinks()
+    {
+        // Arrange
+        await UploadTestEvidence("older.pdf", "application/pdf");
+        using (var scope = _app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.Assessments.Add(new ComplianceAssessment { Id = "catalog-assessment", RegisteredSystemId = _systemId });
+            db.Evidence.AddRange(
+                new ComplianceEvidence { Id = "scoped", AssessmentId = "catalog-assessment", ControlId = "AC-1", Description = "New scan", CollectedAt = DateTime.UtcNow.AddMinutes(1) },
+                new ComplianceEvidence { Id = "unscoped", ControlId = "AC-1", Description = "Another system scan", CollectedAt = DateTime.UtcNow.AddMinutes(2) });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var response = await _client.GetAsync($"/api/dashboard/systems/{_systemId}/evidence-catalog?pageSize=1");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        json.GetProperty("totalCount").GetInt32().Should().Be(2);
+        json.GetProperty("counts").GetProperty("system").GetInt32().Should().Be(2);
+        json.GetProperty("items").GetArrayLength().Should().Be(1);
+        json.GetProperty("items")[0].GetProperty("id").GetString().Should().Be("automated:scoped");
+        var filtered = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog?source=Manual&family=AC");
+        filtered.GetProperty("totalCount").GetInt32().Should().Be(1);
+        filtered.GetProperty("items")[0].GetProperty("controls")[0].GetProperty("kind").GetString().Should().Be("direct");
+    }
+
+    [Fact]
+    public async Task Catalog_ProjectsCapabilityValidationTitlesAndFilteredMissingLinks()
+    {
+        // Arrange
+        using (var scope = _app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            db.NistControls.Add(new NistControl { Id = "AC-1", Family = "AC", Title = "Access control policy" });
+            db.SecurityCapabilities.Add(new SecurityCapability { Id = "catalog-capability", Name = "Capability" });
+            db.CapabilityControlMappings.Add(new CapabilityControlMapping
+                { SecurityCapabilityId = "catalog-capability", RegisteredSystemId = _systemId, ControlId = "AC-1" });
+            db.EvidenceArtifacts.AddRange(
+                new EvidenceArtifact { Id = "capability-artifact", RegisteredSystemId = _systemId,
+                    SecurityCapabilityId = "catalog-capability", FileName = "capability.txt", ArtifactCategory = ArtifactCategory.Other },
+                new EvidenceArtifact { Id = "validation-artifact", RegisteredSystemId = _systemId,
+                    FileName = "validation.txt", ArtifactCategory = ArtifactCategory.Other },
+                new EvidenceArtifact { Id = "missing-link", RegisteredSystemId = _systemId,
+                    FileName = "unlinked.txt", ArtifactCategory = ArtifactCategory.Other });
+            db.ControlValidationLinks.AddRange(
+                new ControlValidationLink { ControlImplementationId = "ci-1", LinkType = ControlValidationLinkType.EvidenceArtifact,
+                    LinkTarget = "evidence://validation-artifact" },
+                new ControlValidationLink { ControlImplementationId = "ci-1", LinkType = ControlValidationLinkType.EvidenceArtifact,
+                    LinkTarget = "validation-artifact" });
+            await db.SaveChangesAsync();
+        }
+
+        // Act
+        var all = await _client.GetFromJsonAsync<JsonElement>($"/api/dashboard/systems/{_systemId}/evidence-catalog");
+        var filtered = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog?family=AC&category=Other");
+
+        // Assert
+        all.GetProperty("totalCount").GetInt32().Should().Be(3);
+        all.GetProperty("counts").GetProperty("missingLinks").GetInt32().Should().Be(1);
+        filtered.GetProperty("totalCount").GetInt32().Should().Be(2);
+        filtered.GetProperty("counts").GetProperty("missingLinks").GetInt32().Should().Be(0);
+        var controls = filtered.GetProperty("items").EnumerateArray()
+            .SelectMany(i => i.GetProperty("controls").EnumerateArray()).ToArray();
+        controls.Should().HaveCount(2, "duplicate validation references represent one linked control");
+        controls.Select(c => c.GetProperty("kind").GetString()).Should().BeEquivalentTo("capability", "validation");
+        controls.Should().OnlyContain(c => c.GetProperty("title").GetString() == "Access control policy");
+    }
+
+    [Fact]
+    public async Task Catalog_ProviderFailure_IsPartialNotEmpty()
+    {
+        // Arrange
+        await UploadTestEvidence("local.pdf", "application/pdf");
+        _provider.Setup(s => s.ListMissionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("private infrastructure detail"));
+
+        // Act
+        var response = await _client.GetAsync($"/api/dashboard/systems/{_systemId}/evidence-catalog");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        json.GetProperty("totalCount").ValueKind.Should().Be(JsonValueKind.Null);
+        json.GetProperty("availableCount").GetInt32().Should().Be(1);
+        json.GetProperty("counts").GetProperty("system").GetInt32().Should().Be(1);
+        json.GetProperty("counts").GetProperty("provider").ValueKind.Should().Be(JsonValueKind.Null);
+        json.GetProperty("sources")[1].GetProperty("state").GetString().Should().Be("unavailable");
+        (await response.Content.ReadAsStringAsync()).Should().NotContain("private infrastructure");
+    }
+
+    [Fact]
+    public async Task Catalog_FilterExcludingFailedSourceHasCompleteSelectedCount()
+    {
+        // Arrange
+        await UploadTestEvidence("local.pdf", "application/pdf");
+        _provider.Setup(s => s.ListMissionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("unavailable"));
+
+        // Act
+        var json = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog?source=Manual");
+
+        // Assert
+        json.GetProperty("totalCount").GetInt32().Should().Be(1);
+        json.GetProperty("counts").GetProperty("all").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Catalog_ProviderPaginationAndDateFilteringHappenBeforeGlobalPaging()
+    {
+        // Arrange
+        var rows = Enumerable.Range(1, 105).Select(i => new ProviderEvidenceShareResponse(Guid.NewGuid(),
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), _systemId,
+            1, null, $"Summary {i:D3}", "same-source-hash", "same-summary-hash", "approver",
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddDays(i), 1, null)).ToArray();
+        _provider.Setup(s => s.ListMissionAsync(_systemId, It.IsAny<int>(), 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, int page, int size, CancellationToken _) =>
+                new PagedResult<ProviderEvidenceShareResponse>(rows.Skip((page - 1) * size).Take(size).ToArray(), page, size, rows.Length));
+
+        // Act
+        var json = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog?view=provider&sortBy=name&sortOrder=asc&page=2&pageSize=100");
+        var filtered = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog?dateFrom=2026-04-15T00:00:00Z&search=Summary");
+
+        // Assert
+        json.GetProperty("totalCount").GetInt32().Should().Be(105, "equal hashes must not collapse separate grants");
+        json.GetProperty("items").GetArrayLength().Should().Be(5);
+        json.GetProperty("items")[0].GetProperty("name").GetString().Should().Be("Summary 101");
+        filtered.GetProperty("totalCount").GetInt32().Should().Be(2);
+        filtered.GetProperty("counts").GetProperty("missingLinks").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Catalog_FileCheckFailureIsUnavailableAndMetadataRemainsUnknown()
+    {
+        // Arrange
+        var response = await UploadTestEvidence("local.pdf", "application/pdf");
+        var id = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+        _storage.Setup(s => s.ExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("private disk path"));
+
+        // Act
+        var detail = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog/artifact:{id}");
+
+        // Assert
+        detail.GetProperty("availability").GetString().Should().Be("Unavailable");
+        detail.GetProperty("permissions").GetProperty("canDownload").GetBoolean().Should().BeFalse();
+        detail.GetProperty("owner").ValueKind.Should().Be(JsonValueKind.Null);
+        detail.GetProperty("currency").ValueKind.Should().Be(JsonValueKind.Null);
+        detail.GetProperty("relevance").ValueKind.Should().Be(JsonValueKind.Null);
+        detail.GetRawText().Should().NotContain("private disk path");
+    }
+
+    [Fact]
+    public async Task Catalog_ProviderDeniedDoesNotReportZeroOrExposeDetails()
+    {
+        // Arrange
+        _provider.Setup(s => s.ListMissionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException("private policy detail"));
+
+        // Act
+        var json = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog?view=provider");
+
+        // Assert
+        json.GetProperty("totalCount").ValueKind.Should().Be(JsonValueKind.Null);
+        json.GetProperty("sources")[1].GetProperty("state").GetString().Should().Be("denied");
+        json.GetRawText().Should().NotContain("private policy detail");
+    }
+
+    [Fact]
+    public async Task Collect_OperationalFailureDoesNotPersistSuccessShapedErrorEvidence()
+    {
+        // Arrange
+        using (var scope = _app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var system = await db.RegisteredSystems.SingleAsync(s => s.Id == _systemId);
+            system.AzureProfile = new AzureEnvironmentProfile { SubscriptionIds = ["sub-test"] };
+            db.Assessments.Add(new ComplianceAssessment { Id = "collect-assessment", RegisteredSystemId = _systemId });
+            await db.SaveChangesAsync();
+        }
+        _policy.Setup(p => p.GetComplianceSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("private infrastructure failure"));
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/dashboard/systems/{_systemId}/controls/AC-1/collect-evidence", null);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        using var check = _app.Services.CreateScope();
+        (await check.ServiceProvider.GetRequiredService<AtoCopilotContext>().Evidence.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Collect_SuccessPersistsExactAssessmentAndAppearsInCatalog()
+    {
+        // Arrange
+        using (var scope = _app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var system = await db.RegisteredSystems.SingleAsync(s => s.Id == _systemId);
+            system.AzureProfile = new AzureEnvironmentProfile { SubscriptionIds = ["sub-test"] };
+            db.Assessments.Add(new ComplianceAssessment { Id = "collect-assessment", RegisteredSystemId = _systemId });
+            await db.SaveChangesAsync();
+        }
+        _policy.Setup(p => p.GetComplianceSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"compliant":1}""");
+
+        // Act
+        var response = await _client.PostAsync(
+            $"/api/dashboard/systems/{_systemId}/controls/AC-1/collect-evidence", null);
+        var catalog = await _client.GetFromJsonAsync<JsonElement>(
+            $"/api/dashboard/systems/{_systemId}/evidence-catalog?view=system");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        catalog.GetProperty("totalCount").GetInt32().Should().Be(1);
+        using var check = _app.Services.CreateScope();
+        (await check.ServiceProvider.GetRequiredService<AtoCopilotContext>().Evidence.SingleAsync())
+            .AssessmentId.Should().Be("collect-assessment");
+    }
+
+    [Fact]
+    public async Task Catalog_SystemDatabaseFailureKeepsProviderRecordsAndUnknownTotals()
+    {
+        // Arrange
+        await using var unavailableDb = new AtoCopilotContext(
+            new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite("Data Source=:memory:").Options);
+        var share = new ProviderEvidenceShareResponse(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), _systemId, 1, null, "Approved summary",
+            "source-hash", "summary-hash", "approver", DateTimeOffset.UtcNow, 1, null);
+        _provider.Setup(p => p.ListMissionAsync(_systemId, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<ProviderEvidenceShareResponse>([share], 1, 100, 1));
+        var service = new EvidenceCatalogService(unavailableDb, _provider.Object, _storage.Object,
+            Mock.Of<ILogger<EvidenceCatalogService>>());
+
+        // Act
+        var result = await service.ListAsync(_systemId, new(),
+            new(false, "Denied", false, "Denied", false, "Denied"), CancellationToken.None);
+
+        // Assert
+        result.Items.Should().ContainSingle(r => r.Source == "Provider");
+        result.Sources[0].State.Should().Be("unavailable");
+        result.Counts.System.Should().BeNull();
+        result.Counts.Provider.Should().Be(1);
+        result.TotalCount.Should().BeNull();
+        result.AvailableCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Catalog_CancellationIsNotConvertedIntoPartialSuccess()
+    {
+        // Arrange
+        _provider.Setup(p => p.ListMissionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+        using var scope = _app.Services.CreateScope();
+        var service = new EvidenceCatalogService(scope.ServiceProvider.GetRequiredService<AtoCopilotContext>(),
+            _provider.Object, _storage.Object, Mock.Of<ILogger<EvidenceCatalogService>>());
+
+        // Act
+        var act = () => service.ListAsync(_systemId, new(),
+            new(false, "Denied", false, "Denied", false, "Denied"), CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task ReplaceSameFilename_RetainsDistinctProtectedVersionAndChecksHash()
+    {
+        // Arrange
+        var upload = await UploadTestEvidence("same.pdf", "application/pdf");
+        var uploaded = await upload.Content.ReadFromJsonAsync<JsonElement>();
+        var id = uploaded.GetProperty("id").GetString();
+        var hash = uploaded.GetProperty("contentHash").GetString();
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(Encoding.UTF8.GetBytes("new content"));
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", "same.pdf");
+        form.Add(new StringContent(hash!), "expectedHash");
+
+        // Act
+        var response = await _client.PutAsync($"/api/dashboard/systems/{_systemId}/evidence/{id}", form);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var artifact = await db.EvidenceArtifacts.SingleAsync(a => a.Id == id);
+        var version = await db.EvidenceVersions.SingleAsync(v => v.EvidenceArtifactId == id);
+        artifact.StoragePath.Should().NotBe(version.StoragePath);
+        version.ContentHash.Should().Be(hash);
+        (await _client.GetAsync($"/api/dashboard/systems/{_systemId}/evidence/{id}/versions/{version.Id}/download"))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _client.DeleteAsync($"/api/dashboard/systems/{_systemId}/evidence/{id}?expectedHash={hash}"))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("/download")]
+    [InlineData("/versions")]
+    public async Task EvidenceReads_RejectOtherSystem(string suffix)
+    {
+        // Arrange
+        var upload = await UploadTestEvidence("scope.pdf", "application/pdf");
+        var id = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+
+        // Act
+        var response = await _client.GetAsync($"/api/dashboard/systems/another-system/evidence/{id}{suffix}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Delete_RejectsOtherSystemWithoutChangingArtifact()
+    {
+        // Arrange
+        var upload = await UploadTestEvidence("scope.pdf", "application/pdf");
+        var id = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/dashboard/systems/another-system/evidence/{id}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await _client.GetAsync($"/api/dashboard/systems/{_systemId}/evidence/{id}")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Upload_ResolvesControlIdWithinRouteSystem()
+    {
+        // Arrange
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(Encoding.UTF8.GetBytes("scoped evidence"));
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", "control.pdf");
+        form.Add(new StringContent("AC-1"), "controlId");
+        form.Add(new StringContent("Other"), "category");
+
+        // Act
+        var response = await _client.PostAsync($"/api/dashboard/systems/{_systemId}/evidence", form);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+    }
 
     [Fact]
     public async Task EvidenceRoute_RejectsAnonymousRequest()

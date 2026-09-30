@@ -3,14 +3,15 @@ import { useParams, Link, Outlet, useLocation } from '../../features/workspaces/
 import PageLayout from './PageLayout';
 import TodoPanel from '../cards/TodoPanel';
 import { usePolling } from '../../hooks/usePolling';
-import { useSettings } from '../../hooks/useSettings';
-import { useWorkspaceSession } from '../../features/workspaces/WorkspaceBoundary';
-import { displayWorkspaceRoles } from '../../features/workspaces/workspaceRoles';
 import apiClient from '../../api/client';
 import { getSystemDetail } from '../../api/systemDetail';
 import { getProfileCompleteness } from '../../api/systemProfile';
 import type { SystemDetailResponse, ProfileCompletenessResponse, TodoList } from '../../types/dashboard';
 import AsyncErrorState from '../AsyncErrorState';
+import { SYSTEM_SCREEN_GROUPS } from '../../features/systems/systemScreenRoutes';
+import SystemTaskNavigation from '../../features/systems/SystemTaskNavigation';
+import { packageReturnHref } from '../../features/systems/packageReadinessNavigation';
+import { SystemPageSelector, SystemSidebar } from '../../features/systems/SystemNavigation';
 
 // ─── Context ────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ interface NavItem {
   label: string;
   end?: boolean;
   d: string;
+  unavailable?: string;
 }
 
 interface NavGroup {
@@ -44,7 +46,7 @@ interface NavGroup {
   primaryFor?: string[];
 }
 
-export const SYSTEM_NAV_GROUPS: NavGroup[] = [
+const legacyNavGroups: NavGroup[] = [
   {
     label: 'System Profile',
     primaryFor: ['ISSM', 'ISSO', 'MissionOwner', 'Engineer', 'SCA', 'AO'],
@@ -101,19 +103,25 @@ export const SYSTEM_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+const existingIcons = new Map(legacyNavGroups.flatMap(group => group.items).map(item => [item.path, item.d]));
+export const SYSTEM_NAV_GROUPS: NavGroup[] = SYSTEM_SCREEN_GROUPS.map(group => ({
+  ...group,
+  items: group.items.map(item => ({
+    ...item,
+    d: existingIcons.get(item.path.split('?')[0]!) ?? 'M4 6h16M4 12h16M4 18h16',
+  })),
+}));
+
 // ─── Layout ─────────────────────────────────────────────────────────────────
 
 export default function SystemLayout() {
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
-  const { settings } = useSettings();
-  const workspace = useWorkspaceSession();
-  const effectiveRoles = displayWorkspaceRoles(workspace?.roles, settings.role);
   const [detail, setDetail] = useState<SystemDetailResponse | null>(null);
   const [profileCompleteness, setProfileCompleteness] = useState<ProfileCompletenessResponse | null>(null);
   const [todoCount, setTodoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [navCollapsed, setNavCollapsed] = useState(false);
   const [sidePanelTab, setSidePanelTab] = useState<'todo' | 'details' | 'page' | null>(null);
   const [pageContext, setPageContext] = useState<ReactNode | null>(null);
 
@@ -161,10 +169,6 @@ export default function SystemLayout() {
 
   usePolling(fetchData, undefined, !!id);
 
-  // fix(#505): useLocation must be called before any early returns to satisfy
-  // React Rules of Hooks — hooks cannot be called after conditional returns.
-  const location = useLocation();
-
   if (loading) {
     return (
       <PageLayout title="System Detail">
@@ -185,6 +189,9 @@ export default function SystemLayout() {
   }
 
   const basePath = `/systems/${id}`;
+  const isOverview = location.pathname.replace(/\/$/, '') === basePath;
+  const isDefinitionPage = SYSTEM_SCREEN_GROUPS.find(group => group.label === 'System definition')!.items
+    .some(item => location.pathname === `${basePath}/${item.path}`);
 
   // Count incomplete profile sections for notification badge on details tab
   const profileActionCount = profileCompleteness
@@ -299,81 +306,7 @@ export default function SystemLayout() {
     </div>
   );
 
-  const leftPanel = (
-    <aside
-      className={`hidden md:flex flex-col flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto transition-all duration-200 dark:border-gray-700 dark:bg-gray-900 ${
-        navCollapsed ? 'w-14' : 'w-56'
-      }`}
-    >
-      <div className={`flex items-center ${navCollapsed ? 'justify-center' : 'justify-between'} px-3 py-3 border-b border-gray-100 dark:border-gray-700`}>
-        {!navCollapsed && (
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Navigation</span>
-        )}
-        <button
-          type="button"
-          onClick={() => setNavCollapsed(!navCollapsed)}
-          className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:hover:bg-gray-800 dark:hover:text-gray-100"
-          title={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          aria-label={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-        >
-          <svg className={`h-4 w-4 transition-transform ${navCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-        </button>
-      </div>
-      <nav className="flex-1 py-2 px-2 overflow-y-auto">
-        {SYSTEM_NAV_GROUPS.map((group, gi) => {
-          const isPrimary = effectiveRoles.length === 0 || !group.primaryFor
-            || effectiveRoles.some(role => group.primaryFor?.includes(role));
-          return (
-          <div key={group.label} className={!isPrimary ? 'opacity-50' : ''}>
-            {/* Group divider — thin line when collapsed, label when expanded */}
-            {gi > 0 && navCollapsed && (
-              <div className="my-2 border-t border-gray-200" />
-            )}
-            {!navCollapsed && (
-              <div className={`px-3 ${gi === 0 ? 'pt-1' : 'pt-4'} pb-1 flex items-center gap-1.5`}>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                  {group.label}
-                </span>
-                {isPrimary && effectiveRoles.length > 0 && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 flex-shrink-0" title="Primary for your role" />
-                )}
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const to = `${basePath}${item.path ? `/${item.path}` : ''}`;
-                const isActive = item.end
-                  ? location.pathname === to
-                  : location.pathname === to || location.pathname.startsWith(`${to}/`);
-                return (
-                  <Link
-                    key={item.path}
-                    to={to}
-                    data-testid={`nav-${item.path || 'overview'}`}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                      isActive
-                        ? 'bg-indigo-50 text-indigo-700 font-medium dark:bg-indigo-950 dark:text-indigo-200'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
-                    } ${navCollapsed ? 'justify-center' : ''}`}
-                    title={navCollapsed ? item.label : undefined}
-                  >
-                    <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={item.d} />
-                    </svg>
-                    {!navCollapsed && <span className="truncate">{item.label}</span>}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-          );
-        })}
-      </nav>
-    </aside>
-  );
+  const leftPanel = <SystemSidebar systemId={detail.systemId} systemName={detail.name} />;
 
   return (
     <SystemContext.Provider value={{ detail, refetch: fetchData, setPageContext }}>
@@ -383,29 +316,24 @@ export default function SystemLayout() {
         defaultSidePanelOpen={false}
         leftPanel={leftPanel}
       >
+        <SystemPageSelector systemId={detail.systemId} />
+        {packageReturnHref(detail.systemId, location.search) && <Link
+          className="mb-4 inline-flex text-sm font-medium text-indigo-700 underline dark:text-indigo-300"
+          to={packageReturnHref(detail.systemId, location.search)!}>Return to package readiness</Link>}
         {/* Breadcrumb */}
         <div className="mb-4 text-sm">
-          <Link to="/" className="text-indigo-600 hover:underline dark:text-indigo-300">
-            Portfolio
+          <Link to="/systems" className="text-indigo-600 hover:underline dark:text-indigo-300">
+            Systems
           </Link>
           <span className="mx-2 text-gray-400">/</span>
           <Link to={basePath} className="text-indigo-600 hover:underline dark:text-indigo-300">
             {detail.name}
           </Link>
+          {isOverview && <><span className="mx-2 text-gray-400">/</span><span className="text-slate-500">Overview</span></>}
+          {isDefinitionPage && <><span className="mx-2 text-gray-400">/</span><span className="text-slate-500">System definition</span></>}
         </div>
-        <details className="mb-4 rounded border border-gray-200 p-3 text-sm dark:border-gray-700 md:hidden">
-          <summary className="cursor-pointer font-medium">System navigation</summary>
-          <nav aria-label="Mobile system navigation" className="mt-2 grid grid-cols-2 gap-2">
-            {SYSTEM_NAV_GROUPS.flatMap(group => group.items).map(item => (
-              <Link key={item.path} to={`${basePath}${item.path ? `/${item.path}` : ''}`}
-                className="rounded p-2 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-gray-800">
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </details>
-
-        <Outlet />
+        {!isOverview && !isDefinitionPage && <SystemTaskNavigation />}
+        <div className="min-w-0"><Outlet /></div>
       </PageLayout>
     </SystemContext.Provider>
   );

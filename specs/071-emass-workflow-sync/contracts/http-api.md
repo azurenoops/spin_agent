@@ -233,7 +233,8 @@ Returns paginated list of sync conflicts, optionally filtered by status.
       "conflictStatus": "Unresolved",
       "detectedAt": "2026-06-11T10:05:00Z",
       "resolvedAt": null,
-      "resolvedBy": null
+      "resolvedBy": null,
+      "rationale": null
     }
   ],
   "meta": {
@@ -258,11 +259,20 @@ Resolves a single conflict. If `AcceptEmass` is chosen, SPIN data is updated wit
 ```json
 {
   "resolution": "AcceptEmass",
-  "notes": "Confirmed with system owner — eMASS name is correct."
+  "rationale": "Confirmed with system owner — eMASS name is correct."
 }
 ```
 
 **resolution values**: `KeepSpin` | `AcceptEmass` | `Deferred`
+
+`rationale` is optional for backwards compatibility, at most 1,000 characters.
+Legacy `notes` remains an alias; different values supplied for both are rejected.
+The dashboard requires a rationale for single and bulk `AcceptEmass` decisions.
+Each decision appends the reason, authenticated actor, original values and prior
+decision context to `AuditLogs`; current rationale uses the existing conflict
+`Notes` column. No new reconciliation or receipt table is created. Local source
+edits after the comparison and concurrent reviewer updates return
+`CONFLICT_CHANGED` rather than silently overwriting data.
 
 ### Response 200
 
@@ -270,10 +280,16 @@ Resolves a single conflict. If `AcceptEmass` is chosen, SPIN data is updated wit
 {
   "data": {
     "id": "c1111111-...",
+    "entityType": "SystemInfo",
+    "entityId": null,
+    "fieldName": "SystemInfo.SystemName",
+    "spinValue": "My System (SPIN)",
+    "emassValue": "My System - Production",
     "conflictStatus": "AcceptEmass",
+    "detectedAt": "2026-06-11T10:05:00Z",
     "resolvedAt": "2026-06-11T10:15:00Z",
     "resolvedBy": "isso@example.com",
-    "spinValueAfter": "My System - Production"
+    "rationale": "Confirmed with system owner — eMASS name is correct."
   },
   "meta": {},
   "errors": []
@@ -303,3 +319,5 @@ Resolves a single conflict. If `AcceptEmass` is chosen, SPIN data is updated wit
 | `INVALID_EXCEL_FORMAT` | 400 | File is not a valid eMASS Excel export |
 | `FORBIDDEN` | 403 | Caller role insufficient for this operation |
 | `CONFLICT_ALREADY_RESOLVED` | 409 | Conflict is already in a terminal state (KeepSpin/AcceptEmass) |
+| `CONFLICT_CHANGED` | 409 | Another reviewer or a local source edit invalidated the reviewed comparison |
+| `INVALID_RESOLUTION` | 400 | Unsupported decision, invalid actor or rationale, or conflicting rationale/notes |

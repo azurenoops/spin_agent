@@ -76,24 +76,25 @@ describe('source-backed offering workflow', () => {
       .toHaveAttribute('href', '/workspaces/csp/authorizations/offerings/offering-a/import');
     expect(screen.getByRole('link', { name: 'Add package to this offering: Another offering' }))
       .toHaveAttribute('href', '/workspaces/csp/authorizations/offerings/offering-b/import');
-    expect(screen.getByRole('link', { name: 'Import authorization package' }))
+    expect(screen.getByRole('link', { name: 'Add source material' }))
       .toHaveAttribute('href', '/workspaces/csp/authorizations/import');
     expect(api.createOffering).not.toHaveBeenCalled();
   });
   it.each(['', '/boundary', '/packages'])('retains the selected offering in the %s header upload action', async section => {
     // Arrange
     mount(`/authorizations/offerings/offering-a${section}`);
-    await screen.findByRole('heading', { name: offering.name });
+    await screen.findByRole('heading', { name: section === '/boundary' ? 'Service boundary' : section === '/packages' ? 'Authorizations & sources' : offering.name, level: 1 });
     expect(screen.getByRole('navigation', { name: 'Offering sections' })).toBeInTheDocument();
     // Act
-    fireEvent.click(screen.getByRole('link', { name: 'Add package to this offering' }));
+    if (!section) fireEvent.click(screen.getByRole('link', { name: 'Authorizations & sources' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Add source material' }));
     // Assert
     expect(await screen.findByRole('heading', { name: 'Start with your authorization package' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Boundary revision')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Offering')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Offering name')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Select source files')).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Offering sections' })).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Offering sections' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to offering' }))
       .toHaveAttribute('href', '/workspaces/csp/authorizations/offerings/offering-a');
     expect(api.uploadPackage).not.toHaveBeenCalled();
@@ -158,16 +159,16 @@ describe('source-backed offering workflow', () => {
     fireEvent.click(await screen.findByText('Version history', { selector: 'summary' }));
     await screen.findByText(/Offering revision 3/);
     // Act
-    fireEvent.click(screen.getByRole('link', { name: 'Change impact' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Services & scope' }));
     // Assert
-    expect(await screen.findByRole('heading', { name: 'Change impact' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Offering hosting' })).toHaveTextContent('offering-a · 4');
     expect(api.getOffering).toHaveBeenCalledTimes(2);
   });
   it('mounts hosting management with the selected offering alongside inherited references', async () => {
     // Arrange
     mount('/authorizations/offerings/offering-a/inherited-coverage');
     // Act
-    await screen.findByRole('heading', { name: 'Synthetic offering' });
+    await screen.findByRole('heading', { name: 'Services & scope', level: 1 });
     // Assert
     expect(await screen.findByRole('region', { name: 'Offering hosting' })).toHaveTextContent('offering-a · 3');
   });
@@ -175,7 +176,7 @@ describe('source-backed offering workflow', () => {
     // Arrange
     mount('/authorizations/offerings/offering-a/impact');
     // Act
-    await screen.findByRole('heading', { name: 'Synthetic offering' });
+    await screen.findByRole('heading', { name: 'Review change impact', level: 1 });
     // Assert
     expect(await screen.findByRole('button', { name: 'Review a proposed change' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Boundary revision ID')).not.toBeInTheDocument();
@@ -264,7 +265,7 @@ it.each([true, false])('places creation beside import in the hero without an inl
   expect(heroLinks).toHaveLength(2);
   expect(heroLinks[0]).toHaveTextContent('Create offering');
   expect(heroLinks[0]).toHaveAttribute('href', '/workspaces/csp/authorizations/create');
-  expect(heroLinks[1]).toHaveTextContent('Import authorization package');
+  expect(heroLinks[1]).toHaveTextContent('Add source material');
   expect(heroLinks[1]).toHaveAttribute('href', '/workspaces/csp/authorizations/import');
   expect(screen.queryByText('Create an offering', { selector: 'summary' })).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Offering name')).not.toBeInTheDocument();
@@ -277,7 +278,7 @@ it('opens creation from the header and navigates to the persisted offering witho
   vi.mocked(api.createOffering).mockResolvedValue(created);
   vi.mocked(api.getOffering).mockResolvedValue(created);
   mount('/authorizations');
-  await screen.findByRole('article', { name: offering.name });
+  await screen.findByRole('table', { name: 'Your offerings' });
   // Act
   fireEvent.click(screen.getByRole('link', { name: 'Create offering' }));
   expect(screen.getByRole('button', { name: 'Create offering' })).toBeDisabled();
@@ -298,7 +299,7 @@ it('retains creation page inputs when the server rejects the request', async () 
   // Arrange
   vi.mocked(api.createOffering).mockRejectedValue(new PackageImportError('Offering name is already used', 409));
   mount('/authorizations');
-  await screen.findByRole('article', { name: offering.name });
+  await screen.findByRole('table', { name: 'Your offerings' });
   fireEvent.click(screen.getByRole('link', { name: 'Create offering' }));
   fireEvent.change(screen.getByLabelText('Offering name', { exact: true }), { target: { value: 'My offering' } });
   fireEvent.click(screen.getByLabelText('Azure Government', { exact: true }));
@@ -315,8 +316,8 @@ it('preserves the existing dedicated creation URL', async () => {
   // Arrange
   mount('/authorizations/create');
   // Act
-  await screen.findByRole('heading', { name: 'Create offering', level: 1 });
+  await screen.findByRole('heading', { name: 'Create a service offering', level: 1 });
   // Assert
   expect(screen.getByLabelText('Offering name')).toBeInTheDocument();
-  expect(screen.getByText('Import authorization package', { selector: 'a' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Back to offerings' })).toBeInTheDocument();
 });

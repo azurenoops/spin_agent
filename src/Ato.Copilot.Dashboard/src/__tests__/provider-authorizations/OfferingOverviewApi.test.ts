@@ -6,6 +6,38 @@ import { offeringOverview } from './overviewFixtures';
 vi.mock('../../features/package-imports/request', () => ({ packageRequest: vi.fn() }));
 beforeEach(() => vi.resetAllMocks());
 describe('offering overview transport', () => {
+  it.each([{ revisions: [-1] }, { revisions: [1.2] }, { revisions: ['3'] }, { revisions: [3, 3] }, { revisions: null }])('rejects malformed canonical release revisions $revisions', async ({ revisions }) => {
+    // Arrange
+    const data = offeringOverview();
+    vi.mocked(packageRequest).mockResolvedValue({ ...data, capabilities: { ...data.capabilities, publishedReleaseRevisions: revisions } });
+    // Act / Assert
+    await expect(getOfferingOverview(data.offeringId)).rejects.toThrow('canonical publication revisions');
+  });
+  it.each([-1, 1.2, '4'])('rejects malformed global retained totals %s', async count => {
+    // Arrange
+    const data = offeringOverview();
+    vi.mocked(packageRequest).mockResolvedValue({ ...data, openFindingCount: count });
+    // Act / Assert
+    await expect(getOfferingOverview(data.offeringId)).rejects.toThrow('retained source and finding totals');
+    vi.mocked(packageRequest).mockResolvedValue({ ...data, packages: { ...data.packages, sourceDocumentCount: count } });
+    await expect(getOfferingOverview(data.offeringId)).rejects.toThrow('retained source and finding totals');
+  });
+  it.each([null, 0, 7])('preserves customer action count %s without converting unknown to zero', async count => {
+    // Arrange
+    const data = { ...offeringOverview(), customerActionCount: count };
+    vi.mocked(packageRequest).mockResolvedValue(data);
+    // Act
+    const result = await getOfferingOverview(data.offeringId);
+    // Assert
+    expect(result.customerActionCount).toBe(count);
+  });
+  it.each([-1, 1.5, '7'])('rejects an invalid customer action count %s', async count => {
+    // Arrange
+    const data = { ...offeringOverview(), customerActionCount: count };
+    vi.mocked(packageRequest).mockResolvedValue(data);
+    // Act / Assert
+    await expect(getOfferingOverview(data.offeringId)).rejects.toThrow('customer-action count');
+  });
   it('uses independent bounded pages and forwards cancellation', async () => {
     // Arrange
     const signal = new AbortController().signal;

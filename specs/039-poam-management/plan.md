@@ -5,6 +5,28 @@
 
 ## Summary
 
+### Connected SPIN workspace implementation (2026-09-29)
+
+Inspect current services before replacing the task-centric presentation with a
+finding-led queue and a concise POA&M commitment queue. Reuse existing findings,
+tasks, POA&M, deviations, and connector abstractions. Extend relationships only
+where the verified scalar links cannot represent multiple/shared tasks. Centralize
+scoped reads, link validation, audit and revision handling; preserve historical
+assessment data. Route task transitions through the canonical service.
+
+Implement backend contracts and persistence with failing tests first, then wire
+the shared frontend relationship projection into native focus-managed drawers.
+Test authorization on both ends of links, independent lifecycle states, retries,
+concurrency, document outputs, empty/error states, and browser interaction.
+Ticketing supports only verified provider capabilities; unsupported webhook or
+bidirectional behavior must not be advertised.
+
+Constitution gate: reuse established services and UI primitives; no new library
+or parallel assessment store. Additive join/operation records are justified by
+shared relationships and durable external-operation safety, not speculative
+generality. Type-check every modified TS project. Local testing precedes delivery;
+GitHub issue write/parent linkage and pushes require separate explicit approval.
+
 Dedicated POA&M Management page with component linkage, lifecycle tracking, bidirectional remediation-task sync, scan-import auto-generation, trend analytics, eMASS/OSCAL export, Jira/ServiceNow integration, and comprehensive MCP tool coverage. The feature introduces 4 new entities, extends 2 existing entities, adds 18 new MCP tools, updates 3 existing tools, and spans both the .NET backend (Core, Agents, Mcp) and the React dashboard frontend.
 
 ## Technical Context

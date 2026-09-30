@@ -5,13 +5,14 @@ import { workspaceErrorMessage } from '../features/workspaces/api';
 interface Props extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
   url: string;
   fileName?: string;
+  onDownloadError?: (reason: unknown) => void;
 }
 
 export default function AuthenticatedDownload(props: Props) {
   return <DownloadButton key={props.url} {...props} />;
 }
 
-function DownloadButton({ url, fileName, children, disabled, ...props }: Props) {
+function DownloadButton({ url, fileName, children, disabled, onDownloadError, ...props }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -26,7 +27,10 @@ function DownloadButton({ url, fileName, children, disabled, ...props }: Props) 
     try {
       await downloadAuthenticatedFile(url, fileName, controller.signal);
     } catch (reason) {
-      if (!controller.signal.aborted) setError(workspaceErrorMessage(reason));
+      if (!controller.signal.aborted) {
+        setError(workspaceErrorMessage(reason));
+        onDownloadError?.(reason);
+      }
     } finally {
       if (request.current === controller) {
         request.current = null;

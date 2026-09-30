@@ -106,6 +106,45 @@ public class TicketingServiceTests : IDisposable
     // ─── ConfigureAsync ──────────────────────────────────────────────────────
 
     [Fact]
+    public async Task ConfigureAsync_BlankReference_KeepsExistingServerReference()
+    {
+        // Arrange
+        await SeedConfigAsync();
+        _jiraProvider.Setup(p => p.TestConnectionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var original = _db.TicketingIntegrations.Single().KeyVaultSecretUri;
+        // Act
+        var result = await _sut.ConfigureAsync(SystemId, TicketingProvider.Jira,
+            "https://test.atlassian.net", "POAM", "", true);
+        // Assert
+        result.KeyVaultSecretUri.Should().Be(original);
+    }
+
+    [Fact]
+    public async Task SyncTicketAsync_PullWithoutReference_NeverPushes()
+    {
+        // Arrange
+        await SeedConfigAsync();
+        // Act
+        var act = () => _sut.SyncTicketAsync(PoamId, "pull");
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        _jiraProvider.Verify(x => x.PushAsync(It.IsAny<PoamItem>(), It.IsAny<TicketingIntegration>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SyncTicketAsync_Bidirectional_IsExplicitlyUnsupported()
+    {
+        // Arrange
+        await SeedConfigAsync();
+        // Act
+        var act = () => _sut.SyncTicketAsync(PoamId, "bidirectional");
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        _jiraProvider.Verify(x => x.PushAsync(It.IsAny<PoamItem>(), It.IsAny<TicketingIntegration>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ConfigureAsync_NewConfig_CreatesAndReturns()
     {
         _jiraProvider.Setup(p => p.TestConnectionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))

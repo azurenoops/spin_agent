@@ -7,25 +7,39 @@ import { getPackageStatus } from '../package-imports/api';
 import { PackageImportError } from '../package-imports/request';
 import * as api from './api';
 import { CitationFields, compact, Field, Lines, MutationForm, ScopeFields } from './forms';
-import type { BoundaryInput, BoundaryRevision, Cloud, Offering, PackageReceipt, PackageVersion } from './types';
+import type { BoundaryInput, BoundaryRevision, OfferingEnvironment, Offering, PackageReceipt, PackageVersion } from './types';
+import { offeringEnvironments } from './scopes';
+import { identityMetadata, OfferingIdentityFields } from './OfferingIdentity';
 
 export function OfferingCreate({ onCreated, expanded = false, suggestedName = '' }: { onCreated: (offering: Offering) => void; expanded?: boolean; suggestedName?: string }) {
   const [name, setName] = useState(suggestedName);
   const [description, setDescription] = useState('');
-  const [environments, setEnvironments] = useState<Cloud[]>([]);
-  return <details open={expanded || undefined} className="group rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 open:border-solid open:bg-slate-50 dark:border-gray-600 dark:bg-gray-900 dark:open:bg-gray-800"><summary className="cursor-pointer rounded text-sm font-medium text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-300">Create an offering</summary>
-    <div className="mt-4"><MutationForm label="Create offering" submitDisabled={!name.trim() || !environments.length}
-      submit={async key => onCreated(await api.createOffering({ name: name.trim(), description, environments }, key))} onSaved={() => setName('')}>
+  const [environments, setEnvironments] = useState<OfferingEnvironment[]>([]);
+  const [identity, setIdentity] = useState(() => identityMetadata());
+  const manual = environments.some(environment => environment === 'Microsoft365DoD' || environment === 'ManualService');
+  const form = <MutationForm label="Create offering" submitDisabled={!name.trim() || !environments.length || (manual && (!identity.serviceModel || !identity.managementArrangement))}
+      submit={async key => onCreated(await api.createOffering({ name: name.trim(), description, environments,
+        ...(identity.serviceModel ? { serviceModel: identity.serviceModel } : {}),
+        ...(identity.managementArrangement ? { managementArrangement: identity.managementArrangement } : {}),
+        ...(identity.serviceOwner ? { serviceOwner: identity.serviceOwner } : {}),
+        ...(identity.securityContact ? { securityContact: identity.securityContact } : {}),
+      }, key))} onSaved={() => setName('')}>
       <Field label="Offering name" value={name} onChange={setName} required />
       <Field label="Description" value={description} onChange={setDescription} multiline />
+      <OfferingIdentityFields value={identity} onChange={setIdentity} />
       <fieldset className="space-y-2"><legend className="text-sm font-medium">Environments</legend>
-        {(['AzureCloud', 'AzureUSGovernment'] as const).map(cloud => <label key={cloud} className="mr-4 inline-flex items-center gap-2 text-sm">
+        {(Object.keys(offeringEnvironments) as OfferingEnvironment[]).map(cloud => <label key={cloud} className="mr-4 inline-flex items-center gap-2 text-sm">
           <input type="checkbox" checked={environments.includes(cloud)} onChange={event => setEnvironments(previous => event.target.checked ? [...previous, cloud] : previous.filter(value => value !== cloud))} />
-          {cloud === 'AzureCloud' ? 'Azure Commercial' : 'Azure Government'}
+          {offeringEnvironments[cloud]}
         </label>)}
       </fieldset>
-      <p className="text-xs text-slate-600">Creating an offering does not authorize workloads, allocate hosting or publish capabilities.</p>
-    </MutationForm></div>
+      {manual && <p className="text-xs">Manual service environments require an explicit service model and management arrangement. No live Microsoft 365 or other service connector is configured.</p>}
+      <div className="provider-banner"><p>Cloud selection describes an offering. Live integration and authorization standing are recorded separately.</p>
+        <p className="mt-2 text-xs text-slate-600">Creating an offering does not authorize workloads, allocate hosting or publish capabilities.</p></div>
+    </MutationForm>;
+  return expanded ? form : <details className="group rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 dark:border-gray-600 dark:bg-gray-900">
+    <summary className="cursor-pointer rounded text-sm font-medium text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">Create an offering</summary>
+    <div className="mt-4">{form}</div>
   </details>;
 }
 

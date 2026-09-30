@@ -22,12 +22,15 @@ public sealed class ProviderHostingService(ProviderAuthorizationStore store) : I
             var body = request with
             {
                 Name = Text(request.Name, "hosting scope name", 256),
+                Purpose = request.Purpose is null ? null : Text(request.Purpose, "scope purpose", 2000, false),
+                ChangeRationale = request.ChangeRationale is null ? null : Text(request.ChangeRationale, "scope change rationale", 8000, false),
                 PermittedScopes = request.PermittedScopes.Select(Normalize).Distinct().ToArray(),
                 Exclusions = request.Exclusions.Select(x => new ProviderHostingExclusion(Normalize(x.Scope),
                     Text(x.Rationale, "exclusion rationale", 2000))).ToArray()
             };
-            var environments = Read<string[]>(offering.EnvironmentsJson);
-            if (body.PermittedScopes.Any(x => !environments.Contains(x.Cloud))
+            if (body.PermittedScopes.Select(x => x.Kind).Distinct().Count() != 1)
+                throw new ArgumentException("A hosting revision must identify either Azure scopes or manual service relationships, not mix both.");
+            if (body.PermittedScopes.Any(x => !ScopeMatchesOffering(offering, x))
                 || body.Exclusions.Any(x => !body.PermittedScopes.Any(p => Contains(p, x.Scope))))
                 throw new ArgumentException("Hosting scopes must use the offering environments; exclusions must be within a permitted scope.");
             await store.CitationsAsync(db, provider, body.Citations, ct);
@@ -85,8 +88,8 @@ public sealed class ProviderHostingService(ProviderAuthorizationStore store) : I
                 HostingScopeRevisionId = hosting.Id, AssignedScopesJson = Json(scopes), ReferencesJson = Json(request.References), CreatedBy = actor
             };
             db.Add(row);
-            offering.Revision++;
-            await ProviderAuthorizationService.InvalidateAsync(db, offering, actor, "A hosting allocation changed applicability targets", ct);
+            // Customer allocations have their own revision and audited operation; they do not
+            // change the reviewed service definition pinned by existing publications and missions.
             return await ProjectAssignmentAsync(db, row, hosting, ct);
         }, ct);
 
@@ -113,7 +116,7 @@ public sealed class ProviderHostingService(ProviderAuthorizationStore store) : I
         return await ProjectAssignmentAsync(db, row, await RequireScopeAsync(db, offering, row.HostingScopeRevisionId, ct), ct);
     }
 
-    internal static bool Fits(CreateProviderHostingScopeRequest hosting, IReadOnlyList<ProviderAzureScope> scopes) =>
+    internal static bool Fits(CreateProviderHostingScopeRequest hosting, IReadOnlyList<ProviderScope> scopes) =>
         scopes.Count != 0 && scopes.All(scope => hosting.PermittedScopes.Any(p => Contains(p, scope))
             && !hosting.Exclusions.Any(e => Contains(e.Scope, scope) || Contains(scope, e.Scope)));
 
@@ -127,7 +130,8 @@ public sealed class ProviderHostingService(ProviderAuthorizationStore store) : I
     {
         var body = Read<CreateProviderHostingScopeRequest>(row.SnapshotJson);
         return new(row.OfferingId, offeringRevision, new(row.Id, row.Revision, row.SnapshotHash), impactId,
-            row.PredecessorId, body.Name, body.PermittedScopes, body.Exclusions, body.Citations);
+            row.PredecessorId, body.Name, body.PermittedScopes, body.Exclusions, body.Citations)
+        { Purpose = body.Purpose, ChangeRationale = body.ChangeRationale };
     }
 
     private static async Task<ProviderHostingAssignmentResponse> ProjectAssignmentAsync(AtoCopilotContext db,
@@ -142,6 +146,6 @@ public sealed class ProviderHostingService(ProviderAuthorizationStore store) : I
         var state = relationship is null ? "Undetermined"
             : relationship.ReviewRequired || relationship.AssignmentRevision != row.Revision ? "ReviewRequired" : relationship.State;
         return new(row.Id, row.Revision, row.OfferingId, row.SystemId, new(hosting.Id, hosting.Revision, hosting.SnapshotHash),
-            Read<ProviderAzureScope[]>(row.AssignedScopesJson), state, name, tenantName);
+            Read<ProviderScope[]>(row.AssignedScopesJson), state, name, tenantName);
     }
 }

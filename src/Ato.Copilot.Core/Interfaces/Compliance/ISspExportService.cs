@@ -9,6 +9,8 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </summary>
 public interface ISspExportService
 {
+    Task<DocumentPreviewDto> CreatePreviewAsync(string systemId, string userId, CancellationToken cancellationToken = default, string? idempotencyKey = null);
+    Task<SspExport> EnqueueFromPreviewAsync(string systemId, Guid previewId, string userId, CancellationToken cancellationToken = default, string? idempotencyKey = null);
     // ── Export operations ──────────────────────────────────────────
 
     /// <summary>

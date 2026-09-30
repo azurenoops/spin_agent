@@ -145,8 +145,10 @@ public sealed class OscalSspImportServiceTests : IDisposable
       implementation.AiSuggested.Should().BeFalse();
     }
 
-    [Fact]
-    public async Task ImportAsync_DualStatements_PersistsCanonicalHalves()
+    [Theory]
+    [InlineData("description")]
+    [InlineData("remarks")]
+    public async Task ImportAsync_DualStatements_PersistsCanonicalHalves(string contentField)
     {
         // Arrange
         const string oscalJson = """
@@ -175,7 +177,7 @@ public sealed class OscalSspImportServiceTests : IDisposable
             NullLogger<OscalSspImportService>.Instance);
 
         // Act
-        var result = await service.ImportAsync("system-1", oscalJson, ImportMode.Full);
+        var result = await service.ImportAsync("system-1", oscalJson.Replace("\"description\":", $"\"{contentField}\":"), ImportMode.Full);
 
         // Assert
         result.ControlsCreated.Should().Be(1);

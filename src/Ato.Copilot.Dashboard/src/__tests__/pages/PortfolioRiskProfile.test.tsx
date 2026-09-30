@@ -10,7 +10,9 @@ import type { PortfolioSystemSummary } from '../../types/dashboard';
 vi.mock('../../components/layout/PageLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
 }));
-vi.mock('../../components/layout/PageHero', () => ({ default: () => <header /> }));
+vi.mock('../../components/layout/PageHero', () => ({
+  default: ({ actions }: { actions: React.ReactNode }) => <header>{actions}</header>,
+}));
 vi.mock('../../hooks/usePolling', () => ({
   usePolling: (fn: () => void) => { useEffect(() => { fn(); }, [fn]); },
 }));
@@ -38,6 +40,18 @@ beforeEach(() => {
 });
 
 describe('Organization portfolio graphical summary', () => {
+  it('offers a direct intake entry without requiring existing systems or implying authorization', async () => {
+    // Arrange
+    vi.mocked(getPortfolio).mockResolvedValue({ items: [], totalCount: 0, nextCursor: null });
+    // Act
+    renderPage();
+    // Assert
+    expect(await screen.findByText('No systems available in this workspace.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create mission system' })).toHaveAttribute('href', '/systems/new');
+    expect(screen.getByRole('button', { name: 'Refresh portfolio' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'ATO status across systems' })).not.toBeInTheDocument();
+  });
+
   it('replaces all legacy panels and the table with exactly two graph cards', async () => {
     // Arrange / Act
     renderPage();

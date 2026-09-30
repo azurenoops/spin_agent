@@ -9,11 +9,12 @@ import { getOffering, listBoundaries, listDecisionHistory, listDecisions } from 
 import { CitationFields, Field, MutationForm, ScopeFields } from './forms';
 import { createHostingAssignment, createHostingScope, listHostingAssignments, listHostingScopes } from './hostingApi';
 import type { HostingAssignmentInput, HostingExclusion, HostingScopeInput, HostingScopeRevision } from './hostingTypes';
-import type { AzureScope, Citation, ExternalDecision, Offering } from './types';
+import type { ProviderScope, OfferingEnvironment, Citation, ExternalDecision, Offering } from './types';
+import { blankProviderScope, isProviderScope, offeringEnvironments } from './scopes';
 
 const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const blankScope = (): AzureScope => ({ cloud: 'AzureUSGovernment', directoryTenantId: '', subscriptionId: '', resourceId: '' });
-function scopeProblem(scope: AzureScope) {
+function scopeProblem(scope: ProviderScope) {
+  if (scope.kind === 'Service') return isProviderScope(scope) ? null : 'Each service relationship requires an exact service identifier, service name and recorded environment.';
   if (!guid.test(scope.directoryTenantId.trim()) || !guid.test(scope.subscriptionId.trim())) {
     return 'Each scope requires a valid Azure directory tenant GUID and subscription GUID.';
   }
@@ -25,7 +26,7 @@ function scopeProblem(scope: AzureScope) {
   }
   return null;
 }
-const scopesProblem = (scopes: AzureScope[]) => scopes.length > 100
+const scopesProblem = (scopes: ProviderScope[]) => scopes.length > 100
   ? 'At most 100 explicit scopes can be saved.' : scopes.map(scopeProblem).find(Boolean) ?? null;
 const validCitations = (citations: Citation[]) => citations.length <= 100 && citations.every(citation =>
   guid.test(citation.packageId.trim()) && guid.test(citation.artifactId.trim())
@@ -33,12 +34,15 @@ const validCitations = (citations: Citation[]) => citations.length <= 100 && cit
 const scopeConfirmation = 'I confirm this exact technical scope revision, not authorization coverage.';
 const assignmentConfirmation = 'I confirm this allocation grants no permissions or authorization coverage.';
 
-function ScopeDetails({ scopes }: { scopes: AzureScope[] }) {
+function ScopeDetails({ scopes }: { scopes: ProviderScope[] }) {
   return scopes.length ? <ul className="space-y-2">{scopes.map((scope, index) =>
-    <li key={index}><dl className="grid min-w-0 gap-1 break-words text-sm sm:grid-cols-2">
+    <li key={index}>{scope.kind === 'Service' ? <dl className="grid min-w-0 gap-1 break-words text-sm sm:grid-cols-2">
+      <dt>Service relationship</dt><dd>{scope.serviceName}</dd><dt>Service identifier</dt><dd>{scope.serviceId}</dd>
+      <dt>Environment</dt><dd>{offeringEnvironments[scope.environment]}</dd><dt>Service tenant reference</dt><dd>{scope.tenantReference ?? 'Not recorded'}</dd>
+    </dl> : <dl className="grid min-w-0 gap-1 break-words text-sm sm:grid-cols-2">
       <dt>Cloud</dt><dd>{scope.cloud}</dd><dt>Directory tenant ID</dt><dd>{scope.directoryTenantId}</dd>
       <dt>Subscription ID</dt><dd>{scope.subscriptionId}</dd><dt>Resource scope</dt><dd>{scope.resourceId}</dd>
-    </dl></li>)}</ul> : <p className="text-sm">No explicit resources recorded; not universal scope.</p>;
+    </dl>}</li>)}</ul> : <p className="text-sm">No explicit resources or service instances recorded; not universal scope.</p>;
 }
 function Sources({ citations }: { citations: Citation[] }) {
   return <div className="space-y-2 text-sm">
@@ -51,7 +55,7 @@ function Sources({ citations }: { citations: Citation[] }) {
     </div>) : <p>No citations recorded.</p>}
   </div>;
 }
-function ExclusionFields({ value, onChange }: { value: HostingExclusion[]; onChange: (value: HostingExclusion[]) => void }) {
+function ExclusionFields({ value, onChange, kind, environment }: { value: HostingExclusion[]; onChange: (value: HostingExclusion[]) => void; kind: 'Azure' | 'Service'; environment: OfferingEnvironment }) {
   return <fieldset className="space-y-3 rounded border p-3"><legend className="text-sm font-semibold">Hosting exclusions</legend>
     {value.map((item, index) => <div key={index} className="space-y-3">
       <ScopeFields label={`Excluded scope ${index + 1}`} value={[item.scope]} maxItems={1} onChange={scopes => {
@@ -63,7 +67,7 @@ function ExclusionFields({ value, onChange }: { value: HostingExclusion[]; onCha
         onChange={rationale => onChange(value.map((entry, row) => row === index ? { ...entry, rationale } : entry))} />
     </div>)}
     <button type="button" className={secondaryButtonClass} disabled={value.length >= 100}
-      onClick={() => onChange([...value, { scope: blankScope(), rationale: '' }])}>Add exclusion</button>
+      onClick={() => onChange([...value, { scope: blankProviderScope(kind, environment), rationale: '' }])}>Add exclusion</button>
   </fieldset>;
 }
 function ReferenceSnapshot({ record }: { record: ExternalDecision }) {
@@ -74,6 +78,9 @@ function ReferenceSnapshot({ record }: { record: ExternalDecision }) {
       <dt>Immutable revision ID</dt><dd>{record.revisionId}</dd><dt>Snapshot hash</dt><dd>{record.snapshotHash}</dd>
       <dt>Boundary revision ID</dt><dd>{record.boundaryRevisionId}</dd>
       <dt>Issuing authority as stated</dt><dd>{record.issuingAuthority ?? 'Not recorded'}</dd>
+      <dt>Upstream provider</dt><dd>{record.upstreamProvider ?? 'Not recorded'}</dd>
+      <dt>Reference category</dt><dd>{record.recordKind}</dd>
+      <dt>Issuing authority type</dt><dd>{record.issuingAuthorityType ?? 'Not recorded'}</dd>
       <dt>Decision as stated</dt><dd>{record.decisionAsStated ?? 'Not recorded'}</dd>
       <dt>Metadata review</dt><dd>{record.metadataReviewState}</dd>
       <dt>Standing</dt><dd>{record.currentStanding === 'CurrentAsRecorded'
@@ -103,14 +110,14 @@ function InheritedReferences({ offering }: { offering: Offering }) {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<ExternalDecision | null>(null);
   const remote = useRemote(signal => listDecisions(offering.offeringId, page, signal), [offering.offeringId, offering.revision, page]);
-  const inherited = remote.data?.items.filter(item => item.recordKind === 'InheritedMicrosoftReference');
-  return <section aria-label="Inherited Microsoft references" className={`${surfaceClass} space-y-4 p-4`}>
-    <h2 className="text-lg font-semibold">Inherited Microsoft references</h2>
-    <p className={warningClass}>These retained source statements do not verify Microsoft authority or extend hosting or authorization scope.
+  const inherited = remote.data?.items.filter(item => item.recordKind === 'InheritedMicrosoftReference' || item.recordKind === 'InheritedProviderReference');
+  return <section aria-label="Inherited provider references" className={`${surfaceClass} space-y-4 p-4`}>
+    <h2 className="text-lg font-semibold">Inherited provider references</h2>
+    <p className={warningClass}>These retained source statements do not verify upstream authority or extend hosting or authorization scope.
       Review and revision actions remain in the external decision workflow.</p>
     <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
     {remote.data && <>
-      {!inherited?.length && <p>No inherited Microsoft references on this page. Paging includes all offering decision records.</p>}
+      {!inherited?.length && <p>No inherited provider references on this page. Paging includes all offering decision records.</p>}
       {inherited?.map(item => <div key={item.recordId} className="space-y-2">
         <ReferenceSnapshot record={item} />
         <button type="button" className={secondaryButtonClass} onClick={() => setSelected(item)}>History of {item.reference}</button>
@@ -126,7 +133,8 @@ function Responsibilities({ offering }: { offering: Offering }) {
   const remote = useRemote(signal => listBoundaries(offering.offeringId, page, signal), [offering.offeringId, offering.revision, page]);
   return <section aria-label="Boundary responsibilities" className={`${surfaceClass} space-y-4 p-4`}>
     <h2 className="text-lg font-semibold">Owner, provider and customer responsibilities</h2>
-    <p className="break-words text-sm">Provider owner: {offering.providerId}</p>
+    <p className="break-words text-sm">Service owner: {offering.serviceOwner || 'Not recorded'}</p>
+    <p className="break-words text-sm">Security contact: {offering.securityContact || 'Not recorded'}</p>
     <p className="text-sm">Duties below belong to exact retained boundary versions. Hosting allocation is not acceptance of customer responsibilities
       or a mission authorization decision. The mission system owner and customer review their own duties separately.</p>
     <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
@@ -150,13 +158,14 @@ function Responsibilities({ offering }: { offering: Offering }) {
 interface HostingPanelProps {
   offering: Offering; onChanged: () => void;
   task?: 'scope' | 'allocations'; initialScope?: HostingScopeRevision;
+  proposalMode?: boolean;
   onPendingChange?: (pending: boolean) => void;
 }
 export function HostingPanel(props: HostingPanelProps) {
   return <HostingWorkspace key={props.offering.offeringId} {...props} />;
 }
 
-function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingChange }: HostingPanelProps) {
+function HostingWorkspace({ offering, onChanged, task, initialScope, proposalMode = false, onPendingChange }: HostingPanelProps) {
   const [scopePage, setScopePage] = useState(1);
   const [assignmentPage, setAssignmentPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
@@ -169,6 +178,7 @@ function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingCh
     expectedOfferingRevision: offering.revision, predecessorRevisionId: offering.currentHostingScopeRevisionId,
     name: initialScope?.name ?? '', permittedScopes: initialScope?.permittedScopes ?? [],
     exclusions: initialScope?.exclusions ?? [], citations: initialScope?.citations ?? [],
+    ...(initialScope?.purpose ? { purpose: initialScope.purpose } : {}),
   });
   const [allocation, setAllocation] = useState<HostingAssignmentInput>({
     targetTenantId: '', systemId: '', hostingScopeRevisionId: initialScope?.snapshot.revisionId ?? '', assignedScopes: [], references: [],
@@ -183,6 +193,10 @@ function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingCh
   const reloadLock = useRef(false);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [scopeNotice, setScopeNotice] = useState<string | null>(null);
+  const serviceDefault = initialScope?.permittedScopes[0]?.kind === 'Service'
+    || offering.environments.every(environment => environment === 'Microsoft365DoD' || environment === 'ManualService');
+  const scopeKind = draft.permittedScopes[0]?.kind === 'Service' || (!draft.permittedScopes.length && serviceDefault) ? 'Service' : 'Azure';
+  const scopeEnvironment = offering.environments[0] ?? 'AzureUSGovernment';
   const [assignmentNotice, setAssignmentNotice] = useState<string | null>(null);
   const pending = scopePending || assignmentPending;
   useEffect(() => { onPendingChange?.(pending); }, [pending, onPendingChange]);
@@ -190,7 +204,8 @@ function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingCh
     || current.currentHostingScopeRevisionId !== draft.predecessorRevisionId;
   const draftProblem = scopesProblem(draft.permittedScopes) ?? scopesProblem(draft.exclusions.map(item => item.scope));
   const allocationProblem = scopesProblem(allocation.assignedScopes);
-  const validDraft = !!draft.name.trim() && !draftProblem && draft.exclusions.length <= 100
+  const validDraft = !!draft.name.trim() && draft.permittedScopes.length > 0
+    && (!proposalMode || (!!draft.purpose?.trim() && !!draft.changeRationale?.trim())) && !draftProblem && draft.exclusions.length <= 100
     && draft.exclusions.every(item => !!item.rationale.trim()) && validCitations(draft.citations);
   const validAllocation = guid.test(allocation.targetTenantId.trim()) && !!allocation.systemId.trim()
     && !!selectedScope && selectedScope.snapshot.revisionId === allocation.hostingScopeRevisionId
@@ -249,6 +264,8 @@ function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingCh
             <dt>Impact review ID</dt><dd>{item.impactReviewId ?? 'None returned'}</dd>
           </dl>
           <p className="text-sm">{item.snapshot.revisionId === current.currentHostingScopeRevisionId ? 'Current hosting pointer' : 'Retained historical revision'}</p>
+          <p className="text-sm">Purpose: {item.purpose || 'Not recorded'}</p>
+          <p className="text-sm">Change rationale: {item.changeRationale || 'Not recorded'}</p>
           <h4 className="font-semibold">Permitted technical scopes</h4><ScopeDetails scopes={item.permittedScopes} />
           <h4 className="font-semibold">Explicit exclusions</h4>
           {item.exclusions.length ? item.exclusions.map((entry, index) => <div key={index} className="space-y-2">
@@ -260,7 +277,8 @@ function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingCh
               disabled={pending || reloadBusy || item.snapshot.revisionId !== current.currentHostingScopeRevisionId}
               onClick={() => {
                 setDraft({ expectedOfferingRevision: current.revision, predecessorRevisionId: item.snapshot.revisionId,
-                  name: item.name, permittedScopes: item.permittedScopes, exclusions: item.exclusions, citations: item.citations });
+                  name: item.name, permittedScopes: item.permittedScopes, exclusions: item.exclusions, citations: item.citations,
+                  ...(item.purpose ? { purpose: item.purpose } : {}) });
                 setConflict(false); setScopeConfirmed(false); setScopeNotice(null);
               }}>Prepare successor of hosting revision {item.snapshot.revision}</button>}
             {task !== 'scope' && <button type="button" className={secondaryButtonClass} disabled={pending || reloadBusy}
@@ -289,8 +307,12 @@ function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingCh
         submitDisabled={!validDraft || !scopeConfirmed || stale || scopes.loading || !!scopes.error}
         onPendingChange={setScopePending} submit={saveScope} onSaved={changed}>
         <Field label="Hosting scope name" value={draft.name} required onChange={name => editScope({ name })} />
-        <ScopeFields label="Permitted hosting scopes" value={draft.permittedScopes} onChange={permittedScopes => editScope({ permittedScopes })} />
-        <ExclusionFields value={draft.exclusions} onChange={exclusions => editScope({ exclusions })} />
+        <Field label="Purpose" value={draft.purpose ?? ''} required={proposalMode} onChange={purpose => editScope({ purpose })} />
+        <Field label="Change rationale" value={draft.changeRationale ?? ''} required={proposalMode} multiline maxLength={8000}
+          onChange={changeRationale => editScope({ changeRationale })} />
+        <ScopeFields label="Permitted hosting scopes" value={draft.permittedScopes} defaultKind={scopeKind} environment={scopeEnvironment}
+          onChange={permittedScopes => editScope({ permittedScopes })} />
+        <ExclusionFields value={draft.exclusions} kind={scopeKind} environment={scopeEnvironment} onChange={exclusions => editScope({ exclusions })} />
         {draftProblem && <p className={warningClass}>{draftProblem}</p>}
         <CitationFields value={draft.citations} onChange={citations => editScope({ citations })} />
         {!validCitations(draft.citations) && <p className={warningClass}>Citations require package and artifact GUIDs, archive path, locator and quote; maximum 100 citations.</p>}
@@ -328,7 +350,9 @@ function HostingWorkspace({ offering, onChanged, task, initialScope, onPendingCh
         onPendingChange={setAssignmentPending} submit={saveAssignment} onSaved={changed}>
         <Field label="Customer tenant ID" value={allocation.targetTenantId} required onChange={targetTenantId => editAssignment({ targetTenantId })} />
         <Field label="Customer system ID" value={allocation.systemId} required onChange={systemId => editAssignment({ systemId })} />
-        <ScopeFields label="Explicit assigned scopes" value={allocation.assignedScopes} onChange={assignedScopes => editAssignment({ assignedScopes })} />
+        <ScopeFields label="Explicit assigned scopes" value={allocation.assignedScopes}
+          defaultKind={selectedScope?.permittedScopes[0]?.kind === 'Service' ? 'Service' : 'Azure'} environment={scopeEnvironment}
+          onChange={assignedScopes => editAssignment({ assignedScopes })} />
         {allocationProblem && <p className={warningClass}>{allocationProblem}</p>}
         {!!allocation.targetTenantId && !guid.test(allocation.targetTenantId.trim())
           && <p className={warningClass}>Customer tenant ID must be a valid GUID for the actual customer tenant.</p>}

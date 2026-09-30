@@ -1,0 +1,81 @@
+{
+  "components": [
+    {
+      "id": "M365-component-exchange",
+      "type": "service",
+      "name": "Demo Exchange mail and transport configuration",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Provide a fictional SaaS collaboration mail configuration for Flank Speed Demo; no Azure subscription resources are included."
+    },
+    {
+      "id": "M365-component-teams",
+      "type": "service",
+      "name": "Demo Teams meeting policy service",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Cover tenant-level meeting and messaging policy templates; voice carrier connectivity and endpoint configuration are excluded."
+    },
+    {
+      "id": "M365-component-sharepoint",
+      "type": "service",
+      "name": "Demo document collaboration policy service",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Cover fictional site-sharing templates and document access policy; no customer content is imported."
+    },
+    {
+      "id": "M365-component-purview",
+      "type": "service",
+      "name": "Demo collaboration audit and retention service",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Describe configured collaboration audit categories and a fictional 365-day retention design, not a purchased license entitlement."
+    },
+    {
+      "id": "M365-component-identity",
+      "type": "service",
+      "name": "Demo Entra collaboration access policy",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Cover SaaS collaboration access policy templates for the demo tenant, independently of Azure shared-service operations."
+    }
+  ],
+  "boundaryClaims": [
+    {
+      "id": "M365-BOUNDARY-001",
+      "name": "Microsoft 365 · Collaboration synthetic boundary",
+      "claim": {
+        "boundary": {
+          "subject": "Microsoft 365 · Collaboration",
+          "relationship": "Included",
+          "scope": "Only the five listed SaaS collaboration policy services; independent of Azure shared infrastructure and its customer allocations. SYNTHETIC DEMONSTRATION ONLY. Fictional hosting identity; kind=Service; serviceId=synthetic-m365-collaboration-001; serviceName=Flank Speed Demo - Collaboration (SYNTHETIC); environment=Microsoft365DoD; tenantReference=synthetic-flank-speed-demo-tenant. No live resource, tenant entitlement, or connector is asserted.",
+          "environment": "Microsoft365DoD",
+          "resourceIds": [
+            "synthetic-m365-collaboration-001"
+          ],
+          "responsibilities": [
+            "Provider owns only listed shared/SaaS operations.",
+            "Customer owns mission authorization, information handling and the customer duties in the matrix."
+          ],
+          "decisionReference": "M365-REF-001"
+        },
+        "qualifications": [
+          "SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence."
+        ],
+        "relationships": [
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "M365-component-exchange"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "M365-component-teams"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "M365-component-sharepoint"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "M365-component-purview"
+          },
+          {
+            "kind": "BoundaryComponent",
+            "targetSourceId": "M365-component-identity"
+          }
+        ]
+      }
+    }
+  ]
+}

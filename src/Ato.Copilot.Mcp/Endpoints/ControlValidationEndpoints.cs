@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -83,6 +84,14 @@ public static class ControlValidationEndpoints
             {
                 return Results.NotFound(new { error = exception.Message });
             }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound(new { error = "Linked evidence was not found in this system." });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Results.Conflict(new { error = "Evidence changed. Reload before linking." });
+            }
             catch (ArgumentException exception)
             {
                 return Results.BadRequest(new { error = exception.Message });
@@ -94,16 +103,26 @@ public static class ControlValidationEndpoints
         });
 
         group.MapDelete("/{linkId}", async (
+            string systemId,
+            string controlId,
             string linkId,
             ClaimsPrincipal user,
             IControlValidationLinkService service,
             CancellationToken cancellationToken) =>
-            await service.DeleteLinkAsync(
-                linkId,
-                user.FindFirstValue(ClaimTypes.NameIdentifier) ?? currentUser.CurrentUserId,
-                cancellationToken)
-                ? Results.NoContent()
-                : Results.NotFound())
+        {
+            try
+            {
+                var scopedLinks = await service.GetLinksAsync(systemId, controlId, cancellationToken);
+                if (!scopedLinks.Any(link => link.Id == linkId)) return Results.NotFound();
+                return await service.DeleteLinkAsync(
+                    linkId,
+                    user.FindFirstValue(ClaimTypes.NameIdentifier) ?? currentUser.CurrentUserId,
+                    cancellationToken)
+                    ? Results.NoContent()
+                    : Results.NotFound();
+            }
+            catch (ControlImplementationNotFoundException) { return Results.NotFound(); }
+        })
             .RequireAuthorization(new AuthorizeAttribute
             {
                 Roles = $"{ComplianceRoles.Auditor},{ComplianceRoles.Administrator}",

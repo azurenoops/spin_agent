@@ -17,6 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import ExportSspDialog from '../../components/ExportSspDialog';
 import { workspaceSession } from '../helpers/domainPermissions';
+import '../helpers/dialog';
 
 // --- Mocks ------------------------------------------------------------------
 

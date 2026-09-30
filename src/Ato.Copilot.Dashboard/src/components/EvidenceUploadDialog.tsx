@@ -3,6 +3,7 @@ import { uploadEvidence } from '../api/evidence';
 import apiClient from '../api/client';
 import type { ArtifactCategory, CollectionMethod, EvidenceNarrativeType } from '../types/evidence';
 import { useSystemMutationPermission } from './permissions/useSystemMutationPermission';
+import { evidenceError } from '../api/evidenceCatalog';
 
 interface SystemControl {
   controlId: string;
@@ -35,8 +36,8 @@ const COLLECTION_METHODS: { value: CollectionMethod; label: string }[] = [
 ];
 
 const ALLOWED_EXTENSIONS = [
-  '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.csv', '.xlsx', '.xls',
-  '.docx', '.doc', '.json',
+  '.pdf', '.png', '.jpg', '.jpeg', '.csv', '.xlsx',
+  '.docx', '.json', '.xml', '.txt', '.zip',
 ];
 
 const MAX_SIZE_MB = 25;
@@ -68,6 +69,9 @@ export default function EvidenceUploadDialog({
 
   // T280: Searchable Control dropdown
   const [controls, setControls] = useState<SystemControl[]>([]);
+  const [controlsLoading, setControlsLoading] = useState(true);
+  const [controlsError, setControlsError] = useState<string | null>(null);
+  const [controlsRevision, setControlsRevision] = useState(0);
   const [controlSearch, setControlSearch] = useState('');
   const [selectedControlId, setSelectedControlId] = useState<string>('');
   const [controlDropdownOpen, setControlDropdownOpen] = useState(false);
@@ -75,25 +79,27 @@ export default function EvidenceUploadDialog({
 
   // Load system controls on mount
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    setControls([]); setControlsLoading(true); setControlsError(null);
     apiClient
-      .get<SystemControl[] | { items: SystemControl[] }>(`/systems/${systemId}/controls`)
+      .get<SystemControl[] | { items: SystemControl[] }>(`/systems/${systemId}/controls`, { signal: controller.signal })
       .then(({ data }) => {
-        if (!cancelled) {
-          const list = Array.isArray(data) ? data : (data as { items: SystemControl[] }).items ?? [];
+        if (!controller.signal.aborted) {
+          const list = Array.isArray(data) ? data : data.items;
+          if (!Array.isArray(list) || list.some(item => typeof item.controlId !== 'string'))
+            throw new Error('The server returned an invalid system control list.');
           setControls(list);
         }
       })
-      .catch(() => {
-        // Controls load is non-blocking; upload still works without it
-      });
-    return () => { cancelled = true; };
-  }, [systemId]);
+      .catch(reason => { if (!controller.signal.aborted) setControlsError(evidenceError(reason)); })
+      .finally(() => { if (!controller.signal.aborted) setControlsLoading(false); });
+    return () => controller.abort();
+  }, [systemId, controlsRevision]);
 
   const filteredControls = useCallback(() => {
     const q = controlSearch.toLowerCase();
     return controls.filter(
-      (c) => c.controlId.toLowerCase().includes(q) || c.controlTitle.toLowerCase().includes(q),
+      (c) => c.controlId.toLowerCase().includes(q) || c.controlTitle?.toLowerCase().includes(q),
     ).slice(0, 50);
   }, [controls, controlSearch]);
 
@@ -141,6 +147,10 @@ export default function EvidenceUploadDialog({
       return;
     }
     if (!file) return;
+    if (!controlImplementationId && !securityCapabilityId && !selectedControlId) {
+      setError('Select a control for this upload.');
+      return;
+    }
     setUploading(true);
     setError(null);
     setProgress(0);
@@ -157,18 +167,17 @@ export default function EvidenceUploadDialog({
         narrativeType,
         // T280: pass selected controlId if present
         ...(selectedControlId ? { controlId: selectedControlId } : {}),
-      } as Parameters<typeof uploadEvidence>[0]);
+      });
       setProgress(100);
       onUploaded();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Upload failed';
-      setError(msg);
+      setError(evidenceError(err));
     } finally {
       setUploading(false);
     }
   };
 
-  const isValid = file !== null;
+  const isValid = file !== null && Boolean(controlImplementationId || securityCapabilityId || selectedControlId);
   const selectedControl = controls.find((c) => c.controlId === selectedControlId);
 
   return (
@@ -287,7 +296,7 @@ export default function EvidenceUploadDialog({
               >
                 {filteredControls().length === 0 ? (
                   <div className="px-3 py-2 text-sm text-gray-400">
-                    {controls.length === 0 ? 'Loading controls…' : 'No controls match.'}
+                    {controlsLoading ? 'Loading controls…' : 'No controls match.'}
                   </div>
                 ) : (
                   filteredControls().map((ctrl) => (
@@ -311,6 +320,11 @@ export default function EvidenceUploadDialog({
               </div>
             )}
           </div>
+
+          {controlsError && <div role="alert" className="text-sm text-red-700">
+            <p>{controlsError}</p>
+            <button type="button" onClick={() => setControlsRevision(value => value + 1)}>Retry controls</button>
+          </div>}
 
           {/* Collection Method */}
           <div>

@@ -58,6 +58,13 @@ public class OnboardingAdministratorHandler : AuthorizationHandler<OnboardingAdm
         var ct = (context.Resource as HttpContext)?.RequestAborted ?? CancellationToken.None;
         if (_tenants?.Current is { IsWorkspaceRequest: true } workspace)
         {
+            if (workspace.ImpersonatedTenantId.HasValue) return;
+            if (workspace.IsCspAdmin && context.Resource is HttpContext http
+                && http.Request.Path.StartsWithSegments("/api/onboarding/azure/subscriptions"))
+            {
+                context.Succeed(requirement);
+                return;
+            }
             if (workspace.PersonId is not { } personId) return;
             await using var scopedDb = await _contextFactory.CreateDbContextAsync(ct);
             if (await scopedDb.OrganizationRoleAssignments.AnyAsync(a => a.TenantId == workspace.EffectiveTenantId

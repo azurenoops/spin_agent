@@ -352,6 +352,22 @@ public class ComplianceWatchServiceTests : IDisposable
     // ─── Score Degradation ──────────────────────────────────────────────────
 
     [Fact]
+    public async Task RunMonitoringCheck_FailedCollectionMustNotLookLikeZeroChanges()
+    {
+        // Arrange
+        var assessment = CreateAssessmentWithFindings("sub-failed", 1);
+        SetupEngineReturns(assessment);
+        await _service.CaptureBaselineAsync("sub-failed");
+        var config = await _service.EnableMonitoringAsync("sub-failed");
+        assessment.Status = AssessmentStatus.Failed;
+        SetupEngineReturns(assessment);
+        // Act
+        var action = () => _service.RunMonitoringCheckAsync(config);
+        // Assert
+        await action.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
     public async Task RunMonitoringCheck_ScoreBelowThreshold_ShouldCreateDegradationAlert()
     {
         // Baseline with passing assessment

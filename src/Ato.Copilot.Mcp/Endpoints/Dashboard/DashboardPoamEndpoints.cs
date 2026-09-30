@@ -526,11 +526,15 @@ public static partial class DashboardEndpoints
                 projectKey = config.ProjectKeyOrTableName,
                 syncEnabled = config.SyncEnabled,
             });
-        }).WithName("GetTicketingConfig");
+        }).RequireAuthorization()
+          .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem)
+          .AddEndpointFilter((invocation, next) => TicketConfigAccess(invocation, next, false))
+          .WithName("GetTicketingConfig");
 
         // ── POST /systems/{systemId}/ticketing — configure
         group.MapPost("/systems/{systemId}/ticketing", async (
-            string systemId, ConfigureTicketingRequest req, TicketingService ticketingService, CancellationToken ct) =>
+            string systemId, ConfigureTicketingRequest req, TicketingService ticketingService,
+            Ato.Copilot.Core.Services.Ticketing.TaskTicketService taskTickets, CancellationToken ct) =>
         {
             try
             {
@@ -538,14 +542,18 @@ public static partial class DashboardEndpoints
                     return Results.BadRequest(new ErrorResponse { Error = $"Invalid provider: {req.Provider}", ErrorCode = "INVALID_INPUT" });
 
                 var config = await ticketingService.ConfigureAsync(
-                    systemId, provider, req.BaseUrl, req.ProjectKey, req.ApiKeySecretName, req.SyncEnabled, ct);
+                    systemId, provider, req.BaseUrl, req.ProjectKey, req.ApiKeySecretName, req.SyncEnabled, ct,
+                    () => taskTickets.AuthorizeConfigurationAsync(systemId, true, ct));
                 return Results.Ok(new { configured = true, provider = config.Provider.ToString() });
             }
             catch (InvalidOperationException ex)
             {
                 return Results.BadRequest(new ErrorResponse { Error = ex.Message, ErrorCode = "VALIDATION_ERROR" });
             }
-        }).WithName("ConfigureTicketing");
+        }).RequireAuthorization()
+          .RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem)
+          .AddEndpointFilter((invocation, next) => TicketConfigAccess(invocation, next, true))
+          .WithName("ConfigureTicketing");
 
         // ── POST /poam/{poamId}/sync-ticket — single sync
         group.MapPost("/poam/{poamId}/sync-ticket", async (

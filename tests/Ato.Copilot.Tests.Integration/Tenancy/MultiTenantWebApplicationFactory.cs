@@ -51,14 +51,19 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
     private readonly string _sqliteFile = Path.Combine(
         Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "TestResults")).FullName,
         $"ato-copilot-tests-{Guid.NewGuid():N}.db");
-    private readonly string _fileStoragePath = Path.Combine(Path.GetTempPath(), $"ato-package-sources-{Guid.NewGuid():N}");
+    private readonly string _fileStoragePath = Path.Combine(AppContext.BaseDirectory, "TestResults", $"ato-package-sources-{Guid.NewGuid():N}");
     private readonly string? _sqlServerConn =
         Environment.GetEnvironmentVariable("ATO_TEST_SQLSERVER_CONNSTRING");
 
     /// <summary>Returns the live <see cref="TenantContext"/> the test is mutating.</summary>
     public TenantContext GetActiveContext() => _activeContext;
 
-    /// <summary>Reset the shared fixture identity before starting a legacy-contract test.</summary>
+    /// <summary>
+    /// Starts a legacy tenant-contract test with a complete context, rather than retaining the
+    /// person/workspace selection left by an earlier test sharing this collection fixture.
+    /// Call only at test setup, before creating clients or starting requests. Mutates the same
+    /// instance registered in DI; does not change authentication or tenant-resolution settings.
+    /// </summary>
     public void ResetLegacyTenantContext(Guid tenantId, bool isCspAdmin = false)
     {
         _activeContext.TenantId = tenantId;

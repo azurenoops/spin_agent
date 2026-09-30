@@ -1,0 +1,94 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [5 0 R 7 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4504 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Microsoft 365 ∑ Collaboration) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (Customer-facing assessment summary ó approved for demo distribution) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.0 | Scenario date: 2026-09-15 | SaaS collaboration) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 609 Td (Distribution decision) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 586 Td (SYNTHETIC Harbor Collaboration Demo Team Review Board approved this redacted summary on) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 572 Td (2026-09-01 for demonstration distribution only. No real independent assessment or provider) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 558 Td (attestation is represented.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 537 Td (Method and sampling limits) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 514 Td (The fictional assurance cell examined a constructed seven-day record set, walked through) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 500 Td (operator/customer duties, and reviewed one configuration and one handoff example per) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 486 Td (capability. No live environment, customer information, connector or cloud account was) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 472 Td (accessed. Control IDs describe intended coverage only; samples do not prove operating) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 458 Td (effectiveness.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 437 Td (Scope examined) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 414 Td (Only the five listed SaaS collaboration policy services; independent of Azure shared) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 400 Td (infrastructure and its customer allocations.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 379 Td (Open moderate finding: M365-F-001) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 356 Td (In the fictional 2026-08-18 through 2026-08-24 seven-day sample, two of seven daily customer) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 342 Td (evidence bundles arrived 31 and 38 hours after period close against a 24-hour target. All 700) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 328 Td (expected synthetic events remained present in the source ledger; no event loss was observed) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 314 Td (in this invented sample. A single daily export worker and missing delivery-age alert delayed) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 300 Td (the handoff. The sample does not establish production effectiveness.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 279 Td (Customer impact: reviewers may not receive timely evidence for daily investigation. Source) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 265 Td (event availability and customer-side audit review remain separate obligations.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 244 Td (Interim action: the fictional evidence lead reviews delivery age each business day and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 230 Td (notifies the customer of overdue bundles. This is an interim check, not closure.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 209 Td (Corrective plan) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 186 Td (2026-09-18: review export and retry design. 2026-09-25: exercise replay and the 18-hour age) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 172 Td (alert. 2026-10-09: assess a 14-day validation run against the 24-hour delivery target. All) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 158 Td (dates are planned in the scenario; none asserts work completed.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 137 Td (Closure requires a complete timestamped ledger, failed-delivery replay, alert test and) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 123 Td (independent synthetic reviewer sign-off. Residual risk remains open. Release availability) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 109 Td (does not mean every finding is closed.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 88 Td (Distribution exclusions) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 2) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 550 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 730 Td (The PRIVATE working paper contains row-level invented timestamps and reviewer notes. It is) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 716 Td (not approved for customer distribution; no genuine sensitive or personal information is) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 702 Td (present.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 2 of 2) Tj ET
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000224 00000 n 
+0000000326 00000 n 
+0000000462 00000 n 
+0000005018 00000 n 
+0000005154 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+5755
+%%EOF

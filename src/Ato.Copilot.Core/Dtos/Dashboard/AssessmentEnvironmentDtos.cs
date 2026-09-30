@@ -3,7 +3,11 @@ namespace Ato.Copilot.Core.Dtos.Dashboard;
 /// <summary>Identifies a subscription attached to the current system.</summary>
 /// <param name="SubscriptionId">Canonical Azure subscription identifier.</param>
 /// <param name="DisplayName">Organization registration display name.</param>
-public sealed record AssessmentSubscriptionResponse(string SubscriptionId, string DisplayName);
+/// <param name="AttachmentId">Shared environment identity, absent for legacy subscriptions.</param>
+/// <param name="State">Current admission state; not a claim of source collection health.</param>
+/// <param name="Reason">Safe explanation of unavailable or unsupported collection.</param>
+public sealed record AssessmentSubscriptionResponse(string SubscriptionId, string DisplayName,
+    Guid? AttachmentId = null, string? State = null, string? Reason = null);
 
 /// <summary>Describes an organization subscription that can be selected for assessment.</summary>
 /// <param name="SubscriptionId">Canonical Azure subscription identifier.</param>

@@ -41,7 +41,15 @@ public static partial class DashboardEndpoints
             .RequireAuthorization();
 
         MapSystemRoutes(group, app, currentUser);
+        MapSystemHistoryRoutes(group);
+        MapSystemNextActionsRoutes(group);
+        MapPackageReadinessRoutes(group);
+        MapInventoryRegisterRoutes(group);
+        MapOperationalStatusRoutes(group);
         MapComponentRoutes(group, app, currentUser);
+        MapPolicyWorkspaceRoutes(group);
+        MapAssessmentPlanWorkspaceRoutes(group);
+        MapRemediationWorkspaceRoutes(group);
         MapCapabilityRoutes(group, app);
         MapRoadmapRoutes(group, app);
         MapProfileRoutes(group, app, currentUser);
@@ -54,9 +62,11 @@ public static partial class DashboardEndpoints
         MapExportRoutes(group, app, currentUser);
         MapEvidenceRoutes(group, app, currentUser);
         MapPoamRoutes(group, app, currentUser);
+        MapTaskTicketRoutes(group);
         MapAzureDiscoveryRoutes(group, app, currentUser);
         MapInheritanceRoutes(group, app, currentUser);
         MapControlRoutes(group, app);
+        MapNarrativeWorkspaceRoutes(group);
 
                 return app;
     }
@@ -364,7 +374,7 @@ public static partial class DashboardEndpoints
         string? Comments = null);
 
     private record MoveTaskRequest(
-        string Status);
+        string Status, string? Comment = null, bool SkipValidation = false, Guid? RowVersion = null);
 
     // Fix #554: DTO for POST /api/dashboard/remediation/tasks
     private record CreateRemediationTaskRequest(

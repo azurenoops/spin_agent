@@ -4,6 +4,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
@@ -42,6 +47,23 @@ public class SspExportBackgroundService : BackgroundService
                         job.ExportId, job.SystemId, job.Format);
 
                     using var scope = _scopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+                    var retained = await db.SspExports.AsNoTracking()
+                        .SingleOrDefaultAsync(x => x.Id == job.ExportId, stoppingToken);
+                    IDisposable? tenantScope = null;
+                    if (retained?.SourceTenantId is Guid tenantId && tenantId != Guid.Empty
+                        && retained.RequestedPersonId is Guid personId && personId != Guid.Empty)
+                    {
+                        var tenant = (TenantContext)scope.ServiceProvider.GetRequiredService<ITenantContext>();
+                        tenant.TenantId = tenantId;
+                        tenant.PersonId = personId;
+                        tenant.IsWorkspaceRequest = true;
+                        tenant.IsCspAdmin = false;
+                        tenant.ImpersonatedTenantId = null;
+                        tenant.Status = TenantStatus.Active;
+                        tenantScope = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Push(tenant);
+                    }
+                    using var boundTenant = tenantScope;
                     var exportService = scope.ServiceProvider.GetRequiredService<ISspExportService>();
                     await exportService.ProcessExportAsync(job, stoppingToken);
                 }

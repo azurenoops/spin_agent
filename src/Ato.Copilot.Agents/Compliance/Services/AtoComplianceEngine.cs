@@ -30,6 +30,7 @@ public class AtoComplianceEngine : IAtoComplianceEngine
     private readonly IStigValidationService _stigValidationService;
     private readonly IEvidenceCollectorRegistry _evidenceCollectorRegistry;
     private readonly IServiceProvider _serviceProvider;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     // Lazy-resolved to break circular dependency:
     // AtoComplianceEngine → IComplianceWatchService → ComplianceWatchService → IAtoComplianceEngine
@@ -56,7 +57,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         IAzureResourceService azureResourceService,
         IStigValidationService stigValidationService,
         IEvidenceCollectorRegistry evidenceCollectorRegistry,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _nistService = nistService;
         _policyService = policyService;
@@ -69,6 +71,7 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         _stigValidationService = stigValidationService;
         _evidenceCollectorRegistry = evidenceCollectorRegistry;
         _serviceProvider = serviceProvider;
+        _environmentGuard = environmentGuard;
     }
 
     /// <summary>
@@ -93,6 +96,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         bool includePassed = false,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         var assessment = new ComplianceAssessment
         {
             SubscriptionId = subscriptionId,
@@ -610,6 +615,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         string? resourceGroup = null,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         if (!ControlFamilies.IsValidFamily(familyCode))
             throw new ArgumentException($"Invalid control family: {familyCode}", nameof(familyCode));
 
@@ -647,15 +654,18 @@ public class AtoComplianceEngine : IAtoComplianceEngine
                     .Select(f => f.ControlId)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Count();
-                result.PassedControls = result.TotalControls - result.FailedControls;
+                result.PassedControls = Math.Min(result.PassedControls,
+                    Math.Max(0, result.TotalControls - result.FailedControls));
                 result.ComplianceScore = result.TotalControls > 0
                     ? (double)result.PassedControls / result.TotalControls * 100.0
-                    : 100.0;
+                    : 0.0;
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "STIG validation failed for family {Family}, continuing with scanner results", familyCode);
+            result.Status = FamilyAssessmentStatus.Failed;
+            result.ErrorMessage = "STIG validation failed; scanner observations retained.";
         }
 
         return result;
@@ -667,20 +677,25 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         string? resourceGroup = null,
         IProgress<AssessmentProgress>? progress = null,
         CancellationToken cancellationToken = default)
+        => await RunRetainedAssessmentAsync(new ComplianceAssessment
+        {
+            SubscriptionId = subscriptionId, ResourceGroupFilter = resourceGroup,
+            SubscriptionIds = [subscriptionId], ScanType = "comprehensive", InitiatedBy = "system"
+        }, progress, cancellationToken);
+
+    public async Task<ComplianceAssessment> RunRetainedAssessmentAsync(
+        ComplianceAssessment assessment, IProgress<AssessmentProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var overallStopwatch = Stopwatch.StartNew();
-
-        var assessment = new ComplianceAssessment
+        var subscriptionId = assessment.SubscriptionId;
+        var resourceGroup = assessment.ResourceGroupFilter;
+        if (_environmentGuard is not null)
         {
-            SubscriptionId = subscriptionId,
-            Framework = "NIST80053",
-            ScanType = "comprehensive",
-            Status = AssessmentStatus.Pending,
-            InitiatedBy = "system",
-            AssessedAt = DateTime.UtcNow,
-            ResourceGroupFilter = resourceGroup,
-            SubscriptionIds = new List<string> { subscriptionId }
-        };
+            if (assessment.RegisteredSystemId is not null)
+                await _environmentGuard.EnsureSystemAsync(assessment.RegisteredSystemId, EnvironmentScopePurpose.Assessment, cancellationToken);
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
+        }
 
         _logger.LogInformation(
             "Starting comprehensive assessment {Id} | Sub: {Sub} | RG: {RG}",
@@ -719,11 +734,38 @@ public class AtoComplianceEngine : IAtoComplianceEngine
                 progressReport.CurrentFamily = familyCode;
                 progress?.Report(progressReport);
 
-                var familyResult = await AssessControlFamilyAsync(
-                    familyCode, subscriptionId, resourceGroup, cancellationToken);
+                if (assessment.ControlFamilyResults.Any(f => f.FamilyCode == familyCode
+                    && f.Status == FamilyAssessmentStatus.Completed))
+                    continue;
+                ControlFamilyAssessment familyResult;
+                try
+                {
+                    familyResult = await AssessControlFamilyAsync(
+                        familyCode, subscriptionId, resourceGroup, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "Family {Family} failed; retaining partial assessment {Id}", familyCode, assessment.Id);
+                    familyResult = ControlFamilyAssessment.Failed(familyCode, "Scanner failed; retry collection.");
+                }
 
+                assessment.ControlFamilyResults.RemoveAll(f => f.FamilyCode == familyCode);
                 assessment.ControlFamilyResults.Add(familyResult);
-                assessment.Findings.AddRange(familyResult.Findings);
+                if (assessment.ResultProvenanceJson is not null)
+                {
+                    var execution = AssessmentResultProvenance.Read(assessment.ResultProvenanceJson);
+                    execution.ExecutionLeaseExpiresAt = DateTime.UtcNow.AddMinutes(30);
+                    assessment.ResultProvenanceJson = execution.Serialize();
+                }
+                foreach (var finding in familyResult.Findings)
+                {
+                    finding.AssessmentId = assessment.Id;
+                    finding.CatSeverity ??= MapToCatSeverity(finding.Severity);
+                    if (!assessment.Findings.Any(f => f.ControlId == finding.ControlId
+                        && f.ResourceId == finding.ResourceId && f.Source == finding.Source))
+                        assessment.Findings.Add(finding);
+                }
+                await _persistenceService.SaveAssessmentAsync(assessment, cancellationToken);
 
                 // Track per-family timing for ETA
                 familyScanTimes.Add(familyResult.AssessmentDuration.TotalMilliseconds);
@@ -756,9 +798,9 @@ public class AtoComplianceEngine : IAtoComplianceEngine
 
             // Record Policy and Defender pillar status based on family results
             if (!assessment.ScanPillarResults.ContainsKey("Policy"))
-                assessment.ScanPillarResults["Policy"] = true;
+                assessment.ScanPillarResults["Policy"] = false;
             if (!assessment.ScanPillarResults.ContainsKey("Defender"))
-                assessment.ScanPillarResults["Defender"] = true;
+                assessment.ScanPillarResults["Defender"] = false;
 
             // Generate executive summary
             assessment.ExecutiveSummary = GenerateExecutiveSummary(assessment);
@@ -766,16 +808,13 @@ public class AtoComplianceEngine : IAtoComplianceEngine
             // Complete the assessment
             overallStopwatch.Stop();
             assessment.AssessmentDuration = overallStopwatch.Elapsed;
-            assessment.Status = AssessmentStatus.Completed;
+            assessment.Status = assessment.ControlFamilyResults.Any(f => f.Status == FamilyAssessmentStatus.Failed)
+                ? AssessmentStatus.Failed : AssessmentStatus.Completed;
             assessment.CompletedAt = DateTime.UtcNow;
-            assessment.ProgressMessage = "Assessment completed";
+            assessment.ProgressMessage = assessment.Status == AssessmentStatus.Completed
+                ? "Collection completed; human review pending." : "Partial collection retained; one or more scanners failed.";
 
-            // Persist — non-fatal: return assessment even if DB save fails
-            try { await _persistenceService.SaveAssessmentAsync(assessment, cancellationToken); }
-            catch (Exception saveEx) when (saveEx is not OperationCanceledException)
-            {
-                _logger.LogWarning(saveEx, "Failed to persist completed assessment {Id} — returning assessment without persistence", assessment.Id);
-            }
+            await _persistenceService.SaveAssessmentAsync(assessment, cancellationToken);
 
             _logger.LogInformation(
                 "Comprehensive assessment {Id} completed | Score: {Score:F1}% | Findings: {Count} | Duration: {Duration}ms",
@@ -788,6 +827,7 @@ public class AtoComplianceEngine : IAtoComplianceEngine
             assessment.Status = AssessmentStatus.Cancelled;
             assessment.ProgressMessage = "Assessment cancelled";
             _logger.LogWarning("Comprehensive assessment {Id} was cancelled", assessment.Id);
+            await _persistenceService.SaveAssessmentAsync(assessment, CancellationToken.None);
             throw;
         }
         catch (Exception ex)
@@ -813,6 +853,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         string? resourceGroup = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         _logger.LogInformation("Streaming assessment findings | Sub: {Sub} | RG: {RG}",
             subscriptionId, resourceGroup ?? "(all)");
 
@@ -843,6 +885,9 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         CancellationToken cancellationToken = default)
     {
         var subList = subscriptionIds.ToList();
+        if (_environmentGuard is not null)
+            foreach (var subscription in subList)
+                await _environmentGuard.EnsureSubscriptionAsync(subscription, EnvironmentScopePurpose.Assessment, cancellationToken);
         if (subList.Count == 0)
             throw new ArgumentException("At least one subscription ID is required.", nameof(subscriptionIds));
 
@@ -955,8 +1000,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
                 finding.AssessmentId = assessment.Id;
 
             ComputeScoresFromFamilyResults(assessment);
-            assessment.ScanPillarResults["Policy"] = true;
-            assessment.ScanPillarResults["Defender"] = true;
+            assessment.ScanPillarResults["Policy"] = false;
+            assessment.ScanPillarResults["Defender"] = false;
             assessment.ExecutiveSummary = GenerateExecutiveSummary(assessment);
 
             overallStopwatch.Stop();
@@ -1008,6 +1053,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         string? resourceGroup = null,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         _logger.LogInformation("Collecting evidence for family {Family} Sub={Sub}", familyCode, subscriptionId);
 
         var collector = _evidenceCollectorRegistry.GetCollector(familyCode);
@@ -1601,6 +1648,9 @@ public class AtoComplianceEngine : IAtoComplianceEngine
 
         if (completedFamilies.Count == 0)
         {
+            assessment.TotalControls = 0;
+            assessment.PassedControls = 0;
+            assessment.FailedControls = 0;
             assessment.ComplianceScore = 0;
             return;
         }

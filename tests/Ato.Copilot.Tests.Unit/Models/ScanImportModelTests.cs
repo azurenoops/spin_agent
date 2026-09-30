@@ -26,12 +26,25 @@ public class ScanImportModelTests
     // ─── ScanImportStatus Enum ───────────────────────────────────────────────
 
     [Fact]
-    public void ScanImportStatus_Should_Have_Three_Values()
+    public void ScanImportStatus_Should_Include_Retained_Lifecycle_And_Preserve_Stored_Values()
     {
-        Enum.GetValues<ScanImportStatus>().Should().HaveCount(3);
-        Enum.IsDefined(ScanImportStatus.Completed).Should().BeTrue();
-        Enum.IsDefined(ScanImportStatus.CompletedWithWarnings).Should().BeTrue();
-        Enum.IsDefined(ScanImportStatus.Failed).Should().BeTrue();
+        // Arrange
+        var expected = new[]
+        {
+            ScanImportStatus.Completed,
+            ScanImportStatus.CompletedWithWarnings,
+            ScanImportStatus.Failed,
+            ScanImportStatus.Queued,
+            ScanImportStatus.Processing,
+            ScanImportStatus.Cancelled
+        };
+
+        // Act
+        var statuses = Enum.GetValues<ScanImportStatus>();
+
+        // Assert
+        statuses.Should().Equal(expected);
+        expected.Select(status => (int)status).Should().Equal(0, 1, 2, 3, 4, 5);
     }
 
     // ─── ImportConflictResolution Enum ───────────────────────────────────────

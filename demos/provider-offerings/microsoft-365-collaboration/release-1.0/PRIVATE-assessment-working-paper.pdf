@@ -1,0 +1,72 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [5 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 3906 >>
+stream
+1 1 1 rg 0 0 612 792 re f
+0.08 0.19 0.31 rg 0 756 612 36 re f
+BT /F2 10 Tf 1 1 1 rg 48 770 Td (SYNTHETIC DEMONSTRATION ONLY) Tj ET
+BT /F2 17 Tf 0.08 0.19 0.31 rg 48 730 Td (Microsoft 365 ∑ Collaboration) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 702 Td (PRIVATE detailed assessment working paper) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 679 Td (SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 665 Td (in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 651 Td (authorization, a customer entitlement, or operational evidence.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 630 Td (Release 1.0 | Scenario date: 2026-09-15 | SaaS collaboration) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 609 Td (PRIVATE | SYNTHETIC INTERNAL DEMO ONLY | NOT REAL CUI | M365-PRIVATE-WP-001) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 588 Td (Do not include this attachment in customer-facing exports. Its PRIVATE label exercises) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 574 Td (document-handling choices, not a claim of real sensitivity.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 553 Td (Synthetic sample ledger) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 530 Td (Each period contains 100 invented events; expected and retained totals are 700. Bundle delay) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 516 Td (is measured from 00:00 UTC at the end of the period to delivery.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 495 Td (- 2026-08-18: 100 expected / 100 retained; delivery lag 12h; within target.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 474 Td (- 2026-08-19: 100 expected / 100 retained; delivery lag 13h; within target.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 453 Td (- 2026-08-20: 100 expected / 100 retained; delivery lag 31h; LATE.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 432 Td (- 2026-08-21: 100 expected / 100 retained; delivery lag 11h; within target.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 411 Td (- 2026-08-22: 100 expected / 100 retained; delivery lag 38h; LATE.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 390 Td (- 2026-08-23: 100 expected / 100 retained; delivery lag 14h; within target.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 369 Td (- 2026-08-24: 100 expected / 100 retained; delivery lag 12h; within target.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 348 Td (Reviewer analysis) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 325 Td (Two of seven bundles exceeded the target \(28.6%\). The invented failure sequence was a) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 311 Td (scheduled export failure followed by the next day's retry, with no delivery-age notification.) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 297 Td (No inference about real provider reliability is valid.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 276 Td (Corrective test script) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 253 Td (Create a synthetic delivery failure; verify the secondary attempt preserves event IDs;) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 239 Td (trigger an 18-hour age alert; verify escalation contacts acknowledge it; reconcile 14 daily) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 225 Td (bundles and demonstrate each arrives within 24 hours. Do not disable controls or inject) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 211 Td (faults into a real service for this demonstration.) Tj ET
+BT /F2 12 Tf 0.08 0.19 0.31 rg 48 190 Td (Review notes) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 167 Td (Keep the finding Open while milestones are planned. The 1.3 scenario improves documentation) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 153 Td (but does not itself close the finding. No real assessor name, signature, tenant identifier or) Tj ET
+BT /F1 10 Tf 0.08 0.19 0.31 rg 48 139 Td (security configuration is included.) Tj ET
+BT /F1 8 Tf 0.4 0.4 0.4 rg 48 30 Td (Fictional provider package | Page 1 of 1) Tj ET
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000320 00000 n 
+0000000456 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+4414
+%%EOF

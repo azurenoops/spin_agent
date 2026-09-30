@@ -1,0 +1,43 @@
+{
+  "authorizationReferences": [
+    {
+      "id": "AZ-REF-001",
+      "name": "SYNTHETIC Azure IL5 · Shared services demo release reference",
+      "reference": "SYNTHETIC DEMONSTRATION ONLY; AZ-REF-001; fictional service-release review record, NOT ATO or approval to operate; only Azure IL5 · Shared services; customer duties and logging evidence-delay plan remain required.",
+      "issuer": "SYNTHETIC Northstar Shared Services Demo Team Review Board",
+      "issuedAt": "2026-09-01",
+      "expiresAt": "2027-08-31",
+      "description": "SYNTHETIC DEMONSTRATION ONLY. Source title: Azure IL5 · Shared services Fictional Service Release Review. Type: demonstration reference record. Dates apply only to this scenario."
+    }
+  ],
+  "authorizationDecisionClaims": [
+    {
+      "id": "AZ-DECISION-001",
+      "name": "Synthetic demonstration distribution decision",
+      "claim": {
+        "authorizationDecision": {
+          "subjectKind": "Provider",
+          "subject": "SYNTHETIC DEMONSTRATION ONLY: Azure IL5 · Shared services",
+          "reference": "AZ-REF-001",
+          "authority": "SYNTHETIC Northstar Shared Services Demo Team Review Board",
+          "decisionType": "Fictional demonstration distribution approval; NOT ATO",
+          "statusAsStated": "Approved",
+          "decisionDate": "2026-09-01",
+          "expirationDate": "2027-08-31",
+          "scope": "Only the eight listed provider-operated shared services; no mission workloads or SaaS collaboration tenant.",
+          "conditions": [
+            "Customer must complete its own authorization and allocation checks.",
+            "Retain the open moderate logging evidence-delay finding and corrective milestones.",
+            "PRIVATE working papers are not cleared for customer distribution."
+          ],
+          "exclusions": [
+            "Customer application code, databases, mission data, workstation configuration, customer subscriptions not explicitly enrolled, Microsoft 365, and any actual IL5 approval."
+          ]
+        },
+        "qualifications": [
+          "SYNTHETIC DEMONSTRATION ONLY. All services, measurements, decisions, identities and evidence in this package are fictional. Not Microsoft provider data, a DoD approval, an IL5 authorization, a customer entitlement, or operational evidence."
+        ]
+      }
+    }
+  ]
+}

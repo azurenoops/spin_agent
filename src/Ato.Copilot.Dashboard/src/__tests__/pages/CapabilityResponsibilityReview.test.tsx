@@ -1,34 +1,60 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
-import CapabilityResponsibilityReview from '../../pages/CapabilityResponsibilityReview';
-import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import * as api from '../../api/capabilityResponsibilities';
 import type { CapabilityResponsibilityResponse } from '../../api/capabilityResponsibilities';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
+import CapabilityResponsibilityReview from '../../pages/CapabilityResponsibilityReview';
 import { responsibilityItem as item, responsibilitySnapshotJson } from '../helpers/capabilityResponsibilityFixture';
+import '../helpers/dialog';
 
 vi.mock('../../api/capabilityResponsibilities', async importOriginal => {
   const actual = await importOriginal<typeof import('../../api/capabilityResponsibilities')>();
-  return { ...actual, getCapabilityResponsibilities: vi.fn(), confirmCapabilityResponsibilities: vi.fn(),
-    reconcileCapabilityResponsibilities: vi.fn(), dispatchCapabilityResponsibilityImpacts: vi.fn() };
+  return {
+    ...actual,
+    getCapabilityResponsibilities: vi.fn(),
+    confirmCapabilityResponsibilities: vi.fn(),
+    reconcileCapabilityResponsibilities: vi.fn(),
+    dispatchCapabilityResponsibilityImpacts: vi.fn(),
+  };
 });
+
 const preview = (overrides: Partial<CapabilityResponsibilityResponse> = {}): CapabilityResponsibilityResponse => ({
-  systemId: 'system-a', baselineId: 'baseline-a', canConfirm: true, items: [item()], pendingImpacts: [], ...overrides,
+  systemId: 'system-a',
+  baselineId: 'baseline-a',
+  baselineName: 'Moderate baseline · CNSSI 1253 IL4',
+  canConfirm: true,
+  items: [item()],
+  pendingImpacts: [],
+  ...overrides,
 });
+
 function renderReview() {
   return render(<MemoryRouter initialEntries={['/workspaces/organizations/org-a/systems/system-a/inheritance/subscriptions']}>
     <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-a' }}>
-      <Routes><Route path="/workspaces/organizations/:tenantId/systems/:id/inheritance/subscriptions" element={<CapabilityResponsibilityReview />} /></Routes>
+      <Routes>
+        <Route path="/workspaces/organizations/:tenantId/systems/:id/inheritance/subscriptions" element={<CapabilityResponsibilityReview />} />
+      </Routes>
     </WorkspaceNavigationProvider>
   </MemoryRouter>);
 }
-async function chooseShared() {
-  const select = await screen.findByRole('combobox', { name: 'Allocation for AC-1' });
-  fireEvent.change(select, { target: { value: 'Shared' } });
-  fireEvent.change(screen.getByRole('textbox', { name: 'Provider for AC-1' }), { target: { value: 'Reviewed CSP' } });
-  fireEvent.change(screen.getByRole('textbox', { name: 'Customer responsibility for AC-1' }), { target: { value: 'Customer reviews accounts.' } });
-  fireEvent.click(screen.getByRole('checkbox', { name: 'I reviewed the provider revision and the selected allocations.' }));
+
+async function openControl(controlId = 'AC-1') {
+  fireEvent.click(await screen.findByRole('button', { name: `Open ${controlId} responsibility` }));
+  return screen.findByRole('dialog', { name: `Review ${controlId} responsibility` });
 }
+
+async function chooseShared() {
+  const drawer = screen.queryByRole('dialog', { name: 'Review AC-1 responsibility' }) ?? await openControl();
+  fireEvent.change(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' }), { target: { value: 'Shared' } });
+  fireEvent.change(within(drawer).getByRole('textbox', { name: 'Provider for AC-1' }), { target: { value: 'Reviewed CSP' } });
+  fireEvent.change(within(drawer).getByRole('textbox', { name: 'Customer responsibility for AC-1' }), {
+    target: { value: 'Customer reviews accounts.' },
+  });
+  fireEvent.click(within(drawer).getByRole('checkbox', { name: 'I reviewed the provider revision and the selected allocations.' }));
+  return drawer;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview());
@@ -36,310 +62,402 @@ beforeEach(() => {
 });
 
 describe('system subscription responsibility review', () => {
-  it('requires a baseline and preserves the organization scope on the baseline link', async () => {
-    // Arrange
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ baselineId: null, items: [item('MissingBaseline')] }));
-    // Act
+  it('matches the responsibility mock hierarchy and opens row review in a drawer', async () => {
+    // Arrange / Act
     renderReview();
+    const matrix = await screen.findByRole('region', { name: 'Responsibility matrix' });
+
     // Assert
-    expect(await screen.findByText('Select a baseline before confirming allocations.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Select or review baseline' })).toHaveAttribute('href', '/workspaces/organizations/org-a/systems/system-a/baseline');
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
+    expect(within(matrix).getByRole('columnheader', { name: 'Control' })).toBeVisible();
+    expect(screen.getByText('Baseline: Moderate baseline · CNSSI 1253 IL4')).toBeVisible();
+    expect(screen.queryByText('Baseline: baseline-a')).not.toBeInTheDocument();
+    expect(within(matrix).getByRole('columnheader', { name: 'Provider capability' })).toBeVisible();
+    expect(within(matrix).getByText('Reviewed access capability')).toBeVisible();
+    expect(within(matrix).getByText(/Flankspeed/)).toBeVisible();
+    expect(within(matrix).queryByText(/source-1/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review allocations' })).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Preview contribution →' })).toHaveAttribute(
+      'href',
+      '/workspaces/organizations/org-a/systems/system-a/documents#ssp-sections',
+    );
+    expect(screen.getByRole('link', { name: 'View package readiness →' })).toHaveAttribute(
+      'href',
+      '/workspaces/organizations/org-a/systems/system-a',
+    );
+    const drawer = await openControl();
+    expect(drawer).toHaveClass('max-w-3xl');
+    expect(within(drawer).getByText('Current provider snapshot')).toBeVisible();
+    expect(within(drawer).getByText('Technical revision details')).toBeVisible();
+    expect(within(drawer).getByText('source-1')).not.toBeVisible();
+    fireEvent.click(within(drawer).getByText('Technical revision details'));
+    expect(within(drawer).getByText('source-1')).toBeVisible();
+    expect(within(matrix).getByRole('link', { name: 'Review evidence for AC-1' })).toHaveAttribute(
+      'href',
+      '/workspaces/organizations/org-a/systems/system-a/evidence',
+    );
   });
 
-  it('uses only server canConfirm, never a browser ISSM role preference', async () => {
+  it('opens the first reviewable control from the header action', async () => {
+    // Arrange
+    renderReview();
+    await screen.findByRole('region', { name: 'Responsibility matrix' });
+
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Review allocations' }));
+
+    // Assert
+    expect(await screen.findByRole('dialog', { name: 'Review AC-1 responsibility' })).toBeVisible();
+  });
+
+  it('defaults inherited allocations to the authoritative provider profile name', async () => {
+    // Arrange
+    renderReview();
+    const drawer = await openControl();
+
+    // Act
+    fireEvent.change(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' }), {
+      target: { value: 'Inherited' },
+    });
+
+    // Assert
+    expect(within(drawer).getByRole('textbox', { name: 'Provider for AC-1' })).toHaveValue('Flankspeed');
+    expect(within(drawer).getByText('Flankspeed')).toBeVisible();
+  });
+
+  it('requires a baseline and preserves organization-scoped navigation', async () => {
+    // Arrange
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({
+      baselineId: null,
+      items: [item('MissingBaseline')],
+    }));
+
+    // Act
+    renderReview();
+
+    // Assert
+    expect(await screen.findByText(/Select a baseline before confirming allocations/)).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Select or review baseline' })).toHaveAttribute(
+      'href',
+      '/workspaces/organizations/org-a/systems/system-a/baseline',
+    );
+    const drawer = await openControl();
+    expect(within(drawer).queryByRole('combobox')).toBeDisabled();
+  });
+
+  it('uses server confirmation permission rather than browser role preferences', async () => {
     // Arrange
     localStorage.setItem('ato-dashboard-settings', JSON.stringify({ role: 'ISSM' }));
     vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ canConfirm: false }));
+
     // Act
     renderReview();
+    const drawer = await openControl();
+
     // Assert
-    expect(await screen.findByText(/Read-only: an effective assigned ISSM or ISSO/)).toBeInTheDocument();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(within(drawer).getByText(/effective assigned ISSM or ISSO/i)).toBeVisible();
+    expect(within(drawer).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Reconcile current baseline' })).toBeDisabled();
-    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
     localStorage.removeItem('ato-dashboard-settings');
   });
 
-  it('starts without an inferred allocation and sends exactly the displayed revisions', async () => {
+  it('starts with no inferred allocation and confirms only the selected control and displayed revisions', async () => {
     // Arrange
     renderReview();
-    expect(await screen.findByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('');
-    expect(screen.getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    const drawer = await openControl();
+    expect(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('');
+
     // Act
     await chooseShared();
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+
     // Assert
     await waitFor(() => expect(api.confirmCapabilityResponsibilities).toHaveBeenCalledWith('system-a', 'capability-a', {
-      baselineId: 'baseline-a', sourceRevision: 'source-1', reviewRevision: 'review-1',
-      allocations: [{ controlId: 'AC-1', inheritanceType: 'Shared', provider: 'Reviewed CSP', customerResponsibility: 'Customer reviews accounts.' }],
+      baselineId: 'baseline-a',
+      sourceRevision: 'source-1',
+      reviewRevision: 'review-1',
+      allocations: [{
+        controlId: 'AC-1',
+        inheritanceType: 'Shared',
+        provider: 'Reviewed CSP',
+        customerResponsibility: 'Customer reviews accounts.',
+      }],
     }, expect.anything()));
     expect(api.reconcileCapabilityResponsibilities).not.toHaveBeenCalled();
-    expect(api.dispatchCapabilityResponsibilityImpacts).not.toHaveBeenCalled();
   });
 
-  it('shows source, subscription and effective designation separately for every prerequisite/state', async () => {
+  it('shows actual state, source ownership and effective designation without inventing allocations', async () => {
     // Arrange
     const states = ['MissingAllocation', 'PendingReview', 'ConflictingAllocations', 'PreservedOverride', 'OutsideBaseline', 'Inactive'];
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: states.map((state, i) => ({
-      ...item(state, `AC-${i + 1}`), effectiveInheritanceType: state === 'PreservedOverride' ? 'Customer' : null,
-      designationSource: state === 'PreservedOverride' ? 'Manual' : null,
-    })) }));
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({
+      items: states.map((state, index) => ({
+        ...item(state, `AC-${index + 1}`),
+        effectiveInheritanceType: state === 'PreservedOverride' ? 'Customer' : null,
+        designationSource: state === 'PreservedOverride' ? 'Manual' : null,
+      })),
+    }));
+
     // Act
     renderReview();
+
     // Assert
-    await screen.findByText('Subscription subscription-a');
+    await screen.findByRole('region', { name: 'Responsibility matrix' });
     for (const label of ['Missing allocation', 'Pending review', 'Conflicting allocations', 'Preserved override', 'Outside baseline', 'Inactive']) {
-      expect(screen.getByText(label, { exact: true })).toBeInTheDocument();
+      expect(screen.getByText(label, { exact: true })).toBeVisible();
     }
-    expect(screen.getByText('component-a')).toBeInTheDocument();
-    expect(screen.getByText('provider-a')).toBeInTheDocument();
-    expect(screen.getByText('Customer · Manual')).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Allocation for AC-5' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Allocation for AC-6' })).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Flankspeed · Published provider component/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Customer')).toBeVisible();
   });
 
-  it('refreshes after 409, clears stale edits and requires a new explicit confirmation', async () => {
+  it('clears a stale drawer and reloads current revisions after a 409', async () => {
     // Arrange
     vi.mocked(api.confirmCapabilityResponsibilities).mockRejectedValue(new api.ResponsibilityApiError('Review changed.', 409));
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValueOnce(preview()).mockResolvedValueOnce(
-      preview({ items: [{ ...item('PendingReview'), sourceRevision: 'source-2', reviewRevision: 'review-2' }] }));
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValueOnce(preview()).mockResolvedValueOnce(preview({
+      items: [{ ...item('PendingReview'), sourceRevision: 'source-2', reviewRevision: 'review-2' }],
+    }));
     renderReview();
-    await chooseShared();
+    const drawer = await chooseShared();
+
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent(/changed.*review again/i);
     await waitFor(() => expect(api.getCapabilityResponsibilities).toHaveBeenCalledTimes(2));
-    expect(await screen.findByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('');
-    expect(screen.getByText('source-2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const refreshedDrawer = await openControl();
+    fireEvent.click(within(refreshedDrawer).getByText('Technical revision details'));
+    expect(within(refreshedDrawer).getByText('source-2')).toBeVisible();
   });
 
-  it('blocks old controls after write permission is denied', async () => {
+  it('removes editable data after write permission is denied', async () => {
     // Arrange
     vi.mocked(api.confirmCapabilityResponsibilities).mockRejectedValue(new api.ResponsibilityApiError('ISSM or ISSO required.', 403));
     renderReview();
-    await chooseShared();
+    const drawer = await chooseShared();
+
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('ISSM or ISSO required.');
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry preview' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry preview' })).toBeVisible();
   });
 
-  it('keeps reconciliation and mark-only delivery explicit and separate from narrative generation', async () => {
+  it('keeps reconciliation and mark-only impact delivery separate from narrative generation', async () => {
     // Arrange
     const data = preview({ pendingImpacts: [{
-      id: 'impact-a', baselineId: 'baseline-a', controlId: 'AC-1', stateHash: 'hash-a',
-      reason: 'SourceReconciled', sourcesJson: '[{"SubscriptionId":"subscription-a","IsActive":false}]', createdAt: '2026-09-21T00:00:00Z',
+      id: 'impact-a',
+      baselineId: 'baseline-a',
+      controlId: 'AC-1',
+      stateHash: 'hash-a',
+      reason: 'SourceReconciled',
+      sourcesJson: '[{"SubscriptionId":"subscription-a","IsActive":false}]',
+      createdAt: '2026-09-21T00:00:00Z',
     }] });
     vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(data);
     vi.mocked(api.reconcileCapabilityResponsibilities).mockResolvedValue(data);
-    vi.mocked(api.dispatchCapabilityResponsibilityImpacts).mockResolvedValue({ delivered: 1, pending: 0, proposalIds: [], deferred: [] });
-    renderReview();
-    await screen.findByText('SourceReconciled');
-    // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Reconcile current baseline' }));
-    await waitFor(() => expect(api.reconcileCapabilityResponsibilities).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Deliver pending review impacts' })).toBeEnabled());
-    expect(api.dispatchCapabilityResponsibilityImpacts).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Deliver pending review impacts' }));
-    // Assert
-    expect(await screen.findByText(/1 delivered.*0 pending/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /generate|approve/i })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Pending review impacts' })).getByText(/subscription-a/)).toBeInTheDocument();
-    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
-  });
-
-  it('reports missing-narrative deferrals and links returned proposal IDs without generating content', async () => {
-    // Arrange
-    const data = preview({ pendingImpacts: [{ id: 'impact-a', baselineId: 'baseline-a', controlId: 'AC-1',
-      stateHash: 'hash', reason: 'SourceReconciled', sourcesJson: '[]', createdAt: '2026-09-21T00:00:00Z' }] });
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(data);
     vi.mocked(api.dispatchCapabilityResponsibilityImpacts).mockResolvedValue({
-      delivered: 0, pending: 1, proposalIds: ['proposal-a'], deferred: [{ impactId: 'impact-a', controlId: 'AC-1', reason: 'MissingNarrative' }],
+      delivered: 1,
+      pending: 0,
+      proposalIds: [],
+      deferred: [],
     });
     renderReview();
-    await screen.findByText('SourceReconciled');
+    await screen.findByText(/AC-1 · SourceReconciled/);
+
     // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Reconcile current baseline' }));
+    await waitFor(() => expect(api.reconcileCapabilityResponsibilities).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole('button', { name: 'Deliver pending review impacts' }));
+
     // Assert
-    expect(await screen.findByText(/AC-1: missing narrative/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Review queued proposal proposal-a' })).toHaveAttribute('href',
-      '/workspaces/organizations/org-a/systems/system-a/narratives/review?proposal=proposal-a');
-    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
+    expect(await screen.findByText(/1 delivered, 0 pending/)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /generate|approve/i })).not.toBeInTheDocument();
   });
 
-  it('preserves pending impact work and an explicit error when dispatch fails', async () => {
+  it('reports deferred impact delivery and returned proposal links', async () => {
     // Arrange
     vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ pendingImpacts: [{
       id: 'impact-a', baselineId: 'baseline-a', controlId: 'AC-1', stateHash: 'hash',
       reason: 'SourceReconciled', sourcesJson: '[]', createdAt: '2026-09-21T00:00:00Z',
     }] }));
-    vi.mocked(api.dispatchCapabilityResponsibilityImpacts).mockRejectedValue(new api.ResponsibilityApiError('Queue unavailable', 503));
+    vi.mocked(api.dispatchCapabilityResponsibilityImpacts).mockResolvedValue({
+      delivered: 0,
+      pending: 1,
+      proposalIds: ['proposal-a'],
+      deferred: [{ impactId: 'impact-a', controlId: 'AC-1', reason: 'MissingNarrative' }],
+    });
     renderReview();
-    await screen.findByText('SourceReconciled');
+    await screen.findByText(/AC-1 · SourceReconciled/);
+
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Deliver pending review impacts' }));
+
     // Assert
-    expect(await screen.findByRole('alert')).toHaveTextContent('Queue unavailable');
-    expect(screen.getByRole('heading', { name: 'Pending review impacts (1)' })).toBeInTheDocument();
-    expect(screen.queryByText(/delivered,.*pending/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/AC-1: missing narrative/)).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Review queued proposal proposal-a' })).toHaveAttribute(
+      'href',
+      '/workspaces/organizations/org-a/systems/system-a/narratives/review?proposal=proposal-a',
+    );
   });
 
-  it('blocks unknown or inconsistent provider states rather than inventing allocations', async () => {
+  it('keeps the drawer and entered allocation after a validation error', async () => {
     // Arrange
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [
-      item('FutureState'), { ...item('PendingReview', 'AC-2'), sourceRevision: 'different-source' },
-    ] }));
+    vi.mocked(api.confirmCapabilityResponsibilities).mockRejectedValueOnce(
+      new api.ResponsibilityApiError('Provider description is invalid.', 400),
+    );
+    renderReview();
+    const drawer = await chooseShared();
+
+    // Act
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+
+    // Assert
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent('Provider description is invalid.');
+    expect(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('Shared');
+    expect(within(drawer).getByRole('textbox', { name: 'Customer responsibility for AC-1' }))
+      .toHaveValue('Customer reviews accounts.');
+
+    // Act
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+
+    // Assert
+    expect(await screen.findByText(/Selected allocation confirmed/)).toBeVisible();
+    expect(screen.queryByText('Provider description is invalid.')).not.toBeInTheDocument();
+  });
+
+  it('fails closed for inconsistent subscription revisions', async () => {
+    // Arrange
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({
+      items: [item('FutureState'), { ...item('PendingReview', 'AC-2'), sourceRevision: 'different-source' }],
+    }));
+
     // Act
     renderReview();
+
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('inconsistent revisions');
-    expect(screen.getByText('Unknown state: FutureState')).toBeInTheDocument();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText('Unknown state: FutureState')).toBeVisible();
   });
 
-  it('shows inaccessible previews as errors and permits an explicit read retry', async () => {
+  it('shows inaccessible previews as errors and supports an explicit retry', async () => {
     // Arrange
-    vi.mocked(api.getCapabilityResponsibilities).mockRejectedValueOnce(new api.ResponsibilityApiError('System not accessible.', 404))
-      .mockResolvedValueOnce(preview());
+    vi.mocked(api.getCapabilityResponsibilities).mockRejectedValueOnce(
+      new api.ResponsibilityApiError('System not accessible.', 404),
+    ).mockResolvedValueOnce(preview());
     renderReview();
     expect(await screen.findByRole('alert')).toHaveTextContent('System not accessible.');
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Retry preview' }));
-    // Assert
-    expect(await screen.findByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('');
-  });
 
-  it('preserves entered allocations when the server returns a validation error', async () => {
-    // Arrange
-    vi.mocked(api.confirmCapabilityResponsibilities).mockRejectedValue(new api.ResponsibilityApiError('Provider description is invalid.', 400));
-    renderReview();
-    await chooseShared();
-    // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm selected allocations' }));
     // Assert
-    expect(await screen.findByRole('alert')).toHaveTextContent('Provider description is invalid.');
-    expect(screen.getByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('Shared');
-    expect(screen.getByRole('textbox', { name: 'Customer responsibility for AC-1' })).toHaveValue('Customer reviews accounts.');
+    expect(await screen.findByRole('button', { name: 'Open AC-1 responsibility' })).toBeEnabled();
   });
 
   it('aborts the old system read and never renders its late response under another system', async () => {
     // Arrange
     let resolveOld!: (value: CapabilityResponsibilityResponse) => void;
     vi.mocked(api.getCapabilityResponsibilities).mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
-      .mockResolvedValueOnce(preview({ systemId: 'system-b', items: [{ ...item(), sourceRevision: 'system-b-source' }] }));
+      .mockResolvedValueOnce(preview({
+        systemId: 'system-b',
+        items: [{ ...item(), sourceRevision: 'system-b-source' }],
+      }));
     render(<MemoryRouter initialEntries={['/workspaces/organizations/org-a/systems/system-a/inheritance/subscriptions']}>
       <WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-a' }}>
         <Link to="/workspaces/organizations/org-a/systems/system-b/inheritance/subscriptions">Other system</Link>
-        <Routes><Route path="/workspaces/organizations/:tenantId/systems/:id/inheritance/subscriptions" element={<CapabilityResponsibilityReview />} /></Routes>
+        <Routes>
+          <Route path="/workspaces/organizations/:tenantId/systems/:id/inheritance/subscriptions" element={<CapabilityResponsibilityReview />} />
+        </Routes>
       </WorkspaceNavigationProvider>
     </MemoryRouter>);
+
     // Act
     fireEvent.click(screen.getByRole('link', { name: 'Other system' }));
-    await screen.findByText('system-b-source');
+    const drawer = await openControl();
+    fireEvent.click(within(drawer).getByText('Technical revision details'));
+    await within(drawer).findByText('system-b-source');
     await act(async () => { resolveOld(preview({ items: [{ ...item(), sourceRevision: 'stale-source' }] })); });
+
     // Assert
-    expect(screen.getByText('system-b-source')).toBeInTheDocument();
-    expect(screen.queryByText('stale-source')).not.toBeInTheDocument();
+    expect(within(drawer).getByText('system-b-source')).toBeVisible();
+    expect(screen.queryByText(/stale-source/)).not.toBeInTheDocument();
     expect(vi.mocked(api.getCapabilityResponsibilities).mock.calls[0]?.[1]?.aborted).toBe(true);
   });
 
-  it('shows the current redacted provider snapshot and echoes the opaque server revision', async () => {
-    // Arrange
-    const sourceRevision = 'OPAQUE-provider-revision-unchanged';
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{ ...item(), sourceRevision }] }));
-    renderReview();
-    // Act
-    const snapshot = await screen.findByRole('region', { name: 'Current provider snapshot' });
-    // Assert
-    expect(within(snapshot).getByText('Reviewed access capability')).toBeInTheDocument();
-    expect(within(snapshot).getByText('Published provider component')).toBeInTheDocument();
-    expect(within(snapshot).getByText('[redacted]', { exact: true })).toBeInTheDocument();
-    // Act
-    await chooseShared();
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm selected allocations' }));
-    await screen.findByText(/Selected allocations confirmed/);
-    // Assert
-    expect(api.confirmCapabilityResponsibilities).toHaveBeenCalledWith('system-a', 'capability-a',
-      expect.objectContaining({ sourceRevision }), expect.anything());
-  });
-
-  it('withholds unavailable provider content and disables confirmation even when canConfirm is true', async () => {
-    // Arrange
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{
-      ...item('PendingReview'), sourceAvailable: false, sourceSnapshotJson: null,
-    }] }));
-    // Act
-    renderReview();
-    // Assert
-    expect(await screen.findByText(/Provider source unavailable/)).toBeInTheDocument();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirm selected allocations' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Reviewed access capability')).not.toBeInTheDocument();
-  });
-
-  it('blocks a removed historical control but permits explicit review of a current mapping', async () => {
-    // Arrange
-    const sourceSnapshotJson = responsibilitySnapshotJson({ Controls: ['AC-2'] });
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [
-      { ...item('PendingReview'), sourceSnapshotJson }, { ...item('MissingAllocation', 'AC-2'), sourceSnapshotJson },
-    ] }));
-    // Act
-    renderReview();
-    // Assert
-    expect(await screen.findByText(/AC-1 is no longer mapped/)).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Allocation for AC-1' })).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Allocation for AC-2' })).toHaveValue('');
-  });
-
-  it('shows a snapshot error and no allocation fields when a required snapshot is malformed', async () => {
-    // Arrange
-    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{ ...item(), sourceSnapshotJson: '{}' }] }));
-    // Act
-    renderReview();
-    // Assert
-    expect(await screen.findByRole('alert')).toHaveTextContent(/snapshot.*malformed/i);
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
-  });
-
-  it('compares actual reviewed content against the changed current snapshot without copying metadata', async () => {
+  it('shows current and reviewed redacted provider snapshots in the selected-control drawer', async () => {
     // Arrange
     vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{
       ...item('PendingReview'),
-      sourceSnapshotJson: responsibilitySnapshotJson({ Name: 'Current published capability', Controls: ['AC-2'] }),
+      sourceSnapshotJson: responsibilitySnapshotJson({ Name: 'Current published capability', Controls: ['AC-1'] }),
       reviewedSourceSnapshotJson: responsibilitySnapshotJson({ Name: 'Persisted reviewed capability', Controls: ['AC-1'] }),
-      reviewedSourceRevision: 'REVIEWED-OPAQUE-PIN', confirmedBy: 'reviewer', confirmedAt: '2026-09-01T00:00:00Z',
-      allocation: { controlId: 'AC-1', inheritanceType: 'Shared', provider: 'Reviewed CSP', customerResponsibility: 'Original reviewed responsibility' },
+      reviewedSourceRevision: 'REVIEWED-OPAQUE-PIN',
     }] }));
     renderReview();
+
     // Act
-    fireEvent.click(await screen.findByText('Compare reviewed and current provider snapshots for AC-1'));
+    const drawer = await openControl();
+    fireEvent.click(within(drawer).getByText('Compare reviewed and current provider snapshots for AC-1'));
+
     // Assert
-    expect(within(screen.getByRole('region', { name: 'Reviewed provider snapshot for AC-1' })).getByText('Persisted reviewed capability')).toBeVisible();
-    expect(within(screen.getByRole('region', { name: 'Current provider snapshot for AC-1' })).getByText('Current published capability')).toBeVisible();
-    expect(screen.queryByRole('combobox', { name: 'Allocation for AC-1' })).not.toBeInTheDocument();
+    expect(within(drawer).getByText('Persisted reviewed capability')).toBeVisible();
+    expect(within(drawer).getAllByText('Current published capability').length).toBeGreaterThan(0);
+    expect(within(drawer).getByRole('region', { name: 'Current provider snapshot' }))
+      .toHaveTextContent('Artifact reference: [redacted]');
   });
 
-  it('shows actual reviewed history but no current provider content after withdrawal', async () => {
+  it('withholds unavailable provider content while preserving review access', async () => {
     // Arrange
     vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [{
-      ...item('PendingReview'), sourceAvailable: false, sourceSnapshotJson: null,
+      ...item('PendingReview'),
+      sourceAvailable: false,
+      sourceSnapshotJson: null,
       reviewedSourceSnapshotJson: responsibilitySnapshotJson({ Name: 'Previously reviewed public capability' }),
       reviewedSourceRevision: 'REVIEWED-OPAQUE-PIN',
     }] }));
     renderReview();
+
     // Act
-    fireEvent.click(await screen.findByText('Compare reviewed and current provider snapshots for AC-1'));
+    const drawer = await openControl();
+
     // Assert
-    expect(screen.getByText('Previously reviewed public capability')).toBeVisible();
-    expect(screen.getByText('Current source unavailable; no unpublished content is shown.')).toBeVisible();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(within(drawer).getByText(/Provider source unavailable/)).toBeVisible();
+    expect(within(drawer).getByText('Previously reviewed public capability')).toBeVisible();
+    expect(within(drawer).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+  });
+
+  it('blocks removed historical controls while allowing a currently mapped control to be reviewed', async () => {
+    // Arrange
+    const sourceSnapshotJson = responsibilitySnapshotJson({ Controls: ['AC-2'] });
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({ items: [
+      { ...item('PendingReview'), sourceSnapshotJson },
+      { ...item('MissingAllocation', 'AC-2'), sourceSnapshotJson },
+    ] }));
+    renderReview();
+
+    // Act / Assert
+    const removed = await openControl();
+    expect(within(removed).getByText(/AC-1 is no longer mapped/)).toBeVisible();
+    expect(within(removed).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    fireEvent.click(within(removed).getByRole('button', { name: 'Close dialog' }));
+    const current = await openControl('AC-2');
+    expect(within(current).getByRole('combobox', { name: 'Allocation for AC-2' })).toBeEnabled();
+  });
+
+  it('shows a snapshot error and disables confirmation for malformed selected-control data', async () => {
+    // Arrange
+    vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue(preview({
+      items: [{ ...item(), sourceSnapshotJson: '{}' }],
+    }));
+    renderReview();
+
+    // Act
+    const drawer = await openControl();
+
+    // Assert
+    expect(within(drawer).getByRole('alert')).toHaveTextContent(/snapshot.*malformed/i);
+    expect(within(drawer).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
   });
 });

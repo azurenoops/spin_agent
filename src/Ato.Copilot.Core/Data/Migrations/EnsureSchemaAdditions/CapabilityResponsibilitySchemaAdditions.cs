@@ -43,6 +43,10 @@ public static class CapabilityResponsibilitySchemaAdditions
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilitySubscriptions ADD COLUMN RoutingTenantId TEXT NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'", ct);
             if (!subscriptions.Contains("RoutingCapabilityId"))
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilitySubscriptions ADD COLUMN RoutingCapabilityId TEXT NOT NULL DEFAULT ''", ct);
+            if (!subscriptions.Contains("CurrentAdoptionSnapshotId"))
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilitySubscriptions ADD COLUMN CurrentAdoptionSnapshotId TEXT NULL", ct);
+            if (!subscriptions.Contains("AdoptionSelectionRevision"))
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE CapabilitySubscriptions ADD COLUMN AdoptionSelectionRevision INTEGER NOT NULL DEFAULT 0", ct);
             var reviews = await SqliteColumnsAsync(connection, "PRAGMA table_info(\"CapabilityResponsibilityConfirmations\")", ct);
             if (reviews.Count > 0)
             {
@@ -208,6 +212,11 @@ public static class CapabilityResponsibilitySchemaAdditions
         IF COL_LENGTH('dbo.CapabilitySubscriptions', 'RoutingCapabilityId') IS NULL
           ALTER TABLE dbo.CapabilitySubscriptions ADD RoutingCapabilityId NVARCHAR(36) NOT NULL
             CONSTRAINT DF_CapabilitySubscriptions_RoutingCapability DEFAULT '';
+        IF COL_LENGTH('dbo.CapabilitySubscriptions', 'CurrentAdoptionSnapshotId') IS NULL
+          ALTER TABLE dbo.CapabilitySubscriptions ADD CurrentAdoptionSnapshotId UNIQUEIDENTIFIER NULL;
+        IF COL_LENGTH('dbo.CapabilitySubscriptions', 'AdoptionSelectionRevision') IS NULL
+          ALTER TABLE dbo.CapabilitySubscriptions ADD AdoptionSelectionRevision BIGINT NOT NULL
+            CONSTRAINT DF_CapabilitySubscriptions_AdoptionSelectionRevision DEFAULT 0;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CapabilitySubscription_Routing'
           AND object_id = OBJECT_ID(N'dbo.CapabilitySubscriptions'))
           EXEC(N'CREATE INDEX IX_CapabilitySubscription_Routing ON dbo.CapabilitySubscriptions(RoutingCapabilityId,IsActive,Id)');

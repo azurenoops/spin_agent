@@ -30,6 +30,7 @@ vi.mock('../../features/provider-relationships/MissionAssociationWizard', () => 
   default: ({ environmentEntry }: { environmentEntry?: boolean }) => <h1>{environmentEntry ? 'Environment hosting and capabilities' : 'Legacy hosting association'}</h1>,
 }));
 vi.mock('../../pages/AssessmentEnvironment', () => ({ default: () => <h1>Assessment configuration</h1> }));
+vi.mock('../../pages/ConMon', () => ({ default: ({ view }: { view?: string }) => <h1>{view === 'reports' ? 'System monitoring reports' : 'Monitoring health'}</h1> }));
 
 function Location() { const location = useLocation(); return <output aria-label="Route">{location.pathname}{location.search}{location.hash}</output>; }
 function mount(route: string) { render(<MemoryRouter initialEntries={[route]}><ApplicationRoutes /><Location /></MemoryRouter>); }
@@ -53,6 +54,7 @@ describe('system capability application routing', () => {
     ['/systems/system-a/security-capabilities/provider/cap-a', 'provider detail for cap-a'],
     ['/systems/system-a/security-capabilities/local/cap-b', 'local detail for cap-b'],
     ['/systems/system-a/security-capabilities/inventory', 'Inventory creation import discovery'],
+    ['/systems/system-a/conmon/reports', 'System monitoring reports'],
   ])('keeps %s inside the system layout', async (path, title) => {
     // Arrange / Act
     mount(path);
@@ -70,12 +72,12 @@ describe('system capability application routing', () => {
     expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/security-capabilities?search=SOC&view=component#selected');
   });
 
-  it('routes fresh legacy add links to the guided flow without changing the system', async () => {
+  it('routes provider add links to the canonical CSP hosting and adoption flow', async () => {
     // Arrange / Act
     mount('/systems/system-a/security-capabilities?dialog=capability&source=provider&recordId=cap-a');
     // Assert
-    await screen.findByRole('heading', { name: 'Add to system-a' });
-    expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/security-capabilities/add?source=provider&recordId=cap-a');
+    await screen.findByRole('heading', { name: 'Legacy hosting association' });
+    expect(screen.getByLabelText('Route')).toHaveTextContent('/systems/system-a/provider-relationships/setup');
   });
 
   it('keeps persisted single-record operations recoverable through the legacy setup link', async () => {

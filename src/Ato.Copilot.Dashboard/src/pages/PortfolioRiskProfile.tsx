@@ -87,8 +87,11 @@ export default function PortfolioRiskProfile() {
   return <PageLayout title="Organization portfolio">
     <PageHero eyebrow="Organization overview" title="Organization portfolio"
       description="Your systems, security posture and the work that needs attention."
-      actions={<button type="button" onClick={() => { void fetchData(); setCoverageRevision(v => v + 1); }}
-        className="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/25">Refresh portfolio</button>} />
+      actions={<div className="flex flex-wrap gap-2">
+        <Link to="/systems/new" className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">Create mission system</Link>
+        <button type="button" onClick={() => { void fetchData(); setCoverageRevision(v => v + 1); }}
+          className="rounded-lg border border-white/30 bg-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/25">Refresh portfolio</button>
+      </div>} />
     <PortfolioWorkspaceLinks />
     {error && <div role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
       <p className="font-semibold">Portfolio could not be refreshed</p><p>{error}</p>

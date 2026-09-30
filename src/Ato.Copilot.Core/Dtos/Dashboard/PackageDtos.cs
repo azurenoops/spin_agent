@@ -2,6 +2,22 @@ using Ato.Copilot.Core.Models.Compliance;
 
 namespace Ato.Copilot.Core.Dtos.Dashboard;
 
+public sealed record RetainedPackageSelection(string BaselinePackageId, string BaselineContentHash,
+    string AuthorizationDecisionId, Guid? ChangePreviewId = null, string? ChangeContentHash = null,
+    string? ExpectedDecisionSnapshotHash = null, string? ExpectedSourceContextHash = null);
+
+/// <summary>Immutable selected package/decision and optional reviewed SSP delta; not an all-source authorization snapshot.</summary>
+public sealed record RetainedPackageManifest(
+    PackagePurpose Purpose, string BundleScope, Guid TenantId, string SystemId, string RequestedBy, Guid? RequestedPersonId,
+    DateTimeOffset CapturedAt, string BaselinePackageId, string BaselineContentHash, PackagePurpose BaselinePurpose,
+    bool? BaselineValidationPassed, string AuthorizationDecisionId, System.Text.Json.JsonElement DecisionSnapshot,
+    string DecisionSnapshotHash, Guid? ChangePreviewId, string? ChangeContentHash, string? BaselineSspHash,
+    DocumentSourceManifest? ChangeSources, IReadOnlyList<DocumentEvidenceReference> Evidence)
+{
+    public string ReceivingWorkflowOutcome => "NotRecorded";
+    public string DecisionBaselineLinkage { get; init; } = "UnverifiedLegacyPairing";
+}
+
 /// <summary>
 /// Request to validate an OSCAL artifact against its JSON schema.
 /// </summary>
@@ -18,7 +34,10 @@ public record PackageExportJob(
     string PackageId,
     string SystemId,
     EvidenceMode EvidenceMode,
-    string GeneratedBy
+    string GeneratedBy,
+    PackagePurpose Purpose = PackagePurpose.Legacy,
+    Guid? TenantId = null,
+    Guid? PersonId = null
 );
 
 /// <summary>
@@ -26,6 +45,10 @@ public record PackageExportJob(
 /// </summary>
 public record GeneratePackageRequest
 {
+    public string? ReadinessRunId { get; init; }
+    public string? ExpectedSourceHash { get; init; }
+    public RetainedPackageSelection? RetainedContext { get; init; }
+    public PackagePurpose Purpose { get; init; } = PackagePurpose.Legacy;
     public EvidenceMode EvidenceMode { get; init; }
     public bool IncludeEvidence { get; init; } = true;
 }
@@ -35,6 +58,9 @@ public record GeneratePackageRequest
 /// </summary>
 public record PackageResponse
 {
+    public string? ReadinessRunId { get; init; }
+    public string? SourceHash { get; init; }
+    public string Purpose { get; init; } = nameof(PackagePurpose.Legacy);
     public string PackageId { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public int ArtifactCount { get; init; }
@@ -64,6 +90,12 @@ public record PackageListResponse
 /// </summary>
 public record PackageDetailResponse
 {
+    public string? ReadinessRunId { get; init; }
+    public string? SourceHash { get; init; }
+    public string? SourceContextHash { get; init; }
+    public RetainedPackageManifest? RetainedContext { get; init; }
+    public string? RetainedContextHash { get; init; }
+    public string Purpose { get; init; } = nameof(PackagePurpose.Legacy);
     public string PackageId { get; init; } = string.Empty;
     public string SystemId { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;

@@ -100,6 +100,14 @@ public sealed partial class CapabilityResponsibilityService(
 
     public Task<CapabilitySubscriptionChangeResponse> SubscribeAsync(
         string systemId, Guid capabilityId, string actor, CancellationToken ct = default) =>
+        SubscribeCoreAsync(systemId, capabilityId, actor, false, ct);
+
+    public Task<CapabilitySubscriptionChangeResponse> SubscribeForAdoptionAsync(
+        string systemId, Guid capabilityId, string actor, CancellationToken ct = default) =>
+        SubscribeCoreAsync(systemId, capabilityId, actor, true, ct);
+
+    private Task<CapabilitySubscriptionChangeResponse> SubscribeCoreAsync(
+        string systemId, Guid capabilityId, string actor, bool adoptionSubscription, CancellationToken ct) =>
         MutateAsync(systemId, actor, async () =>
         {
             var capability = await db.CspInheritedCapabilities.Include(c => c.CspInheritedComponent)
@@ -122,6 +130,8 @@ public sealed partial class CapabilityResponsibilityService(
             if (!alreadyActive)
             {
                 sub.IsActive = true;
+                sub.CurrentAdoptionSnapshotId = null;
+                sub.AdoptionSelectionRevision = checked(sub.AdoptionSelectionRevision + 1);
                 sub.SubscribedAt = DateTime.UtcNow;
                 sub.SubscribedBy = actor;
                 AddActivity(systemId, sub.Id, actor, "CapabilitySubscribed", $"Subscribed to CSP capability: {capability.Name}");
@@ -134,8 +144,9 @@ public sealed partial class CapabilityResponsibilityService(
             await db.SaveChangesAsync(ct);
             var state = await LoadAsync(systemId, ct);
             await ApplyAsync(state, actor, "SubscriptionAdded", ct);
-            return new CapabilitySubscriptionChangeResponse(sub.Id, alreadyActive, false, await ResponseAsync(state, true, ct), created);
-        }, ct);
+            var canConfirm = await AuthorizeAsync(systemId, false, ct);
+            return new CapabilitySubscriptionChangeResponse(sub.Id, alreadyActive, false, await ResponseAsync(state, canConfirm, ct), created);
+        }, ct, adoptionSubscription);
 
     public Task<CapabilitySubscriptionChangeResponse> UnsubscribeAsync(
         string systemId, Guid capabilityId, string actor, CancellationToken ct = default) =>
@@ -148,6 +159,8 @@ public sealed partial class CapabilityResponsibilityService(
             if (sub.IsActive)
             {
                 sub.IsActive = false;
+                sub.CurrentAdoptionSnapshotId = null;
+                sub.AdoptionSelectionRevision = checked(sub.AdoptionSelectionRevision + 1);
                 var name = await db.CspInheritedCapabilities.Where(c => c.Id == capabilityId).Select(c => c.Name).SingleOrDefaultAsync(ct);
                 AddActivity(systemId, sub.Id, actor, "CapabilityUnsubscribed", $"Unsubscribed from CSP capability: {name ?? id}");
                 await db.SaveChangesAsync(ct);
@@ -191,18 +204,40 @@ public sealed partial class CapabilityResponsibilityService(
             return await ResponseAsync(state, true, ct);
         }, ct);
 
-    private async Task<T> MutateAsync<T>(string systemId, string actor, Func<Task<T>> mutation, CancellationToken ct)
+    private async Task<T> MutateAsync<T>(string systemId, string actor, Func<Task<T>> mutation, CancellationToken ct,
+        bool adoptionSubscription = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         if (actor.Length > 200) throw new ArgumentException("Actor is too long.");
-        await AuthorizeAsync(systemId, true, ct);
-        await using var transaction = db.Database.CurrentTransaction is null
-            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
-        var result = await mutation();
-        await db.SaveChangesAsync(ct);
-        if (transaction is not null) await transaction.CommitAsync(ct);
-        logger.LogInformation("Reconciled subscription responsibilities for system {SystemId} in tenant {TenantId}", systemId, TenantId);
-        return result;
+        async Task<T> ExecuteMutationAsync()
+        {
+            if (adoptionSubscription) await AuthorizeAdoptionSubscriptionAsync(systemId, ct);
+            else await AuthorizeAsync(systemId, true, ct);
+            await using var transaction = db.Database.CurrentTransaction is null
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            var result = await mutation();
+            await db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            logger.LogInformation("Reconciled subscription responsibilities for system {SystemId} in tenant {TenantId}", systemId, TenantId);
+            return result;
+        }
+
+        return db.Database.CurrentTransaction is not null
+            ? await ExecuteMutationAsync()
+            : await db.Database.CreateExecutionStrategy().ExecuteAsync(ExecuteMutationAsync);
+    }
+
+    private async Task AuthorizeAdoptionSubscriptionAsync(string systemId, CancellationToken ct)
+    {
+        if (tenant.IsCspAdmin || tenant.ImpersonatedTenantId.HasValue || TenantId == Guid.Empty || tenant.PersonId is null)
+            throw new UnauthorizedAccessException("Use an assigned mission workspace for capability adoption.");
+        var permission = await access.GetAccessAsync(TenantId, tenant.PersonId, systemId, false, ct);
+        if (!permission.Permissions.CanRead || !await db.RegisteredSystems.AnyAsync(s =>
+                s.Id == systemId && s.TenantId == TenantId && s.IsActive, ct))
+            throw new KeyNotFoundException("System not found in this mission workspace.");
+        if (!permission.Roles.Any(r => r is nameof(RmfRole.MissionOwner) or nameof(RmfRole.SystemOwner)
+                or nameof(RmfRole.Issm) or nameof(RmfRole.Isso)))
+            throw new UnauthorizedAccessException("An assigned Mission Owner, System Owner, ISSM or ISSO is required for adoption.");
     }
 
     private async Task<State> LoadAsync(string systemId, CancellationToken ct, Guid? authorizedReadTenant = null)
@@ -214,6 +249,9 @@ public sealed partial class CapabilityResponsibilityService(
         var ids = subscriptions.Select(s => Guid.Parse(s.CspInheritedCapabilityId)).ToArray();
         var capabilities = await db.CspInheritedCapabilities.Include(c => c.CspInheritedComponent)
             .Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, ct);
+        var profileIds = capabilities.Values.Select(c => c.CspInheritedComponent.CspProfileId).Distinct().ToArray();
+        var providerNames = await db.CspProfiles.AsNoTracking().Where(p => profileIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct);
         var releases = (await db.ProviderCapabilityReleases.AsNoTracking()
                 .Where(x => ids.Contains(x.CapabilityId))
                 .OrderBy(x => x.CapabilityId).ThenByDescending(x => x.Revision)
@@ -229,7 +267,11 @@ public sealed partial class CapabilityResponsibilityService(
             var snapshot = hasImmutableRelease
                 ? release!.SnapshotJson
                 : CspResponsibilitySourceTracker.Snapshot(capability);
-            return new Source(s, capability, snapshot,
+            var providerName = capability is not null
+                && providerNames.TryGetValue(capability.CspInheritedComponent.CspProfileId, out var displayName)
+                    ? displayName
+                    : null;
+            return new Source(s, capability, providerName, snapshot,
                 hasImmutableRelease ? release!.SnapshotHash : Hash(snapshot));
         }).ToList();
         var confirmations = await db.Set<CapabilityResponsibilityConfirmation>()
@@ -310,7 +352,8 @@ public sealed partial class CapabilityResponsibilityService(
         .Where(c => c.SubscriptionId == source.Subscription.Id && c.IsCurrent).OrderBy(c => c.ControlId)
         .Select(c => new { c.Id, c.ControlId, c.SourceRevision })));
 
-    private sealed record Source(CapabilitySubscription Subscription, CspInheritedCapability? Capability, string Snapshot, string Revision);
+    private sealed record Source(
+        CapabilitySubscription Subscription, CspInheritedCapability? Capability, string? ProviderName, string Snapshot, string Revision);
     private sealed record State(Guid TenantId, string SystemId, ControlBaseline? Baseline, List<Source> Sources,
         List<CapabilityResponsibilityConfirmation> Confirmations, List<CapabilityResponsibilityProjection> Projections);
 }

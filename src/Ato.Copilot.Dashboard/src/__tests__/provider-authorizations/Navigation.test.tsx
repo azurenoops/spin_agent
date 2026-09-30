@@ -65,31 +65,31 @@ describe('authorization-led provider navigation', () => {
     const relationship = items.find(item => item.path === 'provider-relationships');
     // Assert
     expect(relationship).toBeUndefined();
-    expect(items.find(item => item.path === 'profile/EnvironmentAndDeployment')).toMatchObject({ label: 'Environment' });
-    expect(items.find(item => item.path === 'security-capabilities')).toMatchObject({ label: 'Security Capabilities' });
+    expect(items.find(item => item.path === 'profile/EnvironmentAndDeployment')).toMatchObject({ label: 'Environment & hosting' });
+    expect(items.find(item => item.path === 'security-capabilities')).toMatchObject({ label: 'Applied capabilities' });
     expect(items.some(item => item.path === 'authorize')).toBe(true);
   });
-  it('provides a CSP Authorizations destination beside the reusable catalog', () => {
+  it('provides the mock Offerings destination through the existing authorization route', () => {
     // Arrange
     renderNavigation({ kind: 'csp' });
-    const desktop = screen.getAllByRole('navigation').find(nav => nav.getAttribute('aria-label') !== 'Mobile navigation')!;
+    const desktop = screen.getByRole('navigation', { name: 'Provider workspace' });
     // Act
-    fireEvent.click(within(desktop).getByRole('link', { name: 'Authorizations' }));
+    fireEvent.click(within(desktop).getByRole('link', { name: 'Offerings' }));
     // Assert
     expect(screen.getByLabelText('Current route')).toHaveTextContent('/workspaces/csp/authorizations');
-    expect(within(desktop).getByRole('link', { name: 'Authorizations' })).toHaveAttribute('aria-current', 'page');
-    expect(within(desktop).getByRole('link', { name: 'Security Capabilities' })).toHaveAttribute('href', '/workspaces/csp/security-capabilities');
+    expect(within(desktop).getByRole('link', { name: 'Offerings' })).toHaveAttribute('aria-current', 'page');
+    expect(within(desktop).getAllByRole('link')).toHaveLength(5);
   });
 
-  it('includes the same Authorizations destination in compact navigation', () => {
+  it('includes the same Offerings destination in compact navigation', () => {
     // Arrange
     renderNavigation({ kind: 'csp' });
     // Act
-    fireEvent.click(screen.getByText('Navigation', { selector: 'summary' }));
-    const mobile = screen.getByRole('navigation', { name: 'Mobile navigation' });
+    fireEvent.click(screen.getByText('Provider navigation', { selector: 'summary' }));
+    const mobile = screen.getByRole('navigation', { name: 'Provider mobile navigation' });
     // Assert
-    expect(within(mobile).getByRole('link', { name: 'Authorizations' })).toHaveAttribute('href', '/workspaces/csp/authorizations');
-    expect(within(mobile).getByRole('link', { name: 'Security Capabilities' })).toBeInTheDocument();
+    expect(within(mobile).getByRole('link', { name: 'Offerings' })).toHaveAttribute('href', '/workspaces/csp/authorizations');
+    expect(within(mobile).getAllByRole('link')).toHaveLength(5);
   });
 
   it.each(['ordinary', 'support'] as const)('does not expose provider Authorizations in an %s organization workspace', mode => {

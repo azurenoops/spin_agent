@@ -169,11 +169,14 @@ public class ComplianceSaveProfileSectionTool : BaseTool
                 {
                     sectionId = result.Id,
                     sectionType = result.SectionType.ToString(),
+                    reviewScope = result.SectionType == ProfileSectionType.UsersAndAccess ? "AccessContext" : "Section",
                     governanceStatus = result.GovernanceStatus.ToString(),
                     completionPercentage = result.CompletionPercentage,
                     lastEditedBy = result.LastEditedBy,
                     lastEditedAt = result.LastEditedAt?.ToString("O"),
-                    message = "Profile section saved as Draft."
+                    message = result.SectionType == ProfileSectionType.UsersAndAccess
+                        ? $"Access context saved as {result.GovernanceStatus}; category approval states are unchanged."
+                        : $"Profile section saved as {result.GovernanceStatus}."
                 },
                 metadata = Meta(sw)
             }, JsonOpts);
@@ -347,7 +350,8 @@ public class ComplianceReviewProfileSectionTool : BaseTool
     public override string Name => "compliance_review_profile_section";
 
     public override string Description =>
-        "Approve or request revision of a profile section in UnderReview status. ISSM-only.";
+        "Approve or request revision of a profile section in UnderReview status. ISSM-only. " +
+        "For UsersAndAccess this reviews access context only; user categories require independent row review.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
@@ -395,7 +399,9 @@ public class ComplianceReviewProfileSectionTool : BaseTool
             sw.Stop();
 
             var msg = decision == ReviewDecision.Approve
-                ? "Profile section approved. Content is now authoritative for SSP generation."
+                ? result.SectionType == ProfileSectionType.UsersAndAccess
+                    ? "Access context approved. Each user category requires independent review."
+                    : "Profile section approved. Content is now authoritative for SSP generation."
                 : "Revision requested. Mission Owner will see feedback.";
 
             return JsonSerializer.Serialize(new
@@ -404,6 +410,7 @@ public class ComplianceReviewProfileSectionTool : BaseTool
                 data = new
                 {
                     sectionType = result.SectionType.ToString(),
+                    reviewScope = result.SectionType == ProfileSectionType.UsersAndAccess ? "AccessContext" : "Section",
                     decision = decisionStr,
                     newStatus = result.GovernanceStatus.ToString(),
                     reviewedBy = result.ReviewedBy,
@@ -455,7 +462,8 @@ public class ComplianceBatchApproveProfileTool : BaseTool
     public override string Name => "compliance_batch_approve_profile";
 
     public override string Description =>
-        "Batch-approve all profile sections in UnderReview status for a system. ISSM-only.";
+        "Batch-approve all profile sections in UnderReview status for a system. ISSM-only. " +
+        "UsersAndAccess approval covers access context only, never individual user categories.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
@@ -491,6 +499,7 @@ public class ComplianceBatchApproveProfileTool : BaseTool
                         reason = s.Reason
                     }),
                     approvedCount = result.ApprovedCount,
+                    userCategoryApprovalsIncluded = false,
                     reviewedBy = result.ReviewedBy,
                     reviewedAt = result.ReviewedAt.ToString("O")
                 },

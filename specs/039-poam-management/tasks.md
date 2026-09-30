@@ -17,6 +17,16 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
+### Connected workspace amendment (2026-09-29)
+
+- [X] CW01 Document verified relationship, lifecycle, connector, authorization and export contracts before production edits.
+- [X] CW02 Add scoped shared task links, finding provenance, supported exception requests/relationships, canonical transitions and explicit task verification with regression tests.
+- [X] CW03 Add task-owned external ticket actions, honest connector configuration, durable safe retries and provider tests without live external writes.
+- [X] CW04 Implement finding-led List/Board queue and accessible Overview / Linked work / Evidence & verification / History drawer.
+- [X] CW05 Implement concise POA&M queue, focused creation, shared task/exception detail and preserve milestones, trends and exports.
+- [X] CW06 Run targeted backend/frontend tests, Dashboard type checking/build and browser acceptance; verify downstream outputs and document gaps.
+- [X] CW07 Make the verified workflow available locally and provide manual acceptance steps. External issue write/parent linkage remains approval-gated.
+
 **Purpose**: New entity models, enums, database schema, and TypeScript types that all stories depend on
 
 - [X] T001 Create PoamComponentLink and PoamHistoryEntry entity models in src/Ato.Copilot.Core/Models/Poam/PoamModels.cs

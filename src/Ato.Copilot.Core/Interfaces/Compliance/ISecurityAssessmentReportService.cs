@@ -8,6 +8,9 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </summary>
 public interface ISecurityAssessmentReportService
 {
+    Task<SecurityAssessmentReport> CreateScopedSarAsync(string systemId, ScopedSarInput input,
+        string createdBy, CancellationToken cancellationToken = default);
+
     Task<SecurityAssessmentReport> CreateSarAsync(
         string systemId,
         CreateSarRequest request,

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useParams, useNavigate, Link } from '../features/workspaces/workspaceNavigation';
+import { useParams, useNavigate, useLocation, Link } from '../features/workspaces/workspaceNavigation';
+import HardwareSoftwareInventory from '../features/systems/HardwareSoftwareInventory';
 import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
@@ -20,7 +21,17 @@ const SECTIONS: { title: string; type: ComponentType }[] = [
 ];
 
 export default function ComponentInventory() {
+  const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  return id && new URLSearchParams(location.search).get('tab') === 'hardware-software'
+    ? <HardwareSoftwareInventory key={id} systemId={id} /> : <ComponentRegistry />;
+}
+
+function ComponentRegistry() {
   const { id: systemId } = useParams<{ id: string }>();
+  const location = useLocation();
+  const inventoryQuery = new URLSearchParams(location.search);
+  inventoryQuery.set('tab', 'hardware-software');
   const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
   // Missing projections: canCreateCapabilities (organization scope) and
   // canAssignSystemRoles (including the FR-027 target-role authorization matrix).
@@ -180,7 +191,9 @@ export default function ComponentInventory() {
       // Filter out components already shown in this system
       const currentIds = new Set(components.map((c) => c.id));
       setTotalOrgComponents(res.items.length);
-      setOrgComponents(res.items.filter((c) => !currentIds.has(c.id)));
+      setOrgComponents(res.items.filter(c => c.componentType === 'Policy'
+        ? !c.systemAssignments?.some(assignment => assignment.registeredSystemId === systemId)
+        : !currentIds.has(c.id)));
     } catch {
       setOrgAssignError('Failed to load org components');
     } finally {
@@ -191,6 +204,10 @@ export default function ComponentInventory() {
   const handleAssignExisting = async (comp: OrgComponentDto) => {
     if (!requirePermission()) return;
     if (!systemId) return;
+    if (comp.componentType === 'Policy') {
+      navigate(`/systems/${systemId}/legal?policyAction=add&policySource=${encodeURIComponent(comp.id)}`);
+      return;
+    }
     setOrgAssigning(comp.id);
     setOrgAssignError(null);
     try {
@@ -299,6 +316,8 @@ export default function ComponentInventory() {
           <p className="mt-1 text-sm text-gray-500">
             People, Places, and Things that make up your system.
           </p>
+          <Link className="mt-2 inline-block text-sm text-indigo-700 underline"
+            to={`/systems/${systemId}/security-capabilities/inventory?${inventoryQuery}`}>Manage hardware/software register</Link>
         </div>
       </div>
 
@@ -481,7 +500,7 @@ export default function ComponentInventory() {
                             disabled={!canManage || orgAssigning === comp.id}
                             className="ml-3 shrink-0 px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                           >
-                            {orgAssigning === comp.id ? 'Assigning…' : 'Assign'}
+                            {orgAssigning === comp.id ? 'Assigning…' : comp.componentType === 'Policy' ? 'Add policy reference' : 'Assign'}
                           </button>
                         </div>
                       ))}

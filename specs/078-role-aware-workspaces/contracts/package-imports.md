@@ -8,6 +8,39 @@ earlier automatic-publication and import-deferral language.
 
 ## Decisions and compatibility
 
+- Review-queue supersession is distinct from archival:
+  `POST /api/csp/package-imports/{id}/supersede-review` accepts
+  `{ "expectedRevision": 1, "replacementPackageId": "<published receipt>", "reason": "..." }`.
+  It requires an ordinary CSP administrator, an unpublished inactive source and
+  a different, active Published receipt in the same provider/offering with an exact
+  retained latest package version. Matching decisions replay without duplicate audit.
+  Supersession blocks new review mutations and excludes old review work from active
+  lists, overview candidate counts and candidate impact options. It does not change
+  candidate review flags, archival policy, canonical source visibility, context
+  snapshots, package versions, evidence bytes or source-document counts.
+  Supersession is deliberately not part of the EF archival query filter.
+  Direct historical package navigation displays the retirement marker, actor,
+  reason and replacement link. Review, retry, enrichment, exclusion and
+  publication controls cannot mutate retired work; source downloads and
+  historical candidate browsing remain available.
+
+- Unpublished, inactive source receipts can be archived through
+  `POST /api/csp/package-imports/{id}/archive` with
+  `{ "expectedRevision": 1, "reason": "Superseded source receipt" }`.
+  Ordinary provider CSP administrator authorization is mandatory. The operation
+  rejects stale revisions, queued/processing work, live leases, publication,
+  and canonical source references. A matching replay returns the original archive
+  without another audit event. Archival is not review, publication, or deletion.
+- Nullable `ArchivedAt`, `ArchivedBy`, and `ArchiveReason` are additive ledger
+  columns. Active lists, package versions, overview counts and candidate-derived
+  boundary counts exclude archived receipts. Original bytes, entries, candidates,
+  approvals, versions and audit history remain intact. Explicit authenticated
+  `GET /api/csp/package-imports/{id}/history` exposes receipt and audit history;
+  existing ID-specific manifest, candidate and artifact routes remain readable.
+  Archived receipts cannot be retried, edited, associated or published.
+  Impact-option lists and exact lookups exclude archived source candidates and
+  package versions; explicit receipt history remains accessible.
+
 - Both existing multipart ingress paths persist original uploads, hashes and a
   manifest before acknowledging receipt. `Prefer: respond-async` requests receive
   `202`, `Location`, and `{ status: "success", data: PackageStatus, metadata }`.

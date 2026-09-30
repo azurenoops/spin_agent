@@ -2,14 +2,20 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EmassStatusPage from '../../pages/EmassStatus';
 import * as emassApi from '../../api/emass-status';
+import * as exchangeApi from '../../api/emass-exchanges';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../api/emass-status');
+vi.mock('../../api/emass-exchanges');
 vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { systemId: 'system-1', name: 'Mission Analytics' } }),
 }));
 
 describe('EmassStatusPage', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(exchangeApi.getExchangeHistory).mockResolvedValue({ version: 0, canRecord: true, items: [] });
+    vi.mocked(exchangeApi.getExchangeExports).mockResolvedValue([]);
     vi.mocked(emassApi.getEmassStatus).mockResolvedValue({
       systemId: 'system-1',
       overallStatus: 'HasConflicts',
@@ -56,15 +62,24 @@ describe('EmassStatusPage', () => {
 
   it('shows workflow state and completes upload and conflict resolution', async () => {
     // Arrange
-    render(<EmassStatusPage />);
+    render(<MemoryRouter><EmassStatusPage /></MemoryRouter>);
 
     // Act
-    await screen.findByText('eMASS workflow');
+    await screen.findByText('eMASS round-trip review');
 
     // Assert
     expect(screen.getByText('Has conflicts')).toBeInTheDocument();
     expect(screen.getByText('Register the eMASS ID.')).toBeInTheDocument();
     expect(screen.getByText('Partially Implemented')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Authoritative package readiness' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'View current package validation' })).toHaveAttribute('href', '/systems/system-1/documents');
+    expect(screen.getByRole('heading', { name: 'eMASS identifier and exchange advisories' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'SPIN exported value' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Returned eMASS value' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Manual exchange history' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Sync eMASS workbook' })
+      .compareDocumentPosition(screen.getByRole('heading', { name: 'Manual exchange history' })))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
     // Act
     const file = new File(['workbook'], 'controls.xlsx', {
@@ -75,13 +90,17 @@ describe('EmassStatusPage', () => {
 
     // Assert
     await waitFor(() => expect(emassApi.uploadEmassSync).toHaveBeenCalledWith('system-1', file, false));
+    await waitFor(() => expect(emassApi.getEmassConflicts).toHaveBeenCalledTimes(2));
+    await screen.findByRole('button', { name: 'Sync workbook' });
 
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Keep SPIN' }));
+    fireEvent.change(await screen.findByLabelText('Resolution'), { target: { value: 'KeepSpin' } });
+    fireEvent.change(await screen.findByLabelText('Resolution rationale'), { target: { value: 'Local reviewed narrative remains authoritative.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Record resolution' }));
 
     // Assert
     await waitFor(() => expect(emassApi.resolveConflict).toHaveBeenCalledWith(
-      'system-1', 'conflict-1', 'KeepSpin',
+      'system-1', 'conflict-1', 'KeepSpin', 'Local reviewed narrative remains authoritative.',
     ));
   });
 });

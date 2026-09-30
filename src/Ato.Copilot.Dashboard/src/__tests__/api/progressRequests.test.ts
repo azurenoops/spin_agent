@@ -76,4 +76,15 @@ describe('progress HTTP request cancellation', () => {
     expect(mocks.dashboard.delete).toHaveBeenCalledExactlyOnceWith('/systems/system-a/scans/import/scan-a', { signal });
     expect(status).toBe(scanStatus);
   });
+
+  it('preserves scan warning completion metadata without converting it to clean success', async () => {
+    // Arrange
+    const retained = { ...scanStatus, status: 'CompletedWithWarnings' as const,
+      resultId: 'import:scan-a', warnings: ['Unknown scan checks require review.'] };
+    mocks.dashboard.get.mockResolvedValue({ data: retained });
+    // Act
+    const status = await getScanImportStatus('system-a', 'scan-a');
+    // Assert
+    expect(status).toEqual(retained);
+  });
 });

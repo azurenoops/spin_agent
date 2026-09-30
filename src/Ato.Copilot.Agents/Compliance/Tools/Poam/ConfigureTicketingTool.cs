@@ -15,16 +15,16 @@ public class ConfigureTicketingTool : BaseTool
     public ConfigureTicketingTool(IServiceScopeFactory scopeFactory, ILogger<ConfigureTicketingTool> logger) : base(logger) => _scopeFactory = scopeFactory;
 
     public override string Name => "compliance_configure_ticketing";
-    public override string Description => "Configure ticketing system integration (Jira/ServiceNow) for a system with connectivity validation.";
+    public override string Description => "Configure Jira/ServiceNow for explicit manual ticket operations with connectivity validation. Requires system management permission; no automatic sync or incoming webhooks.";
 
     public override IReadOnlyDictionary<string, ToolParameter> Parameters => new Dictionary<string, ToolParameter>
     {
         ["system_id"] = new() { Name = "system_id", Description = "System ID", Type = "string", Required = true },
         ["provider"] = new() { Name = "provider", Description = "Ticketing provider: Jira or ServiceNow", Type = "string", Required = true },
-        ["base_url"] = new() { Name = "base_url", Description = "Base URL of the ticketing system", Type = "string", Required = true },
+        ["base_url"] = new() { Name = "base_url", Description = "Administrator-allowlisted HTTPS origin of the ticketing system", Type = "string", Required = true },
         ["project_key"] = new() { Name = "project_key", Description = "Project key (Jira) or table name (ServiceNow)", Type = "string", Required = true },
-        ["api_key_secret"] = new() { Name = "api_key_secret", Description = "Key Vault secret URI for API credentials", Type = "string", Required = true },
-        ["sync_enabled"] = new() { Name = "sync_enabled", Description = "Enable automatic sync (default: true)", Type = "string", Required = false },
+        ["api_key_secret"] = new() { Name = "api_key_secret", Description = "Administrator-provisioned server credential reference, never a raw credential", Type = "string", Required = true },
+        ["sync_enabled"] = new() { Name = "sync_enabled", Description = "Enable explicit manual ticket operations (default: true); no scheduler", Type = "string", Required = false },
     };
 
     public override async Task<string> ExecuteCoreAsync(Dictionary<string, object?> arguments, CancellationToken cancellationToken = default)
@@ -47,7 +47,10 @@ public class ConfigureTicketingTool : BaseTool
         {
             using var scope = _scopeFactory.CreateScope();
             var service = scope.ServiceProvider.GetRequiredService<TicketingService>();
-            var config = await service.ConfigureAsync(systemId, provider, baseUrl!, projectKey!, apiKeySecret!, syncEnabled, cancellationToken);
+            var taskTickets = scope.ServiceProvider.GetRequiredService<Core.Services.Ticketing.TaskTicketService>();
+            await taskTickets.AuthorizeConfigurationAsync(systemId, true, cancellationToken);
+            var config = await service.ConfigureAsync(systemId, provider, baseUrl!, projectKey!, apiKeySecret!, syncEnabled, cancellationToken,
+                () => taskTickets.AuthorizeConfigurationAsync(systemId, true, cancellationToken));
             return JsonSerializer.Serialize(new { status = "configured", provider = config.Provider.ToString(), _meta = new { durationMs = sw.ElapsedMilliseconds } }, JsonOpts);
         }
         catch (Exception ex)

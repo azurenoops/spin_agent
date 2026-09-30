@@ -102,6 +102,33 @@ public class RmfLifecycleService : IRmfLifecycleService
     }
 
     /// <inheritdoc />
+    public async Task<RegisteredSystem> UpdateOperationalStatusAsync(
+        string systemId, OperationalStatus status, string updatedBy, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(systemId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(updatedBy);
+        if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+            db, systemId, permissions => permissions.CanManageSystem, cancellationToken);
+        var system = await db.RegisteredSystems.SingleOrDefaultAsync(x => x.Id == systemId && x.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("System not found in the current workspace.");
+        var previous = system.OperationalStatus;
+        system.OperationalStatus = status;
+        system.ModifiedAt = DateTime.UtcNow;
+        db.AuditLogs.Add(new AuditLogEntry
+        {
+            Action = "System.OperationalStatusUpdated", UserId = updatedBy, AffectedResources = [system.Id],
+            Details = System.Text.Json.JsonSerializer.Serialize(new { systemId, previous = previous?.ToString(), current = status.ToString() }),
+            Outcome = AuditOutcome.Success
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Recorded operational status {OperationalStatus} for system {SystemId}", status, systemId);
+        return system;
+    }
+
+    /// <inheritdoc />
     public async Task<GetSystemResult> GetSystemAsync(
         string systemId,
         CancellationToken cancellationToken = default)

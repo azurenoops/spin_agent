@@ -599,10 +599,42 @@ public class SystemProfileToolsTests : IDisposable
     // ═══════════════════════════════════════════════════════════════════════
 
     [Fact]
+    public async Task ReviewUsersTool_ExplicitlyReviewsOnlyAccessContext()
+    {
+        // Arrange
+        var system = await SeedSystemWithRolesAsync();
+        _db.SystemProfileSections.Add(new SystemProfileSection
+        {
+            RegisteredSystemId = system.Id, SectionType = ProfileSectionType.UsersAndAccess,
+            GovernanceStatus = SspSectionStatus.UnderReview, DraftContent = "{}",
+            UserCategories = [new UserCategory { CategoryName = "Unreviewed category" }]
+        });
+        await _db.SaveChangesAsync();
+
+        // Act
+        var response = await _reviewTool.ExecuteAsync(new Dictionary<string, object?>
+        {
+            ["system_id"] = system.Id, ["section_type"] = "UsersAndAccess",
+            ["decision"] = "approve", ["user_id"] = IssmUserId
+        });
+
+        // Assert
+        using var json = JsonDocument.Parse(response);
+        GetStatus(json).Should().Be("success");
+        GetData(json).GetProperty("reviewScope").GetString().Should().Be("AccessContext");
+        GetData(json).GetProperty("message").GetString().Should().Contain("independent review");
+        using var scope = _serviceProvider.CreateScope();
+        (await scope.ServiceProvider.GetRequiredService<AtoCopilotContext>().UserCategories.SingleAsync())
+            .GovernanceStatus.Should().Be(SspSectionStatus.Draft);
+    }
+
+    [Fact]
     public async Task FullLifecycle_SaveSubmitReviewCompleteness()
     {
+        // Arrange
         var system = await SeedSystemWithRolesAsync();
 
+        // Act
         // 1. Save all 5 mandatory sections
         var mandatorySections = new[]
         {
@@ -642,16 +674,28 @@ public class SystemProfileToolsTests : IDisposable
         var approveDoc = JsonDocument.Parse(approveResult);
         GetStatus(approveDoc).Should().Be("success");
         GetData(approveDoc).GetProperty("approvedCount").GetInt32().Should().Be(5);
+        GetData(approveDoc).GetProperty("userCategoryApprovalsIncluded").GetBoolean().Should().BeFalse();
 
-        // 4. Verify completeness = 100%
+        // Assert
+        // 4. Scalar-only approvals cannot complete Users & Access.
         var completenessResult = await _completenessTool.ExecuteAsync(new Dictionary<string, object?>
         {
             ["system_id"] = system.Id
         });
         var completenessDoc = JsonDocument.Parse(completenessResult);
         GetStatus(completenessDoc).Should().Be("success");
-        GetData(completenessDoc).GetProperty("approvedPercentage").GetInt32().Should().Be(100);
-        GetData(completenessDoc).GetProperty("isProfileComplete").GetBoolean().Should().BeTrue();
+        GetData(completenessDoc).GetProperty("approvedPercentage").GetInt32().Should().Be(80);
+        GetData(completenessDoc).GetProperty("isProfileComplete").GetBoolean().Should().BeFalse();
+        var profile = new SystemProfileService(_serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            Mock.Of<ILogger<SystemProfileService>>());
+        var saved = await profile.SaveDraftWithChildrenAsync(system.Id, ProfileSectionType.UsersAndAccess,
+            "{\"field\":\"UsersAndAccess content\"}",
+            [JsonSerializer.SerializeToElement(new { categoryName = "Operators" })], MoUserId);
+        var categoryId = saved.UserCategories.Single().Id;
+        await profile.ReviewUserCategoryAsync(system.Id, categoryId, "submit", 1, MoUserId);
+        await profile.ReviewUserCategoryAsync(system.Id, categoryId, "approve", 2, IssmUserId);
+        var fullyReviewed = await _completenessTool.ExecuteAsync(new Dictionary<string, object?> { ["system_id"] = system.Id });
+        GetData(JsonDocument.Parse(fullyReviewed)).GetProperty("approvedPercentage").GetInt32().Should().Be(100);
 
         // 5. Verify profile overview shows all approved
         var profileResult = await _getProfileTool.ExecuteAsync(new Dictionary<string, object?>

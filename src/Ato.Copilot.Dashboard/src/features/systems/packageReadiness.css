@@ -1,0 +1,19 @@
+.package-readiness { color: #17203b; }
+.readiness-card { border: 1px solid #dfe4ed; border-radius: 10px; padding: 16px; min-width: 0; }
+.package-readiness td { vertical-align: top; }
+.package-readiness button:focus-visible,
+.package-readiness a:focus-visible,
+.package-readiness summary:focus-visible { outline: 3px solid #a79af8; outline-offset: 2px; }
+.package-readiness details > summary { list-style-position: inside; }
+.readiness-milestones > li { position: relative; }
+@media (min-width: 640px) {
+  .readiness-milestones > li:not(:last-child)::after {
+    content: ""; position: absolute; left: 24px; right: -16px; top: 12px; height: 1px; background: #dfe4ed;
+  }
+}
+.dark .package-readiness { color: #e2e8f0; }
+.dark .readiness-card { border-color: #334155; }
+@media (max-width: 650px) {
+  .package-readiness h1 { font-size: 24px; }
+  .package-readiness table { min-width: 560px; }
+}

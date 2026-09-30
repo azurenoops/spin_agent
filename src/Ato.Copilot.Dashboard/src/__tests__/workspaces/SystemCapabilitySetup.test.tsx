@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SystemCapabilitySetup from '../../features/workspace-operations/system-capabilities/SystemCapabilitySetup';
@@ -16,9 +16,9 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
 vi.mock('../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: { name: 'Selected system', systemId: 'system-a' } }) }));
 
 function Location() { return <output aria-label="Current route">{useLocation().search}</output>; }
-function mount(search = '') {
+function mount(search = '', catalogSource?: 'local' | 'provider') {
   return render(<MemoryRouter initialEntries={[`/systems/system-a/security-capabilities/add${search}`]}>
-    <SystemCapabilitySetup tenantId="tenant-a" systemId="system-a" /><Location />
+    <SystemCapabilitySetup tenantId="tenant-a" systemId="system-a" catalogSource={catalogSource} /><Location />
   </MemoryRouter>);
 }
 const page = (source: 'local' | 'provider' = 'provider', applied = false) => ({
@@ -39,6 +39,21 @@ describe('Three-step selected-system capability setup', () => {
     requested.item.isApplied = false;
     api.getSystemCapability.mockResolvedValue(requested);
     api.completeSystemCapabilityOperation.mockResolvedValue(systemSetupOperationFixture('Setup', 'Completed'));
+  });
+
+  it('locks the Applied capabilities add flow to organization records and directs CSP work to Provider hosting', async () => {
+    // Arrange / Act
+    mount('?source=provider', 'local');
+
+    // Assert
+    await screen.findByRole('checkbox', { name: 'Select Incident response' });
+    expect(api.listSystemCapabilities).toHaveBeenCalledWith('tenant-a', 'system-a',
+      expect.objectContaining({ scope: 'available', source: 'local' }), expect.any(AbortSignal));
+    expect(screen.queryByLabelText('Source')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add CSP hosting & capabilities' })).toHaveAttribute(
+      'href',
+      '/systems/system-a/provider-relationships/setup',
+    );
   });
 
   it('uses separate available scope and disables already applied records', async () => {
@@ -108,7 +123,7 @@ describe('Three-step selected-system capability setup', () => {
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent(/saved setup draft is invalid/i);
     expect(api.prepareSystemCapabilitySetup).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Continue to applicability' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Continue to applicability' })).toBeDisabled();
   });
 
   it('resumes only unfinished server work with the same operation ID after partial success', async () => {
@@ -161,6 +176,7 @@ describe('Three-step selected-system capability setup', () => {
     await screen.findByRole('heading', { name: 'Review changes before adding' });
     fireEvent.click(screen.getByRole('checkbox', { name: /reviewed.*exact.*plan/i }));
     // Act
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add to system' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Add to system' }));
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent(/Outcome refresh unavailable/);
@@ -230,11 +246,47 @@ describe('Three-step selected-system capability setup', () => {
     await screen.findByRole('heading', { name: 'Review changes before adding' });
     fireEvent.click(screen.getByRole('checkbox', { name: /reviewed.*exact.*plan/i }));
     // Act
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add to system' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Add to system' }));
     // Assert
-    expect(await screen.findByRole('alert')).toHaveTextContent('Source changed.');
+    const conflict = await screen.findByRole('alert');
+    expect(conflict).toHaveTextContent('Source changed.');
+    expect(within(conflict).getByRole('button', { name: 'Start a current review' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Add to system' })).not.toBeInTheDocument();
-    expect(screen.getByText(/saved plan is stale/i)).toBeVisible();
+    expect(conflict.compareDocumentPosition(screen.getByRole('heading', { name: 'Review changes before adding' }))
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('starts a fresh selection with a new idempotency key after a prepared plan becomes stale', async () => {
+    // Arrange
+    api.completeSystemCapabilityOperation.mockRejectedValue(Object.assign(new Error('Source changed.'), { status: 409, code: 'STALE_SOURCE' }));
+    mount();
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Select Security monitoring/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to applicability' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to review' }));
+    await screen.findByRole('heading', { name: 'Review changes before adding' });
+    const previousDraftKey = sessionStorage.key(0);
+    expect(previousDraftKey).not.toBeNull();
+    const previousIdempotencyKey = JSON.parse(sessionStorage.getItem(previousDraftKey!)!).idempotencyKey;
+    fireEvent.click(screen.getByRole('checkbox', { name: /reviewed.*exact.*plan/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add to system' }));
+    await screen.findByRole('button', { name: 'Start a current review' });
+
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Start a current review' }));
+
+    // Assert
+    expect(await screen.findByRole('checkbox', { name: /Select Security monitoring/i })).not.toBeChecked();
+    expect(screen.getByLabelText('Current route')).not.toHaveTextContent('operationId=');
+    expect(screen.getByLabelText('Current route')).not.toHaveTextContent('step=3');
+    expect(previousDraftKey).not.toBeNull();
+    expect(sessionStorage.getItem(previousDraftKey!)).toBeNull();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Select Security monitoring/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to applicability' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to review' }));
+    await waitFor(() => expect(api.prepareSystemCapabilitySetup).toHaveBeenCalledTimes(2));
+    expect(api.prepareSystemCapabilitySetup.mock.calls[1]?.[2].idempotencyKey).not.toBe(previousIdempotencyKey);
   });
 
   it('fails closed with explicit recovery errors for malformed nested placement data', async () => {

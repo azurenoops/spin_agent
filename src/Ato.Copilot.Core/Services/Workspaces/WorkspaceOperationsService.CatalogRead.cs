@@ -128,6 +128,8 @@ public sealed partial class WorkspaceOperationsService
             : await db.CspInheritedCapabilities.AsNoTracking().Include(x => x.CspInheritedComponent)
                 .Where(x => providerIds.Contains(x.Id) && x.Status == CspInheritedCapabilityStatus.Mapped
                     && x.CspInheritedComponent.Status == CspInheritedComponentStatus.Published).ToListAsync(ct);
+        var providerDetails = (await ExpandProviderCapabilitiesAsync(db, providerCapabilities, ct))
+            .ToDictionary(x => x.Capability.CapabilityId!.Value);
         var links = localIds.Length == 0 ? new List<ComponentCapabilityLink>()
             : await db.ComponentCapabilityLinks.IgnoreQueryFilters().AsNoTracking()
                 .Where(x => x.TenantId == tenantId && localIds.Contains(x.SecurityCapabilityId)).ToListAsync(ct);
@@ -156,6 +158,8 @@ public sealed partial class WorkspaceOperationsService
             .Concat(providerComponents.Select(x => new SupportingComponentSummary(x.Id.ToString("D"), x.Name,
                 x.ComponentType.ToString(), "provider", x.Description)))
             .ToDictionary(x => new OrganizationCatalogComponentReference(x.Source, x.Id));
+        foreach (var component in providerDetails.Values.SelectMany(x => x.SupportingComponents))
+            components.TryAdd(new(component.Source, component.Id), component);
         foreach (var key in keys)
         {
             OrganizationCapabilityItem? item = null;
@@ -181,7 +185,8 @@ public sealed partial class WorkspaceOperationsService
                 var parent = capability.CspInheritedComponent;
                 item = new("provider", key.Id, capability.Name, capability.Description, parent.ComponentType.ToString(),
                     "Available", false, 0, "provider");
-                support.Add(new("provider", parent.Id.ToString("D")));
+                support.AddRange(providerDetails[capability.Id].SupportingComponents
+                    .Select(x => new OrganizationCatalogComponentReference(x.Source, x.Id)));
                 controls = capability.MappedNistControlIds;
                 sourceReference = NonBlank(parent.SourceFileName);
                 providerName = profiles.GetValueOrDefault(parent.CspProfileId);

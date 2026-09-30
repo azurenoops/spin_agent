@@ -126,7 +126,7 @@ public class KanbanServiceTransitionTests : IDisposable
 
         var result = await _service.MoveTaskAsync(
             task.Id, TaskStatus.Done, "admin1", "Admin One", ComplianceRoles.Administrator,
-            skipValidation: true);
+            comment: "Explicit administrator verification exception", skipValidation: true);
 
         result.Status.Should().Be(TaskStatus.Done);
     }
@@ -205,7 +205,7 @@ public class KanbanServiceTransitionTests : IDisposable
 
         await _service.MoveTaskAsync(
             task.Id, TaskStatus.Done, "admin1", "Admin One", ComplianceRoles.Administrator,
-            skipValidation: true);
+            comment: "Explicit administrator verification exception", skipValidation: true);
 
         _notificationMock.Verify(
             n => n.EnqueueAsync(It.Is<NotificationMessage>(m =>
@@ -284,7 +284,8 @@ public class KanbanServiceTransitionTests : IDisposable
         task = (await _context.RemediationTasks.FindAsync(task.Id))!;
 
         // InReview → Done (skip validation)
-        task = await _service.MoveTaskAsync(task.Id, TaskStatus.Done, "u1", "U1", role, skipValidation: true);
+        task = await _service.MoveTaskAsync(task.Id, TaskStatus.Done, "u1", "U1", role,
+            comment: "Explicit administrator verification exception", skipValidation: true);
         task.Status.Should().Be(TaskStatus.Done);
     }
 

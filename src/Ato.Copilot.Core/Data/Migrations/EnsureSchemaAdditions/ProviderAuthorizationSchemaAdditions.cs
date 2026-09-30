@@ -10,12 +10,25 @@ namespace Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
 /// </summary>
 public static class ProviderAuthorizationSchemaAdditions
 {
+    private static readonly (string Name, int Length)[] IdentityColumns =
+    [
+        ("ServiceModel", 64), ("ManagementArrangement", 64), ("ServiceOwner", 256), ("SecurityContact", 256)
+    ];
+
     public static async Task ApplyAsync(AtoCopilotContext db, ILogger logger, CancellationToken ct = default)
     {
         if (!db.Database.IsSqlite() && !db.Database.IsSqlServer())
             throw new NotSupportedException("Provider authorization persistence requires SQLite or SQL Server.");
         foreach (var script in Scripts(db.Database.IsSqlServer()))
             await db.Database.ExecuteSqlRawAsync(script, ct);
+        if (db.Database.IsSqlite())
+        {
+            var columns = await db.Database.SqlQueryRaw<string>(
+                "SELECT name AS Value FROM pragma_table_info('ProviderOfferings')").ToListAsync(ct);
+            foreach (var (name, _) in IdentityColumns)
+                if (!columns.Contains(name, StringComparer.OrdinalIgnoreCase))
+                    await db.Database.ExecuteSqlRawAsync($"ALTER TABLE ProviderOfferings ADD COLUMN [{name}] TEXT NULL", ct);
+        }
         logger.LogInformation("Verified additive provider authorization schema for {Provider}", db.Database.ProviderName);
     }
 
@@ -38,6 +51,8 @@ public static class ProviderAuthorizationSchemaAdditions
         {
             ["ProviderOfferings"] = $"""
                 Name {Short(256)} NOT NULL, Description {text} NOT NULL, EnvironmentsJson {text} NOT NULL,
+                ServiceModel {Short(64)} NULL, ManagementArrangement {Short(64)} NULL,
+                ServiceOwner {Short(256)} NULL, SecurityContact {Short(256)} NULL,
                 Lifecycle {Short(32)} NOT NULL, CurrentBoundaryRevisionId {guid} NULL, CurrentHostingScopeRevisionId {guid} NULL,
                 CONSTRAINT AK_ProviderOfferings_ProviderId_Id UNIQUE (ProviderId, Id)
                 """,
@@ -209,6 +224,9 @@ public static class ProviderAuthorizationSchemaAdditions
         Index("ProviderClaimReviews", "PackageId");
         Index("ProviderClaimReviews", "CandidateId");
         Index("ProviderPackageEnrichments", "PackageId");
+        if (sqlServer)
+            foreach (var (name, length) in IdentityColumns)
+                scripts.Add($"IF COL_LENGTH(N'dbo.ProviderOfferings', N'{name}') IS NULL ALTER TABLE dbo.ProviderOfferings ADD [{name}] nvarchar({length}) NULL;");
         return scripts;
 
         void Index(string table, string fields, bool unique = false)

@@ -227,7 +227,10 @@ public sealed class OfferingOverviewTests
         // Act
         var result = await fixture.Service.OverviewAsync(fixture.Offering, 1, 1, 1, default);
         // Assert
-        result.Capabilities.Should().Be(new OfferingOverviewCapabilities(3, 1, 1, 1, 1));
+        result.Capabilities.Should().BeEquivalentTo(new OfferingOverviewCapabilities(3, 1, 1, 1, 1)
+        {
+            PublishedReleaseRevisions = [1]
+        });
     }
 
     [Theory]

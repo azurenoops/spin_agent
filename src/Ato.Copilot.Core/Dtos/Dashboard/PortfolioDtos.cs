@@ -604,7 +604,15 @@ public class CreateNarrativeRequest
 public class SaveProfileSectionBody
 {
     public required string Content { get; init; }
-    public object[]? ChildItems { get; init; }
+
+    /// <summary>
+    /// Complete working row list for the selected section. Omitted/null preserves rows;
+    /// [] clears them. Existing IDs must belong to this section, new rows omit id,
+    /// and array position determines sort order. UI-only _tempId is ignored.
+    /// Existing user categories also require their current revision. Previously approved
+    /// categories become pending removals rather than losing their retained approved baseline.
+    /// </summary>
+    public System.Text.Json.JsonElement[]? ChildItems { get; init; }
 }
 
 public class SubmitSectionsBody

@@ -41,7 +41,10 @@ public enum ScanImportStatus
     CompletedWithWarnings,
 
     /// <summary>Fatal error — malformed XML, system not found, etc.</summary>
-    Failed
+    Failed,
+    Queued,
+    Processing,
+    Cancelled
 }
 
 /// <summary>
@@ -96,6 +99,11 @@ public enum ImportFindingAction
 [TenantScoped]
 public class ScanImportRecord
 {
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public string? WorkspaceOperationKey { get; set; }
+    [System.ComponentModel.DataAnnotations.ConcurrencyCheck]
+    public string? ResultProvenanceJson { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

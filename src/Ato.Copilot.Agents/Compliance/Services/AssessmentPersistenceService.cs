@@ -79,14 +79,21 @@ public class AssessmentPersistenceService : IAssessmentPersistenceService
             if (existing is not null)
             {
                 // Upsert: update existing assessment
+                var incomingExecution = AssessmentResultProvenance.Read(assessment.ResultProvenanceJson).ExecutionToken;
+                if (incomingExecution is not null && incomingExecution != AssessmentResultProvenance.Read(existing.ResultProvenanceJson).ExecutionToken)
+                    throw new DbUpdateConcurrencyException("Assessment execution was superseded by a retained retry.");
                 context.Entry(existing).CurrentValues.SetValues(assessment);
 
-                // Remove old findings and add new ones
+                // Preserve finding identities and their downstream remediation/provenance links.
                 var existingFindings = await context.Findings
                     .Where(f => f.AssessmentId == assessment.Id)
                     .ToListAsync(cancellationToken);
-                context.Findings.RemoveRange(existingFindings);
-                context.Findings.AddRange(assessment.Findings);
+                foreach (var finding in assessment.Findings)
+                {
+                    var saved = existingFindings.FirstOrDefault(x => x.Id == finding.Id);
+                    if (saved is null) context.Findings.Add(finding);
+                    else context.Entry(saved).CurrentValues.SetValues(finding);
+                }
 
                 _logger.LogDebug("Updated existing assessment {Id}", assessment.Id);
             }
@@ -101,7 +108,11 @@ public class AssessmentPersistenceService : IAssessmentPersistenceService
 
             // Invalidate latest assessment cache for this subscription
             var cacheKey = $"latest-assessment:{assessment.SubscriptionId}";
-            _cache.Set(cacheKey, assessment, LatestAssessmentCacheTtl);
+            _cache.Set(cacheKey, assessment, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = LatestAssessmentCacheTtl,
+                Size = 1
+            });
 
             _logger.LogInformation("Saved assessment {Id} for Sub={Sub} (Score: {Score}%)",
                 assessment.Id, assessment.SubscriptionId, assessment.ComplianceScore);
@@ -155,7 +166,11 @@ public class AssessmentPersistenceService : IAssessmentPersistenceService
 
             if (latest is not null)
             {
-                _cache.Set(cacheKey, latest, LatestAssessmentCacheTtl);
+                _cache.Set(cacheKey, latest, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = LatestAssessmentCacheTtl,
+                    Size = 1
+                });
             }
 
             return latest;

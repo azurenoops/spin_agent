@@ -920,6 +920,15 @@ public sealed class WorkspaceOperationsAuthorizationTests(
         var recovered = await client.GetFromJsonAsync<JsonElement>($"{root}/setups/{operation.GetProperty("operationId").GetGuid()}");
         var complete = await client.PostAsJsonAsync($"{root}/setups/{operation.GetProperty("operationId").GetGuid()}/complete",
             new CompleteSystemCapabilitySetupRequest(operation.GetProperty("revision").GetInt64()));
+        complete.StatusCode.Should().Be(HttpStatusCode.OK, await complete.Content.ReadAsStringAsync());
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.SystemCapabilityLinks.AnyAsync(link => link.RegisteredSystemId == systemId
+                && link.SecurityCapabilityId == capabilityId)).Should().BeTrue();
+            (await db.CapabilityControlMappings.AnyAsync(mapping => mapping.RegisteredSystemId == systemId
+                && mapping.SecurityCapabilityId == capabilityId)).Should().BeFalse();
+        }
         using var evidenceForm = new MultipartFormDataContent();
         var evidenceContent = new StringContent("Synthetic repository evidence");
         evidenceContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");

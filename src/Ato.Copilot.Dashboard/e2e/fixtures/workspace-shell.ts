@@ -48,7 +48,7 @@ export async function installWorkspaceFixture(context: BrowserContext, baseURL: 
       workspace: !headers['x-workspace-kind'] ? null : {
         kind: isProvider ? 'csp' : 'organization', tenantId: isProvider ? null : tenantId,
         displayName: isProvider ? provider.displayName : tenant.displayName, mode: inSupport ? 'support' : 'ordinary',
-        personId: isProvider ? null : 'person-a', roles: isProvider ? ['CSPAdmin'] : ['MissionOwner', 'Reader'],
+        personId: isProvider ? null : 'person-a', roles: isProvider ? ['CSP.Admin'] : ['MissionOwner', 'Reader'],
         permissions: isProvider ? { ...permissions, canAccessCsp: true, canManageMemberships: true } : permissions,
       },
     });
@@ -61,6 +61,13 @@ export async function installWorkspaceFixture(context: BrowserContext, baseURL: 
       return route.fulfill({ status: 204 });
     }
     if (path === '/api/auth/workspaces') return success({ items: choices, total: choices.length });
+    if (path === '/api/csp/organizations/org-a') return success({
+      id: 'org-a', displayName: 'Organization A', lifecycle: 'Active', onboarding: 'Active',
+      setupState: 'Completed', memberCount: 1, systems: [], subscriptions: [], activity: [],
+    });
+    if (path === '/api/csp/organizations/org-a/provisioning/current') return route.fulfill({
+      status: 404, json: { error: { code: 'PROVISIONING_NOT_FOUND', message: 'No enrollment operation in this fixture.' } },
+    });
     if (path.endsWith('/workspace-access')) return success({
       systemId: 'system-a', roles: ['MissionOwner', 'Reader'],
       permissions: { canRead: true, canEditProfile: true, canManageSystem: options.canManageSystem ?? false, canAuthorNarratives: false,
@@ -106,8 +113,16 @@ export async function installWorkspaceFixture(context: BrowserContext, baseURL: 
 }
 
 export async function switchWorkspace(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Switch workspace', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Switch workspace?' })).toBeVisible();
-  await page.getByRole('button', { name: 'Discard and choose workspace' }).click();
-  await page.getByRole('button', { name: new RegExp(name) }).click();
+  await openWorkspaceContext(page);
+  await page.getByRole('menuitem', { name: 'Switch workspace', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Switch workspace', exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: new RegExp(name) }).click();
+  await dialog.getByRole('button', { name: `Switch to ${name}`, exact: true }).click();
+}
+
+export async function openWorkspaceContext(page: Page) {
+  if (!await page.getByRole('menu', { name: 'Account', exact: true }).isVisible())
+    await page.getByRole('button', { name: 'Account menu', exact: true }).click();
+  return page.getByRole('region', { name: 'Active workspace', exact: true });
 }

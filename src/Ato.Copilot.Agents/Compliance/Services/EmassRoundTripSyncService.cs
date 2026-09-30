@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
@@ -79,10 +81,21 @@ public sealed class EmassRoundTripSyncService(
         string resolvedBy,
         CancellationToken cancellationToken = default)
     {
-        if (request.Resolution == ConflictStatus.Unresolved)
+        if (request.Resolution is not (ConflictStatus.KeepSpin or ConflictStatus.AcceptEmass or ConflictStatus.Deferred))
             throw new ArgumentException("A conflict resolution must be KeepSpin, AcceptEmass, or Deferred.");
+        if (string.IsNullOrWhiteSpace(resolvedBy) || resolvedBy.Length > 200)
+            throw new ArgumentException("An authenticated reviewer identifier of at most 200 characters is required.");
+        if (request.Rationale is not null && request.Notes is not null &&
+            !string.Equals(request.Rationale.Trim(), request.Notes.Trim(), StringComparison.Ordinal))
+            throw new ArgumentException("Supply rationale or legacy notes, not conflicting values for both.");
+        var rationale = (request.Rationale ?? request.Notes)?.Trim();
+        if (rationale?.Length > 1000)
+            throw new ArgumentException("The resolution rationale must be at most 1000 characters.");
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = context.Database.IsRelational()
+            ? await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
         var conflict = await context.EmassConflicts.FirstOrDefaultAsync(
             candidate => candidate.Id == conflictId && candidate.RegisteredSystemId == systemId,
             cancellationToken)
@@ -93,10 +106,14 @@ public sealed class EmassRoundTripSyncService(
         if (request.Resolution == ConflictStatus.AcceptEmass)
             await ApplyEmassValueAsync(context, conflict, cancellationToken);
 
+        var previousResolution = conflict.ConflictStatus;
+        var previousResolvedBy = conflict.ResolvedBy;
+        var previousResolvedAt = conflict.ResolvedAt;
+        var previousRationale = conflict.Notes;
         conflict.ConflictStatus = request.Resolution;
         conflict.ResolvedAt = DateTimeOffset.UtcNow;
         conflict.ResolvedBy = resolvedBy;
-        conflict.Notes = request.Notes;
+        conflict.Notes = rationale;
         context.AuditLogs.Add(new AuditLogEntry
         {
             TenantId = conflict.TenantId,
@@ -104,9 +121,26 @@ public sealed class EmassRoundTripSyncService(
             UserRole = "ISSO/ISSM",
             Action = "EmassConflict.Resolve",
             AffectedResources = [systemId, conflictId],
-            Details = $"Resolution={request.Resolution}; Field={conflict.FieldName}",
+            Details = JsonSerializer.Serialize(new
+            {
+                Resolution = request.Resolution.ToString(),
+                Field = conflict.FieldName,
+                Rationale = rationale,
+                PreviousResolution = previousResolution.ToString(),
+                PreviousResolvedBy = previousResolvedBy,
+                PreviousResolvedAt = previousResolvedAt,
+                PreviousRationale = previousRationale,
+                conflict.SpinValue,
+                conflict.EmassValue,
+                conflict.SyncBatchId,
+            }),
         });
-        await context.SaveChangesAsync(cancellationToken);
+        try { await context.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new EmassConflictChangedException(conflictId);
+        }
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         return ToDto(conflict);
     }
 
@@ -332,7 +366,15 @@ public sealed class EmassRoundTripSyncService(
         if (conflict.EntityType == "SystemInfo")
         {
             var system = await context.RegisteredSystems.FirstAsync(
-                candidate => candidate.Id == conflict.RegisteredSystemId, cancellationToken);
+                candidate => candidate.Id == conflict.RegisteredSystemId && candidate.TenantId == conflict.TenantId,
+                cancellationToken);
+            EnsureUnchanged(conflict, conflict.FieldName switch
+            {
+                "SystemInfo.SystemName" => system.Name,
+                "SystemInfo.Acronym" => system.Acronym,
+                "SystemInfo.DitprId" => system.DitprId,
+                _ => throw new InvalidOperationException($"Unsupported conflict field '{conflict.FieldName}'."),
+            });
             switch (conflict.FieldName)
             {
                 case "SystemInfo.SystemName": system.Name = conflict.EmassValue ?? string.Empty; break;
@@ -348,8 +390,14 @@ public sealed class EmassRoundTripSyncService(
         {
             var implementation = await context.ControlImplementations.FirstAsync(
                 candidate => candidate.Id == conflict.EntityId &&
-                    candidate.RegisteredSystemId == conflict.RegisteredSystemId,
+                    candidate.RegisteredSystemId == conflict.RegisteredSystemId && candidate.TenantId == conflict.TenantId,
                 cancellationToken);
+            EnsureUnchanged(conflict, conflict.FieldName switch
+            {
+                "ControlImplementation.ImplementationStatus" => FormatStatus(implementation.ImplementationStatus),
+                "ControlImplementation.Narrative" => implementation.Narrative,
+                _ => throw new InvalidOperationException($"Unsupported conflict field '{conflict.FieldName}'."),
+            });
             switch (conflict.FieldName)
             {
                 case "ControlImplementation.ImplementationStatus":
@@ -368,8 +416,23 @@ public sealed class EmassRoundTripSyncService(
         {
             var item = await context.PoamItems.FirstAsync(
                 candidate => candidate.Id == conflict.EntityId &&
-                    candidate.RegisteredSystemId == conflict.RegisteredSystemId,
+                    candidate.RegisteredSystemId == conflict.RegisteredSystemId && candidate.TenantId == conflict.TenantId,
                 cancellationToken);
+            EnsureUnchanged(conflict, conflict.FieldName switch
+            {
+                "PoamItem.Weakness" => item.Weakness,
+                "PoamItem.WeaknessSource" => item.WeaknessSource,
+                "PoamItem.PointOfContact" => item.PointOfContact,
+                "PoamItem.PocEmail" => item.PocEmail,
+                "PoamItem.SecurityControlNumber" => item.SecurityControlNumber,
+                "PoamItem.ScheduledCompletionDate" => item.ScheduledCompletionDate.ToString("MM/dd/yyyy"),
+                "PoamItem.ResourcesRequired" => item.ResourcesRequired,
+                "PoamItem.CostEstimate" => item.CostEstimate?.ToString("F2", CultureInfo.InvariantCulture),
+                "PoamItem.Status" => item.Status.ToString(),
+                "PoamItem.ActualCompletionDate" => item.ActualCompletionDate?.ToString("MM/dd/yyyy"),
+                "PoamItem.Comments" => item.Comments,
+                _ => throw new InvalidOperationException($"Unsupported conflict field '{conflict.FieldName}'."),
+            });
             switch (conflict.FieldName)
             {
                 case "PoamItem.Weakness": item.Weakness = conflict.EmassValue ?? string.Empty; break;
@@ -390,6 +453,12 @@ public sealed class EmassRoundTripSyncService(
         }
 
         throw new InvalidOperationException($"Unsupported conflict entity '{conflict.EntityType}'.");
+    }
+
+    private static void EnsureUnchanged(EmassConflict conflict, string? currentValue)
+    {
+        if (!string.Equals(currentValue, conflict.SpinValue, StringComparison.Ordinal))
+            throw new EmassConflictChangedException(conflict.Id);
     }
 
     private static ImplementationStatus ParseStatus(string? value) =>
@@ -436,7 +505,8 @@ public sealed class EmassRoundTripSyncService(
         conflict.ConflictStatus,
         conflict.DetectedAt,
         conflict.ResolvedAt,
-        conflict.ResolvedBy);
+        conflict.ResolvedBy,
+        conflict.Notes);
 }
 
 public sealed class UnresolvedEmassConflictsException(int count)
@@ -450,3 +520,6 @@ public sealed class EmassSystemIdMismatchException(string? expected, string? act
 
 public sealed class EmassConflictAlreadyResolvedException(string conflictId)
     : InvalidOperationException($"eMASS conflict '{conflictId}' is already resolved.");
+
+public sealed class EmassConflictChangedException(string conflictId)
+    : InvalidOperationException($"eMASS conflict '{conflictId}' or its source value changed. Reload and review; run a new workbook comparison for changed source values.");

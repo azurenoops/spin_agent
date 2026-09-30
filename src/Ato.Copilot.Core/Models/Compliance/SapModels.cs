@@ -53,7 +53,25 @@ public class SecurityAssessmentPlan
 
     /// <summary>SAP lifecycle status (Draft or Finalized).</summary>
     [Required]
+    [ConcurrencyCheck]
     public SapStatus Status { get; set; } = SapStatus.Draft;
+
+    [ConcurrencyCheck]
+    public long Revision { get; set; } = 1;
+
+    public DateTime? UpdatedAt { get; set; }
+
+    [MaxLength(200)]
+    public string? UpdatedBy { get; set; }
+
+    [MaxLength(200)]
+    public string? AssessmentLeadUserId { get; set; }
+
+    [MaxLength(200)]
+    public string? GenerationRequestId { get; set; }
+
+    [MaxLength(36)]
+    public string? PreviousPlanId { get; set; }
 
     /// <summary>SAP document title (e.g., "Security Assessment Plan — ACME System — FY26 Q2").</summary>
     [Required]
@@ -69,6 +87,12 @@ public class SecurityAssessmentPlan
     [MaxLength(4000)]
     public string? ScopeNotes { get; set; }
 
+    [MaxLength(200)]
+    public string? AssessmentLead { get; set; }
+
+    [MaxLength(4000)]
+    public string? AssessmentApproach { get; set; }
+
     /// <summary>Assessment constraints, availability windows, escalation procedures.</summary>
     [MaxLength(4000)]
     public string? RulesOfEngagement { get; set; }
@@ -81,6 +105,7 @@ public class SecurityAssessmentPlan
 
     /// <summary>Full rendered SAP content (Markdown).</summary>
     [Required]
+    [ConcurrencyCheck]
     public string Content { get; set; } = string.Empty;
 
     /// <summary>SHA-256 hash of Content when finalized — integrity verification.</summary>
@@ -165,6 +190,11 @@ public class SapControlEntry
     [Required]
     [MaxLength(20)]
     public string ControlId { get; set; } = string.Empty;
+
+    public bool IsExcluded { get; set; }
+
+    [MaxLength(4000)]
+    public string? ExclusionRationale { get; set; }
 
     /// <summary>Control title from OSCAL catalog.</summary>
     [Required]
@@ -289,7 +319,10 @@ public record SapGenerationInput(
     string? RulesOfEngagement = null,
     List<SapTeamMemberInput>? TeamMembers = null,
     List<SapMethodOverrideInput>? MethodOverrides = null,
-    string Format = "markdown");
+    string Format = "markdown",
+    string? GenerationRequestId = null,
+    string? PreviousPlanId = null,
+    string? ExpectedContentHash = null);
 
 /// <summary>Input for SAP update (draft only).</summary>
 public record SapUpdateInput(
@@ -299,7 +332,18 @@ public record SapUpdateInput(
     string? ScopeNotes = null,
     string? RulesOfEngagement = null,
     List<SapTeamMemberInput>? TeamMembers = null,
-    List<SapMethodOverrideInput>? MethodOverrides = null);
+    List<SapMethodOverrideInput>? MethodOverrides = null,
+    string? Title = null,
+    string? AssessmentLead = null,
+    string? AssessmentApproach = null,
+    string? ExpectedContentHash = null,
+    long? ExpectedRevision = null,
+    string? AssessmentLeadUserId = null,
+    List<string>? IncludedControlIds = null,
+    Dictionary<string, string>? ExclusionReasons = null,
+    bool ReplaceSchedule = false,
+    bool ReplaceLead = false,
+    string? UpdatedBy = null);
 
 /// <summary>Result of SAP generation or retrieval.</summary>
 public class SapDocument
@@ -315,6 +359,9 @@ public class SapDocument
 
     /// <summary>SAP document title.</summary>
     public string Title { get; set; } = string.Empty;
+    public string? AssessmentLead { get; set; }
+    public string? AssessmentApproach { get; set; }
+    public string? ScopeNotes { get; set; }
 
     /// <summary>SAP status (Draft or Finalized).</summary>
     public string Status { get; set; } = "Draft";
