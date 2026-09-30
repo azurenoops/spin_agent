@@ -117,8 +117,15 @@ public static class ServiceCollectionExtensions
 
         // ─── Compliance Engine Infrastructure (Feature 008) ──────────────────
         services.AddSingleton<IAzureResourceService, AzureResourceService>();
+        services.AddSingleton<CanonicalEnvironmentCollectionGuard>();
         services.AddSingleton<IAzureAssessmentConnectionProbe, AzureAssessmentConnectionProbe>();
         services.AddScoped<IAssessmentEnvironmentService, AssessmentEnvironmentService>();
+        services.AddScoped<Ato.Copilot.Core.Services.Environments.SystemEnvironmentService>();
+        services.AddScoped<ISystemEnvironmentService>(sp =>
+            sp.GetRequiredService<Ato.Copilot.Core.Services.Environments.SystemEnvironmentService>());
+        services.AddScoped<ISystemEnvironmentScopeResolver>(sp =>
+            sp.GetRequiredService<Ato.Copilot.Core.Services.Environments.SystemEnvironmentService>());
+        services.AddScoped<ISystemEnvironmentAzureSource, Ato.Copilot.Core.Services.Environments.SystemEnvironmentAzureSource>();
         services.AddSingleton<IAssessmentPersistenceService, AssessmentPersistenceService>();
         services.AddSingleton<IScannerRegistry, ScannerRegistry>();
         services.AddSingleton<IEvidenceCollectorRegistry, EvidenceCollectorRegistry>();

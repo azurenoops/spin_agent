@@ -8,6 +8,61 @@ The Compliance Dashboard provides a real-time visual overview of your organizati
 
 ## Overview
 
+### Personal Settings and workspace administration
+
+The Settings drawer contains three expandable sections, with **Preferences**
+open first. Its compact identity/workspace header is server-derived and is not a
+role editor.
+
+- **Preferences:** browser-local appearance, table density and supported date/time
+  presentation. These are display choices, not organization policy or changes to
+  exported documents. Date formatting applies to POA&M due dates/milestones,
+  ticket-sync times and deviation requested dates. Calendar deadlines retain
+  their recorded day; audit history and exported timestamps are unchanged.
+- **Notifications:** personal alert preferences for the signed-in identity in the
+  active organization. Use **Save preferences**. The form reports **Saving**,
+  **Saved**, or **Couldn't save — Retry**; failed loads do not invent editable
+  local defaults. Failed saves retain the unsaved choices for retry.
+- **Assistant:** supported chat presentation controls. No response-style or
+  landing-page selector is shown unless a real consumer supports it.
+
+**Reset personal preferences** resets only browser-local display/chat values.
+It does not reset account notification preferences, identity, catalog filters,
+organization policies, connection registrations, system records or exports.
+
+Authorized organization administrators use **Open organization administration**
+to reach organization profile, Azure subscription registration, membership
+management and onboarding maintenance. Provider administrators get the equivalent
+provider-workspace link. Server-side permissions remain authoritative.
+
+Operational settings stay with their records: catalog framework filters in the
+catalog, baseline decisions in system categorization, scan imports in Assessment
+& Risk, and package/export/eMASS actions in ATO Readiness. Removed personal
+integration switches never configured real connections; their removal does not
+remove integration capabilities. Export formats remain beside actual export
+actions, not a browser-wide default.
+
+Local acceptance (September 30): save any unsaved system form, refresh the
+Dashboard, and open the Settings gear. Preferences opens first. Change theme or
+table density, then inspect the relevant record displays. In Notifications,
+change an alert preference and explicitly save; only a confirmed response shows
+Saved. A failed save retains the draft and offers Retry. Reset personal
+preferences and verify notification values and operational records are unchanged.
+An authorized administrator can follow Open organization administration to
+Manage Azure subscriptions; a non-administrator cannot obtain that link by
+changing browser-local identity values.
+
+Verification: strict TypeScript passed; 18 focused drawer/notification/admin
+tests and 148 display-consumer regression tests passed. Two desktop/mobile
+browser cases passed on each of ports 5197 and 5173, covering failed-save retry,
+reset scope, no horizontal overflow, Escape and focus return. The live account
+preferences GET returned 200 with the supported response shape; live preferences
+were not mutated for testing. The full Dashboard run recorded 2,806 passes and
+11 failures: ten previously observed provider navigation/selector failures plus
+one hosting test that passed in isolation. No clean full-suite result is claimed.
+The healthy local Dashboard image is `personal-settings-20260930`; API, SQL,
+Redis and Chat were not redeployed for this UI change.
+
 ### Narrative reference lifecycle (backend continuation)
 
 Uploaded policy/technical text remains a reference claim, not implementation
@@ -255,6 +310,14 @@ The Components page focuses on asset inventory management. Per-component risk su
 ---
 
 ## Azure Assessment Prerequisites
+
+**Planning note:** an incremental
+[assessment work separation proposal](../../specs/018-sap-generation/assessment-work-separation-plan.md)
+is awaiting approval. It distinguishes team self-assessment from
+engagement/objective-scoped formal assessor work while reusing this workflow.
+The proposed assignment, manual-activity and separate approval/release actions
+are not available yet; existing system-role checks must not be described as
+assessment-scoped independence enforcement.
 
 ### Connected assessment workflow
 

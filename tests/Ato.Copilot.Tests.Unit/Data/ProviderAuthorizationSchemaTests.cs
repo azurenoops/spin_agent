@@ -102,7 +102,7 @@ public sealed class ProviderAuthorizationSchemaTests
 
         // Assert
         model.FindEntityType(typeof(ProviderOwnedRow)).Should().BeNull();
-        RowTypes.Should().HaveCount(23);
+        RowTypes.Should().HaveCount(25);
         foreach (var type in RowTypes)
         {
             var entity = model.FindEntityType(type);
@@ -426,7 +426,8 @@ public sealed class ProviderAuthorizationSchemaTests
 
         // Act
         var scripts = ProviderAuthorizationSchemaAdditions.Scripts(sqlServer)
-            .Concat(ProviderMonitoringSchemaAdditions.Scripts(sqlServer)).ToArray();
+            .Concat(ProviderMonitoringSchemaAdditions.Scripts(sqlServer))
+            .Concat(SystemEnvironmentSchemaAdditions.Scripts(sqlServer)).ToArray();
 
         // Assert
         foreach (var type in RowTypes.Where(t => t != typeof(ProviderEvidenceShare)))
@@ -480,5 +481,6 @@ public sealed class ProviderAuthorizationSchemaTests
         await ProviderAuthorizationSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
         await ProviderEvidenceSharingSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
         await ProviderMonitoringSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        await SystemEnvironmentSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
     }
 }

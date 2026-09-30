@@ -58,7 +58,7 @@ function ProviderAdministrationContent() {
             <button type="button" className="provider-secondary" onClick={() => { setUser(null); setDialog('directory'); }}>Find user</button></div>
         </div>
         <div className="provider-checklist-row">
-          <div className="min-w-0 flex-1"><h3>Azure read-only connection</h3><p>Live connection health is not exposed here. Review recorded Azure service scopes separately.</p></div>
+          <div className="min-w-0 flex-1"><h3>Azure subscriptions &amp; allocations</h3><p>Select an offering to manage registered subscription allocations and released hosting scopes. Allocation does not grant Azure access.</p></div>
           <button type="button" className="provider-secondary" onClick={() => setDialog('azure')}>Review scope configuration</button>
         </div>
         <div className="provider-checklist-row">

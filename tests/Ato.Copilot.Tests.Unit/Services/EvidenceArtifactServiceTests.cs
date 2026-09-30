@@ -134,6 +134,53 @@ public class EvidenceArtifactServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Upload_ToAppliedCapabilityWithoutControlMapping_PreservesSystemTarget()
+    {
+        // Arrange
+        _db.SecurityCapabilities.Add(new SecurityCapability { Id = "applied-cap", Name = "Applied capability" });
+        _db.SystemCapabilityLinks.Add(new()
+        {
+            RegisteredSystemId = "sys-1", SecurityCapabilityId = "applied-cap", LinkedBy = "test"
+        });
+        await _db.SaveChangesAsync();
+        using var stream = MakeStream();
+
+        // Act
+        var result = await _sut.UploadAsync("sys-1", "proof.txt", "text/plain", stream,
+            ArtifactCategory.PolicyDocument, "test", securityCapabilityId: "applied-cap");
+
+        // Assert
+        result.RegisteredSystemId.Should().Be("sys-1");
+        result.SecurityCapabilityId.Should().Be("applied-cap");
+        (await _db.CapabilityControlMappings.AnyAsync(x => x.SecurityCapabilityId == "applied-cap")).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Upload_ToUnappliedOrOtherSystemCapability_DoesNotStoreBytes(bool linkedElsewhere)
+    {
+        // Arrange
+        _db.SecurityCapabilities.Add(new SecurityCapability { Id = "unapplied-cap", Name = "Other capability" });
+        if (linkedElsewhere)
+            _db.SystemCapabilityLinks.Add(new()
+            {
+                RegisteredSystemId = "sys-h1", SecurityCapabilityId = "unapplied-cap", LinkedBy = "test"
+            });
+        await _db.SaveChangesAsync();
+        using var stream = MakeStream();
+
+        // Act
+        var act = () => _sut.UploadAsync("sys-1", "proof.txt", "text/plain", stream,
+            ArtifactCategory.PolicyDocument, "test", securityCapabilityId: "unapplied-cap");
+
+        // Assert
+        await act.Should().ThrowAsync<KeyNotFoundException>().WithMessage("Capability not found in this system.");
+        _storageProvider.Verify(x => x.SaveAsync(It.IsAny<string>(), It.IsAny<Stream>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Upload_WithNarrativeType_PersistsClassification()
     {
         // Arrange

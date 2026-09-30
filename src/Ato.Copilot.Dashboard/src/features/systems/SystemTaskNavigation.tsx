@@ -86,7 +86,7 @@ export default function SystemTaskNavigation({ definitionOnly = false }: { defin
     : [];
 
   return <section className={definitionOnly ? 'my-6 min-w-0' : 'mb-5 min-w-0 space-y-3'} aria-label="System task navigation">
-    {!definitionOnly && group?.label !== 'ATO package & eMASS' && <div className="flex flex-wrap items-center justify-between gap-2">
+    {!definitionOnly && group?.label !== 'ATO Readiness' && <div className="flex flex-wrap items-center justify-between gap-2">
       <p className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
         Contributes to {contribution}
       </p>
@@ -103,7 +103,7 @@ export default function SystemTaskNavigation({ definitionOnly = false }: { defin
         if (item.unavailable) return <span key={item.path} aria-disabled="true" title={item.unavailable}
           className="px-1 py-3 text-sm text-slate-400">{item.label} (not available)</span>;
         let destination = `${base}${item.path ? `/${item.path}` : ''}`;
-        if (group?.label === 'ATO package & eMASS') {
+        if (group?.label === 'ATO Readiness') {
           const [pathname, query] = destination.split('?');
           const target = new URLSearchParams(query);
           const current = new URLSearchParams(location.search);

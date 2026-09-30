@@ -29,6 +29,7 @@ public class AtoComplianceEngineTests : IDisposable
     private readonly Mock<IEvidenceCollectorRegistry> _evidenceCollectorRegistryMock = new();
     private readonly Mock<IComplianceWatchService> _complianceWatchMock = new();
     private readonly Mock<IAlertManager> _alertManagerMock = new();
+    private readonly Mock<ISystemEnvironmentScopeResolver> _environmentResolver = new();
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly string _dbName;
 
@@ -75,6 +76,7 @@ public class AtoComplianceEngineTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(_complianceWatchMock.Object);
         services.AddSingleton(_alertManagerMock.Object);
+        services.AddSingleton(_environmentResolver.Object);
         var sp = services.BuildServiceProvider();
 
         return new(
@@ -88,7 +90,42 @@ public class AtoComplianceEngineTests : IDisposable
             _azureResourceMock.Object,
             _stigValidationMock.Object,
             _evidenceCollectorRegistryMock.Object,
-            sp);
+            sp, _environmentResolver.Setups.Any()
+                ? new CanonicalEnvironmentCollectionGuard(_dbFactory, sp.GetRequiredService<IServiceScopeFactory>())
+                : null);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CanonicalExecution_BlocksBeforeAnyScannerOrResourceRead(bool eligible)
+    {
+        // Arrange
+        var subscription = Guid.NewGuid();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        db.RegisteredSystems.Add(new() { Id = "canonical-system", Name = "Synthetic system" });
+        await db.SaveChangesAsync();
+        var source = new ResolvedSystemEnvironmentScope(Guid.NewGuid(), 1, Guid.NewGuid(), 1,
+            new(Guid.NewGuid(), Guid.NewGuid(), subscription, Guid.NewGuid(), "Government", "Synthetic",
+                "Selected", DateTimeOffset.UtcNow), "ProviderAllocation", Guid.NewGuid(), 1,
+            eligible, eligible ? null : "Allocation withdrawn",
+            [$"/subscriptions/{subscription}/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/a"],
+            [], [], new("Test", null, null, "Reconciled", null, DateTimeOffset.UtcNow));
+        _environmentResolver.Setup(x => x.ResolveAsync("canonical-system", It.IsAny<EnvironmentScopePurpose>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes("canonical-system", 1, [source], []));
+        var engine = CreateEngine();
+
+        // Act
+        var act = () => engine.RunRetainedAssessmentAsync(new()
+            { RegisteredSystemId = "canonical-system", SubscriptionId = subscription.ToString() });
+
+        // Assert
+        (await act.Should().ThrowAsync<AssessmentEnvironmentException>()).Which.ErrorCode
+            .Should().Be(eligible ? "ASSESSMENT_SCOPE_UNSUPPORTED" : "ASSESSMENT_ENVIRONMENT_INELIGIBLE");
+        _azureResourceMock.Invocations.Should().BeEmpty();
+        _policyMock.Invocations.Should().BeEmpty();
+        _defenderMock.Invocations.Should().BeEmpty();
+        _scannerRegistryMock.Invocations.Should().BeEmpty();
     }
 
     private static string MakePolicyResponse(List<object>? states = null) =>

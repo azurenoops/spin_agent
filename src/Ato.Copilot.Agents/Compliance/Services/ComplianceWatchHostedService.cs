@@ -30,6 +30,7 @@ public class ComplianceWatchHostedService : BackgroundService
     private DateOnly _lastSnapshotDate;
     private readonly IServiceScopeFactory? _scopeFactory;
     private readonly ITenantContextAccessor? _tenantAccessor;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ComplianceWatchHostedService"/> class.
@@ -42,7 +43,8 @@ public class ComplianceWatchHostedService : BackgroundService
         IOptions<MonitoringOptions> monitoringOptions,
         ILogger<ComplianceWatchHostedService> logger,
         IServiceScopeFactory? scopeFactory = null,
-        ITenantContextAccessor? tenantAccessor = null)
+        ITenantContextAccessor? tenantAccessor = null,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _dbFactory = dbFactory;
         _watchService = watchService;
@@ -52,6 +54,7 @@ public class ComplianceWatchHostedService : BackgroundService
         _logger = logger;
         _scopeFactory = scopeFactory;
         _tenantAccessor = tenantAccessor;
+        _environmentGuard = environmentGuard;
     }
 
     /// <inheritdoc />
@@ -180,6 +183,7 @@ public class ComplianceWatchHostedService : BackgroundService
             config.LastAttemptAt = DateTimeOffset.UtcNow;
             try
             {
+                await EnsureCurrentEnvironmentAsync(config.SubscriptionId, cancellationToken);
                 if (!await db.ComplianceBaselines.AnyAsync(x => x.SubscriptionId == config.SubscriptionId && x.IsActive, cancellationToken))
                     throw new InvalidOperationException("Missing reviewed compliance baseline.");
                 var alertCount = await _watchService.RunMonitoringCheckAsync(config, cancellationToken);
@@ -207,7 +211,8 @@ public class ComplianceWatchHostedService : BackgroundService
                 // Still advance NextRunAt to prevent stuck loops
                 config.NextRunAt = ComplianceWatchService.ComputeNextRunAt(config.Frequency);
                 config.LastFailureAt = DateTimeOffset.UtcNow;
-                config.CollectionError = ex is InvalidOperationException ? "MissingBaselineOrInvalidCollection" : "CollectionFailed";
+                config.CollectionError = ex is AssessmentEnvironmentException admission ? admission.ErrorCode
+                    : ex is InvalidOperationException ? "MissingBaselineOrInvalidCollection" : "CollectionFailed";
                 config.UpdatedAt = DateTimeOffset.UtcNow;
             }
         }
@@ -237,6 +242,7 @@ public class ComplianceWatchHostedService : BackgroundService
 
             try
             {
+                await EnsureCurrentEnvironmentAsync(config.SubscriptionId, cancellationToken);
                 var events = await _eventSource.GetRecentEventsAsync(
                     config.SubscriptionId, since, config.ResourceGroupName, cancellationToken);
 
@@ -273,7 +279,7 @@ public class ComplianceWatchHostedService : BackgroundService
                     "Event-driven check failed for {Sub}/{RG} — falling back to scheduled",
                     config.SubscriptionId, config.ResourceGroupName ?? "*");
                 config.LastFailureAt = DateTimeOffset.UtcNow;
-                config.CollectionError = "EventCollectionFailed";
+                config.CollectionError = ex is AssessmentEnvironmentException admission ? admission.ErrorCode : "EventCollectionFailed";
 
                 // Fallback: if Activity Log is unavailable, scheduled checks still run
                 // Do not advance LastEventCheckAt so events are re-polled next tick
@@ -306,6 +312,18 @@ public class ComplianceWatchHostedService : BackgroundService
 
         foreach (var config in configs)
         {
+            try
+            {
+                await EnsureCurrentEnvironmentAsync(config.SubscriptionId, cancellationToken);
+            }
+            catch (AssessmentEnvironmentException failure)
+            {
+                config.CollectionError = failure.ErrorCode;
+                config.LastFailureAt = DateTimeOffset.UtcNow;
+                _logger.LogWarning("Monitoring snapshot blocked for {SubscriptionId}: {Reason}",
+                    config.SubscriptionId, failure.ErrorCode);
+                continue;
+            }
             // Check if snapshot already exists for today
             var capturedDates = await db.ComplianceSnapshots
                 .Where(s => s.SubscriptionId == config.SubscriptionId)
@@ -396,9 +414,14 @@ public class ComplianceWatchHostedService : BackgroundService
             await _alertManager.CreateAlertAsync(alert, cancellationToken);
             _logger.LogWarning("Meta-alert created for persistent monitoring failures");
         }
+
         catch (Exception metaEx)
         {
             _logger.LogError(metaEx, "Failed to create meta-alert for monitoring failures");
         }
     }
+
+    private Task EnsureCurrentEnvironmentAsync(string subscriptionId, CancellationToken cancellationToken) =>
+        _environmentGuard?.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Monitoring,
+            cancellationToken, requireAttachment: true) ?? Task.CompletedTask;
 }

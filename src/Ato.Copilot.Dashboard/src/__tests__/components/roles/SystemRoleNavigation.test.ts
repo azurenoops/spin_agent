@@ -23,10 +23,10 @@ describe('system role navigation', () => {
     // Assert
     expect(labels).toEqual([
       'Overview', 'System definition', 'Controls & evidence', 'Assessment & risk',
-      'ATO package & eMASS', 'Continuous monitoring', 'Team & permissions', 'Activity & history',
+      'ATO Readiness', 'Continuous monitoring', 'Team & permissions', 'Activity & history',
     ]);
     expect(items).toHaveLength(30);
-    expect(new Set(items.map(item => item.label)).size).toBe(30);
+    expect(new Set(items.map(item => item.path)).size).toBe(30);
     expect(items).toContainEqual(expect.objectContaining({ path: 'inheritance/subscriptions', label: 'Responsibilities' }));
   });
 });

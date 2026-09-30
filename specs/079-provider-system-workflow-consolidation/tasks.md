@@ -20,6 +20,201 @@ Path prefixes below are repository-relative:
 
 ## September 29: approved package-readiness experience
 
+### September 30 personal Settings correction
+
+- [x] S001 — Trace Settings controls, consumers, account notification API,
+  workspace administration and current accessibility; document dispositions.
+- [x] S002 — Implement three expandable personal sections, compact verified
+  identity header and authorized workspace administration links.
+- [x] S003 — Reuse account notification form with explicit save/error/retry,
+  cancellation, no silent local fallback and no reset coupling.
+- [x] S004 — Wire retained personal display controls, omit unsupported controls
+  and scope reset without changing operational records/preferences.
+- [x] S005 — Run focused tests/typecheck and desktop/mobile keyboard verification;
+  deploy matching local UI and document limitations/acceptance steps.
+  TypeScript, 18 settings/admin tests, 148 display-consumer tests and two browser
+  cases per local port passed. Dashboard-only image `personal-settings-20260930`
+  deployed healthy; live preferences GET confirmed without mutation. Full-suite
+  failures remain documented in `docs/guides/compliance-dashboard.md`.
+
+### Shared Azure environment and CSP allocation follow-through
+
+- [x] I001 — Correct allocation-first contracts and trace independent provider
+  scope, subscription, optional linkage and downstream authorization paths.
+- [x] I002 — Test and implement independent provider consumption, optional
+  many-to-many links, lifecycle impact review and truthful migration warnings.
+- [x] I003 — Replace the two UI sections and implement provider selection plus
+  unified multi-subscription attachment without losing deployment drafts.
+- [x] I004 — Verify independent/mixed configurations, permissions, migration,
+  unlink/detach retention, browser keyboard/mobile behavior and consumer guards.
+  Automated evidence: 128 focused Dashboard tests, 237 final backend unit tests,
+  10 environment HTTP tests and 12 desktop/mobile browser cases passed. Optional
+  links are atomic and response-verified; removal is blocked by active adoptions,
+  and removed scopes cannot supply current document/evidence provenance.
+  Live Azure and populated SQL Server migration/RLS were not exercised.
+- [x] I005 — Build, deploy locally, document actual results/migration/limitations
+  and supply the manual acceptance walkthrough without unapproved GitHub writes.
+  Deployment hold resolved September 30: final API and Dashboard rebuilt serially
+  and deployed as `independent-scopes-final-20260930`; both healthy, exact
+  authenticated provider-scope picker request returns200 rather than404.
+  Existing provider relationships remain visible without subscriptions.
+  SQL/Redis/Chat and domain records retained. Prior interrupted full integration
+  and external verification gaps remain recorded, not presented as green.
+  See `docs/dev/provider-demo-refresh.md` for actual results/manual steps.
+
+- [x] E001 — Read current instructions, design originals and existing allocation,
+  subscription registration, assessment and boundary/monitoring contracts.
+- [x] E002 — Define additive organization allocation/environment/scope DTOs and
+  schema with explicit ownership, source provenance and authority.
+- [x] E003 — Implement provider allocation recording, scoped listing, usage,
+  withdrawal/replacement impact review and version/idempotency tests.
+- [x] E004 — Implement common environment apply/update/access/discovery with
+  org-owned/provider sources, atomic hosting/environment/scope links and history.
+- [x] E005 — Wire assessments and monitoring to canonical scope/entitlement,
+  preserving run permissions and preventing revoked/broadened collection.
+- [x] E006 — Implement Provider hosting/Connected environments and three-step
+  wizard, reuse organization registration and preserve documentation drafts.
+- [ ] E007 — Verify ownership models, three subscriptions, multi-system sharing,
+  denied/partial/discovery/concurrency cases and downstream documentation.
+  Automated allocation/scope and preserved-documentation cases pass. End-to-end
+  canonical selected scope -> approved document/export output, live Azure sources
+  and populated allocation SQL RLS remain unverified; do not mark that outcome
+  complete from a saved attachment.
+- [x] E008 — Run type checks/builds/tests/browser checks, local walkthrough and
+  additive migration notes; distinguish verified Azure calls from mocks.
+  Results and remaining full-suite failures are recorded in
+  `docs/dev/provider-demo-refresh.md`; this is not a clean full-regression gate.
+
+### Internal acceptance closure (authorized follow-through)
+
+- [x] A001 — Repair the four stale response-constructor fixtures and establish
+  a serialized whole-solution build/test baseline.
+- [x] A002 — Create a reproducible synthetic system through canonical authoring,
+  review and finalization operations; retain actual exporters/schema validators.
+- [x] A003 — Inspect a real generated package, schema results, manifest hashes
+  and source values without mocked generation/validation success.
+- [x] A004 — Address documented inventory/readiness resolution gaps without
+  inventing cloud hardware metadata or silently passing unevaluated requirements.
+- [x] A005 — Prove source change, correct role handoff, stale result, revalidation,
+  subsequent export and preserved historical artifact behavior.
+- [x] A006 — Run builds/tests, document reproduction/local acceptance, and keep
+  external eMASS receipt/acceptance as a gated unperformed check.
+  Final executed suites: 7,758 unit tests passed, zero failed; 1,740 integration
+  tests passed, zero failed, 20 existing Nessus scenarios skipped. Serialized
+  whole-solution build passes; existing warning backlog is retained and reported.
+  External receiver acceptance remains unavailable/unperformed, not waived.
+
+#### A006 integration isolation follow-through (September 29)
+
+- [x] Final full-run engineer simulation follow-up: the retained release log
+  reports one remaining HTTP 500 in the Platform Engineer's synthetic
+  `compliance_assess` invocation. Like the ISSO fixture, it still resolves the
+  real cloud assessment engine for `test-sub`; inspect response diagnostics,
+  replace only that external dependency, and require real tool execution plus
+  the exact simulated identity/roles. Re-run both simulation classes. SQL-backed
+  tests skipped by the parent run were not exercised.
+  Focused red diagnostics (session `files/acceptance-remediation-results/engineer-simulation-red.log`)
+  show the HTTP 500 is a duplicate-key `ArgumentException` inside EF InMemory
+  `AssessmentPersistenceService.SaveAssessmentAsync`, reached through the real
+  `RunRetainedAssessmentAsync` / `compliance_assess` path. This authentication
+  fixture must not depend on live cloud assessment execution/persistence; this
+  change does not establish that the engine's separate persistence path is fixed.
+  Engineer fixture now supplies a strict synthetic `IAtoComplianceEngine`,
+  verifies its exact invocation and successful result content, and preserves all
+  simulated identity/role and actual middleware assertions. Both simulation
+  classes passed **6/6, zero skipped**, recorded in
+  session `files/acceptance-remediation-results/simulation-personas-final.trx`. No production edits.
+
+- [x] Repair the authorization fixture's missing real `IInterconnectionService`
+  registration exposed by the expanded package validator.
+- [x] Read every portfolio page in tenant HTTP assertions: the collection retains
+  earlier systems, while the endpoint intentionally defaults to 50 records.
+  Preserve tenant exclusions and CSP impersonation assertions.
+- [x] Trace capability setup/evidence targeting, retained package analysis and
+  simulated ISSO tool execution before changing their failing expectations.
+  Verified evidence mismatch: canonical local setup writes `SystemCapabilityLinks`,
+  but upload accepts only `CapabilityControlMappings`. Accept either retained
+  association within the current tenant/system; do not invent a control mapping.
+  The simulated-ISSO authentication fixture invokes the real Azure assessment
+  engine for the synthetic `test-sub` identifier. Substitute only that external
+  execution dependency and assert the real protected tool invokes it; retain
+  CAC middleware, identity assertions, tenant binding and authorization.
+- [x] Re-run the host groups affected by the recorded 100-second timeout wave.
+  The retained log shows relational connection cancellation and request-body
+  cancellation; SQL Server use is not established by those generic EF frames.
+  Do not increase timeouts or disable production authorization.
+  No timeout recurred in the 155-test targeted run; this does not prove the
+  whole-suite resource-contention cause. The factory/provider was not changed.
+- [x] Run only the assigned integration groups after the exclusive compilation
+  lane is granted; retain exact failures and distinguish environment-dependent
+  results from verified regressions. Local manual acceptance remains available.
+  First targeted pass: 154/155 integration tests and 27/27 evidence-service unit
+  tests passed. All eight timeout-wave classes reached assertions without another
+  timeout. The remaining provider-to-mission workflow incorrectly promotes a
+  working-profile preview; preserve that rejection and test final generation
+  from approved sources, including the existing evidence/provenance assertions.
+  The first approved-path rerun reached a real missing-output failure: the final
+  generated JSON has no `back-matter` approved provider summary. Source trace:
+  `SspExportService.CreatePreviewAsync` adds responsibility/evidence pins, but
+  `GenerateOscalJsonAsync`'s non-preview branch calls only `ExportAsync`.
+  Normal enqueue also does not capture `SourceTenantId` / `RequestedPersonId`,
+  which retained evidence worker validation requires. Do not remove the summary
+  assertions or promote working previews to hide that release blocker.
+  Changes/tests/logs are local; no deployment, external submission or authorization
+  decision occurred.
+
+  Targeted results (session `files/acceptance-remediation-results/integration-isolation-targeted.trx`):
+  Authorization 13/13; tenant HTTP pipeline 26/26; workspace operations 20/20;
+  CSP package lifecycle 8/8; simulated ISSO 3/3; workspace membership 26/26;
+  assessment-plan workspace 10/10; categorization 11/11; control narratives 7/7;
+  legacy policy mutation 3/3; policy workspace 11/11; provider decisions 14/14;
+  provider monitoring 1/1; provider-mission workflow 1/2.
+  Evidence artifacts: 27/27 (`evidence-artifact-targeted.trx`).
+  Approved-export residual blocker reproduced separately:
+  `provider-mission-approved-export.trx` (0/1), with the explicit missing-summary
+  assertion, not a timeout. Logs with the same basenames retain build/test output.
+
+  **Authorized handoff repair and final focused verification**:
+  normal enqueue now retains the resolved tenant/requesting Person (never
+  converts provider/support privilege into ordinary authority). The worker binds
+  that ordinary scope, rechecks current system access, and the approved JSON
+  generator uses canonical responsibility/evidence enrichment with validated
+  summary hashes and retained source manifests. The HTTP workflow proves final
+  approved bytes, exact approved summary content, responsibility revisions, caller
+  identities, no private source inclusion and no invented AO decision. A separate
+  HTTP test retains the working-preview promotion rejection. Unit tests retain
+  evidence revocation checks and add current-system-access revocation coverage.
+
+  Final result: **166/166 integration tests** in
+  session `files/acceptance-remediation-results/integration-isolation-final.trx`; previous group counts
+  above are unchanged except provider-mission is now **3/3**, plus **2/2**
+  `SystemOperationalStatusHttpTests` and **8/8** `SspExportEndpointTests`.
+  **90/90 unit tests** in session `files/acceptance-remediation-results/approved-export-unit.trx`
+  cover SSP exports, provider evidence documents and evidence artifacts.
+  No timeout recurred; the original broad-run timeout/empty-candidate
+  cause remains unproven, with no factory changes or timeout increases.
+  These targeted results do not substitute for the parent's whole-suite gate.
+
+### Follow-up full-suite triage
+
+Repair confirmed test drift rather than restoring unsafe historical behavior:
+STIG unavailable results remain failed with scanner observations retained;
+assessment upserts preserve linked historical findings; scan status includes
+queued/processing/cancelled values; evidence-query fixtures must supply both
+policy and Defender source responses. Minimal endpoint test hosts must register
+the current workspace/tenant dependencies without bypassing authorization.
+Serialized compilation and build-free full test execution remain required.
+The classifier's existing 1,000-record/one-second requirement remains unchanged.
+A full-suite-only 1.249-second failure under parallel load is addressed by
+running its collection nonparallel; do not loosen the threshold or suppress it.
+
+A002/A003/A005 native acceptance: two real InitialSubmission ZIPs, four real
+schema validators, 152 distinct evidence artifacts, native inventory workbook,
+SAR DOCX and verified readiness metadata. Both archives contain 160 entries.
+Source mutation/review produces a new archive and leaves predecessor bytes
+unchanged. No AO decision is created. Full solution compilation is green;
+the full no-build test run remains separately tracked under A006.
+
 Existing story ownership: US1 (#1042/#1043, related #1039/#1041/#764) and US4
 (#1046), under #1038. External issue checklist append is preview/approval-gated.
 The approved mock's data is illustrative, not a fixture to seed into the demo.
@@ -30,22 +225,37 @@ The approved mock's data is illustrative, not a fixture to seed into the demo.
   existing parents and acceptance criteria; do not close issues automatically.
   Preview offered September 29; user unavailable. GitHub remains unchanged.
   Existing verified issue linkage is retained; local implementation continues.
-- [ ] R003 — Write failing server tests for check outcomes, current/stale/failed
+- [x] R003 — Write failing server tests for check outcomes, current/stale/failed
   history, purpose preservation and no-AO InitialSubmission.
-- [ ] R004 — Extend existing validators and add immutable scoped readiness runs,
+- [x] R004 — Extend existing validators and add immutable scoped readiness runs,
   source references/fingerprints, readable findings, ownership and action permissions.
-- [ ] R005 — Guard enqueue/worker against changed evaluated records and invalid
+- [x] R005 — Guard enqueue/worker against changed evaluated records and invalid
   generated artifacts; retain exact run/source references and historical outputs.
-- [ ] R006 — Replace the readiness body with the approved task-oriented layout,
+- [x] R006 — Replace the readiness body with the approved task-oriented layout,
   five package milestones, RMF phase/history and expandable supporting records.
-- [ ] R007 — Wire purpose confirmation, direct-link check drawer, safe source and
+- [x] R007 — Wire purpose confirmation, direct-link check drawer, safe source and
   return navigation, history, stale refresh and generation context preservation.
-- [ ] R008 — Prove source changes affect actual previews/exports and validation,
+- [x] R008 — Prove source changes affect actual previews/exports and validation,
   including draft/approved separation, conditional privacy, POA&M and responsibility semantics.
-- [ ] R009 — Test tenant/system/action denial, request cancellation, concurrent
+- [x] R009 — Test tenant/system/action denial, request cancellation, concurrent
   updates, real counts, unavailable sources and iterative historical workflows.
-- [ ] R010 — Run solution build/test, Dashboard typecheck/unit/browser suites,
+- [x] R010 — Run solution build/test, Dashboard typecheck/unit/browser suites,
   distinguish baseline failures, deploy locally and provide manual acceptance URL/steps.
+
+R003–R010 verification: 59 targeted integration/source-preview tests, 306
+frontend/routing/adapter tests and Dashboard type checking pass. Tests inspect
+actual working-profile/approved output differences and emitted ZIP bytes/metadata.
+Successful worker exporters are synthetic; a complete production-generated
+package passing all real schemas has not been demonstrated. Real-schema negative
+tests prove invalid emitted bytes cannot complete a package.
+Full solution build retains four baseline `PendingImpacts` constructor errors;
+the attempted solution test also encountered concurrent MVC manifest locks.
+Six browser acceptance scenarios passed on each local port, and real
+Legacy/InitialSubmission run persistence, correct source actions and disabled
+generation for the incomplete demo were verified. Local manual acceptance
+steps are documented in `docs/dev/provider-demo-refresh.md`. R010 records
+execution/delivery, not a passing whole-solution baseline or user acceptance;
+the baseline failures and unapproved R002 issue append remain open.
 
 ## Planning and first failing slice
 
@@ -233,6 +443,22 @@ Per-run identities change generated hashes; each run compares the exact retained
 bytes and digest within that run.
 
 ### Verification evidence and remaining environment gate
+
+- [x] Internal-release fixture alignment: the sequential acceptance log reports
+  endpoint parameter inference failures in `NotificationHubIsolationTests`
+  (`AssessmentResultsWorkspaceService` and `ITenantContext`) and
+  `ApiMismatchRouteTests` (`RemediationWorkspaceService`). Repair only their
+  minimalist test-host registrations using scoped production services and
+  explicit test identity/tenant semantics; preserve authorization assertions.
+  Verified both groups with sequential `dotnet test --no-restore -m:1 --filter
+  FullyQualifiedName~<class>` runs: `NotificationHubIsolationTests` **98 passed,
+  0 failed, 0 skipped**; `ApiMismatchRouteTests` **49 passed, 0 failed, 0 skipped**.
+  Scoped real workspace services and strict unused dependency mocks restore
+  host construction without changing assertions or production endpoints.
+  Integration compilation reported existing warnings outside these fixtures.
+  These same commands, targeting their respective unit/integration projects,
+  are available for local manual reruns; user acceptance remains pending.
+  No full-suite claim.
 
 - Manual exchange slice: additive tenant-scoped history, completed same-system
   package/hash/version validation, authenticated recorder provenance, explicit

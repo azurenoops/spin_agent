@@ -69,6 +69,9 @@ export async function installSystemCapabilityFixture(context: BrowserContext, ba
   proposals?: boolean; narrativeReviewDenied?: boolean;
 } = {}) {
   await installWorkspaceFixture(context, baseURL);
+  await context.route('**/api/dashboard/systems/system-a/operational-status', route => route.fulfill({ json: {
+    systemId: 'system-a', operationalStatus: null, canManage: !options.denied,
+  } }));
   const access = { ...permissions, canManage: !options.denied, canReviewNarratives: !options.narrativeReviewDenied };
   const records = [providerCapability, localCapability, availableProvider].map(item => structuredClone(item));
   if (options.organizationOnly) {

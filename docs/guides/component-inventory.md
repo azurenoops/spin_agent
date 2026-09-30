@@ -8,6 +8,31 @@ The Component Inventory tracks all elements of your system using the **People, P
 
 ## Overview
 
+### Detailed hardware/software register
+
+The generic component registry and the detailed hardware/software register have
+different purposes. Use **Manage hardware/software register** on the system
+component page, or open
+`/systems/{systemId}/security-capabilities/inventory?tab=hardware-software`.
+This view reuses the canonical inventory service and records used by HW/SW
+workbook export; adding a generic component does not automatically populate it.
+
+- **Add inventory item** records hardware or software details. **Open** edits an
+  existing item, and **Retire item** retains its history with a rationale.
+- **Export HW/SW workbook** downloads the existing inventory workbook. Download
+  is not proof of eMASS submission or acceptance.
+- Standalone managed software/SaaS/PaaS needs documented vendor, function and
+  version information, not a fabricated physical server, serial number or IP.
+  Hardware retains its function-specific requirements.
+- Initial-submission readiness checks for an active register and required
+  fields. Hardware/software and legacy-boundary coverage warnings remain
+  follow-up items requiring applicability review; the check does not certify
+  that the inventory exhaustively covers the system.
+- Changes invalidate previously evaluated readiness. Use **Return to package
+  readiness** when arriving from a gap, then explicitly recheck.
+- Server system-management permission controls editing. Readers can inspect
+  the register but do not gain mutation authority from a displayed role name.
+
 Every information system consists of three types of components:
 
 | Type | Description | Examples |

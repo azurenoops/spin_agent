@@ -158,7 +158,7 @@ public static partial class DashboardEndpoints
         await AddPage("evidence", "Evidence artifacts", db.EvidenceArtifacts.Where(x => x.RegisteredSystemId == systemId && !x.IsDeleted).OrderByDescending(x => x.UploadedAt),
             x => Record("evidence", x.Id, x.NarrativeType.ToString(), Utc(x.UploadedAt), "evidence"), "evidence");
         await AddPage("inventory", "Hardware/software inventory", db.InventoryItems.Where(x => x.RegisteredSystemId == systemId).OrderBy(x => x.Id),
-            x => Record("inventory", x.Id, "Recorded", null, "security-capabilities/inventory"), "security-capabilities/inventory");
+            x => Record("inventory", x.Id, "Recorded", null, "security-capabilities/inventory?tab=hardware-software"), "security-capabilities/inventory?tab=hardware-software");
         var pta = await db.PrivacyThresholdAnalyses.AsNoTracking().Where(x => x.RegisteredSystemId == systemId).ToListAsync(ct);
         var pia = await db.PrivacyImpactAssessments.AsNoTracking().Where(x => x.RegisteredSystemId == systemId).ToListAsync(ct);
         Add("privacy", "Privacy records", pta.Select(x => Record("pta", x.Id, x.Determination.ToString(), null, "legal"))

@@ -202,6 +202,22 @@ public partial class PackageBackgroundService : BackgroundService
             await RecordArtifactAsync(db, job.PackageId, PackageArtifactType.OscalAssessmentPlan, "oscal-assessment-plan.json", sapJson.Length, ct);
             await _notifier.SendArtifactGeneratedAsync(job.PackageId, "assessment-plan", ct);
 
+            currentArtifact = "inventory";
+            var inventoryBytes = await sp.GetRequiredService<IInventoryService>().ExportToExcelAsync(job.SystemId, cancellationToken: ct);
+            using (var inventoryStream = new MemoryStream(inventoryBytes))
+            using (var inventoryWorkbook = new ClosedXML.Excel.XLWorkbook(inventoryStream))
+            {
+                if (!inventoryWorkbook.Worksheets.Any())
+                    throw new InvalidDataException("The canonical inventory workbook contains no worksheets.");
+            }
+            const string inventoryFile = "hardware-software-inventory.xlsx";
+            await using (var inventoryEntry = archive.CreateEntry(inventoryFile, CompressionLevel.Optimal).Open())
+                await inventoryEntry.WriteAsync(inventoryBytes, ct);
+            await RecordArtifactAsync(db, job.PackageId, PackageArtifactType.InventoryWorkbook, inventoryFile, inventoryBytes.Length, ct);
+            db.PackageArtifacts.Local.Single(x => x.AuthorizationPackageId == job.PackageId && x.ArtifactType == PackageArtifactType.InventoryWorkbook)
+                .ContentHash = Convert.ToHexString(SHA256.HashData(inventoryBytes)).ToLowerInvariant();
+            await _notifier.SendArtifactGeneratedAsync(job.PackageId, "inventory", ct);
+
             // 5. SAR (Word document)
             currentArtifact = "sar";
             var sar = await db.SecurityAssessmentReports
@@ -380,7 +396,7 @@ public partial class PackageBackgroundService : BackgroundService
 
     private static async Task RecordArtifactAsync(AtoCopilotContext db, string packageId, PackageArtifactType type, string fileName, long size, CancellationToken ct)
     {
-        var format = fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? "json" : "docx";
+        var format = Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
         var tenantId = await db.AuthorizationPackages.Where(x => x.Id == packageId).Select(x => x.TenantId).SingleAsync(ct);
         db.PackageArtifacts.Add(new PackageArtifact
         {

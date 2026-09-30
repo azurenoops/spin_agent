@@ -28,6 +28,7 @@ public class ComplianceWatchService : IComplianceWatchService
     private readonly IOptions<MonitoringOptions> _monitoringOptions;
     private readonly IOptions<AlertOptions> _alertOptions;
     private readonly ILogger<ComplianceWatchService> _logger;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     /// <summary>Blocked control families that always require human approval.</summary>
     private static readonly HashSet<string> BlockedFamilies = new(StringComparer.OrdinalIgnoreCase) { "AC", "IA", "SC" };
@@ -44,7 +45,8 @@ public class ComplianceWatchService : IComplianceWatchService
         IOptions<AlertOptions> alertOptions,
         ILogger<ComplianceWatchService> logger,
         ISystemSubscriptionResolver? subscriptionResolver = null,
-        IServiceScopeFactory? serviceScopeFactory = null)
+        IServiceScopeFactory? serviceScopeFactory = null,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _dbFactory = dbFactory;
         _alertManager = alertManager;
@@ -55,6 +57,7 @@ public class ComplianceWatchService : IComplianceWatchService
         _logger = logger;
         _subscriptionResolver = subscriptionResolver;
         _serviceScopeFactory = serviceScopeFactory;
+        _environmentGuard = environmentGuard;
     }
 
     /// <inheritdoc />
@@ -66,6 +69,7 @@ public class ComplianceWatchService : IComplianceWatchService
         string createdBy = "system",
         CancellationToken cancellationToken = default)
     {
+        await EnsureCurrentEnvironmentAsync(subscriptionId, cancellationToken);
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var existing = await db.MonitoringConfigurations
@@ -199,6 +203,7 @@ public class ComplianceWatchService : IComplianceWatchService
         Guid? assessmentId = null,
         CancellationToken cancellationToken = default)
     {
+        await EnsureCurrentEnvironmentAsync(subscriptionId, cancellationToken);
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         // Run a compliance assessment to get the current state
@@ -268,6 +273,7 @@ public class ComplianceWatchService : IComplianceWatchService
         MonitoringConfiguration config,
         CancellationToken cancellationToken = default)
     {
+        await EnsureCurrentEnvironmentAsync(config.SubscriptionId, cancellationToken);
         _logger.LogInformation("Running monitoring check for {Sub}/{RG}",
             config.SubscriptionId, config.ResourceGroupName ?? "*");
 
@@ -304,6 +310,7 @@ public class ComplianceWatchService : IComplianceWatchService
         string? resourceGroupName = null,
         CancellationToken cancellationToken = default)
     {
+        await EnsureCurrentEnvironmentAsync(subscriptionId, cancellationToken);
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         var baselines = await db.ComplianceBaselines
@@ -477,6 +484,7 @@ public class ComplianceWatchService : IComplianceWatchService
         string subscriptionId,
         CancellationToken cancellationToken)
     {
+        await EnsureCurrentEnvironmentAsync(subscriptionId, cancellationToken);
         var alerts = new List<ComplianceAlert>();
         var threshold = _alertOptions.Value.SecureScoreThreshold;
 
@@ -531,6 +539,7 @@ public class ComplianceWatchService : IComplianceWatchService
         string subscriptionId,
         CancellationToken cancellationToken)
     {
+        await EnsureCurrentEnvironmentAsync(subscriptionId, cancellationToken);
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
         // Get active alerts (New, Acknowledged, InProgress) for this subscription
@@ -542,6 +551,7 @@ public class ComplianceWatchService : IComplianceWatchService
 
         foreach (var alert in activeAlerts)
         {
+            await EnsureCurrentEnvironmentAsync(subscriptionId, cancellationToken);
             if (alert.AffectedResources.Count == 0)
                 continue;
 
@@ -959,6 +969,7 @@ public class ComplianceWatchService : IComplianceWatchService
     public async Task<AutoRemediationResult> TryAutoRemediateAsync(
         ComplianceAlert alert, CancellationToken cancellationToken = default)
     {
+        await EnsureCurrentEnvironmentAsync(alert.SubscriptionId, cancellationToken);
         // Never auto-remediate blocked families
         if (!string.IsNullOrEmpty(alert.ControlFamily) && BlockedFamilies.Contains(alert.ControlFamily))
         {
@@ -1158,6 +1169,10 @@ public class ComplianceWatchService : IComplianceWatchService
             .Select(x => x.RegisteredSystemId).Distinct().ToList();
         alert.RegisteredSystemId = systems.Count == 1 ? systems[0] : null;
     }
+
+    private Task EnsureCurrentEnvironmentAsync(string subscriptionId, CancellationToken cancellationToken) =>
+        _environmentGuard?.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Monitoring,
+            cancellationToken, requireAttachment: true) ?? Task.CompletedTask;
 
     /// <summary>
     /// When drift count exceeds <see cref="MonitoringOptions.SignificantDriftThreshold"/>,

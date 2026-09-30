@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useParams, useNavigate, Link } from '../features/workspaces/workspaceNavigation';
+import { useParams, useNavigate, useLocation, Link } from '../features/workspaces/workspaceNavigation';
+import HardwareSoftwareInventory from '../features/systems/HardwareSoftwareInventory';
 import { ComponentSection } from '../components/cards/ComponentSection';
 import { ComponentForm } from '../components/forms/ComponentForm';
 import MetricCard from '../components/cards/MetricCard';
@@ -20,7 +21,17 @@ const SECTIONS: { title: string; type: ComponentType }[] = [
 ];
 
 export default function ComponentInventory() {
+  const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  return id && new URLSearchParams(location.search).get('tab') === 'hardware-software'
+    ? <HardwareSoftwareInventory key={id} systemId={id} /> : <ComponentRegistry />;
+}
+
+function ComponentRegistry() {
   const { id: systemId } = useParams<{ id: string }>();
+  const location = useLocation();
+  const inventoryQuery = new URLSearchParams(location.search);
+  inventoryQuery.set('tab', 'hardware-software');
   const canManage = useSystemMutationPermission(systemId, 'canManageSystem');
   // Missing projections: canCreateCapabilities (organization scope) and
   // canAssignSystemRoles (including the FR-027 target-role authorization matrix).
@@ -305,6 +316,8 @@ export default function ComponentInventory() {
           <p className="mt-1 text-sm text-gray-500">
             People, Places, and Things that make up your system.
           </p>
+          <Link className="mt-2 inline-block text-sm text-indigo-700 underline"
+            to={`/systems/${systemId}/security-capabilities/inventory?${inventoryQuery}`}>Manage hardware/software register</Link>
         </div>
       </div>
 

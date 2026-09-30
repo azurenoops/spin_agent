@@ -8,6 +8,10 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </summary>
 public interface IRmfLifecycleService
 {
+    /// <summary>Record an explicitly supplied operational status without issuing an authorization or changing RMF phase.</summary>
+    Task<RegisteredSystem> UpdateOperationalStatusAsync(
+        string systemId, OperationalStatus status, string updatedBy, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Register a new information system for RMF processing.
     /// Creates the <see cref="RegisteredSystem"/> entity with initial state of Prepare.

@@ -51,7 +51,8 @@ public enum PackageArtifactType
     EvidenceManifest = 5,
     RetainedBaseline = 6,
     PackageContext = 7,
-    ReviewedSspChange = 8
+    ReviewedSspChange = 8,
+    InventoryWorkbook = 9
 }
 
 /// <summary>

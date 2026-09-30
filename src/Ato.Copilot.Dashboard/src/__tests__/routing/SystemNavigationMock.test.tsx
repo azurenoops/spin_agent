@@ -31,7 +31,8 @@ describe('mock-aligned scoped system navigation', () => {
     const nav = screen.getByRole('navigation', { name: 'System navigation' });
     expect(screen.getByText('SPIN Demo System')).toBeInTheDocument();
     expect(within(nav).getAllByRole('link').map(link => link.textContent)).toEqual(SYSTEM_SCREEN_GROUPS.map(group => group.label));
-    expect(within(nav).getByRole('link', { name: 'ATO package & eMASS' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'ATO Readiness' })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: 'ATO Readiness' })).toHaveAttribute('href', '/workspaces/organizations/org-a/systems/system-a/documents');
     expect(within(nav).queryByRole('link', { name: 'Export packages' })).not.toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/workspaces/organizations/org-a/systems/system-a');
     expect(nav.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(8);

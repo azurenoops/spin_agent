@@ -32,6 +32,8 @@ public static class AssessmentEnvironmentErrors
     public const string PermissionRequired = "ASSESSMENT_PERMISSION_REQUIRED";
     /// <summary>No Azure profile is attached.</summary>
     public const string EnvironmentRequired = "ASSESSMENT_AZURE_ENVIRONMENT_REQUIRED";
+    /// <summary>Canonical environments must be managed through the shared system source, not the legacy selector.</summary>
+    public const string SharedEnvironmentRequired = "ASSESSMENT_SHARED_ENVIRONMENT_REQUIRED";
     /// <summary>No usable subscription selection was supplied.</summary>
     public const string SubscriptionRequired = "ASSESSMENT_AZURE_SUBSCRIPTION_REQUIRED";
     /// <summary>The selection contains malformed, duplicate or excessive identifiers.</summary>
@@ -61,6 +63,7 @@ public static class AssessmentEnvironmentErrors
         SystemNotFound => 404,
         PermissionRequired => 403,
         OrganizationRequired => 409,
+        SharedEnvironmentRequired => 409,
         ConnectionUnavailable => 503,
         _ => 400
     };

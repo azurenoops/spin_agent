@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Ato.Copilot.Agents.Extensions;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
@@ -96,8 +97,10 @@ public class SimulationModeIssoIntegrationTests : IAsyncLifetime
             {
                 Id = "simulated-isso-assessment",
                 SubscriptionId = "test-sub",
+                Framework = "NIST80053",
                 Status = AssessmentStatus.Completed
             });
+        builder.Services.RemoveAll<IAtoComplianceEngine>();
         builder.Services.AddSingleton(_assessmentEngine.Object);
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
@@ -267,8 +270,10 @@ public class SimulationModeEngineerIntegrationTests : IAsyncLifetime
             {
                 Id = "simulated-engineer-assessment",
                 SubscriptionId = "test-sub",
+                Framework = "NIST80053",
                 Status = AssessmentStatus.Completed
             });
+        builder.Services.RemoveAll<IAtoComplianceEngine>();
         builder.Services.AddSingleton(_assessmentEngine.Object);
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>

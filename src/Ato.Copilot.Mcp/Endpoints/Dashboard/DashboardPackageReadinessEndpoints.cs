@@ -158,9 +158,28 @@ public static partial class DashboardEndpoints
 
     private static PackageReadinessAction ReadinessAction(PackageReadinessCheck check, SystemWorkspacePermissions permissions)
     {
+        var aggregatePath = check.Category switch
+        {
+            "profile-approval" or "ssp" => "documents?tab=records#ssp-sections",
+            "schema" => check.RuleId switch
+            {
+                "schema-ssp" => "documents?tab=records#ssp-sections",
+                "schema-assessment-plan" => "assessments?tab=plan",
+                "schema-assessment-results" => "assessments",
+                "schema-poam" => "poam",
+                _ => "documents?tab=records"
+            },
+            "responsibility" => "inheritance/subscriptions",
+            "interconnection" => "profile/PortsProtocolsAndServices",
+            _ => null
+        };
+        if (aggregatePath != null)
+            return new(true, false, aggregatePath, "Open",
+                "Aggregate checks require source review; this link does not grant edit or approval authority.");
         var (path, allowed) = check.Category switch
         {
             "boundary" => ("boundaries", permissions.CanManageSystem),
+            "inventory" => ("security-capabilities/inventory?tab=hardware-software", permissions.CanManageSystem),
             "sap" => ("assessments?tab=plan", permissions.CanGenerateSap),
             "sar" => ("assessments", permissions.CanGenerateSar),
             "poam" or "cross-reference" => ("poam", permissions.CanManageRemediation),
@@ -168,7 +187,7 @@ public static partial class DashboardEndpoints
             "authorization-decision" => ("authorize", permissions.CanDecideAuthorization),
             "provider-authorization" => ("inheritance/subscriptions", false),
             "privacy" => ("legal", false),
-            _ => ("documents", false)
+            _ => ("documents?tab=records", false)
         };
         // Aggregate profile/SSP findings do not identify a verified single editor; never invent an edit action.
         var editable = allowed && check.Outcome is not ("Passed" or "NotApplicable");

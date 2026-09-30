@@ -365,6 +365,18 @@ public class PackageValidationService : IPackageValidationService
             if (checks[^1].Outcome == "Unavailable") findings.Add(Error("responsibility", null, checks[^1].Why, checks[^1].NextSteps[0]));
         }
 
+        var inventory = scope.ServiceProvider.GetService<IInventoryService>()
+            ?? new InventoryService(_scopeFactory, scope.ServiceProvider.GetService<ILogger<InventoryService>>()
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<InventoryService>.Instance);
+        foreach (var inventoryCheck in await InventoryPackageReadiness.EvaluateAsync(inventory, systemId, purpose, _logger, cancellationToken))
+        {
+            checks.Add(inventoryCheck);
+            if (inventoryCheck.Outcome is "Blocking" || inventoryCheck.Outcome == "Unavailable" && inventoryCheck.Required)
+                findings.Add(Error("inventory", "ssp", inventoryCheck.Why, inventoryCheck.NextSteps[0]));
+            else if (inventoryCheck.Outcome is "FollowUp" or "Unavailable")
+                findings.Add(Warning("inventory", "ssp", inventoryCheck.Why, inventoryCheck.NextSteps[0]));
+        }
+
         // ─── Build Result ───────────────────────────────────────────────────
         var errorCount = findings.Count(f => f.Severity == ValidationSeverity.Error);
         var warningCount = findings.Count(f => f.Severity == ValidationSeverity.Warning);

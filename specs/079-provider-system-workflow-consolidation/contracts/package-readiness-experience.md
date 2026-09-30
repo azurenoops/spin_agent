@@ -34,6 +34,34 @@ snapshots are distinct from drafts; narrative counts are not implementation
 evidence. A source without a verified web editor must expose a truthful
 view/explanation and supported workflow, not a fabricated edit action.
 
+### Approved standalone SSP export handoff
+
+The September 29 provider-to-mission regression reached a real missing-output
+defect: approved JSON generation omitted the responsibility and approved-summary
+enrichment used by working previews. Promoting a working-profile preview remains
+forbidden; normal export must use the approved profile generator.
+
+Normal enqueue captures the server-resolved tenant and requesting Person, as
+retained-preview enqueue already does. The worker restores only that ordinary
+tenant scope, never an HTTP principal or provider/support privilege, and
+rechecks the requester's current system access before generation. The canonical
+responsibility and evidence-sharing services must authorize, select and hash
+the approved summaries; raw provider attachments are never embedded. Persist
+the resulting source manifest and reverify summary pins before final output.
+Missing/revoked access or unverifiable evidence must fail rather than produce
+a successful artifact with silently omitted sources.
+
+Acceptance retains separate tests for rejected working-preview promotion and
+actual approved JSON bytes, source identities, responsibility revisions, approved
+summary content/hash, absence of private attachments and no invented AO decision.
+
+Local reproduction (synthetic SQLite fixtures, no deployment or submission):
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  --no-restore -m:1 --filter FullyQualifiedName~ProviderMissionWorkflowHttpTests
+```
+
 ## Purpose and navigation
 
 - Use the exact title **Your path to ATO submission** and description
@@ -66,6 +94,26 @@ rule version and recorded ownership when available. An expected workflow role
 is not a fabricated named owner; absent ownership is **Not recorded**.
 Current server-authorized view/fix actions are projected per caller, not restored
 from an old permissions snapshot or inferred from displayed role text.
+
+**Source-action correction (2026-09-29)**: unresolved checks must not link back
+to the default `documents` readiness screen. Aggregate profile/SSP checks and
+the SSP schema check open `documents?tab=records#ssp-sections` read-only rather
+than inventing a specific profile editor. Assessment-plan schema checks open
+`assessments?tab=plan`, assessment-results schema checks open `assessments`, and
+POA&M schema checks open `poam`. Responsibility checks open
+`inheritance/subscriptions`; interconnection-agreement checks open
+`profile/PortsProtocolsAndServices` for source review, without implying agreement
+approval authority. Other unsupported aggregate checks can view
+`documents?tab=records`. Existing record-specific permission gates remain intact;
+schema/aggregate source links do not themselves confer edit authority. The only
+new allowed fragment is `ssp-sections` on the records catalog route.
+
+At the first readiness delivery, inventory remained a supporting-record catalog
+summary because the canonical validator had no inventory-completeness rule.
+The subsequently authorized internal-acceptance inventory rule below supersedes
+that gap with purpose-specific documentation checks and a canonical source editor.
+Its original `validationOutcome` was null (not evaluated). New evaluations use
+the documented rule; neither version asserts exhaustive CM-8 compliance.
 
 Persist standalone evaluations in an additive tenant/system-scoped readiness-run
 record: purpose, retained selection context, evaluated source fingerprint,
@@ -242,6 +290,40 @@ The second implementation turn owns backend schema/DI/tests and generation guard
   freshness; revalidation determines the new outcome. Old results remain inspectable.
 
 ## Supporting records and conditionality
+
+### Explicit operational-status source
+
+The real exporter requires recorded system operational status, independently of
+RMF phase and AO authorization. Mission profile exposes a separate operational-
+status drawer backed by the existing guarded lifecycle service. An unrecorded
+status stays unrecorded until an authorized manager explicitly chooses it.
+The server exposes same-system GET/PUT, validates defined values and retains
+the service audit entry. Selecting Operational does not issue an ATO; selecting
+Disposed records metadata and does not delete the system or its history.
+
+### Internal-acceptance inventory rule (September 29 follow-through)
+
+InitialSubmission requires an active HW/SW **documentation register** with no
+missing type-specific required fields, evaluated by the existing inventory
+completeness service. Empty inventory is missing documentation, not 100% complete.
+Legacy keeps a follow-up instead of gaining a new blocking compatibility rule.
+Retained archive/change workflows preserve their predecessor; current inventory
+does not rewrite retained bytes.
+
+Standalone Software covers documented SaaS/PaaS/cloud software without requiring
+a physical parent, serial, MAC or IP. Existing hardware-without-software and
+unmatched legacy-boundary checks are coverage follow-ups, not universal physical
+hardware requirements for provider-managed services. A pass means the stated
+documentation checks passed, not a certified exhaustive CM-8 inventory.
+The generic component registry is not automatically synchronized; users must
+explicitly maintain the detailed register using existing inventory services.
+
+Expose those services at the existing system inventory destination's
+`tab=hardware-software` view, with server-scoped list/create/update/decommission
+and workbook export. The readiness action targets that exact register, not the
+generic component table. No new inventory entity or parallel persistence engine.
+Views remain available to readers; mutations use established system-management
+permission and per-record system/tenant checks. A created item is not approval.
 
 Summarize existing SSP, SAP, SAR, POA&M, responsibility, privacy, inventory and
 other applicable source records. Keep presence, draft/finalized state, review,

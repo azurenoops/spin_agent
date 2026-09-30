@@ -232,14 +232,19 @@ function checkScope(data: PackageReadinessScope, systemId: string, selection: Pa
 }
 
 function safePath(path: string) {
-  const [pathname, query] = path.split('?');
-  if (!pathname || !paths.has(pathname) || path.includes('#') || path.split('?').length > 2) return false;
+  const [route, fragment] = path.split('#');
+  if (!route || path.split('#').length > 2) return false;
+  const [pathname, query] = route.split('?');
+  if (!pathname || !paths.has(pathname) || route.split('?').length > 2) return false;
+  if (fragment !== undefined && (fragment !== 'ssp-sections' || pathname !== 'documents'
+    || new URLSearchParams(query).get('tab') !== 'records')) return false;
   if (!query) return true;
   const params = new URLSearchParams(query);
   if (new Set(params.keys()).size !== [...params.keys()].length) return false;
   return [...params].every(([key, value]) =>
     key === 'purpose' && pathname === 'documents' && purposes.includes(value)
-    || key === 'tab' && (pathname === 'documents' && value === 'exports' || pathname === 'assessments' && value === 'plan'));
+    || key === 'tab' && (pathname === 'documents' && ['exports', 'records'].includes(value) || pathname === 'assessments' && value === 'plan'
+      || pathname === 'security-capabilities/inventory' && value === 'hardware-software'));
 }
 
 function checkAction(action: PackageReadinessAction) {

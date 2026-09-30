@@ -9,6 +9,93 @@
 
 ## Product outcome and scope
 
+### September 30: trustworthy personal Settings
+
+Replace the narrow drawer's internal tab/sidebar layout with a compact
+server-identity/workspace header and three expandable sections: Preferences
+(open initially), Notifications and Assistant. Administration is a separately
+authorized link to the owning organization/provider workspace, not a personal
+policy editor. Remove browser-only organizational framework, integration-enable,
+session-policy and export-default controls from this surface.
+
+Expose only controls with verified consumers. Preserve actual theme behavior,
+wire retained display controls to real presentation, and omit unsupported
+landing-page/assistant response controls rather than implying behavior.
+Notification preferences reuse the existing authorized account/organization
+API and explicitly show loading, saving, saved and failed-save retry states.
+Never silently fall back to editable local defaults after a denied read.
+Reset personal preferences affects browser-local display/assistant presentation
+only, not identity, organization policy, notification settings, records or exports.
+Catalog filters and per-export choices stay at their existing owning workflows.
+
+### September 29: shared Azure environments and provider allocations
+
+**Superseding direction, September 29 evening:** provider-scope consumption and
+subscription attachment are independent. A system may consume multiple released
+provider scopes with no Azure subscription access, attach multiple subscriptions
+without a provider, and optionally link these records many-to-many. A provider
+allocation establishes subscription eligibility only; it must not automatically
+create or require a system provider relationship.
+
+Environment & hosting presents **Provider services & scopes** ("Select the
+provider services and scopes this system uses.") with **Add provider scope**,
+then **System subscriptions** ("Attach the Azure subscriptions and resources
+this system uses.") with one **Attach subscription** entry point. Provider,
+offering and released-scope selection precedes an explicit applicability/duties
+review and relationship save without subscription fields. The subscription
+wizard combines eligible organization registrations and validated provider/
+external sources, selects explicit resource scope, offers **Related provider
+scope — optional**, and reviews before attaching. No provider scope is valid.
+Removing links preserves both records. Relationship removal and subscription
+detachment have independent impact review and retain history.
+
+Existing provider relationships without subscription mappings are valid, not
+reconciliation failures. Flag only invalid or ambiguous recorded links, grouped
+by affected relationship with "An existing hosting relationship needs review."
+and **Review relationship**. Preserve verified links, source versions, approved
+boundaries and documentation drafts. The following allocation-first narrative
+describes the prior slice and does not override these requirements.
+
+Implement the user-approved provider-allocation environment mock and dual
+ownership flow under the existing provider-to-mission/system/monitoring stories.
+Both organization-owned and CSP-allocated subscriptions use one canonical
+system-environment reference and explicit selected resource scope. A provider
+relationship is optional, never a prerequisite for an independent organization.
+One allocation may serve multiple systems; one system may attach multiple
+subscriptions. Subscription registration, entitlement, hosting review, scope
+review, collector access, monitoring and control inheritance are separate states.
+
+The original design references are currently in the main checkout's `docs/design/`:
+`provider-allocation-environment-mock.md`,
+`assets/conmon-system-monitoring/06-provider-allocation-environment.png`,
+`system-environment-attachment-flow.md`, and
+`conmon-system-monitoring-ui-audit.md`. The supplied paths were read directly;
+their illustrative names/counts and generated branding are not runtime data.
+The Azure IL5 name is an offering, not a subscription.
+
+See [shared-environments.md](contracts/shared-environments.md) for authority,
+scope, lifecycle, migration and acceptance requirements. Existing issue owners
+include #1045 scoped collection, #1044 monitoring rules, #1046 system navigation,
+#1036 organization setup and the provider mission story. Any external issue
+changes require a preview and approval; no push is authorized.
+
+### September 29 follow-through: internal package acceptance
+
+User authorized implementing the readiness limitation-closure effort. Continue
+under US1/US4 and existing #1039/#1041/#1042/#1043/#764 tracking:
+restore whole-solution compilation, exercise one repeatable synthetic initial
+system through actual services, actual artifact generators and real bundled
+schemas, and verify change/review/export history and role handoffs.
+
+No fixture may manufacture an approval merely by setting its status or mock
+export/schema success. Isolate synthetic acceptance data from live demo data.
+Inventory rules must distinguish required documentation from physical
+hardware fields that do not apply to provider-managed/cloud-native resources.
+Use supported source workflows; report any unimplemented receiving requirements.
+An authorized external eMASS receiving environment is not available in this
+session. External acceptance remains explicitly unverified, not a simulated
+success or an automatic transmission.
+
 ### September 29 refinement: authoritative ATO Package Readiness
 
 This implements the approved attached **Your path to ATO submission** mock as a

@@ -5,7 +5,7 @@ import { Activity, ClipboardCheck, FileCheck2, FolderCog, History, House, Shield
 
 const sectionIcons = new Map<string, LucideIcon>([
   ['Overview', House], ['System definition', FolderCog], ['Controls & evidence', ShieldCheck],
-  ['Assessment & risk', ClipboardCheck], ['ATO package & eMASS', FileCheck2],
+  ['Assessment & risk', ClipboardCheck], ['ATO Readiness', FileCheck2],
   ['Continuous monitoring', Activity], ['Team & permissions', Users], ['Activity & history', History],
 ]);
 

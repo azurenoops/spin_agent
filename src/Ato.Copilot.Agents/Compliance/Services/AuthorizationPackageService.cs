@@ -69,16 +69,23 @@ public partial class AuthorizationPackageService : IAuthorizationPackageService
         // Load all evidence artifacts for the system (paginate through all)
         var allArtifacts = new List<EvidenceArtifact>();
         int page = 1;
-        const int pageSize = 200;
+        const int pageSize = 100;
         while (true)
         {
-            var (items, _) = await _evidenceService.ListForSystemAsync(
+            var (items, totalCount) = await _evidenceService.ListForSystemAsync(
                 systemId, page, pageSize, cancellationToken: cancellationToken);
-            if (items.Count == 0) break;
+            if (items.Count == 0)
+            {
+                if (allArtifacts.Count < totalCount)
+                    throw new InvalidOperationException("Evidence listing ended before all reported artifacts were retrieved.");
+                break;
+            }
             allArtifacts.AddRange(items);
-            if (items.Count < pageSize) break;
+            if (allArtifacts.Count >= totalCount) break;
             page++;
         }
+        if (allArtifacts.Select(x => x.Id).Distinct().Count() != allArtifacts.Count)
+            throw new InvalidOperationException("Evidence pagination returned duplicate artifact identities. Revalidate before generating.");
 
         // Map each artifact to its control ID via ControlImplementation
         Dictionary<string, string> controlImplToControlId;

@@ -103,6 +103,14 @@ internal static class ProviderDocumentProvenance
                 gaps.Add($"Provider authorization: subscription '{subscription.Id}' has an unavailable or mismatched current adoption.");
                 continue;
             }
+            if (await db.Set<SystemProviderScopeSelection>().AsNoTracking().AnyAsync(x =>
+                x.TenantId == system.TenantId && x.SystemId == system.Id
+                && x.AssignmentId == adoption.AssignmentId && x.State == "Removed", ct))
+            {
+                gaps.Add($"Provider authorization: capability subscription '{subscription.Id}' retains adoption '{adoption.Id}' " +
+                    "for a removed provider scope. Retire or reconcile that capability through its existing workflow; retained history is not a current document source.");
+                continue;
+            }
             try
             {
                 result.AddRange(await ResolveAdoptionAsync(db, adoption, ct));

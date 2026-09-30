@@ -144,6 +144,8 @@ public sealed class InitialPackagePurposeTests
         persisted!.Purpose.Should().Be(PackagePurpose.InitialSubmission);
         job.Purpose.Should().Be(PackagePurpose.InitialSubmission);
         persisted.Status.Should().Be(PackageStatus.Pending);
+        persisted.ReadinessRunId.Should().NotBeNullOrWhiteSpace();
+        persisted.ReadinessSourceHash.Should().NotBeNullOrWhiteSpace();
         using var scope = fixture.Services.CreateScope();
         var run = await scope.ServiceProvider.GetRequiredService<AtoCopilotContext>().PackageReadinessRuns.SingleAsync();
         run.Id.Should().Be(persisted.ReadinessRunId);
@@ -151,6 +153,7 @@ public sealed class InitialPackagePurposeTests
         run.EvaluatedBy.Should().Be("demo-user");
         run.Outcome.Should().Be("Ready");
         run.SourceHash.Should().Be(persisted.ReadinessSourceHash);
+        PackageReadinessService.Checks(run).Should().Contain(x => x.Id == "inventory" && x.Outcome == "Passed");
     }
 
     [Fact]
@@ -176,19 +179,21 @@ public sealed class InitialPackagePurposeTests
         public Fixture()
         {
             var name = Guid.NewGuid().ToString();
+            Schema.Setup(x => x.ValidateForSystemAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true });
+            Evidence.Setup(x => x.GetSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new EvidenceSummary { CoveragePercentage = 100 });
             Services = new ServiceCollection()
                 .AddLogging()
                 .AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(name))
                 .AddSingleton(Schema.Object)
                 .AddSingleton(Evidence.Object)
+                .AddSingleton<IInventoryService, InventoryService>()
                 .AddSingleton<IInterconnectionService, InterconnectionService>()
+                .AddSingleton<IPrivacyService, PrivacyService>()
                 .AddSingleton<IPackageValidationService, PackageValidationService>()
                 .AddSingleton<PackageReadinessService>()
                 .BuildServiceProvider();
-            Schema.Setup(x => x.ValidateForSystemAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new OscalSchemaValidationResult { IsValid = true });
-            Evidence.Setup(x => x.GetSummaryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new EvidenceSummary { CoveragePercentage = 100 });
             Validator = (PackageValidationService)Services.GetRequiredService<IPackageValidationService>();
         }
 
@@ -198,6 +203,12 @@ public sealed class InitialPackagePurposeTests
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
             db.Add(new RegisteredSystem { Id = "mission", Name = "DEMO mission", Acronym = "DEMO" });
             await db.SaveChangesAsync();
+            await Services.GetRequiredService<IPrivacyService>().CreatePtaAsync("mission", "demo-user", manualMode: true);
+            await Services.GetRequiredService<IInventoryService>().AddItemAsync("mission", new InventoryItemInput
+            {
+                Type = InventoryItemType.Software, SoftwareFunction = SoftwareFunction.Application,
+                ItemName = "DEMO standalone application", Vendor = "Synthetic test vendor", Version = "1.0"
+            }, "demo-user");
         }
 
         public async Task SeedReviewedArtifactsAsync()

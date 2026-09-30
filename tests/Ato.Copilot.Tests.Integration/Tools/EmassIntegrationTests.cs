@@ -356,10 +356,12 @@ public class EmassIntegrationTests : IDisposable
         root.GetProperty("metadata").GetProperty("oscal-version").GetString()
             .Should().Be("1.1.2");
 
-        var identifiers = root.GetProperty("metadata").GetProperty("system-id")
-            .EnumerateArray().ToDictionary(
-                identifier => identifier.GetProperty("identifier-type").GetString()!,
-                identifier => identifier.GetProperty("id").GetString());
+        root.GetProperty("metadata").TryGetProperty("system-id", out _).Should().BeFalse(
+            "OSCAL metadata does not permit the old system-id extension");
+        var identifiers = root.GetProperty("metadata").GetProperty("props")
+            .EnumerateArray().Where(property => property.GetProperty("name").GetString() == "system-identifier")
+            .ToDictionary(property => property.GetProperty("ns").GetString()!,
+                property => property.GetProperty("value").GetString());
 
         identifiers["https://ies.apps.mil/jira/DoD-DITPR"].Should().Be("DITPR-071");
         identifiers["https://dodea.emass.mil"].Should().Be("EMASS-071");

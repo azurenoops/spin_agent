@@ -26,8 +26,11 @@ public sealed class AssessmentResultsWorkspaceHttpTests : IClassFixture<Workspac
     private readonly WebApplicationFactory<McpProgram> _factory;
     private readonly Mock<IAssessmentEnvironmentService> _environment = new();
     private readonly Mock<IAtoComplianceEngine> _engine = new();
+    private readonly Mock<ISystemEnvironmentScopeResolver> _scopes = new();
     public AssessmentResultsWorkspaceHttpTests(WorkspaceMembershipFactory factory)
     {
+        _scopes.Setup(x => x.ResolveAsync(It.IsAny<string>(), It.IsAny<EnvironmentScopePurpose>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, EnvironmentScopePurpose _, CancellationToken _) => new ResolvedSystemEnvironmentScopes(id, 0, [], []));
         _environment.Setup(x => x.GetReadinessAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string id, CancellationToken _) => new AssessmentReadinessResponse(id, false,
                 "ASSESSMENT_AZURE_ENVIRONMENT_REQUIRED", "Configure Azure first.", null, "", null, null, [], DateTimeOffset.UtcNow));
@@ -37,8 +40,39 @@ public sealed class AssessmentResultsWorkspaceHttpTests : IClassFixture<Workspac
                 && s.ImplementationType != typeof(TenancySeedHostedService)).ToArray()) services.Remove(d);
             services.AddSingleton(_environment.Object);
             services.AddSingleton(_engine.Object);
+            services.AddSingleton(_scopes.Object);
             services.AddTransient<IStartupFilter, AssessmentWriterClaimsFilter>();
         }));
+    }
+
+    [Fact]
+    public async Task Collection_CanonicalWithdrawalCannotUseStaleReadyResponse_AndHistoryRemainsReadable()
+    {
+        // Arrange
+        var f = await SeedAsync(OrganizationRole.Issm);
+        using var client = Client(f.Actor);
+        var subscription = Guid.NewGuid();
+        _environment.Setup(x => x.GetReadinessAsync(f.System, It.IsAny<CancellationToken>())).ReturnsAsync(
+            new AssessmentReadinessResponse(f.System, true, null, "Previously ready", null, "", "Government", "Government",
+                [new(subscription.ToString(), "Synthetic")], DateTimeOffset.UtcNow));
+        var source = new ResolvedSystemEnvironmentScope(Guid.NewGuid(), 2, Guid.NewGuid(), 1,
+            new(Guid.NewGuid(), WorkspaceMembershipFactory.TenantAId, subscription, Directory, "Government",
+                "Synthetic", "Selected", DateTimeOffset.UtcNow), "ProviderAllocation", Guid.NewGuid(), 2,
+            false, "Allocation withdrawn", [$"/subscriptions/{subscription}/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/a"],
+            [], [], new("Test", null, null, "Reconciled", null, DateTimeOffset.UtcNow));
+        _scopes.Setup(x => x.ResolveAsync(f.System, EnvironmentScopePurpose.Assessment, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(f.System, 2, [source], []));
+
+        // Act
+        var response = await client.PostAsJsonAsync(f.Root + "/collect", new { planId = (string?)null,
+            expectedPlanHash = (string?)null, requestId = Guid.NewGuid().ToString() });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        _engine.Verify(x => x.RunRetainedAssessmentAsync(It.IsAny<ComplianceAssessment>(),
+            It.IsAny<IProgress<AssessmentProgress>?>(), It.IsAny<CancellationToken>()), Times.Never);
+        var retained = await ReadAsync(client, f.Root + "/results");
+        retained.GetProperty("items").GetArrayLength().Should().Be(1);
     }
 
     [Fact]

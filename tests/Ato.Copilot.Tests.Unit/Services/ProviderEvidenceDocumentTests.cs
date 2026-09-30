@@ -51,10 +51,14 @@ public sealed class ProviderEvidenceDocumentTests
         service.Setup(s => s.VerifyForExportAsync(share.TargetTenantId, person, "mission", share.ShareId, hash, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var responsibilities = new Mock<ICapabilityResponsibilityService>();
+        var workspaceAccess = new Mock<ISystemWorkspaceAccessService>();
+        workspaceAccess.Setup(s => s.CanReadAsync(share.TargetTenantId, person, "mission", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         var dbName = Guid.NewGuid().ToString();
         using var services = new ServiceCollection().AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(dbName))
             .AddSingleton<ITenantContextAccessor>(accessor).AddScoped<ITenantContext, TenantContext>()
-            .AddSingleton(service.Object).AddSingleton(responsibilities.Object).BuildServiceProvider();
+            .AddSingleton(service.Object).AddSingleton(responsibilities.Object)
+            .AddSingleton(workspaceAccess.Object).BuildServiceProvider();
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         db.Add(new RegisteredSystem { Id = "mission", Name = "DEMO mission", TenantId = share.TargetTenantId });

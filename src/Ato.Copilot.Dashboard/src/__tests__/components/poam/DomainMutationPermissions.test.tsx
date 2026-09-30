@@ -30,7 +30,10 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('../../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: () => state.session }));
 vi.mock('../../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: { systemId: 'system-a' } }) }));
-vi.mock('../../../hooks/useSettings', () => ({ useSettings: () => ({ settings: { role: state.role } }) }));
+vi.mock('../../../hooks/useSettings', async importOriginal => ({
+  ...await importOriginal<typeof import('../../../hooks/useSettings')>(),
+  useSettings: () => ({ settings: { role: state.role } }),
+}));
 vi.mock('../../../hooks/usePoam', () => ({
   usePoamList: () => ({ data: { items: [], totalCount: 0 }, loading: false, refresh: vi.fn() }),
   usePoamMetrics: () => ({ data: null, loading: false, refresh: vi.fn() }),

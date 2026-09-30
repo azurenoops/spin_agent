@@ -19,16 +19,19 @@ public class AzurePolicyComplianceService : IAzurePolicyComplianceService
 {
     private readonly ArmClient _armClient;
     private readonly ILogger<AzurePolicyComplianceService> _logger;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AzurePolicyComplianceService"/> class.
     /// </summary>
     public AzurePolicyComplianceService(
         ArmClient armClient,
-        ILogger<AzurePolicyComplianceService> logger)
+        ILogger<AzurePolicyComplianceService> logger,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _armClient = armClient;
         _logger = logger;
+        _environmentGuard = environmentGuard;
     }
 
     /// <inheritdoc />
@@ -36,6 +39,8 @@ public class AzurePolicyComplianceService : IAzurePolicyComplianceService
         string subscriptionId,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         try
         {
             _logger.LogInformation("Getting policy compliance summary for subscription {SubId}", subscriptionId);
@@ -112,6 +117,8 @@ public class AzurePolicyComplianceService : IAzurePolicyComplianceService
         string? policyDefinitionId = null,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         try
         {
             _logger.LogInformation("Getting policy states for subscription {SubId}, filter: {Filter}",

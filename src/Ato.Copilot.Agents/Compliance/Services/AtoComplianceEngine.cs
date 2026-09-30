@@ -30,6 +30,7 @@ public class AtoComplianceEngine : IAtoComplianceEngine
     private readonly IStigValidationService _stigValidationService;
     private readonly IEvidenceCollectorRegistry _evidenceCollectorRegistry;
     private readonly IServiceProvider _serviceProvider;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     // Lazy-resolved to break circular dependency:
     // AtoComplianceEngine → IComplianceWatchService → ComplianceWatchService → IAtoComplianceEngine
@@ -56,7 +57,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         IAzureResourceService azureResourceService,
         IStigValidationService stigValidationService,
         IEvidenceCollectorRegistry evidenceCollectorRegistry,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _nistService = nistService;
         _policyService = policyService;
@@ -69,6 +71,7 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         _stigValidationService = stigValidationService;
         _evidenceCollectorRegistry = evidenceCollectorRegistry;
         _serviceProvider = serviceProvider;
+        _environmentGuard = environmentGuard;
     }
 
     /// <summary>
@@ -93,6 +96,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         bool includePassed = false,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         var assessment = new ComplianceAssessment
         {
             SubscriptionId = subscriptionId,
@@ -610,6 +615,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         string? resourceGroup = null,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         if (!ControlFamilies.IsValidFamily(familyCode))
             throw new ArgumentException($"Invalid control family: {familyCode}", nameof(familyCode));
 
@@ -683,6 +690,12 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         var overallStopwatch = Stopwatch.StartNew();
         var subscriptionId = assessment.SubscriptionId;
         var resourceGroup = assessment.ResourceGroupFilter;
+        if (_environmentGuard is not null)
+        {
+            if (assessment.RegisteredSystemId is not null)
+                await _environmentGuard.EnsureSystemAsync(assessment.RegisteredSystemId, EnvironmentScopePurpose.Assessment, cancellationToken);
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
+        }
 
         _logger.LogInformation(
             "Starting comprehensive assessment {Id} | Sub: {Sub} | RG: {RG}",
@@ -840,6 +853,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         string? resourceGroup = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         _logger.LogInformation("Streaming assessment findings | Sub: {Sub} | RG: {RG}",
             subscriptionId, resourceGroup ?? "(all)");
 
@@ -870,6 +885,9 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         CancellationToken cancellationToken = default)
     {
         var subList = subscriptionIds.ToList();
+        if (_environmentGuard is not null)
+            foreach (var subscription in subList)
+                await _environmentGuard.EnsureSubscriptionAsync(subscription, EnvironmentScopePurpose.Assessment, cancellationToken);
         if (subList.Count == 0)
             throw new ArgumentException("At least one subscription ID is required.", nameof(subscriptionIds));
 
@@ -1035,6 +1053,8 @@ public class AtoComplianceEngine : IAtoComplianceEngine
         string? resourceGroup = null,
         CancellationToken cancellationToken = default)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(subscriptionId, EnvironmentScopePurpose.Assessment, cancellationToken);
         _logger.LogInformation("Collecting evidence for family {Family} Sub={Sub}", familyCode, subscriptionId);
 
         var collector = _evidenceCollectorRegistry.GetCollector(familyCode);

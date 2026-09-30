@@ -6,6 +6,122 @@
 
 ## Summary
 
+### Personal Settings consolidation
+
+Audit found `SettingsPanel` duplicates notification preference reads/writes with
+silent catches, while `NotificationSettingsPanel` already has authenticated,
+workspace-keyed request cancellation and explicit save handling. Reuse and
+strengthen the latter, retiring the former duplicate. Reuse `SetupDialog` for
+drawer focus trapping, Escape, responsive scrolling and return focus.
+Use server workspace permissions for administration links; remove the no-session
+administrative fallback. Keep operational navigation in organization/provider
+administration, catalog, assessment/risk and export workspaces.
+
+The current Settings hook stores browser-local values; searches found several
+controls with no consumers. Do not perpetuate no-op controls. Trace and test
+retained display preference consumers; retain historical storage keys for
+compatibility but limit reset to an allowlist of personal display/presentation
+keys. Existing local catalog filters must not be represented as organizational
+baseline policy. Dates shown in authorization artifacts are not reformatted
+by personal preferences.
+
+### Shared system environment implementation slice
+
+#### Superseding independence correction
+
+The prior UI makes the provider card a projection of subscription attachments
+and hides independent `EnvironmentAssociations` in history. Its selector requires
+a provider allocation; this incorrectly treats valid unlinked hosting records as
+reconciliation errors. Replace that coupling, not the underlying retained records.
+
+Reuse provider scope/mission relationship and responsibility-review services for
+independent provider consumption. Reuse canonical environment registration,
+discovery, scope history and entitlement for subscription attachment. Make their
+association optional, versioned and many-to-many where required. Allocation-based
+attachment must not create hosting implicitly; unlink/detach/relationship removal
+must not cascade to the opposite record. Preserve verified historic links and
+surface only actual invalid references.
+
+Implement backend/typed contracts with failing isolation/lifecycle tests in
+parallel with parent-owned UI tests and the two mock-directed sections. Use one
+subscription wizard across sources and preserve per-subscription scope/retry
+state for multiple selection. The canonical batch validates every selection and
+saves atomically, with the same payload/replay key retained after an unconfirmed
+response. No silent bulk success or partial hosted relationship creation.
+Verify assessments/monitoring still consume canonical subscriptions independent
+of optional provider links. Existing broad-collector limits remain explicit.
+Migration is additive, with no inferred ownership or lost reviewed versions.
+No external issue writes or push without approval.
+
+Retirement: `EnvironmentAssociations.tsx` has no remaining production imports
+after `ProfileSectionForm` renders the independent provider/subscription
+composition. Remove this obsolete allocation-first drawer and its component
+suite after the replacement provider tests pass. Preserve `ProviderScopeReview`,
+canonical relationship APIs and retained records. Replace the old form suite's
+drawer-specific assertions with documentation preservation/integration assertions;
+provider selection/review/lifecycle tests now belong to `ProviderServicesScopes`.
+The old automatic copy-to-deployment action is not invoked by either new save
+flow; deployment text remains user-authored and separately saved.
+
+Current audit: provider `ProviderHostingAssignment` is system-specific technical
+scope; it has no organization-level subscription allocation identity.
+`AzureSubscriptionRegistration` already owns organization subscription identity,
+cloud and Azure directory. Assessment config separately edits an owned
+`AzureEnvironmentProfile.SubscriptionIds`; scope is not coupled to hosting.
+The monitoring scope already reads boundary-component assignments, while a
+legacy subscription resolver chooses only the first matching system.
+
+Add a minimal organization allocation record and a tenant/system attachment
+reference with optional provider fields, referencing—not cloning—the canonical
+subscription registration. Persist explicit authorized selected resources and
+immutable/revisioned scope history; project old AzureProfile fields only for
+compatibility, never as a second editable list. Reuse provider hosting/mission
+review and boundary services, Azure registration and access probes.
+
+Separate management entitlement (MO/SO/ISSM as explicit server capability) from
+existing assessment execution permission and organization registration authority.
+Do not relax Azure cloud, directory, resource or collector checks. Workflow:
+provider allocation/verified provenance -> eligible organization selection ->
+resource scope -> atomic idempotent apply -> separate scope/access/review steps.
+Scope discovery is read-only; future group resources are not automatically
+included. Withdrawal/replacement requires impacted-system review and blocks
+future access while retaining history.
+
+First implement typed backend contract and tests, then consumers and UI:
+Provider hosting before Connected environments, three-step wizard, separate
+documentation actions, existing shell/logo. Preserve drafts through environment
+actions. Use existing organization onboarding/settings for subscriptions missing
+from registration; do not fake provisioning, Azure consent or ownership.
+External FAST transport is supported only through verified source/provenance
+contracts; absent credentials/mapping remain explicitly unavailable.
+
+Verification uses synthetic provider-only, organization-only and mixed systems,
+three subscriptions, shared allocation with distinct resource scopes, concurrency,
+retry, withdrawal and denied operations. Live Azure collection must not be
+claimed from those tests. Additive schema modules preserve legacy attachments
+as unreviewed/reconciliation-required rather than silently mapped by names.
+
+### Internal package acceptance follow-through
+
+1. Reproduce and repair stale `CapabilityResponsibilityResponse` fixture calls,
+   which omit the added `BaselineName` positional argument (the compiler reports
+   the final required `PendingImpacts` argument). Preserve empty pending-impact
+   collections and production contracts.
+2. Run builds serially (`-m:1`) and execute tests with `--no-build` after the
+   successful build to avoid parallel MVC manifest generation.
+3. Add an isolated real-export acceptance fixture. Use canonical service/API
+   operations for authorship/review/finalization; actual exporters and schemas
+   remain registered. Trace distinctive synthetic source values into actual
+   output, with no existing AO decision for InitialSubmission.
+4. Close safe documented validation/resolution gaps using existing source
+   semantics. Do not impose physical hardware requirements on managed services
+   or claim unknown inventory coverage as a pass.
+5. Revalidate changes, preserve previous artifacts/history, and document local
+   reproducibility plus the external eMASS acceptance gate.
+
+No live demo edits, external submission, issue publication or push is authorized
+by this internal acceptance implementation.
+
 ### September 29 package-readiness implementation slice
 
 Implement the [approved readiness contract](contracts/package-readiness-experience.md)

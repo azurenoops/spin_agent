@@ -189,7 +189,9 @@ public class OscalSchemaValidationService : IOscalSchemaValidationService
             foreach (var (modelType, schemaFileName) in ModelSchemaMap)
             {
                 var resourceName = resourceNames.FirstOrDefault(r =>
-                    r.EndsWith(schemaFileName.Replace("-", "_"), StringComparison.OrdinalIgnoreCase));
+                    r.EndsWith(schemaFileName, StringComparison.OrdinalIgnoreCase))
+                    ?? resourceNames.FirstOrDefault(r =>
+                        r.EndsWith(schemaFileName.Replace("-", "_"), StringComparison.OrdinalIgnoreCase));
 
                 if (resourceName == null)
                 {

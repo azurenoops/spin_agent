@@ -508,6 +508,8 @@ async Task RunHttpModeAsync(string[] args)
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderHostingService,
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderHostingService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderEnvironmentAllocationService,
+        Ato.Copilot.Core.Services.Environments.ProviderEnvironmentAllocationService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderMissionService,
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderMissionService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderFindingService,
@@ -690,6 +692,8 @@ async Task RunHttpModeAsync(string[] args)
     app.MapCspPackageImportEndpoints();
     app.MapProviderAuthorizationEndpoints();
     app.MapProviderHostingEndpoints();
+    app.MapProviderEnvironmentAllocationEndpoints();
+    app.MapSystemEnvironmentEndpoints();
     app.MapProviderMissionEndpoints();
     app.MapProviderFindingEndpoints();
     app.MapProviderEvidenceSharingEndpoints();
@@ -1345,6 +1349,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CspPackageSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderAuthorizationSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.SystemEnvironmentSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderMonitoringSchemaAdditions
         .ApplyAsync(db, logger, ct);

@@ -1,5 +1,6 @@
 using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Tenancy;
@@ -7,6 +8,7 @@ using Ato.Copilot.Core.Models.Workspaces;
 using Ato.Copilot.Core.Services.Tenancy;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
 
@@ -52,6 +54,126 @@ public sealed class ScopedMonitoringServiceTests : IDisposable
     private static SaveMonitoringRuleRequest Rule(string system = SystemA, long? version = null, bool enabled = true) =>
         new("Network changes", system + "-boundary", "reviewed-baseline-1", "reviewer", "Alert",
             new("Type", "Equals", "Drift"), 60, "High", enabled, version);
+
+    [Fact]
+    public async Task IndependentProviderReference_DoesNotRequireAzureSubscriptionReconciliation()
+    {
+        // Arrange
+        var resolver = new Mock<ISystemEnvironmentScopeResolver>();
+        resolver.Setup(x => x.ResolveAsync(SystemA, EnvironmentScopePurpose.Monitoring, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(SystemA, 0, [],
+                [new("provider-scope", "ProviderHosting", "Synthetic provider scope", "Valid", "No subscription link is required.")]));
+        await using var provider = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+        var canonical = ActivatorUtilities.CreateInstance<ScopedMonitoringService>(provider, db, narratives.Object);
+
+        // Act
+        var coverage = await canonical.CoverageAsync(SystemA, default);
+
+        // Assert
+        coverage.Should().ContainSingle().Which.Health.Should().Be("Missing");
+        coverage.Should().NotContain(x => x.Health == "ReconciliationRequired");
+    }
+
+    [Theory]
+    [InlineData("OrganizationOwned")]
+    [InlineData("ProviderAllocation")]
+    public async Task IndependentSubscriptionCoverage_DoesNotRequireProviderComponentOrRelationship(string sourceKind)
+    {
+        // Arrange
+        var resolver = new Mock<ISystemEnvironmentScopeResolver>();
+        var source = CanonicalScope(ResourceA, true) with
+        {
+            Source = sourceKind,
+            AllocationId = sourceKind == "ProviderAllocation" ? Guid.NewGuid() : null,
+            AllocationVersion = sourceKind == "ProviderAllocation" ? 1 : null
+        };
+        resolver.Setup(x => x.ResolveAsync(SystemA, EnvironmentScopePurpose.Monitoring, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(SystemA, 1, [source], []));
+        await using var provider = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+        var canonical = ActivatorUtilities.CreateInstance<ScopedMonitoringService>(provider, db, narratives.Object);
+
+        // Act
+        var coverage = await canonical.CoverageAsync(SystemA, default);
+
+        // Assert
+        var row = coverage.Should().ContainSingle().Which;
+        row.Health.Should().Be("ScopeUnsupported");
+        row.ProviderComponentId.Should().BeNull();
+        row.AttachmentId.Should().Be(source.AttachmentId);
+    }
+
+    [Fact]
+    public async Task CanonicalCoverage_DeniedAndUnsupportedSourcesCannotLookHealthy()
+    {
+        // Arrange
+        var resolver = new Mock<ISystemEnvironmentScopeResolver>();
+        var scopes = new[] { CanonicalScope(ResourceA, true), CanonicalScope(ResourceB, false),
+            CanonicalScope("/subscriptions/third/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/c", true) };
+        resolver.Setup(x => x.ResolveAsync(SystemA, EnvironmentScopePurpose.Monitoring, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(SystemA, 1, scopes, []));
+        await using var provider = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+        var canonical = ActivatorUtilities.CreateInstance<ScopedMonitoringService>(provider, db, narratives.Object);
+
+        // Act
+        var coverage = await canonical.CoverageAsync(SystemA, default);
+
+        // Assert
+        coverage.Should().HaveCount(3);
+        coverage.Should().NotContain(x => x.Health == "Healthy");
+        coverage.Should().Contain(x => x.Health == "Ineligible" && x.Error == "Allocation withdrawn");
+    }
+
+    [Fact]
+    public async Task CanonicalWithdrawal_PreservesRetainedObservationsButCreatesNoNewImpact()
+    {
+        // Arrange
+        var rule = await service.SaveRuleAsync(SystemA, null, Rule(), "actor", default);
+        await service.EvaluateDueAsync(default);
+        var retainedCount = await db.Set<MonitoringImpactReview>().CountAsync();
+        rule.NextEvaluationUtcTicks = 0;
+        await db.SaveChangesAsync();
+        var resolver = new Mock<ISystemEnvironmentScopeResolver>();
+        resolver.Setup(x => x.ResolveAsync(It.IsAny<string>(), EnvironmentScopePurpose.Monitoring, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, EnvironmentScopePurpose _, CancellationToken _) =>
+                new ResolvedSystemEnvironmentScopes(id, 2, [CanonicalScope(ResourceA, false)], []));
+        await using var provider = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+        var canonical = ActivatorUtilities.CreateInstance<ScopedMonitoringService>(provider, db, narratives.Object);
+
+        // Act
+        var history = await canonical.ChangesAsync(SystemA, default);
+        var evaluation = await canonical.TestAsync(SystemA, rule.Id, default);
+
+        // Assert
+        history.Should().ContainSingle();
+        evaluation.Should().OnlyContain(x => x.Outcome == "CollectionUnavailable");
+        (await db.Set<MonitoringImpactReview>().CountAsync()).Should().Be(retainedCount);
+    }
+
+    private ResolvedSystemEnvironmentScope CanonicalScope(string resource, bool eligible) =>
+        new(Guid.NewGuid(), 1, Guid.NewGuid(), 1,
+            new(Guid.NewGuid(), tenant, Guid.NewGuid(), Guid.NewGuid(), "Government", "Synthetic subscription",
+                "Selected", DateTimeOffset.UtcNow), "ProviderAllocation", Guid.NewGuid(), 1, eligible,
+            eligible ? null : "Allocation withdrawn", [resource], [], [],
+            new("Test", null, null, "Reconciled", null, DateTimeOffset.UtcNow));
+
+    [Fact]
+    public async Task LegacyEnvironmentCoverage_IsNotHealthyBeforeScopeReconciliation()
+    {
+        // Arrange
+        var resolver = new Mock<ISystemEnvironmentScopeResolver>();
+        resolver.Setup(x => x.ResolveAsync(SystemA, EnvironmentScopePurpose.Monitoring, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResolvedSystemEnvironmentScopes(SystemA, 0, [],
+                [new("legacy-subscription", "AzureProfile", "Synthetic", "ReconciliationRequired", "Review resource scope.")]));
+        await using var provider = new ServiceCollection().AddSingleton(resolver.Object).BuildServiceProvider();
+        var canonical = ActivatorUtilities.CreateInstance<ScopedMonitoringService>(provider, db, narratives.Object);
+
+        // Act
+        var coverage = await canonical.CoverageAsync(SystemA, default);
+
+        // Assert
+        coverage.Should().ContainSingle().Which.Health.Should().Be("ReconciliationRequired");
+        coverage.Should().NotContain(x => x.Health == "Healthy");
+    }
 
     [Fact]
     public async Task Shared_subscription_is_not_attribution_and_scope_changes_require_review()

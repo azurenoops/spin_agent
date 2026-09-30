@@ -58,44 +58,44 @@ public static partial class DashboardEndpoints
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
         group.MapGet("/systems/{systemId}/assessment-environment", async (
-            string systemId, IAssessmentEnvironmentService service,
+            string systemId, IAssessmentEnvironmentService service, HttpContext http,
             ILogger<AssessmentEnvironmentService> logger, CancellationToken ct) =>
         {
             try { return Results.Ok(await service.GetConfigurationAsync(systemId, ct)); }
             catch (AssessmentEnvironmentException failure)
             {
-                return LoggedAssessmentEnvironmentError(failure, logger, systemId);
+                return LoggedAssessmentEnvironmentError(failure, logger, systemId, http);
             }
         })
         .RequireAuthorization(Policies.ComplianceWriter)
         .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceWriter)
         .WithName("GetAssessmentEnvironment")
-        .WithSummary("Read actual Azure attachment configuration and organization subscription choices.")
+        .WithSummary("Read legacy Azure configuration; canonical attachments direct callers to the shared environment source.")
         .Produces<AssessmentEnvironmentResponse>()
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
 
         group.MapPut("/systems/{systemId}/assessment-environment", async (
-            string systemId, UpdateAssessmentEnvironmentRequest request, IAssessmentEnvironmentService service,
+            string systemId, UpdateAssessmentEnvironmentRequest request, IAssessmentEnvironmentService service, HttpContext http,
             ILogger<AssessmentEnvironmentService> logger, CancellationToken ct) =>
         {
             try { return Results.Ok(await service.ConfigureAsync(systemId, request, currentUser.CurrentUserId, ct)); }
             catch (AssessmentEnvironmentException failure)
             {
-                return LoggedAssessmentEnvironmentError(failure, logger, systemId);
+                return LoggedAssessmentEnvironmentError(failure, logger, systemId, http);
             }
         })
         .RequireAuthorization(Policies.ComplianceWriter)
         .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceWriter)
         .WithName("ConfigureAssessmentEnvironment")
-        .WithSummary("Save eligible Azure attachment metadata; connectivity is checked separately.")
+        .WithSummary("Update legacy Azure metadata only; canonical environment changes require the shared versioned workflow.")
         .Produces<AssessmentEnvironmentResponse>()
         .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
 
         group.MapDelete("/systems/{systemId}/assessment-environment", async (
-            string systemId, IAssessmentEnvironmentService service,
+            string systemId, IAssessmentEnvironmentService service, HttpContext http,
             ILogger<AssessmentEnvironmentService> logger, CancellationToken ct) =>
         {
             try
@@ -105,23 +105,25 @@ public static partial class DashboardEndpoints
             }
             catch (AssessmentEnvironmentException failure)
             {
-                return LoggedAssessmentEnvironmentError(failure, logger, systemId);
+                return LoggedAssessmentEnvironmentError(failure, logger, systemId, http);
             }
         })
         .RequireAuthorization(Policies.ComplianceWriter)
         .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceWriter)
         .WithName("DetachAssessmentEnvironment")
-        .WithSummary("Detach Azure assessment configuration without changing historical assessments.")
+        .WithSummary("Detach legacy configuration only; canonical environments require shared impact preview and acknowledged detach.")
         .Produces(StatusCodes.Status204NoContent)
         .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
         .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
     }
 
     private static IResult LoggedAssessmentEnvironmentError(
-        AssessmentEnvironmentException failure, ILogger logger, string systemId)
+        AssessmentEnvironmentException failure, ILogger logger, string systemId, HttpContext? http = null)
     {
         logger.LogWarning("Azure assessment environment operation blocked for system {SystemId}: {ErrorCode}",
             systemId, failure.ErrorCode);
+        if (failure.ErrorCode == AssessmentEnvironmentErrors.SharedEnvironmentRequired && http is not null)
+            http.Response.Headers.Location = $"/api/dashboard/systems/{Uri.EscapeDataString(systemId)}/environments";
         return AssessmentEnvironmentError(failure.ErrorCode, failure.Message, failure.Suggestion);
     }
 

@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import PoamTable, { SeverityBadge, StatusBadge } from '../../../components/poam/PoamTable';
 import CascadeConfirmDialog from '../../../components/poam/CascadeConfirmDialog';
 import type { PoamListItem, PoamListQuery } from '../../../types/poam';
+import { DEFAULT_SETTINGS, SettingsContext } from '../../../hooks/useSettings';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helper fixtures
@@ -108,11 +109,17 @@ describe('PoamTable', () => {
   });
   it('renders calendar deadlines without shifting them into the previous day', () => {
     // Arrange
-    const dateFormat = vi.spyOn(Date.prototype, 'toLocaleDateString');
-    render(<PoamTable items={[{ ...baseItem, dueDate: '2026-10-05T00:00:00Z' }]} totalItems={1} query={defaultQuery} loading={false} onQueryChange={vi.fn()} onRowClick={vi.fn()} />);
-    // Act / Assert
-    expect(dateFormat).toHaveBeenCalledWith(undefined, { timeZone: 'UTC' });
-    dateFormat.mockRestore();
+    const settings = { ...DEFAULT_SETTINGS, dateFormat: 'ISO' as const, timezone: 'America/Los_Angeles' };
+    // Act
+    render(<SettingsContext.Provider value={{ settings, updateSettings: vi.fn(), resetSettings: vi.fn() }}>
+      <PoamTable items={[{ ...baseItem, dueDate: '2026-10-05T00:00:00Z', nextMilestone: {
+        id: 'milestone', description: 'Review correction', targetDate: '2026-10-04T00:00:00Z',
+        completedDate: null, sequence: 1, isOverdue: false,
+      } }]} totalItems={1} query={defaultQuery} loading={false} onQueryChange={vi.fn()} onRowClick={vi.fn()} />
+    </SettingsContext.Provider>);
+    // Assert
+    expect(screen.getByText('2026-10-05')).toBeInTheDocument();
+    expect(screen.getByText('2026-10-04')).toBeInTheDocument();
   });
   it('keeps a truly empty queue free of filters and pagination', () => {
     // Arrange

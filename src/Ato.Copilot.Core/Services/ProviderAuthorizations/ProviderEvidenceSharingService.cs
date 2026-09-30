@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
 using Ato.Copilot.Core.Interfaces.Storage;
 using Ato.Copilot.Core.Interfaces.Tenancy;
@@ -18,6 +19,9 @@ public sealed class ProviderEvidenceSharingService(ProviderAuthorizationStore st
     private static IQueryable<ProviderHostingAssignment> Eligible(AtoCopilotContext db, Guid provider, Guid offering) =>
         db.Set<ProviderHostingAssignment>().IgnoreQueryFilters().Where(a =>
             a.ProviderId == provider && a.OfferingId == offering
+            && !db.Set<SystemProviderScopeSelection>().IgnoreQueryFilters().Any(selection =>
+                selection.TenantId == a.TargetTenantId && selection.SystemId == a.SystemId
+                && selection.AssignmentId == a.Id && selection.State == "Removed")
             && db.Set<ProviderOffering>().IgnoreQueryFilters().Any(o => o.Id == a.OfferingId
                 && o.ProviderId == a.ProviderId && o.Lifecycle != "Retired" && o.CurrentHostingScopeRevisionId == a.HostingScopeRevisionId)
             && db.RegisteredSystems.IgnoreQueryFilters().Any(s => s.Id == a.SystemId && s.TenantId == a.TargetTenantId && s.IsActive)
@@ -139,6 +143,9 @@ public sealed class ProviderEvidenceSharingService(ProviderAuthorizationStore st
     private static IQueryable<ProviderEvidenceShare> GrantedQuery(AtoCopilotContext db, Guid tenantId, string systemId) =>
         db.Set<ProviderEvidenceShare>().IgnoreQueryFilters().AsNoTracking()
             .Where(g => g.TargetTenantId == tenantId && g.SystemId == systemId && g.RevokedAt == null
+                && !db.Set<SystemProviderScopeSelection>().IgnoreQueryFilters().Any(selection =>
+                    selection.TenantId == tenantId && selection.SystemId == systemId
+                    && selection.AssignmentId == g.AssignmentId && selection.State == "Removed")
                 && db.CspProfiles.Any(p => p.Id == g.ProviderId)
                 && db.Set<ProviderHostingAssignment>().IgnoreQueryFilters().Any(a => a.Id == g.AssignmentId
                     && a.ProviderId == g.ProviderId && a.OfferingId == g.OfferingId

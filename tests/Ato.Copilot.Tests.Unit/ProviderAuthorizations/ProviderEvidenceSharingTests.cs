@@ -106,6 +106,35 @@ public sealed class ProviderEvidenceSharingTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task HistoricalRemovedScope_ExcludesCurrentEvidenceTargetsAndReads_WithoutDeletingRetainedShare()
+    {
+        // Arrange
+        var approved = await Service().ApproveAsync(_offering.Id, _evidence.Id, Request(), "approve", "provider");
+        await using (var db = Db())
+        {
+            db.Add(new SystemProviderScopeSelection { TenantId = _tenantId, SystemId = _systemId,
+                AssignmentId = _assignment.Id, State = "Removed", UpdatedBy = "historical-removal" });
+            await db.SaveChangesAsync();
+        }
+        // Act
+        var targets = await Service().TargetsAsync(_offering.Id, 1, 25);
+        Mission();
+        var current = await Service().ListMissionAsync(_systemId, 1, 25);
+        // Assert
+        targets.Items.Should().BeEmpty();
+        current.Items.Should().BeEmpty();
+        await FluentActions.Awaiting(() => Service().SummaryContentAsync(_systemId, approved.ShareId))
+            .Should().ThrowAsync<KeyNotFoundException>();
+        _context = _providerContext;
+        (await Service().ListProviderAsync(_offering.Id, _evidence.Id, 1, 25)).Items.Should().Contain(x => x.ShareId == approved.ShareId);
+        await using var verify = Db();
+        var retained = await verify.Set<ProviderEvidenceShare>().IgnoreQueryFilters().SingleAsync();
+        retained.Id.Should().Be(approved.ShareId);
+        retained.ContentHash.Should().Be(approved.ContentHash);
+        retained.RevokedAt.Should().BeNull("history is retained rather than rewritten as an automatic revocation");
+    }
+
+    [Fact]
     public async Task CrossTenantWrongSystemRevoked_AndRevokedMembership_DenyReads()
     {
         // Arrange

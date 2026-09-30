@@ -44,6 +44,8 @@ public static partial class DashboardEndpoints
         MapSystemHistoryRoutes(group);
         MapSystemNextActionsRoutes(group);
         MapPackageReadinessRoutes(group);
+        MapInventoryRegisterRoutes(group);
+        MapOperationalStatusRoutes(group);
         MapComponentRoutes(group, app, currentUser);
         MapPolicyWorkspaceRoutes(group);
         MapAssessmentPlanWorkspaceRoutes(group);

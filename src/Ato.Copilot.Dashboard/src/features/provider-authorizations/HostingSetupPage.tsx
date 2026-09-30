@@ -13,6 +13,7 @@ import { HostingContextSummary, HostingScopeIdentity } from './HostingContextSum
 import { managementArrangements, serviceModels } from './OfferingIdentity';
 import { offeringEnvironments, scopeLabel } from './scopes';
 import { ProviderAllocationForm } from './ProviderAllocationForm';
+import ProviderSubscriptionAllocations from './ProviderSubscriptionAllocations';
 
 type Task = 'hosting' | 'references' | 'capabilities' | 'missions' | 'responsibilities' | 'allocations';
 type ReadState = { loading: boolean; error: string | null; retry: () => void };
@@ -113,6 +114,7 @@ function ServiceScopeSetup({ offering: loadedOffering, onChanged }: { offering: 
     className={primary ? buttonClass : secondaryButtonClass} disabled={pending || !ready(states[task])}
     onClick={() => open(task)}>{task === 'hosting' && serviceHosted ? 'Configure service relationship' : actions[task]}</button>;
   return <div className="provider-grid"><div className="space-y-5">
+    <ProviderSubscriptionAllocations offeringId={offering.offeringId} />
     <ProviderPanel title="Service boundary">
       <Availability title="Service boundary" state={boundary} />
       {ready(boundary) && <>

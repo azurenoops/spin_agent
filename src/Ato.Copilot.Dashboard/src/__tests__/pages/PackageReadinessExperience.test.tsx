@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '../helpers/dialog';
 import PackageReadinessExperience from '../../features/systems/PackageReadinessExperience';
@@ -100,6 +100,20 @@ describe('Authoritative package readiness', () => {
     expect(screen.getByText('Inventory changed')).toBeVisible();
     expect(screen.queryByText('Package ready for export')).not.toBeInTheDocument();
   });
+  it('identifies a failed evaluation as failed rather than a successfully evaluated stale snapshot', async () => {
+    // Arrange
+    const failed: api.PackageReadinessRun = { ...run, outcome: 'Failed', sourceHash: null, sourceHashAfter: null,
+      failure: { code: 'FAILED', message: 'The evaluation did not complete.' },
+      freshness: { ...run.freshness, state: 'Stale', reason: 'No prior source fingerprint' } };
+    vi.mocked(api.getPackageReadinessWorkspace).mockResolvedValue({ ...workspace, latestRun: failed });
+    vi.mocked(api.getPackageReadinessRun).mockResolvedValue({ ...workspace, run: failed,
+      checks: { items: [check], totalCount: 1, limit: 50, offset: 0 } });
+    // Act
+    mount();
+    // Assert
+    expect(await screen.findByText('Validation failed')).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Stale validation' })).not.toBeInTheDocument();
+  });
   it('keeps unavailable reads distinct from an empty or passing checklist', async () => {
     // Arrange
     vi.mocked(api.getPackageReadinessWorkspace).mockRejectedValue(new Error('Access denied'));
@@ -177,5 +191,25 @@ describe('Authoritative package readiness', () => {
     expect(screen.getByText('Initial ATO submission')).toBeVisible();
     expect(api.getPackageReadinessWorkspace).toHaveBeenLastCalledWith('a',
       { purpose: 'InitialSubmission', retainedContext: null }, expect.any(AbortSignal));
+  });
+  it('reloads the exact retained selection when browser navigation changes context within the same purpose', async () => {
+    // Arrange
+    const first = { baselinePackageId: 'baseline-a', baselineContentHash: 'a'.repeat(64), authorizationDecisionId: 'decision-a' };
+    const second = { ...first, baselinePackageId: 'baseline-b' };
+    const href = (context: typeof first) => `/systems/a/documents?${new URLSearchParams({
+      purpose: 'AuthorizedBaselineArchive', context: JSON.stringify(context),
+    })}`;
+    function Fixture() {
+      const navigate = useNavigate();
+      return <><button onClick={() => navigate(href(second))}>Another retained selection</button><PackageReadinessExperience systemId="a" /></>;
+    }
+    vi.mocked(api.getPackageReadinessWorkspace).mockResolvedValue({ ...workspace, purpose: 'AuthorizedBaselineArchive', latestRun: null });
+    render(<MemoryRouter initialEntries={[href(first)]}><Fixture /></MemoryRouter>);
+    await screen.findByText('Readiness not checked');
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Another retained selection' }));
+    // Assert
+    await waitFor(() => expect(api.getPackageReadinessWorkspace).toHaveBeenLastCalledWith('a',
+      { purpose: 'AuthorizedBaselineArchive', retainedContext: second }, expect.any(AbortSignal)));
   });
 });

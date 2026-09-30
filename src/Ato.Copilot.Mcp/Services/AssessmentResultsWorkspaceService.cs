@@ -44,7 +44,8 @@ public sealed class AssessmentResultsWorkspaceService(AtoCopilotContext db, ITen
     ISystemWorkspaceAccessService accessService, IAssessmentEnvironmentService environment,
     IAssessmentArtifactService artifacts, IAtoComplianceEngine engine,
     ISecurityAssessmentReportService reports, ILogger<AssessmentResultsWorkspaceService> logger,
-    Microsoft.AspNetCore.Authorization.IAuthorizationService authorization)
+    Microsoft.AspNetCore.Authorization.IAuthorizationService authorization,
+    ISystemEnvironmentScopeResolver? environments = null)
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Gates = new();
     private static readonly StringComparer IdComparer = StringComparer.OrdinalIgnoreCase;
@@ -324,6 +325,7 @@ public sealed class AssessmentResultsWorkspaceService(AtoCopilotContext db, ITen
                 throw new AssessmentWorkspaceException(409, "Request key already used for another collection.");
             if (existing.Count > 0 && existing.All(x => x.Status == AssessmentStatus.Completed))
                 return new { status = "Completed", message = "Retained collection results.", resultIds = existing.Select(x => "assessment:" + x.Id).ToArray() };
+            await EnsureCurrentEnvironmentAsync(systemId, ct);
             var pin = existing.Count > 0 ? AssessmentResultProvenance.Read(existing[0].ResultProvenanceJson).Plan
                 : await PlanAsync(systemId, request.PlanId, request.ExpectedPlanHash, true, ct);
             var readiness = await environment.GetReadinessAsync(systemId, ct);
@@ -349,6 +351,7 @@ public sealed class AssessmentResultsWorkspaceService(AtoCopilotContext db, ITen
             var failed = false;
             foreach (var assessment in existing.Where(x => x.Status != AssessmentStatus.Completed))
             {
+                await EnsureCurrentEnvironmentAsync(systemId, ct);
                 if (db.Entry(assessment).State == EntityState.Detached) db.Attach(assessment);
                 var execution = AssessmentResultProvenance.Read(assessment.ResultProvenanceJson);
                 if (assessment.Status == AssessmentStatus.InProgress && execution.ExecutionLeaseExpiresAt > DateTime.UtcNow)
@@ -386,6 +389,15 @@ public sealed class AssessmentResultsWorkspaceService(AtoCopilotContext db, ITen
                 resultIds = existing.Select(x => "assessment:" + x.Id).ToArray() };
         }
         finally { gate.Release(); }
+    }
+
+    private async Task EnsureCurrentEnvironmentAsync(string systemId, CancellationToken ct)
+    {
+        if (environments is null) return;
+        var scopes = await environments.ResolveAsync(systemId, EnvironmentScopePurpose.Assessment, ct);
+        if (CanonicalEnvironmentExecutionGate.IsCanonical(scopes))
+            throw new AssessmentWorkspaceException(409,
+                $"{CanonicalEnvironmentExecutionGate.Failure(scopes).Message} {CanonicalEnvironmentExecutionGate.Suggestion}");
     }
 
     public async Task<WorkspaceResultDetail> ReconcileAsync(string systemId, string id,

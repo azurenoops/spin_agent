@@ -121,7 +121,7 @@ for (const width of [1440, 390]) {
       expect(Math.abs(search!.y - sort!.y)).toBeLessThan(5);
     }
     const groups = ['Overview', 'System definition', 'Controls & evidence', 'Assessment & risk',
-      'ATO package & eMASS', 'Continuous monitoring', 'Team & permissions', 'Activity & history'];
+      'ATO Readiness', 'Continuous monitoring', 'Team & permissions', 'Activity & history'];
     if (width === 390) {
       const selector = page.getByRole('combobox', { name: 'Navigate system pages' });
       await expect(selector).toBeVisible();
@@ -130,7 +130,7 @@ for (const width of [1440, 390]) {
     } else {
       const navigation = page.getByRole('navigation', { name: 'System navigation' });
       await expect(navigation.getByRole('link')).toHaveText(groups);
-      await expect(navigation.getByRole('link', { name: 'ATO package & eMASS' })).toHaveAttribute('href', `${systemRoot}/documents`);
+      await expect(navigation.getByRole('link', { name: 'ATO Readiness' })).toHaveAttribute('href', `${systemRoot}/documents`);
     }
     await capture(page, info, 'applied-capabilities');
     await page.getByRole('navigation', { name: 'System task views' }).getByRole('link', { name: 'Responsibilities', exact: true }).click();

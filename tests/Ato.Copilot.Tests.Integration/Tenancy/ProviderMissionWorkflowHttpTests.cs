@@ -80,6 +80,44 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
     }
 
     [Fact]
+    public async Task WorkingProfilePreview_CannotBePromotedToFinalExport()
+    {
+        // Arrange
+        var actor = Guid.NewGuid();
+        var system = Guid.NewGuid().ToString();
+        await using (var previewSeed = factory.Services.CreateAsyncScope())
+        {
+            var db = previewSeed.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var person = new Person { TenantId = Tenant, DisplayName = "Synthetic preview author", Email = $"{actor:N}@example.invalid" };
+            db.Persons.Add(person);
+            db.RegisteredSystems.Add(new() { Id = system, TenantId = Tenant, Name = "Synthetic working-preview system" });
+            db.OrganizationMemberships.Add(new()
+            {
+                TenantId = Tenant, DirectoryTenantId = DirectoryId, ObjectId = actor, PersonId = person.Id, GrantedBy = "fixture"
+            });
+            db.SystemRoleAssignments.Add(new()
+            {
+                TenantId = Tenant, PersonId = person.Id, RegisteredSystemId = system, Role = OrganizationRole.MissionOwner
+            });
+            await db.SaveChangesAsync();
+        }
+        using var mission = Client(actor);
+        var root = $"/api/dashboard/systems/{system}";
+        var preview = await Post<JsonElement>(mission, root + "/documents/ssp/preview", new { }, envelope: false);
+
+        // Act
+        var rejected = await Post<JsonElement>(mission, root + "/exports",
+            new { format = "json", sourcePreviewId = preview.GetProperty("previewId").GetGuid() },
+            HttpStatusCode.BadRequest, envelope: false);
+
+        // Assert
+        rejected.GetProperty("error").GetString().Should().Contain("Working profile previews are review-only");
+        await using var scope = factory.Services.CreateAsyncScope();
+        (await scope.ServiceProvider.GetRequiredService<AtoCopilotContext>().SspExports
+            .AnyAsync(row => row.SystemId == system && row.Status != "Preview")).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task MissionRelationshipReview_PersistsSeparateBoundaryWithoutChangingSiblingOrAuthorization()
     {
         // Arrange
@@ -461,6 +499,22 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
             content = Encoding.UTF8.GetString(bytes);
             SHA256.HashData(bytes).Should().Equal(Convert.FromHexString(export.GetProperty("contentHash").GetString()!),
                 "the final artifact digest must match its downloaded bytes, not a working preview");
+            await using var exportScope = factory.Services.CreateAsyncScope();
+            var exportDb = exportScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var retained = await exportDb.SspExports.SingleAsync(row => row.Id == exported.GetProperty("exportId").GetGuid());
+            retained.SourcePreviewId.Should().BeNull("working profile previews are never final-export sources");
+            retained.SourceTenantId.Should().Be(Tenant);
+            retained.RequestedPersonId.Should().Be(await exportDb.OrganizationMemberships
+                .Where(member => member.TenantId == Tenant && member.DirectoryTenantId == DirectoryId && member.ObjectId == actor)
+                .Select(member => member.PersonId).SingleAsync());
+            var manifest = JsonSerializer.Deserialize<DocumentSourceManifest>(retained.SourceManifestJson!)!;
+            manifest.HasWorkingProfileSources.Should().BeFalse();
+            manifest.Evidence.Should().ContainSingle(pin => pin.ShareId == share.ShareId
+                && pin.ContentHash == share.ContentHash);
+            manifest.Responsibilities.Should().Contain(pin => pin.CapabilityId == capability.RecordId
+                && pin.ReviewedSourceRevision == duty.SourceRevision);
+            SHA256.HashData(bytes).Should().Equal(Convert.FromHexString(retained.ContentHash!),
+                "the digest must match exactly regardless of hexadecimal letter casing");
             output.WriteLine("Terminal artifact verified: exportId={0}; bytes={1}; SHA256={2}",
                 exported.GetProperty("exportId").GetGuid(), bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
         }

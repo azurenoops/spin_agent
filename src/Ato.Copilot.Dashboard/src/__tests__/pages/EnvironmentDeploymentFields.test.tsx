@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ProfileSectionForm from '../../components/forms/ProfileSectionForm';
 
-vi.mock('../../components/forms/EnvironmentAssociations', () => ({ default: () => <section aria-label="Provider scope summary" /> }));
+vi.mock('../../features/systems/ConnectedSystemEnvironments', () => ({ default: () => <section aria-label="System subscriptions" /> }));
 function mount(content: Record<string, string>, locked = false) {
   const save = vi.fn();
   render(<ProfileSectionForm systemId="system-a" sectionType="EnvironmentAndDeployment" governanceStatus="Draft"
@@ -77,7 +77,7 @@ describe('Environment primary fields', () => {
     expect(screen.getByRole('combobox', { name: 'Operating Systems' })).toBeVisible();
     expect(screen.getByText(/Recorded values still require review/)).toBeVisible();
     expect(screen.getAllByText('ATO preparation')).toHaveLength(2);
-    const hosting = screen.getByRole('region', { name: 'Provider scope summary' });
+    const hosting = screen.getByRole('region', { name: 'System subscriptions' });
     expect(hosting.compareDocumentPosition(network) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(network.compareDocumentPosition(recovery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

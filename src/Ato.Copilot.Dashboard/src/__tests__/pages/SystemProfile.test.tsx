@@ -4,6 +4,12 @@ import { createPortal } from 'react-dom';
 import { beforeEach,describe,expect,it,vi } from 'vitest';
 import SystemProfile,{ computeIsReadOnly } from '../../pages/SystemProfile';
 import type { ProfileSectionDetail,ProfileSectionType } from '../../types/dashboard';
+vi.mock('../../features/systems/SystemOperationalStatus', () => ({
+  default: () => <p>Operational source status</p>,
+}));
+vi.mock('../../features/systems/ConnectedSystemEnvironments', () => ({
+  default: () => <><h2>Provider services &amp; scopes</h2><h2>System subscriptions</h2></>,
+}));
 
 const state=vi.hoisted(() => ({ systemId: 'system-a',sectionType: 'MissionAndPurpose',role: '' }));
 const workspace = vi.hoisted(() => ({ value: null as { roles: string[] } | null }));
@@ -30,10 +36,6 @@ vi.mock('../../api/documents', () => ({ getSystemDocuments: async () => ({ syste
 vi.mock('../../api/interconnections', () => ({
   listSystemInterconnections: async () => ({ items: [], total: 0, page: 1, pageSize: 50, canManageInterconnections: false }),
   getSystemInterconnection: vi.fn(), createSystemInterconnection: vi.fn(), updateSystemInterconnection: vi.fn(),
-}));
-// Keep these tests focused on profile permissions, not Azure attachment requests.
-vi.mock('../../components/AssessmentEnvironmentPanel', () => ({
-  default: () => <div data-testid="assessment-environment" />,
 }));
 
 function section(canEditProfile?: boolean,governanceStatus='NotStarted') {
@@ -106,7 +108,7 @@ describe('server-authoritative profile editing (#968)',() => {
     // Assert
     expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Review hosting scope' })).not.toBeInTheDocument();
     expect(within(screen.getByRole('banner')).queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { name: 'Provider hosting' })).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: 'Provider services & scopes' })).toHaveLength(1);
   });
   it('labels Users access-context approval separately from individual category review', async () => {
     // Arrange

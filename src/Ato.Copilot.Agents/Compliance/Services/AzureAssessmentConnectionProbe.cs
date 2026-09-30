@@ -19,14 +19,18 @@ public sealed class AzureAssessmentConnectionProbe : IAzureAssessmentConnectionP
     private const int ProbePageSize = 1;
     private readonly ArmClient _armClient;
     private readonly ILogger<AzureAssessmentConnectionProbe> _logger;
+    private readonly CanonicalEnvironmentCollectionGuard? _environmentGuard;
 
     /// <summary>Creates the access probe using the same client as the assessment collectors.</summary>
     /// <param name="armClient">Configured deployment client; never an opposite-cloud fallback.</param>
     /// <param name="logger">Structured logger for safe error classification.</param>
-    public AzureAssessmentConnectionProbe(ArmClient armClient, ILogger<AzureAssessmentConnectionProbe> logger)
+    /// <param name="environmentGuard">Current attachment authority before subscription-wide probes.</param>
+    public AzureAssessmentConnectionProbe(ArmClient armClient, ILogger<AzureAssessmentConnectionProbe> logger,
+        CanonicalEnvironmentCollectionGuard? environmentGuard = null)
     {
         _armClient = armClient;
         _logger = logger;
+        _environmentGuard = environmentGuard;
     }
 
     /// <inheritdoc />
@@ -79,6 +83,9 @@ public sealed class AzureAssessmentConnectionProbe : IAzureAssessmentConnectionP
 
     private async Task CheckSubscriptionAsync(AzureAssessmentSubscription scope, CancellationToken cancellationToken)
     {
+        if (_environmentGuard is not null)
+            await _environmentGuard.EnsureSubscriptionAsync(scope.SubscriptionId.ToString(),
+                EnvironmentScopePurpose.Assessment, cancellationToken);
         var subscription = _armClient.GetSubscriptionResource(
             SubscriptionResource.CreateResourceIdentifier(scope.SubscriptionId.ToString()));
         var response = await subscription.GetAsync(cancellationToken);

@@ -13,6 +13,7 @@ import SystemTaskNavigation from '../features/systems/SystemTaskNavigation';
 import SetupDialog from '../features/workspace-operations/SetupDialog';
 import { rolesApi } from '../api/roles';
 import SystemConnections from '../features/systems/SystemConnections';
+import SystemOperationalStatus from '../features/systems/SystemOperationalStatus';
 import '../features/systems/systemRecordPages.css';
 import type {
   ProfileSectionDetail,
@@ -247,6 +248,7 @@ function SystemProfileSection() {
   if (!task) return <p role="alert">This system profile section is not available.</p>;
 
   const profileForm = <ProfileSectionForm
+    systemDisplayName={detail.name}
     hideChildItems={isPorts}
     onHostingStatusChange={sectionType === 'EnvironmentAndDeployment' ? setHostingStatus : undefined}
     formId={isPorts || headerAddEntry || sectionType === 'EnvironmentAndDeployment' ? undefined : 'system-profile-editor'}
@@ -374,6 +376,7 @@ function SystemProfileSection() {
               <label className="text-xs text-slate-600">System name<input readOnly value={detail.name ?? systemId}
                 className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
               <SystemOwner systemId={systemId} />
+              <SystemOperationalStatus key={systemId} systemId={systemId} />
               <p className="text-xs text-slate-500 sm:col-span-2">Identity comes from the system registration. Manage owner assignments in System team; profile saving does not change either.</p>
             </div>}
             {profileForm}

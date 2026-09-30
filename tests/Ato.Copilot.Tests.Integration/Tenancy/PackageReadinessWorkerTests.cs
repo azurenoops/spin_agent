@@ -83,6 +83,8 @@ public sealed class PackageReadinessWorkerTests
             services.RemoveAll<ISecurityAssessmentReportService>(); services.AddSingleton(sar.Object);
         }));
         var tenant = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        using var tenantScope = app.Services.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor>()
+            .Push(owner.GetActiveContext());
         string systemId, packageId;
         await using (var scope = app.Services.CreateAsyncScope())
         {
@@ -108,6 +110,11 @@ public sealed class PackageReadinessWorkerTests
                 });
             }
             await db.SaveChangesAsync();
+            await scope.ServiceProvider.GetRequiredService<IInventoryService>().AddItemAsync(systemId, new()
+            {
+                ItemName = "Synthetic package software", Type = InventoryItemType.Software,
+                SoftwareFunction = SoftwareFunction.Application, Vendor = "Synthetic vendor", Version = "1.0"
+            }, "test");
             var evaluation = await scope.ServiceProvider.GetRequiredService<PackageReadinessService>()
                 .ValidateAsync(systemId, new(PackagePurpose.InitialSubmission), "test", default);
             evaluation.Outcome.Should().Be(missingEvidence ? "Blocked" : "Ready", evaluation.FailureJson);
@@ -162,11 +169,19 @@ public sealed class PackageReadinessWorkerTests
         {
             var artifacts = await verify.ServiceProvider.GetRequiredService<AtoCopilotContext>().PackageArtifacts
                 .Where(x => x.AuthorizationPackageId == packageId).ToListAsync();
-            artifacts.Should().HaveCount(6).And.OnlyContain(x => x.TenantId == tenant);
+            artifacts.Should().HaveCount(7).And.OnlyContain(x => x.TenantId == tenant);
+            var inventoryArtifact = artifacts.Single(x => x.FileName == "hardware-software-inventory.xlsx");
+            inventoryArtifact.Format.Should().Be("xlsx");
+            inventoryArtifact.ContentHash.Should().NotBeNullOrWhiteSpace();
             artifacts.Where(x => x.ArtifactType is PackageArtifactType.OscalSsp or PackageArtifactType.OscalPoam
                 or PackageArtifactType.OscalAssessmentPlan or PackageArtifactType.OscalAssessmentResults)
                 .Should().OnlyContain(x => x.SchemaValid == true && x.ContentHash != null);
             using var archive = System.IO.Compression.ZipFile.OpenRead(saved.FilePath!);
+            using var inventoryContent = new MemoryStream();
+            await archive.GetEntry("hardware-software-inventory.xlsx")!.Open().CopyToAsync(inventoryContent);
+            inventoryContent.Position = 0;
+            using var workbook = new ClosedXML.Excel.XLWorkbook(inventoryContent);
+            workbook.Worksheet("Software").Cell(2, 2).GetString().Should().Be("Synthetic package software");
             using var json = JsonDocument.Parse(archive.GetEntry("package-metadata.json")!.Open());
             json.RootElement.GetProperty("readiness").GetProperty("runId").GetString().Should().Be(saved.ReadinessRunId);
             json.RootElement.GetProperty("readiness").GetProperty("sourceHash").GetString().Should().Be(saved.ReadinessSourceHash);

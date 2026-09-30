@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Ato.Copilot.Core.Data.Context;
-using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Models.Tenancy;

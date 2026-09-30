@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Ato.Copilot.Core.Interfaces.Onboarding;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Onboarding;
 using Ato.Copilot.Mcp.Authorization;
+using Ato.Copilot.Mcp.Endpoints.Csp;
 
 namespace Ato.Copilot.Mcp.Endpoints.Onboarding;
 
@@ -18,6 +20,7 @@ public static class AzureSubscriptionEndpoints
     {
         var group = app.MapGroup("/api/onboarding/azure/subscriptions")
             .WithTags("Onboarding")
+            .WithMetadata(new WorkspaceAuthorizedEndpoint(), new ProviderOnboardingPreparation())
             .RequireAuthorization(OnboardingAdministratorRequirement.PolicyName)
             .DisableAntiforgery();
 
@@ -63,7 +66,7 @@ public static class AzureSubscriptionEndpoints
                 IAzureSubscriptionRegistrationService service,
                 CancellationToken ct) =>
             {
-                if (!TryGetTenantId(http.User, out var tenantId)) return Forbidden();
+                if (!TryGetRegistrationOwner(http, out var tenantId)) return Forbidden();
                 var rows = await service.ListAsync(tenantId, ct);
                 return Results.Ok(new { ok = true, data = rows });
             })
@@ -97,7 +100,7 @@ public static class AzureSubscriptionEndpoints
                 try
                 {
                     var rows = await service.ReplaceAsync(
-                        tenantId, ids, enumeration.Subscriptions!, actorId, ct);
+                        RegistrationOwner(http, tenantId), ids, enumeration.Subscriptions!, actorId, ct);
                     return Results.Ok(new { ok = true, data = rows });
                 }
                 catch (InvalidOperationException ex)
@@ -116,12 +119,29 @@ public static class AzureSubscriptionEndpoints
             {
                 if (!TryGetTenantId(http.User, out var tenantId)) return Forbidden();
                 if (!TryGetSubject(http.User, out var actorId)) return Forbidden();
-                await service.RemoveAsync(tenantId, id, actorId, ct);
+                await service.RemoveAsync(RegistrationOwner(http, tenantId), id, actorId, ct);
                 return Results.NoContent();
             })
             .WithName("RemoveAzureSubscriptionRegistration");
 
         return app;
+    }
+
+    private static Guid RegistrationOwner(HttpContext http, Guid legacyTenantId)
+    {
+        var workspace = http.RequestServices.GetService<ITenantContextAccessor>()?.Current;
+        return workspace is { IsWorkspaceRequest: true } ? workspace.EffectiveTenantId : legacyTenantId;
+    }
+
+    private static bool TryGetRegistrationOwner(HttpContext http, out Guid tenantId)
+    {
+        var workspace = http.RequestServices.GetService<ITenantContextAccessor>()?.Current;
+        if (workspace is { IsWorkspaceRequest: true })
+        {
+            tenantId = workspace.EffectiveTenantId;
+            return workspace.ImpersonatedTenantId is null && (tenantId != Guid.Empty || workspace.IsCspAdmin);
+        }
+        return TryGetTenantId(http.User, out tenantId);
     }
 
     private static IResult InsufficientClaims(HttpContext http, AzureSubscriptionEnumerationResult result)

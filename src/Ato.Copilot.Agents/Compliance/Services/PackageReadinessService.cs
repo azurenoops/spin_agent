@@ -13,7 +13,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// <summary>Immutable purpose-bound validation with independent current-source freshness.</summary>
 public sealed class PackageReadinessService(IServiceScopeFactory scopes, ILogger<PackageReadinessService> logger)
 {
-    public const string RuleVersion = "package-readiness/1";
+    public const string RuleVersion = "package-readiness/2";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public sealed record SourceState(string State, string? Hash, string RuleVersion, string? Reason);
 

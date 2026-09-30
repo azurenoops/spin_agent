@@ -410,6 +410,35 @@ public class TenantScopedEndpointHttpPipelineTests
     }
 
     [Fact]
+    public async Task GetSystems_AcrossMultiplePages_PreservesExactTenantVisibility()
+    {
+        // Arrange
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var ownIds = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid().ToString()).ToArray();
+        db.RegisteredSystems.AddRange(ownIds.Select(id => new RegisteredSystem
+        {
+            Id = id, TenantId = _tenantA, Name = $"Pagination {id}", CreatedBy = "test"
+        }));
+        var foreignId = Guid.NewGuid().ToString();
+        db.RegisteredSystems.Add(new RegisteredSystem
+        {
+            Id = foreignId, TenantId = _tenantB, Name = "Foreign pagination system", CreatedBy = "test"
+        });
+        await db.SaveChangesAsync();
+        SetTenant(_tenantA, isCspAdmin: false);
+
+        // Act
+        var ids = await ReadAllSystemIdsAsync(_client);
+
+        // Assert
+        ids.Should().Contain(ownIds).And.NotContain(foreignId);
+        ids.Should().BeEquivalentTo(await db.RegisteredSystems.IgnoreQueryFilters()
+            .Where(system => system.TenantId == _tenantA && system.IsActive)
+            .Select(system => system.Id).ToListAsync());
+    }
+
+    [Fact]
     public async Task TenantIdInventory_PreservesValidNonGuidSystemIdentifiers()
     {
         // Arrange
@@ -525,7 +554,7 @@ public class TenantScopedEndpointHttpPipelineTests
             cursor = result.GetProperty("nextCursor").GetString();
             if (cursor is null)
             {
-                ids.Should().HaveCount(result.GetProperty("totalCount").GetInt32());
+                ids.Should().HaveCount(result.GetProperty("totalCount").GetInt32()).And.OnlyHaveUniqueItems();
                 return ids;
             }
             cursors.Add(cursor).Should().BeTrue("pagination must advance rather than repeat the first page");

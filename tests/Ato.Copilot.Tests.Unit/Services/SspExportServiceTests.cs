@@ -12,6 +12,9 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
+using Ato.Copilot.Core.Models.Tenancy;
 
 namespace Ato.Copilot.Tests.Unit.Services;
 
@@ -31,12 +34,16 @@ public class SspExportServiceTests : IDisposable
     private readonly Channel<SspExportJob> _channel;
     private readonly ExportSettings _settings;
     private readonly string _dbName;
+    private readonly TenantContextAccessor _tenantAccessor = new();
+    private readonly Mock<ISystemWorkspaceAccessService> _workspaceAccess = new();
 
     public SspExportServiceTests()
     {
         _dbName = $"SspExport_{Guid.NewGuid()}";
 
         var services = new ServiceCollection();
+        services.AddSingleton<ITenantContextAccessor>(_tenantAccessor);
+        services.AddSingleton(_workspaceAccess.Object);
         services.AddDbContext<AtoCopilotContext>(opts =>
             opts.UseInMemoryDatabase(_dbName));
         _serviceProvider = services.BuildServiceProvider();
@@ -93,6 +100,60 @@ public class SspExportServiceTests : IDisposable
     }
 
     // ─── EnqueueExportAsync ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task Enqueue_CapturesOrdinaryRequester_NotProviderSupportPrivilege()
+    {
+        // Arrange
+        var tenant = new TenantContext
+        {
+            TenantId = Guid.NewGuid(), PersonId = Guid.NewGuid(),
+            Status = TenantStatus.Active, IsWorkspaceRequest = true
+        };
+        using var binding = _tenantAccessor.Push(tenant);
+
+        // Act
+        var ordinary = await _service.EnqueueExportAsync("sys-001", "json", null, "actor");
+        tenant.IsCspAdmin = true;
+        tenant.ImpersonatedTenantId = tenant.TenantId;
+        var support = await _service.EnqueueExportAsync("sys-001", "json", null, "actor");
+
+        // Assert
+        ordinary.SourceTenantId.Should().Be(tenant.TenantId);
+        ordinary.RequestedPersonId.Should().Be(tenant.PersonId);
+        support.RequestedPersonId.Should().BeNull("support privileges cannot become an ordinary worker identity");
+    }
+
+    [Fact]
+    public async Task ProcessExport_RevokedRequester_FailsBeforeGeneratingOrWriting()
+    {
+        // Arrange
+        var tenant = Guid.NewGuid();
+        var person = Guid.NewGuid();
+        var export = await _service.EnqueueExportAsync("sys-001", "json", null, "actor");
+        await using (var db = CreateDb())
+        {
+            var row = await db.SspExports.FindAsync(export.Id);
+            row!.SourceTenantId = tenant;
+            row.RequestedPersonId = person;
+            await db.SaveChangesAsync();
+        }
+        _workspaceAccess.Setup(access => access.CanReadAsync(tenant, person, "sys-001", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var job = await _channel.Reader.ReadAsync();
+
+        // Act
+        await _service.ProcessExportAsync(job);
+
+        // Assert
+        var result = await _service.GetExportAsync(export.Id);
+        result!.Status.Should().Be("Failed");
+        await using var stored = CreateDb();
+        (await stored.SspExports.FindAsync(export.Id))!.ErrorMessage.Should().Contain("no longer has access");
+        _oscalServiceMock.Verify(service => service.ExportAsync(It.IsAny<string>(), It.IsAny<bool>(),
+            It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+        Directory.Exists(_settings.ExportsPath).Should().BeFalse();
+    }
 
     [Fact]
     public async Task RetentionWorker_UsesCanonicalKeyPreservingPurge()

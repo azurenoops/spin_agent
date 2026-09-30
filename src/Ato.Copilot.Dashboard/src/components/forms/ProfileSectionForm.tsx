@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect, useCallback, useRef, useId, type ReactNode } from 'react';
-import EnvironmentAssociations from './EnvironmentAssociations';
+import ConnectedSystemEnvironments from '../../features/systems/ConnectedSystemEnvironments';
 import SetupDialog from '../../features/workspace-operations/SetupDialog';
 import type {
   ProfileSectionType,
@@ -271,6 +271,7 @@ export interface SystemContextForPrefill {
 }
 
 interface ProfileSectionFormProps {
+  systemDisplayName?: string;
   hideChildItems?: boolean;
   onHostingStatusChange?: (status: string) => void;
   formId?: string;
@@ -348,6 +349,7 @@ function readSavedContent(content: string | null): { values: Record<string, stri
 }
 
 export default function ProfileSectionForm({
+  systemDisplayName,
   hideChildItems = false,
   onHostingStatusChange,
   formId,
@@ -599,10 +601,7 @@ export default function ProfileSectionForm({
         ))}
       </FieldGroup>
         {!group.label && sectionType === 'EnvironmentAndDeployment' && systemId &&
-          <EnvironmentAssociations systemId={systemId} hostingModel={values.hostingModel ?? ''}
-            description={values.additionalDetails ?? ''} readOnly={isReadOnly || isSubmitting} busy={isSubmitting}
-            onHostingStatusChange={onHostingStatusChange}
-            onPrefill={suggested => setValues(current => ({ ...current, ...suggested }))} />}
+          <ConnectedSystemEnvironments systemId={systemId} systemName={systemDisplayName} busy={isSubmitting} onStatusChange={onHostingStatusChange} />}
       </Fragment>)}
       {sectionType === 'EnvironmentAndDeployment' && <p className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
         Complete applicable details before submitting the environment for review. If a detail is provider-managed or not applicable, explain why and cite the source in Deployment description.

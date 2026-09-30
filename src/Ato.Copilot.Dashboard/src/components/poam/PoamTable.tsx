@@ -1,5 +1,6 @@
 import type { PoamListItem, PoamListQuery } from '../../types/poam';
 import { systemSecondaryAction } from '../../features/systems/SystemTaskPresentation';
+import { useDateFormatter } from '../../hooks/useDateFormatter';
 
 export function SeverityBadge({ severity }: { severity: string }) {
   const value = severity.replace(/^Cat/, '');
@@ -32,6 +33,7 @@ interface PoamTableProps {
 }
 
 export default function PoamTable({ items, totalItems, query, loading, onQueryChange, onRowClick }: PoamTableProps) {
+  const { formatCalendarDate } = useDateFormatter();
   const filtered = Boolean(query.search || query.status || query.catSeverity || query.overdue || query.componentId || query.view && query.view !== 'all');
   if (!loading && totalItems === 0 && !filtered) return <p className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm dark:border-slate-600">No POA&amp;M items recorded</p>;
   const field = 'max-w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
@@ -60,9 +62,9 @@ export default function PoamTable({ items, totalItems, query, loading, onQueryCh
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs"><span className="rounded bg-indigo-50 px-1.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{item.controlId}</span><SeverityBadge severity={item.catSeverity} /></div></td>
             <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{item.poc || 'Unassigned'}</td>
             <td className="min-w-40 px-4 py-3 text-xs">{item.nextMilestone
-              ? <><p>{item.nextMilestone.description}</p><p className="mt-1 text-slate-500 dark:text-slate-300">{new Date(item.nextMilestone.targetDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}</p>{item.nextMilestone.isOverdue && <p className="mt-1 text-red-700 dark:text-red-300">Milestone overdue</p>}</>
+              ? <><p>{item.nextMilestone.description}</p><p className="mt-1 text-slate-500 dark:text-slate-300">{formatCalendarDate(item.nextMilestone.targetDate)}</p>{item.nextMilestone.isOverdue && <p className="mt-1 text-red-700 dark:text-red-300">Milestone overdue</p>}</>
               : <span className="text-slate-500 dark:text-slate-300">{item.nextMilestone === null ? item.milestoneProgress.total ? 'All milestones complete' : 'No milestones recorded' : `${item.milestoneProgress.completed}/${item.milestoneProgress.total} complete`}</span>}</td>
-            <td className="whitespace-nowrap px-4 py-3 text-xs">{new Date(item.dueDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}{item.isOverdue && <p className="mt-1 text-red-700 dark:text-red-300">Overdue</p>}</td>
+            <td className="whitespace-nowrap px-4 py-3 text-xs">{formatCalendarDate(item.dueDate)}{item.isOverdue && <p className="mt-1 text-red-700 dark:text-red-300">Overdue</p>}</td>
             <td className="px-4 py-3"><StatusBadge status={item.readyToVerify ? 'ReadyToVerify' : item.status} /></td>
           </tr>)}</tbody>
         </table></div>}

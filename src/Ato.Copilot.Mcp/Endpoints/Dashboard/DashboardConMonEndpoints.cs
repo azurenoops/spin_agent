@@ -103,18 +103,13 @@ public static partial class DashboardEndpoints
                 var subscriptionIds = resources.Select(x => x.Split('/'))
                     .Where(x => x.Length > 2 && x[1].Equals("subscriptions", StringComparison.OrdinalIgnoreCase))
                     .Select(x => x[2]).Distinct().ToList();
-                var tenantConfigs = await context.MonitoringConfigurations.AsNoTracking()
-                    .Where(mc => mc.IsEnabled).ToListAsync(ct);
-                var monitoringConfigs = tenantConfigs.Where(config => resources.Any(resource =>
-                    ScopedMonitoringService.ResourceInConfiguration(resource, config))).ToList();
-
-                var monitoringEnabled = monitoringConfigs.Count > 0;
-                var lastMonitoringCheck = monitoringConfigs
-                    .Where(mc => mc.LastRunAt.HasValue)
-                    .Select(mc => mc.LastRunAt!.Value.UtcDateTime)
-                    .OrderByDescending(d => d)
-                    .Cast<DateTime?>()
-                    .FirstOrDefault();
+                var coverage = (await scopedMonitoring.CoverageAsync(systemId, ct))
+                    .Where(source => source.ProviderComponentId is null).ToList();
+                var monitoringEnabled = coverage.Count > 0 &&
+                    coverage.All(source => source.Health is "Healthy" or "Failed" or "Stale" or "Unknown");
+                DateTime? lastMonitoringCheck = coverage.Count > 0 &&
+                    coverage.All(source => source.Health == "Healthy" && source.LastSuccessAt.HasValue)
+                    ? coverage.Min(source => source.LastSuccessAt!.Value.UtcDateTime) : null;
 
                 var driftAlertCount = (await scopedMonitoring.ChangesAsync(systemId, ct))
                     .Count(x => x.Kind == "Alert" && x.Alert.Type == AlertType.Drift &&

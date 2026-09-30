@@ -20,7 +20,9 @@ public sealed partial class ProviderMissionService
         if (environment is not (null or "AzureCloud" or "AzureUSGovernment" or "Microsoft365DoD" or "ManualService"))
             throw new ArgumentException("Use a supported Azure or explicitly documented service environment.");
         var allocations = await Allocations(systemId).Where(x =>
-            (!assignmentId.HasValue || x.Id == assignmentId) && (!offeringId.HasValue || x.OfferingId == offeringId)).ToListAsync(ct);
+            (!assignmentId.HasValue || x.Id == assignmentId) && (!offeringId.HasValue || x.OfferingId == offeringId)
+            && !db.Set<Ato.Copilot.Core.Models.Compliance.SystemProviderScopeSelection>().Any(s =>
+                s.TenantId == TenantId && s.SystemId == systemId && s.AssignmentId == x.Id && s.State == "Removed")).ToListAsync(ct);
         var canAdopt = CanAssociate(permission);
         var canConfirm = await responsibilities.AuthorizeAsync(systemId, false, ct);
         var results = new List<ApplicableProviderCapabilityResponse>();

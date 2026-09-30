@@ -1,9 +1,492 @@
 # Provider offerings demonstration refresh
 
+## Shared environments and subscription allocations
+
+### September 30: provider-scope 404 deployment correction
+
+The reported Add provider scope failure was reproduced against the running API:
+`GET /api/dashboard/systems/{systemId}/environments/provider-scope-choices`
+returned HTTP 404. Both application containers still used
+`shared-environments-reviewed-20260929`, which predates the independent provider
+scope endpoints. This is the previously documented UI/API release mismatch,
+not evidence that the selected system lacks permission or a subscription.
+
+Host load has returned to normal and Docker responds. Rebuild the final source
+including adoption/removal safeguards, then deploy matching API and Dashboard
+images only. Do not use the older pre-guard image. Verify the actual drawer and
+route after deployment, retaining SQL, Redis, Chat, records and data volumes.
+No source relationship or subscription records should be created merely to
+make the picker appear populated.
+
+Resolution: both application images were rebuilt serially from final source and
+deployed as `independent-scopes-final-20260930`. API and Dashboard health checks
+passed. The exact authenticated provider-scope-choices request changed from
+404 to 200 with `canManage: true` and an empty eligible-choices list. The real
+environment read displays the two retained Flankspeed scope relationships
+without requiring subscriptions or emitting false missing-mapping warnings.
+No provider, subscription or deployment-document records were changed.
+SQL, Redis and Chat retained their container IDs.
+
+Verification used a separate browser tab to preserve any original unsaved draft.
+The integrated browser reported that new tab hidden; two stability-related click
+attempts were stopped rather than retried. The final check used its authenticated
+API response and rendered page snapshot, not a claimed successful drawer click.
+Refresh the application or retry the open picker to use the corrected endpoint.
+This resolves the deployment hold below; prior full-suite failures and unperformed
+live Azure/FAST/cross-consumer SQL RLS checks are not claimed resolved.
+
+### Superseding correction: independent scopes and subscriptions
+
+The current user direction replaces the allocation-first interface described
+below. **Provider services & scopes** records the released services used by a
+system without requiring Azure subscription access. **System subscriptions**
+attaches eligible canonical registrations independently, through one source-labelled
+multi-select flow. Provider allocation is one subscription eligibility source,
+not a prerequisite for provider consumption or an implicit provider relationship.
+
+Subscription attachment optionally links an existing provider scope; the default
+is **No provider scope**. A provider-issued subscription also permits no link.
+The batch preserves exact resource choices and requires explicit review. Neither
+attachment nor relationship selection changes the deployment documentation draft,
+approved boundary, inheritance review, assessment access or monitoring health.
+
+Removing an optional association preserves both records. Provider scope removal
+and subscription detachment use their own dependency previews, preserve history
+and do not delete the opposite record. Valid old hosting relationships with no
+subscription remain valid and no longer produce reconciliation warnings.
+Actual invalid mappings are identified by record and need explicit review.
+
+The legacy `EnvironmentAssociations` drawer's allocation-first entry point is
+replaced by the independent provider selector. Its backend relationship review
+remains canonical; this change does not create parallel review or responsibility
+forms. Resource selection is shared between initial attachment and later scope
+review/change.
+
+#### Manual acceptance for the corrected workflow
+
+1. Open **Environment & hosting** as an authorized Mission Owner. In **Provider
+   services & scopes**, choose **Add provider scope**, select provider, offering
+   and released scope, inspect applicability and duties, then add. Verify no
+   subscription is required and responsibility review is not auto-approved.
+2. Keep an unsaved deployment-description edit. Choose **Attach subscription**.
+   Select organization registrations and eligible provider allocations together.
+   Select explicit resources for each; verify no resource is selected by default.
+3. Keep **No provider scope**, including for a provider-issued subscription, or
+   explicitly select an existing related scope for an organization-owned one.
+   Review source, resources and pending checks, then attach. Confirm one register,
+   unchanged unsaved description, and independently unverified access/monitoring.
+4. Inspect a provider scope's **Manage relationship** and optional subscription
+   links. Preview unlinking, acknowledge the impact and confirm. Both records
+   must remain. Preview scope removal separately; subscriptions must remain.
+5. Reload. Verify source versions/history are retained, no duplicate attachment
+   exists, and a provider-only relationship has no missing-subscription warning.
+   Test denied actions with a non-manager and cross-system IDs through the API.
+6. Open assessment configuration and monitoring. Both reuse System subscriptions;
+   no optional provider link grants collection rights. Current exact-resource
+   collector limitations remain visible.
+
+Existing walkthrough and verification below describe the preceding allocation
+slice, not final acceptance of this superseding correction.
+
+Correction verification so far: strict Dashboard type checking and 118 focused
+tests passed; ten browser cases at 1440px/390px passed for provider-only selection,
+multi-source batch attachment, optional link/unlink, invalid-mapping review and
+preserved drafts. The full Dashboard suite returned 2,769 passes and the same ten
+preexisting provider navigation/selector failures described below. Consumer
+validation passed 142 tests; legacy provider-only references no longer trigger
+Azure reconciliation. Final backend handoff/deployment acceptance is pending.
+
+The final solution build passed with zero warnings/errors, followed by 158
+focused unit and 39 HTTP/integration passes. The full unit run passed 7,834 tests.
+The accompanying full integration run encountered widespread SQL execution and
+Docker communication timeouts. Host inspection showed a 197.15 one-minute load
+average and about 64 MB of free pages; disk space was available. The full test
+run and unfinished Dashboard image build were stopped to avoid further pressure
+on the shared host. This is an interrupted/failed integration attempt, not a
+clean regression pass. No shared service was restarted or database reset.
+Deployment remains on hold pending a responsive container build/test environment.
+
+#### Final source verification and release hold
+
+The adoption/removal safeguard is now implemented: preview shows active adopted
+capabilities as blockers; commit rechecks them. Removed selections are excluded
+from current relationship, new document-provenance and current evidence-sharing
+lookup, without deleting historical assignments, reviews or approved share
+content. Initial optional links are persisted atomically with either subscription
+source; the UI also verifies that the saved response contains the requested link.
+
+- Final solution build: passed, zero errors and ten existing integration-test
+  compiler/analyzer warnings.
+- Final focused backend: 237 unit tests and 10 environment HTTP tests passed.
+- Final Dashboard type checking: passed; 128 focused tests passed.
+- Final source-UI browser verification: 12 cases passed at 1440px and 390px on
+  port 5197, using synthetic API fixtures. These include pre-add published duties,
+  provider-free batch attachment, provider-only consumption, optional link/unlink,
+  invalid mappings, removal blockers and unchanged deployment drafts.
+- Full unit run before the last bounded lifecycle guard: 7,834 passed. Its
+  integration phase was interrupted as described above; final lifecycle coverage
+  is provided by the subsequent focused suite, not a claimed full rerun.
+- Full Dashboard run: 2,769 passed and the same ten existing provider
+  navigation/selector failures. No tests were disabled to hide these failures.
+
+**The final correction has not been deployed to the container-backed API or
+port 5173.** The port 5197 source UI contains the correction, but its live API is
+still the preceding release. Do not treat that mixed live state as end-to-end
+acceptance. Once container health is restored, rebuild both API and Dashboard
+from the final source, deploy only those services, and run the manual walkthrough
+above against actual authorized records. Retain SQL, Redis, Chat and data volumes.
+The previously built but undeployed API image predates the final removal guard
+and must not be used as the final release.
+
+Migration adds `SystemProviderScopeSelections` and
+`SystemEnvironmentHostingLinkRecords` through the existing idempotent schema
+module. No columns in the preceding six environment tables are changed. Existing
+valid pointers are retained/projected and copied to link history on mutation;
+standalone relationships are not assigned guessed subscription identities.
+Populated live SQL Server migration/RLS and live Azure/FAST verification remain
+unperformed. Exact-resource collectors continue to fail closed where unsupported.
+
+The Environment & hosting page now treats deployment documentation and shared
+Azure attachments as different save workflows. Provider hosting precedes a
+common Connected environments register. Both **Use provider allocation** and
+**Connect organization-owned Azure** use the same canonical system attachment
+API and explicit-resource selection. Applying either path leaves unsaved
+deployment text and its review status unchanged.
+
+Organization subscription registration remains canonical. The existing settings
+page now retains the prior registered set when adding a subscription rather than
+accidentally replacing it with one ID. Referenced registrations must be retained
+as unavailable on withdrawal/removal; names are never subscription identity.
+Provider source identity and released scope are not separately editable in the
+system card.
+
+The provider offering's service-scope page exposes **Azure subscription
+allocations** with actual registered subscriptions, consuming organization,
+released scope, effective dates and source provenance. Usage and version-checked
+impact preview precede withdrawal/replacement. Recording external provenance is
+not a claim that FAST transport or Azure provisioning occurred.
+
+The old assessment-only subscription picker is retired from the UI. Assessment
+configuration links to Environment & hosting and retains its independent
+assessment prerequisite checks. Consumer audit established that some current
+collectors issue subscription-wide requests; exact-resource attached scope is
+therefore explicitly unsupported for those live collectors, never widened after
+selection. Monitoring access checks and collection health stay separate, and
+Not enabled is neutral. Retained assessment/evidence/history remains readable.
+
+Design/reference details, migration and authority:
+[shared environment contract](../../specs/079-provider-system-workflow-consolidation/contracts/shared-environments.md).
+
+### Local acceptance walkthrough
+
+Use the worktree preview at `http://127.0.0.1:5197` or the built Dashboard at
+`http://127.0.0.1:5173`. No real subscriptions or provider allocations are seeded
+automatically. A system's existing hosting relationship without an exact
+subscription mapping is shown as requiring reconciliation.
+
+1. As an authorized provider administrator, open an offering's **Services &
+   scope** and **Azure subscription allocations**. Select an actually registered
+   subscription, authorized consumer and released hosting scope. Supply its
+   explicit permitted resource paths, dates and provenance. Record the existing
+   allocation; this neither provisions Azure nor grants Azure permissions.
+2. As an authorized Mission Owner, open **System definition > Environment &
+   hosting**. Enter unsaved deployment text, then choose **Use provider
+   allocation**. Select the eligible allocation, discover resources, explicitly
+   select system resources and review the summary. Apply the allocation.
+3. Verify Provider hosting and Connected environments display the same
+   subscription. Verify the deployment text is still unsaved and unchanged.
+   Repeat the intent only when retrying an unconfirmed response; the same replay
+   key is retained. Reload and confirm there is only one attachment.
+4. Use **Review pending scope**, inspect fresh discovery and the unchanged
+   selection, supply a rationale, acknowledge impact and accept the environment
+   scope. Approved boundaries, provider coverage and documentation review do not
+   change. Future resources are not automatically added.
+5. Use **Connect organization-owned Azure** to select an existing authorized
+   organization registration. If absent, an authorized administrator follows the
+   registration link; a Mission Owner without registration permission cannot
+   bypass it. No CSP, offering or external onboarding identifier is required.
+   Repeat with a third subscription to exercise a mixed system.
+6. **Check access**, inspect per-source details and open assessment configuration.
+   It links back to the same environment instead of offering a second selector.
+   Scope review, access and execution remain separate. Current broad collectors
+   explicitly report unsupported exact-resource collection; do not expect live
+   assessments or healthy monitoring from attachment alone.
+7. In provider administration, inspect allocation usage before previewing
+   withdrawal/replacement. Commit only with a deliberate rationale and impact
+   acknowledgment. Affected systems must show the changed entitlement; retained
+   historical records remain available. Never perform this destructive lifecycle
+   test against a shared allocation without its owner's approval.
+
+Automated browser writes use isolated server-shaped fixtures, not the live demo
+database. The demo's real empty/legacy states are intentional: no successful
+Azure discovery, FAST reconciliation or monitoring collection is fabricated.
+
+### Verification record
+
+- Final shared-environment TypeScript check (`npx tsc -b`): passed. This checkout
+  does not define an `npm run typecheck` script.
+- Focused Dashboard suites: 90 tests passed, including registration preservation,
+  assessment-source handoff, denied actions, discovery failure and retry-key
+  retention. Provider recording also verifies the server's `ProviderRecorded`
+  provenance value instead of treating manual recording as an external source.
+- Browser on both ports 5197 and 5173: 1440px and 390px mixed three-subscription scenarios
+  passed, including explicit pending-scope review, readable provider identity,
+  preserved unsaved deployment text and reload.
+- Solution build: passed with zero warnings/errors in the incremental final run.
+- Final focused backend run: 49 unit and 39 HTTP/integration tests passed.
+  Earlier consumer regression run: 305 tests passed.
+- The full unit run passed 7,807 tests and failed one existing Prisma-import
+  process-memory assertion (540,735,488 bytes versus the 536,870,912-byte limit).
+  The exact test passed in isolation without changing its threshold. This is not
+  recorded as a clean full-suite pass.
+- Full integration run: 1,749 passed, 20 existing Nessus skips, and one scan-worker
+  temporary-file cleanup assertion failed. That test passed in the subsequent
+  focused integration run without changing the worker or weakening the assertion.
+  The full integration run is not recorded as green.
+- The full Dashboard run passed 2,766 tests and failed 10 in the existing provider
+  navigation/offering suites: two expected a missing `Navigation` summary and
+  eight encountered the jsdom/nwsapi `h1.text-,,,,px,, .aw-editor` selector error.
+  Those failures are outside the focused environment suites and remain visible;
+  no assertion was disabled or changed to conceal them.
+- Deployed API/Dashboard image tag: `shared-environments-reviewed-20260929`.
+  Both containers are healthy. SQL, Redis and Chat containers and persisted demo
+  records were retained. Real demo reads on both ports show the honest empty
+  canonical register and existing hosting references requiring reconciliation.
+
+Remaining outcome gaps: exact-resource live collectors and FAST transport are
+not implemented by this change. Azure discovery/access tests use synthetic
+adapters, not live Azure credentials. New canonical resource selection has not
+been demonstrated as an approved generated SSP/export boundary; environment
+scope acceptance intentionally does not overwrite the approved boundary or
+documentation. Cross-consumer SQL Server RLS behavior for a populated real
+provider allocation has not been demonstrated in the live demo.
+
+## September 29: real initial-package acceptance
+
+The internal positive acceptance gate now uses a synthetic 152-control Low
+baseline system, native authoring/review/finalization services, real exporters
+and all four bundled NIST OSCAL schemas. It produces two distinct
+InitialSubmission ZIPs without creating an AO decision or eMASS receipt.
+
+Each archive contains 160 entries: four schema-valid OSCAL artifacts, SAR DOCX,
+the canonical hardware/software workbook, readiness/package metadata, evidence
+manifest and 152 evidence files. The regression compares exact file hashes,
+checks package-local imports and proves source change -> stale rejection ->
+independent review -> revalidation -> a second export while the first ZIP's
+bytes remain unchanged.
+
+Reproduce in an isolated test environment:
+
+```bash
+dotnet build Ato.Copilot.sln --no-restore -m:1
+ATO_REAL_PACKAGE_ARTIFACT_DIR=/absolute/path/to/test-artifacts \
+  dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  --no-restore -m:1 \
+  --filter 'FullyQualifiedName~RealInitialPackageAcceptanceTests|FullyQualifiedName~InventoryRegisterHttpTests|FullyQualifiedName~PackageReadinessWorkerTests'
+```
+
+The artifact directory receives naturally generated packages and an acceptance
+report; do not point it at production evidence storage. The fixture does not
+manufacture review status by directly setting Approved or replace exporters/
+schema validators with success mocks.
+
+The full solution now compiles after fixing outdated test DTO arguments
+(`BaselineName` and nested `ProviderName`). Real acceptance also exposed and
+repaired bundled-schema name lookup, schema-invalid exporter structures and
+timestamps, missing cache entry size, and evidence pagination that previously
+truncated 152 artifacts to 100.
+
+InitialSubmission now requires documented active inventory with applicable
+required fields. Legacy inventory deficiencies remain follow-up; retained
+archive/change bytes are not regenerated. Detailed inventory is managed through
+the existing system component destination's **hardware/software register** view,
+using canonical service persistence and workbook export. SaaS/PaaS software
+needs no fabricated physical identifiers. These checks do not certify exhaustive
+CM-8 coverage or establish receiving-system acceptance.
+
+External eMASS receipt/import acceptance is still an explicit **unperformed**
+gate. The native tests establish internal package validity and provenance,
+not live transmission, receiving-team approval or an AO decision.
+
+### First internal-acceptance verification (superseded by release follow-through below)
+
+- Serialized whole-solution compilation passes.
+- Focused initial/retained-package and inventory purpose tests: **41 passed**.
+- Focused real generation, worker integrity, inventory HTTP, readiness source
+  routes and eMASS export regression tests: **33 passed**.
+- Inventory/readiness UI and routing tests: **281 passed**; Dashboard type
+  checking passes. **8 deployed browser scenarios passed** for the inventory
+  editor, saved/reloaded records, source-return flow and readiness states.
+- A full no-build solution test run executed rather than being blocked by
+  compilation: **7,703 unit tests passed / 48 failed**, and **1,668 integration
+  tests passed / 68 failed / 20 skipped**. Subsequent focused corrections fixed
+  retained-package fixture DI/error-contract expectations, schema-valid system
+  identifier assertions and the new inventory check expectation. The whole
+  suite has not been rerun after those corrections and is **not claimed green**.
+- Other failures remain across existing notification endpoint test-host DI,
+  scan-import enum expectations, assessment persistence/engine tests,
+  evidence storage and unrelated integration workflows. They require their own
+  source-backed triage; successful package acceptance does not waive them.
+
+Local deployment uses `ato-copilot-mcp:real-package-acceptance-20260929` and
+`ato-copilot-dashboard:inventory-acceptance-20260929`. Initial Docker builds
+failed because the shared daemon was unavailable; it recovered without an
+agent-initiated daemon restart, and both image builds/deployment then passed.
+The live inventory page loaded through its real API and its create drawer was
+opened/cancelled without modifying demo inventory.
+
+The inspectable native acceptance fixture records operational status explicitly
+through the guarded lifecycle service. Mission & purpose now exposes
+**Manage operational status**, using the same service through authorized
+same-system GET/PUT endpoints. No operational state is selected by default, and
+recording it does not grant authorization or change the RMF phase.
+The two generated ZIPs and acceptance report are session artifacts; the test
+command above reproduces them without touching the shared demo database.
+
+### Follow-through release repairs
+
+Minimal notification/API test hosts now register the actual workspace and tenant
+dependencies; their authorization assertions remain intact. Updated tests retain
+historical findings, explicitly fail unavailable STIG validation, recognize
+queued import states and provide complete mocked source data. Tenant list tests
+follow the server cursor rather than assuming all records fit the first page.
+Evidence upload recognizes canonical system-capability links as well as legacy
+control mappings, without dropping the system/tenant checks.
+
+The provider-mission regression now uses a real approved export instead of trying
+to promote a working preview. Normal approved JSON exports preserve requester
+tenant/person context, recheck access, include only authorized provider evidence
+summaries/responsibility pins and retain source hashes. Working preview promotion
+and private evidence access remain prohibited.
+
+The final source-editor deployment is
+`ato-copilot-mcp:acceptance-release-20260929` /
+`ato-copilot-dashboard:acceptance-source-editors-20260929`. The operational-status
+drawer was checked against the real API on both ports without saving demo changes.
+Ten browser scenarios pass on each port for explicit source editing, saved
+inventory, retained readiness, purpose, source-return and stale generation.
+The focused frontend suite passes 330 tests and Dashboard type checking.
+
+Simulation-persona tests now isolate their actual responsibility: authenticated
+identity/role/tool dispatch with a strict synthetic engine. This keeps external
+assessment collection/persistence out of an authentication fixture; it does not
+claim to repair the separately observed assessment duplicate-key path. Production
+assessment behavior is not changed by these fixture repairs. The complete native
+package acceptance still retains actual exporters, validators and review services.
+
+Final integration-suite rerun: **1,740 passed, zero failed, 20 existing skipped**
+over 1,760 tests. The earlier skipped SQL startup cases executed on this run.
+The remaining skips are existing Nessus integration scenarios; they are not
+reported as executed coverage.
+
+Final unit-suite rerun: **7,758 passed, zero failed, zero skipped**. The bulk
+classifier's one-second threshold was preserved; its collection now runs
+nonparallel so the measured requirement is not competing with thousands of
+unrelated tests. Serialized whole-solution compilation passes with zero errors;
+the final rebuild reports 66 existing warnings, not a warning-free baseline.
+The production API/Dashboard images and live source-editor checks passed.
+No new commits, pushes or external eMASS writes were performed.
+
 **Status**: Deployed and automatically verified locally, September 26, 2026.
 Manual demo rehearsal/user acceptance remains separate.  
 **Purpose**: A polished synthetic demonstration, not real provider authorization
 or evidence of live Azure/Microsoft 365/eMASS integration.
+
+## September 29: authoritative ATO package readiness
+
+The redesigned **Your path to ATO submission** page replaces the passive
+Documents readiness body. The default remains the existing **Legacy** purpose;
+changing it requires explicit confirmation. InitialSubmission, retained archive
+and retained SSP-change purposes retain their different server rules.
+
+The page uses additive `package-readiness` endpoints for immutable runs, complete
+check outcomes, exact counts, evaluated source fingerprints, history and current
+freshness. Check details have same-system source/return links and current action
+permissions. An unknown owner remains **Not recorded**. The compact supporting
+record summary separates document presence, review, freshness and validation.
+RMF phase/history is independent of Prepare / Validate / Export / eMASS / AO
+milestones.
+
+### Verified behavior and downstream checks
+
+- Existing Legacy validation remains blocked by a missing required decision.
+  An explicit InitialSubmission run returns that decision check as
+  **NotApplicable**, not missing or passed-by-default.
+- Required unavailable checks count as blockers; failed source reads and failed
+  evaluations do not appear ready. A failed evaluation with no coherent source
+  snapshot is labeled failed, not merely stale.
+- Changes to evaluated records invalidate readiness. Export commands carry the
+  exact run and source hash; enqueue/worker checks reject changed sources.
+- The worker validates emitted OSCAL bytes and verifies evidence availability
+  and hashes. Schema/evidence failures cannot finish as Completed.
+- Saved profile changes appear in actual working SSP preview output and
+  invalidate readiness while retained approved export data remains separate.
+- Automated ZIP tests inspect actual bytes and metadata, and real bundled
+  schemas reject invalid bytes. Successful worker fixtures use synthetic
+  exporters/mocked passing schemas; this is **not** proof of a fully populated
+  production-generated package passing all real schemas.
+- eMASS milestone evidence comes only from retained human-recorded exchange
+  observations. No live submission connector, receipt or AO decision is invented.
+- The initial live scoped-source check exposed a nested empty TenantContext in
+  the canonical responsibility reader. The fix uses the already-established
+  ambient tenant/person, retains authorization, and has foreign-tenant/unassigned
+  actor regression tests.
+
+### Validation results and limits
+
+- 59 focused backend integration/source-preview tests passed.
+- 306 focused frontend, routing, API-adapter and regression tests passed.
+- Dashboard `npx tsc -b`, Vite build and API/Dashboard container builds passed.
+- Desktop/mobile browser tests cover purpose confirmation, current/stale/failed/
+  unavailable states, consistent counts, direct links/history, source-return
+  navigation and stale export rejection.
+  Six acceptance scenarios passed on each of ports 5197 and 5173.
+- Full solution build was attempted before and after implementation. Both have
+  four unrelated required `PendingImpacts` argument errors in
+  `SystemSecurityCapabilitiesTests.cs` and `ProviderEvidenceDocumentTests.cs`.
+  The solution-wide test attempt additionally hit concurrent
+  `MvcTestingAppManifest.json` locks. These are not reported as passing.
+- At the first readiness delivery, inventory had no completeness rule in the package validator; its
+  supporting-record summary says **Not evaluated** rather than copying the
+  mock's inventory blocker. Aggregate SSP checks without a verified direct
+  editor link to the retained catalog; privacy source links are view-only where
+  the supported mutation workflow is not exposed by that screen.
+
+Final local images: `ato-copilot-mcp:package-readiness-verified-20260929` and
+`ato-copilot-dashboard:package-readiness-context-20260929`. The SQL, Redis and
+Chat container IDs were unchanged. Live checks retained real Legacy and
+InitialSubmission validation runs and verified current counts and persisted
+results after reload; no mission source records, approvals, submission
+observations or authorization decisions were edited. InitialSubmission's
+recorded-decision check is explicitly NotApplicable. The incomplete demo remains
+blocked for its actual documentation/assessment/privacy gaps.
+
+### Local manual acceptance
+
+Open the actual demo system's `/documents` page on port **5197** (worktree) or
+**5173** (built dashboard). Source records are not seeded to match the mock.
+
+1. Verify the existing selected purpose. Use **Change** and **Use selected
+   purpose** only when intentionally changing the package workflow.
+2. Choose **Check readiness** or **Recheck readiness**; note the run time,
+   snapshot and blocking/follow-up/all-check counts.
+3. Open a check drawer. Inspect source revisions, ownership and permission-aware
+   source action. Use its source workflow; do not expect a local click to resolve
+   the retained check.
+4. Make an intentional permitted source update/review, then **Return to package
+   readiness**. The old result should be out of date; revalidate explicitly.
+5. Open **Preview documents**. Working edits remain labeled previews; final
+   exports use their approved sources and applicable generation guards.
+6. Once required checks pass for the selected purpose/source, use **Prepare
+   validated export**, confirm, then inspect the retained export job/status.
+   The incomplete demo is expected to block generation until its actual gaps
+   are resolved; do not bypass them.
+7. Inspect prior runs/exports and the eMASS/AO milestones. Export/download does
+   not record submission, and submission does not issue an AO decision.
+
+Existing issue owners and parent links were verified. Exact issue updates were
+previewed, but the user was unavailable to approve external writes; GitHub
+remains unchanged. No commit or push was requested/performed.
 
 ## Role-aware overview next actions
 

@@ -472,15 +472,16 @@ public sealed class RetainedPackageTests
             var database = Guid.NewGuid().ToString();
             Services = new ServiceCollection().AddDbContext<AtoCopilotContext>(o => o.UseInMemoryDatabase(database))
                 .AddLogging()
-                .AddSingleton<ITenantContextAccessor, TenantContextAccessor>()
                 .AddSingleton(Options.Create(new ExportSettings { DataPath = DirectoryPath }))
+                .AddSingleton(Channel)
+                .AddSingleton(Mock.Of<IEvidenceArtifactService>())
+                .AddSingleton(Mock.Of<IFileStorageProvider>())
+                .AddSingleton(Mock.Of<IPackageValidationService>())
+                .AddSingleton<IAuthorizationPackageService, AuthorizationPackageService>()
+                .AddSingleton<PackageReadinessService>()
+                .AddSingleton<ITenantContextAccessor, TenantContextAccessor>()
                 .AddSingleton<IOscalSchemaValidationService>(new OscalSchemaValidationService(
                     Mock.Of<IEmassExportService>(), Mock.Of<IOscalSapExportService>(), NullLogger<OscalSchemaValidationService>.Instance))
-                .AddSingleton<PackageReadinessService>()
-                .AddSingleton<IAuthorizationPackageService>(services => new AuthorizationPackageService(
-                    services.GetRequiredService<IServiceScopeFactory>(), Mock.Of<IEvidenceArtifactService>(),
-                    Mock.Of<IFileStorageProvider>(), Mock.Of<IPackageValidationService>(), Channel,
-                    NullLogger<AuthorizationPackageService>.Instance))
                 .BuildServiceProvider();
             var scopes = Services.GetRequiredService<IServiceScopeFactory>();
             Service = (AuthorizationPackageService)Services.GetRequiredService<IAuthorizationPackageService>();

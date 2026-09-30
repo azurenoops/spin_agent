@@ -102,7 +102,7 @@ public partial class SspExportService : ISspExportService
         await db.SaveChangesAsync(cancellationToken);
 
         var job = new SspExportJob(export.Id, systemId, normalizedFormat, templateId, userId);
-        await _exportChannel.Writer.WriteAsync(job, cancellationToken);
+        await _exportChannel.Writer.WriteAsync(job, CancellationToken.None);
 
         _logger.LogInformation(
             "SSP export enqueued: {ExportId} for system {SystemId} format {Format} by {UserId}",
@@ -408,6 +408,12 @@ public partial class SspExportService : ISspExportService
 
         try
         {
+            if (export.SourceTenantId is Guid tenantId && export.RequestedPersonId is Guid personId)
+            {
+                var access = scope.ServiceProvider.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService>();
+                if (!await access.CanReadAsync(tenantId, personId, export.SystemId, false, cancellationToken))
+                    throw new UnauthorizedAccessException("The captured requester no longer has access to this mission system.");
+            }
             await ReportProgressAsync(job.UserId, job.ExportId, "Loading system data", 20);
 
             byte[] fileBytes;

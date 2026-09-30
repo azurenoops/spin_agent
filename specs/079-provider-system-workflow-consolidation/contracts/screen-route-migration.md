@@ -1,5 +1,10 @@
 # Mandatory mock-to-screen and route contract
 
+**Navigation label refinement (2026-09-29)**: The organization/system left
+navigation group is **ATO Readiness**, replacing **ATO package & eMASS**.
+Its routes, icon, five task tabs, purpose propagation and permissions remain
+unchanged. The mobile group label uses the same name.
+
 **Role-aware next actions (2026-09-28)**: Readiness uses the read-only
 `GET /api/dashboard/systems/{systemId}/next-actions` projection, separately from
 the manual full-package Check readiness operation. Its plain JSON response is

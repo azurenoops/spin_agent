@@ -64,6 +64,7 @@ public sealed class ScopedMonitoringHostTests(MultiTenantWebApplicationFactory<M
 
         // Act
         var read = await client.GetAsync(root + "/workspace");
+        var overview = await client.GetFromJsonAsync<JsonElement>(root);
         var deniedWrite = await client.PostAsJsonAsync(root + "/rules", input);
         var unassigned = await client.GetAsync($"/api/dashboard/systems/{otherSystem}/conmon/workspace");
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -72,30 +73,65 @@ public sealed class ScopedMonitoringHostTests(MultiTenantWebApplicationFactory<M
             (await db.SystemRoleAssignments.SingleAsync(x => x.PersonId == person && x.RegisteredSystemId == system)).Role = OrganizationRole.Issm;
             await db.SaveChangesAsync();
         }
+        var blockedEnable = await client.PostAsJsonAsync(root + "/rules", input);
+        input = input with { IsEnabled = false };
         var created = await client.PostAsJsonAsync(root + "/rules", input);
 
         // Assert
         read.StatusCode.Should().Be(HttpStatusCode.OK, await read.Content.ReadAsStringAsync());
+        overview.GetProperty("status").GetProperty("monitoringEnabled").GetBoolean().Should().BeFalse();
+        overview.GetProperty("status").GetProperty("lastMonitoringCheck").ValueKind.Should().Be(JsonValueKind.Null);
         deniedWrite.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         unassigned.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        blockedEnable.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await blockedEnable.Content.ReadAsStringAsync()).Should().Contain("reviewed exact resource scope");
         created.StatusCode.Should().Be(HttpStatusCode.OK, await created.Content.ReadAsStringAsync());
         var rule = await created.Content.ReadFromJsonAsync<JsonElement>();
         var id = rule.GetProperty("id").GetGuid();
         var version = rule.GetProperty("version").GetInt64();
 
+        // Arrange — retained pre-reconciliation work stays reviewable; it does not authorize fresh collection.
+        Guid impactId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.AlertRules.SingleAsync(x => x.Id == id)).IsEnabled = true;
+            var historical = new MonitoringRuleEvaluation
+            {
+                TenantId = tenant, RegisteredSystemId = system, RuleId = id, RuleVersion = version,
+                Outcome = "Matched", InputFingerprint = "retained-before-reconciliation", RuleSnapshotJson = "{}", InputSnapshotJson = "{}"
+            };
+            var impact = new MonitoringImpactReview
+                { TenantId = tenant, RegisteredSystemId = system, EvaluationId = historical.Id, ControlId = "SC-7", OwnerId = person.ToString() };
+            impactId = impact.Id;
+            db.Set<MonitoringRuleEvaluation>().Add(historical);
+            db.Set<MonitoringImpactReview>().Add(impact);
+            var alert = await db.ComplianceAlerts.SingleAsync(x => x.SubscriptionId == system);
+            db.Set<ScopedMonitoringObservation>().Add(new()
+            {
+                TenantId = tenant, RegisteredSystemId = system, SourceId = alert.Id.ToString(), Fingerprint = "retained",
+                SnapshotJson = JsonSerializer.Serialize(new MonitoringObservedChange(alert.Id.ToString(), "Alert", alert.Title,
+                    alert.ControlId, null, "Boundary", alert.CreatedAt, alert), new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            });
+            await db.SaveChangesAsync();
+        }
+
         // Act
         var tested = await client.PostAsync(root + $"/rules/{id}/test", null);
-        Guid impactId;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             using var pushed = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>().Push(new TenantContext(tenant));
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-            (await db.Set<MonitoringRuleEvaluation>().CountAsync(x => x.RuleId == id && x.Outcome != "Configured")).Should().Be(0);
-            await scope.ServiceProvider.GetRequiredService<ScopedMonitoringService>().EvaluateDueAsync(default);
+            (await db.Set<MonitoringRuleEvaluation>().CountAsync(x => x.RuleId == id && x.Outcome != "Configured")).Should().Be(1);
+            context.PersonId = null;
+            context.IsWorkspaceRequest = false;
+            try { await scope.ServiceProvider.GetRequiredService<ScopedMonitoringService>().EvaluateDueAsync(default); }
+            finally { context.PersonId = person; context.IsWorkspaceRequest = true; }
             var evaluations = await db.Set<MonitoringRuleEvaluation>().Where(x => x.RuleId == id).ToListAsync();
             var impacts = await db.Set<MonitoringImpactReview>().Where(x => x.RegisteredSystemId == system).ToListAsync();
             impacts.Should().ContainSingle(string.Join("; ", evaluations.Select(x => x.Outcome + ": " + x.InputSnapshotJson)));
-            impactId = impacts[0].Id;
+            impacts[0].Id.Should().Be(impactId);
+            evaluations.Should().Contain(x => x.Outcome == "CollectionUnavailable");
         }
         var disposition = await client.PostAsJsonAsync(root + $"/impacts/{impactId}/disposition",
             new DispositionMonitoringImpactRequest(1, "StageNarrativeReview", "Review changed network configuration."));
@@ -121,7 +157,7 @@ public sealed class ScopedMonitoringHostTests(MultiTenantWebApplicationFactory<M
         unauthenticated.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         await using var verification = factory.Services.CreateAsyncScope();
         var verify = verification.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-        (await verify.Set<MonitoringRuleEvaluation>().CountAsync(x => x.RuleId == id && x.Outcome != "Configured")).Should().Be(1);
+        (await verify.Set<MonitoringRuleEvaluation>().CountAsync(x => x.RuleId == id && x.Outcome != "Configured")).Should().Be(2);
         (await verify.Set<MonitoringImpactReview>().SingleAsync(x => x.RegisteredSystemId == system)).Disposition.Should().Be("StageNarrativeReview");
         (await verify.ControlImplementations.SingleAsync(x => x.RegisteredSystemId == system)).TechnicalNarrative.Should().Be("Retained approved baseline");
         (await verify.NarrativeProposals.CountAsync(x => x.RegisteredSystemId == system && x.ChangeSourceKind == "Monitoring")).Should().Be(1);

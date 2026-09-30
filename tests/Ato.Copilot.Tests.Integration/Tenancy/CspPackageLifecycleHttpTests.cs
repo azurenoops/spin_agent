@@ -397,9 +397,14 @@ public sealed class CspPackageLifecycleHttpTests : IClassFixture<MultiTenantWebA
         receipt.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var id = (await DataAsync<PackageStatus>(receipt)).PackageId;
         var path = $"/api/csp/package-imports/{id:D}";
-        (await WaitForAnalysisAsync(path)).ProcessingState.Should().Be(expectedProcessingState);
-        return (path, (await DataAsync<Page<PackageCandidateResponse>>(
-            await _client.GetAsync(path + "/candidates?type=AuthorizationReference"))).Items.Single());
+        var status = await WaitForAnalysisAsync(path);
+        status.ProcessingState.Should().Be(expectedProcessingState, JsonSerializer.Serialize(status));
+        var candidates = await DataAsync<Page<PackageCandidateResponse>>(
+            await _client.GetAsync(path + "/candidates?type=AuthorizationReference"));
+        var entries = await DataAsync<Page<PackageEntryResponse>>(await _client.GetAsync(path + "/entries"));
+        return (path, candidates.Items.Should().ContainSingle(
+            "the retained synthetic reference must be extracted; entry diagnostics: {0}",
+            JsonSerializer.Serialize(entries.Items)).Which);
     }
 
     private static async Task<T> DataAsync<T>(HttpResponseMessage response)

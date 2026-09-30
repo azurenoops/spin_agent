@@ -69,7 +69,23 @@ describe('notification preferences contract', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Save preferences' }));
     // Assert
     await screen.findByRole('alert');
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t save');
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible();
     expect(screen.queryByText('Preferences saved.')).not.toBeInTheDocument();
+  });
+  it('retries the unsaved values and shows Saving then Saved only after confirmation', async () => {
+    // Arrange
+    mocks.put.mockRejectedValueOnce(new Error('Offline'));
+    mocks.put.mockResolvedValueOnce({ data: { ...preferences, alertDaysBefore: 7 } });
+    render(<NotificationSettingsPanel />);
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Warning days before expiration' }), { target: { value: '7' } });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Save preferences' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    // Assert
+    await screen.findByText('Saved');
+    expect(mocks.put).toHaveBeenCalledTimes(2);
+    expect(mocks.put.mock.calls[1]?.[1]).toEqual({ ...preferences, alertDaysBefore: 7 });
   });
 
   it('aborts pending loads on unmount', async () => {
@@ -108,7 +124,7 @@ describe('notification preferences contract', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Save preferences' }));
     // Assert
-    await screen.findByText('Preferences saved.');
+    await screen.findByText('Saved');
     expect(mocks.get).toHaveBeenCalledTimes(2);
   });
 

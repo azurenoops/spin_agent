@@ -48,7 +48,9 @@ public sealed partial class ProviderMissionService(AtoCopilotContext db, ITenant
             x.TargetTenantId == TenantId && x.SystemId == systemId && db.CspProfiles.Any(p => p.Id == x.ProviderId));
 
     private async Task<ProviderHostingAssignment> AllocationAsync(string systemId, Guid id, CancellationToken ct) =>
-        await Allocations(systemId).SingleOrDefaultAsync(x => x.Id == id, ct)
+        await Allocations(systemId).SingleOrDefaultAsync(x => x.Id == id
+            && !db.Set<Ato.Copilot.Core.Models.Compliance.SystemProviderScopeSelection>().Any(s =>
+                s.TenantId == TenantId && s.SystemId == systemId && s.AssignmentId == x.Id && s.State == "Removed"), ct)
         ?? throw new KeyNotFoundException("Allocation not found for this tenant and system.");
 
     private Task<ProviderOffering> OfferingAsync(ProviderHostingAssignment allocation, CancellationToken ct) =>
@@ -66,7 +68,10 @@ public sealed partial class ProviderMissionService(AtoCopilotContext db, ITenant
         string systemId, int page, int pageSize, CancellationToken ct)
     {
         var permission = await AccessAsync(systemId, ct);
-        var allocations = await PageAsync(Allocations(systemId).OrderBy(x => x.Id), page, pageSize, x => x, ct);
+        var allocations = await PageAsync(Allocations(systemId).Where(x =>
+            !db.Set<Ato.Copilot.Core.Models.Compliance.SystemProviderScopeSelection>().Any(s =>
+                s.TenantId == TenantId && s.SystemId == systemId && s.AssignmentId == x.Id && s.State == "Removed"))
+            .OrderBy(x => x.Id), page, pageSize, x => x, ct);
         var rows = new List<MissionProviderRelationshipResponse>();
         foreach (var allocation in allocations.Items)
             rows.Add(await ProjectAsync(allocation, await Relationships(systemId).AsNoTracking()
@@ -117,7 +122,9 @@ public sealed partial class ProviderMissionService(AtoCopilotContext db, ITenant
         var systemName = await db.RegisteredSystems.Where(x => x.Id == allocation.SystemId && x.TenantId == TenantId)
             .Select(x => x.Name).SingleOrDefaultAsync(ct);
         var providerName = await db.CspProfiles.Where(x => x.Id == allocation.ProviderId).Select(x => x.DisplayName).SingleOrDefaultAsync(ct);
-        var currentAllocation = offering.Lifecycle != "Retired" && offering.CurrentHostingScopeRevisionId == hosting.Id;
+        var removed = await db.Set<Ato.Copilot.Core.Models.Compliance.SystemProviderScopeSelection>().AnyAsync(x =>
+            x.TenantId == TenantId && x.SystemId == allocation.SystemId && x.AssignmentId == allocation.Id && x.State == "Removed", ct);
+        var currentAllocation = !removed && offering.Lifecycle != "Retired" && offering.CurrentHostingScopeRevisionId == hosting.Id;
         var canReview = relationship is not null && currentAllocation;
         return new(relationship?.Id, relationship?.Revision ?? 0, allocation.Id, allocation.Revision, offering.Id,
             allocation.SystemId, relationship?.State ?? "Undetermined", stale, relationship?.AuthorizationRevisionId,

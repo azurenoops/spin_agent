@@ -105,6 +105,24 @@ export const DEFAULT_SETTINGS: DashboardSettings = {
   debugMode: false,
 };
 
+export const MIN_CHAT_PANEL_WIDTH = 320;
+export const MAX_CHAT_PANEL_WIDTH = 600;
+
+function boundedChatWidth(width: number): number {
+  return Number.isFinite(width)
+    ? Math.min(MAX_CHAT_PANEL_WIDTH, Math.max(MIN_CHAT_PANEL_WIDTH, width))
+    : DEFAULT_SETTINGS.chatPanelWidth;
+}
+
+const PERSONAL_DEFAULTS = {
+  theme: DEFAULT_SETTINGS.theme,
+  tableDensity: DEFAULT_SETTINGS.tableDensity,
+  dateFormat: DEFAULT_SETTINGS.dateFormat,
+  timezone: DEFAULT_SETTINGS.timezone,
+  showQuickActions: DEFAULT_SETTINGS.showQuickActions,
+  chatPanelWidth: DEFAULT_SETTINGS.chatPanelWidth,
+};
+
 // ─── Context ────────────────────────────────────────────────────────────────
 
 export interface SettingsContextValue {
@@ -120,7 +138,15 @@ export type { ReactNode };
 
 export function useSettingsProvider(): SettingsContextValue {
   const [storedSettings, setSettings] = useLocalStorage<DashboardSettings>('ato-dashboard-settings', DEFAULT_SETTINGS);
-  const settings = useMemo(() => ({ ...DEFAULT_SETTINGS, ...storedSettings }), [storedSettings]);
+  const settings = useMemo(() => ({
+    ...DEFAULT_SETTINGS, ...storedSettings,
+    chatPanelWidth: boundedChatWidth(storedSettings?.chatPanelWidth ?? DEFAULT_SETTINGS.chatPanelWidth),
+  }), [storedSettings]);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.tableDensity = settings.tableDensity;
+    return () => { delete document.documentElement.dataset.tableDensity; };
+  }, [settings.tableDensity]);
 
   useLayoutEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)');
@@ -137,13 +163,16 @@ export function useSettingsProvider(): SettingsContextValue {
 
   const updateSettings = useCallback(
     (partial: Partial<DashboardSettings>) => {
-      setSettings((prev) => ({ ...DEFAULT_SETTINGS, ...prev, ...partial }));
+      setSettings((prev) => ({
+        ...DEFAULT_SETTINGS, ...prev, ...partial,
+        chatPanelWidth: boundedChatWidth(partial.chatPanelWidth ?? prev?.chatPanelWidth ?? DEFAULT_SETTINGS.chatPanelWidth),
+      }));
     },
     [setSettings],
   );
 
   const resetSettings = useCallback(() => {
-    setSettings(DEFAULT_SETTINGS);
+    setSettings(previous => ({ ...DEFAULT_SETTINGS, ...previous, ...PERSONAL_DEFAULTS }));
   }, [setSettings]);
 
   return { settings, updateSettings, resetSettings };

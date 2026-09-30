@@ -17,10 +17,12 @@ public sealed record DispositionMonitoringImpactRequest(long ExpectedVersion, st
 public sealed record MonitoringObservedChange(string SourceId, string Kind, string Title, string? ControlId,
     string? ChangeDetails, string Attribution, DateTimeOffset ObservedAt, ComplianceAlert Alert, Guid? ProviderComponentId = null);
 public sealed record MonitoringCoverage(string AssignmentId, string BoundaryId, string? ResourceId,
-    Guid? ProviderComponentId, string Health, DateTimeOffset? LastSuccessAt, string? Error);
+    Guid? ProviderComponentId, string Health, DateTimeOffset? LastSuccessAt, string? Error,
+    Guid? AttachmentId = null, string? SubscriptionId = null, string? SubscriptionName = null);
 
 /// <summary>Tenant-bound projection over the existing watch engine and published-provider delivery ledger.</summary>
-public sealed class ScopedMonitoringService(AtoCopilotContext db, INarrativeChangeImpactService narratives)
+public sealed class ScopedMonitoringService(AtoCopilotContext db, INarrativeChangeImpactService narratives,
+    ISystemEnvironmentScopeResolver? environments = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -50,6 +52,13 @@ public sealed class ScopedMonitoringService(AtoCopilotContext db, INarrativeChan
         if (scope.Count == 0) throw new ArgumentException("Review an in-scope boundary assignment before creating a rule.");
         if (input.Signal == "ProviderRelease" && !scope.Any(x => x.ProviderComponentId != null))
             throw new ArgumentException("A provider-release rule requires an explicit provider-component boundary dependency.");
+        if (input.IsEnabled && input.Signal == "Alert" && environments is not null)
+        {
+            var resolved = await environments.ResolveAsync(systemId, EnvironmentScopePurpose.Monitoring, ct);
+            if (CanonicalEnvironmentExecutionGate.IsCanonical(resolved))
+                throw new ArgumentException(CanonicalEnvironmentExecutionGate.Failure(resolved).Message);
+            throw new ArgumentException(CanonicalEnvironmentExecutionGate.ReconciliationRequired().Message);
+        }
         AlertRule rule;
         if (id.HasValue)
         {
@@ -109,8 +118,15 @@ public sealed class ScopedMonitoringService(AtoCopilotContext db, INarrativeChan
     {
         var scope = await ScopeAsync(systemId, null, ct);
         var ids = scope.Where(x => x.ResourceId != null).Select(x => Normalize(x.ResourceId!)).ToHashSet();
+        if (environments is not null)
+        {
+            await environments.ResolveAsync(systemId, EnvironmentScopePurpose.Monitoring, ct);
+            // Current subscription-wide observations are not new evidence for an exact-resource attachment.
+            // Previously attributed observations remain available through the retained ledger.
+            ids.Clear();
+        }
         // Resource lists are JSON; materialize tenant-filtered alerts, then attribute exact ARM IDs.
-        var alerts = await db.ComplianceAlerts.AsNoTracking().ToListAsync(ct);
+        List<ComplianceAlert> alerts = ids.Count == 0 ? [] : await db.ComplianceAlerts.AsNoTracking().ToListAsync(ct);
         var changes = alerts.Where(x => x.AffectedResources.Any(r => ids.Contains(Normalize(r))))
             .Select(x => new MonitoringObservedChange(x.Id.ToString(), "Alert",
                 x.AffectedResources.All(r => ids.Contains(Normalize(r))) ? x.Title : "Observation includes resources outside this scope",
@@ -145,6 +161,49 @@ public sealed class ScopedMonitoringService(AtoCopilotContext db, INarrativeChan
     public async Task<List<MonitoringCoverage>> CoverageAsync(string systemId, CancellationToken ct)
     {
         var scope = await ScopeAsync(systemId, null, ct);
+        if (environments is not null)
+        {
+            var resolved = await environments.ResolveAsync(systemId, EnvironmentScopePurpose.Monitoring, ct);
+            if (CanonicalEnvironmentExecutionGate.IsCanonical(resolved))
+            {
+                var coverage = scope.Where(x => x.ProviderComponentId.HasValue)
+                    .Select(x => new MonitoringCoverage(x.AssignmentId, x.BoundaryId, x.ResourceId,
+                        x.ProviderComponentId, "ProviderDependency", null, null)).ToList();
+                foreach (var source in resolved.Sources)
+                {
+                    IEnumerable<string?> resources = source.ResourceIds.Count > 0
+                        ? source.ResourceIds.Select(resource => (string?)resource) : new string?[] { null };
+                    foreach (var resource in resources)
+                    {
+                        var assignment = scope.FirstOrDefault(x => resource != null && x.ResourceId != null &&
+                            Normalize(resource) == Normalize(x.ResourceId));
+                        coverage.Add(new(source.AttachmentId.ToString(), assignment?.BoundaryId ?? string.Empty,
+                            resource, null, source.Eligible ? "ScopeUnsupported" : "Ineligible", null,
+                            source.Eligible ? CanonicalEnvironmentExecutionGate.ScopeMessage : source.IneligibleReason,
+                            source.AttachmentId, source.Registration.SubscriptionId.ToString(), source.Registration.DisplayName));
+                    }
+                }
+                if (resolved.Sources.Count == 0)
+                    coverage.Add(new("environment", string.Empty, null, null, "Ineligible", null,
+                        "The retained environment has no eligible collection scope.", Guid.Empty));
+                return coverage;
+            }
+            var legacyCoverage = scope.Select(x => new MonitoringCoverage(x.AssignmentId, x.BoundaryId, x.ResourceId,
+                x.ProviderComponentId, x.ProviderComponentId.HasValue ? "ProviderDependency"
+                    : resolved.LegacyReferences.Any(reference => reference.Kind == "AzureProfile")
+                        ? "ReconciliationRequired" : "Missing",
+                null, x.ProviderComponentId.HasValue ? null : CanonicalEnvironmentExecutionGate.ReconciliationRequired().Message)).ToList();
+            if (!scope.Any(x => x.ProviderComponentId == null))
+            {
+                foreach (var reference in resolved.LegacyReferences.Where(x => x.Kind == "AzureProfile"))
+                    legacyCoverage.Add(new(reference.ReferenceId, string.Empty, null, null, "ReconciliationRequired",
+                        null, reference.Reason, Guid.Empty, reference.ReferenceId, reference.DisplayName));
+                if (legacyCoverage.Count == 0)
+                    legacyCoverage.Add(new("environment", string.Empty, null, null, "Missing", null,
+                        CanonicalEnvironmentExecutionGate.ReconciliationRequired().Message, Guid.Empty));
+            }
+            return legacyCoverage;
+        }
         var configs = await db.MonitoringConfigurations.AsNoTracking().ToListAsync(ct);
         return scope.Select(resource =>
         {
@@ -221,7 +280,8 @@ public sealed class ScopedMonitoringService(AtoCopilotContext db, INarrativeChan
         var ids = currentScope.Where(x => x.ResourceId != null).Select(x => Normalize(x.ResourceId!)).ToHashSet();
         changes = changes.Where(x => x.Kind == "ProviderRelease" ? currentScope.Any(s => s.ProviderComponentId == x.ProviderComponentId)
             : x.Alert.AffectedResources.Any(r => ids.Contains(Normalize(r)))).ToList();
-        var coverage = (await CoverageAsync(systemId, ct)).Where(x => x.BoundaryId == rule.BoundaryDefinitionId).ToList();
+        var coverage = (await CoverageAsync(systemId, ct))
+            .Where(x => x.BoundaryId == rule.BoundaryDefinitionId || x.AttachmentId != null).ToList();
         var unhealthy = rule.Signal == "Alert" &&
             coverage.Any(x => x.ProviderComponentId == null && x.Health != "Healthy");
         var results = new List<MonitoringRuleEvaluation>();

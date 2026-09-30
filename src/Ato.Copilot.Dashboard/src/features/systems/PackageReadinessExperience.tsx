@@ -35,10 +35,10 @@ export default function PackageReadinessExperience({ systemId }: { systemId: str
   const location = useLocation();
   const purpose = packagePurposeFromSearch(location.search);
   const workspace = useWorkspaceSession();
-  const scopeKey = JSON.stringify([systemId, workspace?.identity.oid, workspace?.roles, purpose]);
+  const rawContext = new URLSearchParams(location.search).get('context');
+  const scopeKey = JSON.stringify([systemId, workspace?.identity.oid, workspace?.roles, purpose, rawContext]);
   if (!purpose) return <p role="alert">Unsupported package purpose. <Link className="underline"
     to={`/systems/${encodeURIComponent(systemId)}/documents`}>Choose a supported package purpose</Link>.</p>;
-  const rawContext = new URLSearchParams(location.search).get('context');
   if (rawContext) {
     let parsed: unknown;
     try { parsed = JSON.parse(rawContext); } catch { parsed = null; }
@@ -161,14 +161,15 @@ function ReadinessWorkspace({ systemId, purpose }: { systemId: string; purpose: 
     } catch (reason) { if (!controller.signal.aborted) { setCommandError(errorMessage(reason)); setRun(null); setChecks([]); } }
     finally { if (!controller.signal.aborted) { command.current = null; setChecking(false); setAttempt(value => value + 1); } }
   };
-  const stale = run?.freshness.state === 'Stale' || run?.outcome === 'SourceChanged';
+  const stale = run?.outcome !== 'Failed' && (run?.freshness.state === 'Stale' || run?.outcome === 'SourceChanged');
   const currentReady = workspace?.source.state === 'Available' && !stale && run?.freshness.state === 'Current' && run.outcome === 'Ready';
   const canGenerate = currentReady && !commandError && workspace?.permissions.canGenerate && !!run?.sourceHash;
   const status = checking ? 'Checking package readiness…' : loading ? 'Loading package readiness…'
     : commandError ? 'Validation request failed'
-      : error || workspace?.source.state === 'Unavailable' || run?.freshness.state === 'Unavailable' ? 'Readiness unavailable'
+      : run?.outcome === 'Failed' ? 'Validation failed'
+        : error || workspace?.source.state === 'Unavailable' || run?.freshness.state === 'Unavailable' ? 'Readiness unavailable'
       : !run ? 'Readiness not checked' : stale ? 'Readiness result is out of date'
-        : run.outcome === 'Failed' ? 'Validation failed' : currentReady ? 'Package ready for export' : 'Package needs work';
+        : currentReady ? 'Package ready for export' : 'Package needs work';
   const recommended = checks.find(check => check.id === run?.recommendedCheckId);
   const filtered = checks.filter(check => activeTab === 'all' || (activeTab === 'blocking' ? isBlocking(check)
     : check.outcome === 'FollowUp' || check.outcome === 'Unavailable' && !check.required));

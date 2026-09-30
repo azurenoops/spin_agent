@@ -96,12 +96,26 @@ describe('Package readiness additive adapter', () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
-  it.each(['//outside.example', '/systems/other/documents', 'javascript:alert(1)', 'documents?returnTo=https://outside.example'])(
+  it.each(['//outside.example', '/systems/other/documents', 'javascript:alert(1)', 'documents?returnTo=https://outside.example',
+    'documents?tab=records#unverified', 'documents#ssp-sections', 'assessments?tab=plan#ssp-sections'])(
     'rejects unsafe source action %s', async path => {
       // Arrange
       vi.mocked(apiClient.get).mockResolvedValue({ data: { ...scope, runId: run.id, check: { ...check, action: { ...action, path } } } });
       // Act / Assert
       await expect(getPackageReadinessCheck('system', run.id, check.id)).rejects.toThrow(/contract|action/i);
+    });
+
+  it.each(['documents?tab=records', 'documents?tab=records#ssp-sections',
+    'documents?purpose=InitialSubmission&tab=records#ssp-sections', 'assessments?tab=plan',
+    'assessments', 'poam', 'inheritance/subscriptions', 'profile/PortsProtocolsAndServices'])(
+    'accepts verified source-workflow path %s', async path => {
+      // Arrange
+      vi.mocked(apiClient.get).mockResolvedValue({ data: { ...scope, runId: run.id, check: { ...check, action: { ...action, path } } } });
+      // Act
+      const response = await getPackageReadinessCheck('system', run.id, check.id);
+      // Assert
+      expect(response.check.action.path).toBe(path);
+      expect(response.check.action.canEdit).toBe(false);
     });
 
   it('rejects impossible passing counts and wrong run receipts', async () => {

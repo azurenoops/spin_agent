@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { installSystemCapabilityFixture, systemCapabilityRoot } from '../fixtures/system-capabilities';
 
 const groups = ['Overview', 'System definition', 'Controls & evidence', 'Assessment & risk',
-  'ATO package & eMASS', 'Continuous monitoring', 'Team & permissions', 'Activity & history'];
+  'ATO Readiness', 'Continuous monitoring', 'Team & permissions', 'Activity & history'];
 const topLinks = ['Portfolio', 'Systems', 'Security Capabilities', 'Knowledge Base'];
 const root = '/workspaces/organizations/org-a/systems/system-a';
 

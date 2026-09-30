@@ -21,6 +21,60 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 [Collection("Tenancy")]
 public sealed class PackageReadinessHttpTests(MultiTenantWebApplicationFactory<McpProgram> factory)
 {
+    [Theory]
+    [InlineData(OrganizationRole.MissionOwner)]
+    [InlineData(OrganizationRole.Issm)]
+    public async Task UnresolvedCheckActions_OpenActualSourceWorkflows_WithoutInventingAggregateEditAuthority(OrganizationRole role)
+    {
+        // Arrange
+        var system = await SeedAsync(role);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.SystemProfileSections.Add(new()
+        {
+            TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId, RegisteredSystemId = system,
+            SectionType = ProfileSectionType.DataTypes, GovernanceStatus = SspSectionStatus.Draft
+        });
+        await db.SaveChangesAsync();
+        using var client = factory.CreateClient();
+        var expected = new Dictionary<string, string>
+        {
+            ["profile-approval"] = "documents?tab=records#ssp-sections",
+            ["ssp"] = "documents?tab=records#ssp-sections",
+            ["schema-ssp"] = "documents?tab=records#ssp-sections",
+            ["schema-assessment-plan"] = "assessments?tab=plan",
+            ["schema-assessment-results"] = "assessments",
+            ["schema-poam"] = "poam",
+            ["responsibility"] = "inheritance/subscriptions",
+            ["interconnection-agreements"] = "profile/PortsProtocolsAndServices"
+        };
+
+        // Act
+        var response = await client.PostAsJsonAsync(Root(system) + "/runs", new { purpose = "InitialSubmission" });
+        var workspace = await client.GetAsync(Root(system) + "?purpose=InitialSubmission");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        var checks = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("checks").GetProperty("items")
+            .EnumerateArray().ToDictionary(x => x.GetProperty("id").GetString()!);
+        foreach (var (id, path) in expected)
+        {
+            var action = checks[id].GetProperty("action");
+            action.GetProperty("path").GetString().Should().Be(path, id);
+            action.GetProperty("canView").GetBoolean().Should().BeTrue();
+            action.GetProperty("canEdit").GetBoolean().Should().BeFalse();
+            action.GetProperty("reason").GetString().Should().NotBeNullOrWhiteSpace();
+        }
+        checks.Values.Where(x => x.GetProperty("outcome").GetString() is "Blocking" or "FollowUp" or "Unavailable")
+            .Should().OnlyContain(x => x.GetProperty("action").GetProperty("path").GetString() != "documents");
+        checks["inventory"].GetProperty("outcome").GetString().Should().Be("Blocking");
+        checks["inventory"].GetProperty("action").GetProperty("path").GetString()
+            .Should().Be("security-capabilities/inventory?tab=hardware-software");
+        var inventory = (await workspace.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("documents").EnumerateArray()
+            .Single(x => x.GetProperty("kind").GetString() == "inventory");
+        inventory.GetProperty("validationOutcome").GetString().Should().Be("Blocking");
+    }
+
     [Fact]
     public async Task ReadOnlyWorkspace_DoesNotCreateRun_ValidationRetainsChecksAndPurpose()
     {
