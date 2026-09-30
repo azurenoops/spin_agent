@@ -8,6 +8,7 @@ public static class ProviderSetupModelConfiguration
 {
     public static void Configure(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<CspProfile>().Property(x => x.SetupRevision).HasDefaultValue(1L);
         var draft = modelBuilder.Entity<ProviderSetupDraft>();
         draft.ToTable("ProviderSetupDrafts");
         draft.HasIndex(x => x.ProviderId).IsUnique();

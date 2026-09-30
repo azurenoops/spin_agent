@@ -25,6 +25,7 @@ public static class OrganizationOnboardingModelConfiguration
             entity.HasIndex(x => new { x.ProviderId, x.State, x.UpdatedAtTicks, x.Id });
             entity.HasOne<CspProfile>().WithMany().HasForeignKey(x => x.ProviderId).OnDelete(DeleteBehavior.Restrict);
         });
-        modelBuilder.Entity<Tenant>().Property(x => x.OnboardingDraftRevision).IsConcurrencyToken();
+        modelBuilder.Entity<Tenant>().Property(x => x.OnboardingDraftSchemaVersion).HasDefaultValue(1);
+        modelBuilder.Entity<Tenant>().Property(x => x.OnboardingDraftRevision).HasDefaultValue(0L).IsConcurrencyToken();
     }
 }

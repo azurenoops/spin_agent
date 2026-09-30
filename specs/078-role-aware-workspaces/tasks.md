@@ -114,6 +114,62 @@ reason before their production task begins. Every test follows Arrange/Act/Asser
 
 ## Onboarding consolidation (September 30, 2026)
 
+### PR 1051 CI repair: fresh tenant schema defaults
+
+CI run `36751708833`, Integration Tests job `110013901212`, built successfully
+then reported 1,482 passed, 20 failed and 20 skipped. The job log and uploaded
+TRX show all 20 failures originate in `RlsIntegrationFixture.SeedAsync`:
+SQL Server rejects the tenant inserts because `OnboardingDraftSchemaVersion`
+is non-nullable and has no database default in the fresh EF-created schema.
+The fixture inserts the pre-existing tenant fields; it does not insert NULL
+explicitly or bypass row-level security.
+
+`OrganizationOnboardingSchemaAdditions` defines defaults 1/0 for schema version
+and draft revision on upgrades. `OrganizationOnboardingModelConfiguration`
+does not define either database default, so `EnsureCreatedAsync` diverges from
+the supported upgrade path. Align those model defaults, verify fresh creation
+on both relational providers, retain explicit saved revisions, and rerun the
+actual required SQL Server RLS suite without skips or weakened assertions.
+
+The first required RLS reproduction after fixing tenant defaults advanced to
+its provider-parent seed and exposed the same drift for `CspProfile.SetupRevision`
+(upgrade SQL default 1; fresh EF schema missing it). Include that model default
+and regression in the same root-cause repair; do not patch seed inserts to
+conceal the fresh/upgrade contract mismatch.
+
+- [x] CI1051-1 Reproduce missing defaults with a fresh-schema regression before
+  changing production mapping.
+- [x] CI1051-2 Add matching EF defaults for draft schema version/revision and
+  provider setup revision.
+- [x] CI1051-3 Run focused regression, required SQL Server RLS tests, and build;
+  retain local manual-test instructions and actual results.
+- [ ] CI1051-4 Obtain approval before publishing the fix; verify replacement CI
+  rather than treating local validation as a remote pass.
+
+Local validation: three new regressions failed before the corresponding fixes;
+the schema suite now passes **5/5**. The required SQL Server RLS suite passes
+**22/22**, including all 20 CI failures, with no skips. Related organization
+creation, tenant reentrancy, provider replay and SQL Server upgrade checks pass
+**37/37**, no skips. Release solution build passes with 65 existing test-project
+warnings and no errors. The RLS fixture/seed, installer, predicates, assertions,
+and CI required-Docker setting are unchanged. No application containers were
+restarted; SQL Server checks used disposable test containers.
+
+Local manual reproduction from the repository root:
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj \
+  --filter 'FullyQualifiedName~WorkspaceOperationsSchemaTests'
+ATO_REQUIRE_DOCKER_TESTS=1 dotnet test \
+  tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  -c Release --filter 'FullyQualifiedName~Ato.Copilot.Tests.Integration.Rls'
+```
+
+Expected: all tests pass without skips; tenant-isolation and blocked cross-tenant
+writes are still asserted. No manual business-data entry is needed for this
+schema-default fix. Remote CI cannot be called fixed until the approved patch
+is pushed and its replacement check completes.
+
 Branch: `078-onboarding-consolidation`. Contract:
 [onboarding consolidation](contracts/onboarding-consolidation.md).
 Existing story owners: #1025, #1026, #1031, #1037 and #1042/#1046; bootstrap,
