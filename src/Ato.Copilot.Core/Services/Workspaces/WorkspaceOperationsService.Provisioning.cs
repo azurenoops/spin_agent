@@ -91,7 +91,7 @@ public sealed partial class WorkspaceOperationsService
                 admin ? "Completed" : "Pending", member ? "Completed" : "Pending",
                 member && admin ? null : row.LastError, row.IdempotencyKey, intent,
                 intent?.NewPerson is null ? "NotRequested" : validPerson ? "Completed" : "Pending",
-                !row.AdministratorBoundAt.HasValue && !validPerson, row.PersonId);
+                !row.AdministratorBoundAt.HasValue && !validPerson, row.PersonId, row.Revision);
         });
     }
 

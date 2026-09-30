@@ -7,6 +7,7 @@ using Ato.Copilot.Core.Services.PackageImports;
 using Ato.Copilot.Mcp.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Ato.Copilot.Core.Services.Tenancy;
 
 namespace Ato.Copilot.Mcp.Endpoints.Csp;
 
@@ -84,6 +85,9 @@ public static class CspPackageImportEndpoints
     private static Task<IResult> UploadAsync(HttpContext http, ICspPackageService packages,
         ICspProfileService profiles, bool requireActive, CancellationToken ct) => ExecuteAsync(http, async () =>
     {
+        var registered = Guid.TryParse(http.Request.Headers["X-Provider-Upload-Intent"], out _);
+        await http.RequestServices.GetRequiredService<ProviderSetupService>().RequireIngressAsync(
+            http.Request.Headers["X-Provider-Upload-Intent"].FirstOrDefault(), http.Request.Headers["Idempotency-Key"].ToString(), ct);
         if (!http.Request.HasFormContentType) throw new ArgumentException("Upload multipart/form-data with at least one files part.");
         var form = await http.Request.ReadFormAsync(ct);
         if (form.Files.Count is < 1 or > 1000) throw new ArgumentException("Supply 1-1000 source files.");
@@ -92,7 +96,7 @@ public static class CspPackageImportEndpoints
         var profile = await profiles.GetAsync(ct);
         if (requireActive && profile?.OnboardingState != OnboardingState.Active)
             return Error(503, "CSP_ONBOARDING_INCOMPLETE", "Complete provider onboarding before importing additional sources.");
-        if (!requireActive && profile?.OnboardingState == OnboardingState.Active)
+        if (!requireActive && profile?.OnboardingState == OnboardingState.Active && !registered)
             return Error(409, "CSP_ALREADY_ONBOARDED", "Use the provider catalog import after onboarding.");
         profile ??= await profiles.EnsureCreatedAsync(actor, ct);
         var files = form.Files.Select(x => new PackageUpload(x.FileName, x.ContentType, x.OpenReadStream())).ToArray();
@@ -162,6 +166,7 @@ public static class CspPackageImportEndpoints
                 ArgumentException => (422, "VALIDATION_FAILED"),
                 _ => (422, "PACKAGE_PROCESSING_FAILED")
             };
+            code = ProviderSetupEndpoints.ErrorCode(exception, code);
             http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("CspPackageImports")
                 .LogWarning(exception, "CspPackage.RequestRejected code={Code} status={Status}", code, status);
             return Error(status, code, exception.Message);

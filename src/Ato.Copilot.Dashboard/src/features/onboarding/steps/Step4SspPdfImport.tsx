@@ -100,32 +100,15 @@ export default function Step4SspPdfImport({ onSaved }: Props) {
     }
   }
 
-  async function saveCorrections() {
-    if (!openSession) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const list: SspPdfFieldCorrectionDto[] = Object.entries(corrections).map(
-        ([fieldName, value]) => ({
-          fieldName,
-          value: value === '' ? null : value,
-        }),
-      );
-      await onboarding.putSspPdfCorrections(openSession, list);
-    } catch (e: unknown) {
-      const err = e as { errorCode?: string; message?: string };
-      setError(`${err.errorCode ?? 'SAVE_FAILED'}: ${err.message ?? 'Save failed'}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function importSystem() {
     if (!openSession) return;
     setBusy(true);
     setError(null);
     try {
-      await saveCorrections();
+      const list: SspPdfFieldCorrectionDto[] = Object.entries(corrections).map(
+        ([fieldName, value]) => ({ fieldName, value: value === '' ? null : value }),
+      );
+      await onboarding.putSspPdfCorrections(openSession, list);
       await onboarding.importSspPdfSystem(openSession);
       setOpenSession(null);
       // Refresh summary so the imported card moves to "Imported".

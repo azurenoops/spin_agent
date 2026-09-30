@@ -14,11 +14,9 @@ vi.mock('react-router-dom', async () => {
 const {
   getCspDashboardTenants,
   updateTenantStatus,
-  createCspDashboardTenant,
 } = vi.hoisted(() => ({
   getCspDashboardTenants: vi.fn(),
   updateTenantStatus: vi.fn(),
-  createCspDashboardTenant: vi.fn(),
 }));
 
 vi.mock('../../../features/csp-dashboard/api', async () => {
@@ -29,7 +27,6 @@ vi.mock('../../../features/csp-dashboard/api', async () => {
     ...actual,
     getCspDashboardTenants,
     updateTenantStatus,
-    createCspDashboardTenant,
     isUnavailable: (r: unknown) => r === null,
   };
 });
@@ -81,7 +78,6 @@ beforeEach(() => {
   navigate.mockReset();
   startImpersonation.mockReset();
   updateTenantStatus.mockReset();
-  createCspDashboardTenant.mockReset();
   getCspDashboardTenants.mockReset();
   getCspDashboardTenants.mockResolvedValue(makePage([makeTenant()]));
 });
@@ -89,6 +85,16 @@ beforeEach(() => {
 // ─── Tests ──────────────────────────────────────────────────────────────
 
 describe('OrgsTable — confirmation dialogs (Wave 6 GAP-221-A)', () => {
+  it('routes the legacy create action to canonical organization setup instead of a second editor', async () => {
+    // Arrange
+    renderOrgsTable();
+    await screen.findByTestId('orgs-create-button');
+    // Act
+    fireEvent.click(screen.getByTestId('orgs-create-button'));
+    // Assert
+    expect(navigate).toHaveBeenCalledWith('/workspaces/csp/organizations/new');
+    expect(screen.queryByTestId('create-org-modal')).not.toBeInTheDocument();
+  });
   // ── Button visibility by status ────────────────────────────────────────
 
   it('renders Suspend button for Active org', async () => {

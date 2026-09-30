@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Mcp.Authorization;
 
 namespace Ato.Copilot.Mcp.Endpoints.Onboarding;
 
@@ -23,7 +27,48 @@ public static class TenantOnboardingEndpoints
     public static IEndpointRouteBuilder MapTenantOnboardingEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/onboarding/tenant")
-            .WithTags("Onboarding");
+            .WithTags("Onboarding")
+            .WithMetadata(new WorkspaceAuthorizedEndpoint())
+            .AddEndpointFilter(async (invocation, next) =>
+            {
+                var http = invocation.HttpContext;
+                http.Response.Headers.CacheControl = "no-store";
+                var tenant = http.RequestServices.GetRequiredService<ITenantContext>();
+                if (http.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+                if (!HttpMethods.IsGet(http.Request.Method) && !HttpMethods.IsHead(http.Request.Method))
+                {
+                    if (!tenant.IsWorkspaceRequest && !tenant.IsCspAdmin
+                        && !http.User.IsInRole(Ato.Copilot.Core.Constants.ComplianceRoles.Administrator))
+                        return Results.Json(new { error = new { errorCode = "TENANT_ADMIN_REQUIRED", message = "Tenant activation requires existing administrator authority." } }, statusCode: 403);
+                    if (tenant.ImpersonatedTenantId.HasValue || tenant.IsWorkspaceRequest && (tenant.IsCspAdmin || !tenant.PersonId.HasValue))
+                        return Results.Json(new { error = new { errorCode = "TENANT_ADMIN_REQUIRED", message = "Use an ordinary organization administrator workspace." } }, statusCode: 403);
+                    if (tenant.IsWorkspaceRequest)
+                    {
+                        await using var db = await http.RequestServices.GetRequiredService<IDbContextFactory<AtoCopilotContext>>().CreateDbContextAsync(http.RequestAborted);
+                        var person = tenant.PersonId!.Value;
+                        if (!await db.OrganizationRoleAssignments.AnyAsync(x => x.TenantId == tenant.EffectiveTenantId
+                                && x.PersonId == person && x.Role == OrganizationRole.Administrator && x.RemovedAt == null, http.RequestAborted)
+                            || !await db.OrganizationMemberships.AnyAsync(x => x.TenantId == tenant.EffectiveTenantId
+                                && x.PersonId == person && x.RevokedAt == null, http.RequestAborted))
+                            return Results.Json(new { error = new { errorCode = "TENANT_ADMIN_REQUIRED", message = "An active organization administrator is required." } }, statusCode: 403);
+                    }
+                }
+                try { return await next(invocation); }
+                catch (DbUpdateConcurrencyException)
+                {
+                    return Results.Json(new { status = "error", error = new { errorCode = "STALE_REVISION", message = "Tenant setup changed. Reload before applying your edits." } }, statusCode: 409);
+                }
+            });
+
+        group.MapPut("/draft", async (SaveTenantDraftRequest body, HttpContext http, ITenantContext ctx,
+            ITenantOnboardingService service, CancellationToken ct) =>
+        {
+            try { return EnvelopeOk(await service.SaveDraftAsync(ctx.EffectiveTenantId, ResolveActor(http), body, ct)); }
+            catch (ArgumentException ex) { return EnvelopeError("INVALID_REQUEST", ex.Message); }
+        });
+        group.MapPost("/draft/discard", async (DiscardTenantDraftRequest body, HttpContext http, ITenantContext ctx,
+            ITenantOnboardingService service, CancellationToken ct) =>
+            EnvelopeOk(await service.DiscardDraftAsync(ctx.EffectiveTenantId, ResolveActor(http), body.ExpectedRevision, ct)));
 
         group.MapGet("/state", async (
             HttpContext http,
@@ -158,7 +203,11 @@ public static class TenantOnboardingEndpoints
             var actor = ResolveActor(http);
             try
             {
-                var progress = await service.SubmitFinalAsync(ctx.EffectiveTenantId, actor, ct);
+                var body = http.Request.HasJsonContentType() && http.Request.ContentLength != 0
+                    ? await http.Request.ReadFromJsonAsync<SubmitTenantRequest>(ct) : null;
+                if (body?.ExpectedRevision.HasValue == true && !body.Confirmed)
+                    return EnvelopeError("CONFIRMATION_REQUIRED", "Confirm the saved tenant facts before activation.");
+                var progress = await service.SubmitFinalAsync(ctx.EffectiveTenantId, actor, ct, body?.ExpectedRevision);
                 return EnvelopeOk(progress);
             }
             catch (InvalidOperationException ex)
@@ -193,6 +242,10 @@ public static class TenantOnboardingEndpoints
                 completedSteps = progress.CompletedSteps,
                 onboardingState = progress.OnboardingState.ToString(),
                 firstOrganizationId = progress.FirstOrganizationId,
+                submittedValues = progress.SubmittedValues,
+                draft = progress.Draft,
+                draftRevision = progress.DraftRevision,
+                missingRequiredFields = progress.MissingRequiredFields,
             },
         });
 
@@ -202,4 +255,7 @@ public static class TenantOnboardingEndpoints
             status = "error",
             error = new { errorCode, message },
         }, statusCode: StatusCodes.Status400BadRequest);
+
+    public sealed record DiscardTenantDraftRequest(long ExpectedRevision);
+    public sealed record SubmitTenantRequest(long? ExpectedRevision = null, bool Confirmed = false);
 }

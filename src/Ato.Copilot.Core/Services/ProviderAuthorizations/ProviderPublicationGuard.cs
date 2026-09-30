@@ -132,6 +132,9 @@ public static class ProviderPublicationGuard
         if (packageId.HasValue)
         {
             var package = await db.CspPackages.AsNoTracking().SingleAsync(x => x.Id == packageId && x.ProviderId == providerId, ct);
+            if (package.RequiresOfferingAssociation && version is null)
+                throw new ProviderPublicationConflictException("OFFERING_ASSOCIATION_REQUIRED",
+                    "Associate this setup receipt with its explicitly reviewed offering and boundary before publication.");
             if ((package.OfferingId.HasValue || package.PackageVersionId.HasValue || package.BoundaryRevisionId.HasValue)
                 && (version is null || package.OfferingId != version.OfferingId || package.PackageVersionId != version.Id
                     || package.BoundaryRevisionId != version.BoundaryRevisionId))

@@ -82,29 +82,6 @@ public interface ICspDashboardService
         string order,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// Provisions a brand-new mission-owner organization (== <see cref="Tenant"/>
-    /// row) under the CSP. Created in <see cref="TenantStatus.Active"/> with
-    /// <see cref="OnboardingState.Pending"/> so the CSP-Admin can immediately
-    /// impersonate it to walk the per-tenant onboarding wizard. Audit fields
-    /// (<c>CreatedBy</c>, <c>UpdatedBy</c>) are stamped with <paramref name="actor"/>.
-    /// </summary>
-    /// <param name="displayName">
-    /// User-supplied org display name. Required, 1–256 chars. Must be unique
-    /// (case-insensitive) — duplicates throw <see cref="InvalidOperationException"/>
-    /// which the endpoint maps to a 422.
-    /// </param>
-    /// <param name="legalEntityName">Optional legal entity name.</param>
-    /// <param name="primaryPocName">Optional primary POC display name.</param>
-    /// <param name="primaryPocEmail">Optional primary POC email.</param>
-    /// <param name="actor">Auditable actor (oid / sub from the bearer token).</param>
-    Task<Tenant> CreateTenantAsync(
-        string displayName,
-        string? legalEntityName,
-        string? primaryPocName,
-        string? primaryPocEmail,
-        string actor,
-        CancellationToken ct = default);
 }
 
 /// <summary>Tenant counts grouped by lifecycle status.</summary>

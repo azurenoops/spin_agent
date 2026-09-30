@@ -613,19 +613,21 @@ public partial class DocumentTemplateService : IDocumentTemplateService
 
         // Feature 047 (T054 / FR-014): SSP cover-page picks up the per-tenant
         // OrganizationContext captured in Step 1 of the onboarding wizard.
-        // RegisteredSystem currently has no TenantId, so we read the singleton
-        // OrganizationContext row in dev/test; multi-tenant resolution becomes a
-        // follow-up once system→tenant linkage is wired (see plan.md T047a §1).
         var organization = await db.OrganizationContexts
             .AsNoTracking()
-            .FirstOrDefaultAsync(cancellationToken);
-        data["OrganizationName"] = organization?.OrganizationName ?? "Organization Name (capture in onboarding wizard Step 1)";
+            .FirstOrDefaultAsync(x => x.TenantId == system.TenantId, cancellationToken);
+        data["OrganizationName"] = organization?.OrganizationName
+            ?? await db.Tenants.Where(x => x.Id == system.TenantId).Select(x => x.DisplayName).FirstOrDefaultAsync(cancellationToken)
+            ?? "Organization Name (capture in onboarding wizard Step 1)";
         if (organization != null)
         {
             data["OrganizationBranch"] = organization.Branch.ToString();
             if (!string.IsNullOrWhiteSpace(organization.SubOrganization))
                 data["OrganizationSubOrganization"] = organization.SubOrganization;
         }
+        var provenance = await Ato.Copilot.Core.Services.SystemSourceReadProjection
+            .ReviewedProvenanceAsync(db, system.TenantId, system.Id, cancellationToken);
+        if (provenance is not null) data["ReviewedSourceProvenance"] = provenance;
 
         switch (documentType)
         {
@@ -653,9 +655,11 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         AtoCopilotContext db, string systemId, RegisteredSystem system,
         Dictionary<string, string> data, CancellationToken ct)
     {
-        data["SystemType"] = system.SystemType.ToString();
-        data["MissionCriticality"] = system.MissionCriticality.ToString();
-        data["HostingEnvironment"] = system.HostingEnvironment;
+        var unconfirmed = Ato.Copilot.Core.Services.SystemSetupPreparationProjection.UnconfirmedFields(system);
+        data["SystemType"] = unconfirmed.Contains("systemType") ? "Not recorded (setup draft)" : system.SystemType.ToString();
+        data["MissionCriticality"] = unconfirmed.Contains("missionCriticality") ? "Not recorded (setup draft)" : system.MissionCriticality.ToString();
+        data["HostingEnvironment"] = unconfirmed.Contains("hostingEnvironment") ? "Not recorded (setup draft)" : system.HostingEnvironment;
+        data["MissionPurpose"] = system.Description ?? "[SOURCE MISSING: Mission purpose]";
 
         var categorization = await db.SecurityCategorizations
             .AsNoTracking()

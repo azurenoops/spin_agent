@@ -8,7 +8,9 @@ import * as api from '../../features/provider-authorizations/api';
 import * as packageApi from '../../features/package-imports/api';
 import type { Offering } from '../../features/provider-authorizations/types';
 import { PackageImportError } from '../../features/package-imports/request';
-import { boundary, receipt } from './testData';
+import { boundary, receipt, setupState } from './testData';
+import * as setupApi from '../../features/csp-onboarding/providerSetupApi';
+import type { UploadIntent } from '../../features/csp-onboarding/providerSetupApi';
 import { offeringOverview } from './overviewFixtures';
 
 vi.mock('../../features/auth/RequireAuth', () => ({ default: ({ children }: { children: ReactNode }) => children }));
@@ -30,7 +32,11 @@ vi.mock('../../features/package-imports/api', async original => ({
   ...await original<typeof packageApi>(), getPackageStatus: vi.fn(), receivePackage: vi.fn(), getPackageCandidates: vi.fn(),
 }));
 vi.mock('../../features/package-imports/uploadIdentity', () => ({
-  preparePackageUpload: async (files: File[]) => ({ files, key: 'routing-test-upload-key' }),
+  preparePackageUpload: async (files: File[]) => ({ files, key: 'routing-test-upload-key',
+    manifest: files.map((file, ordinal) => ({ ordinal, fileName: file.name, mediaType: file.type || 'application/octet-stream', byteLength: file.size, sha256: 'A'.repeat(64) })) }),
+}));
+vi.mock('../../features/csp-onboarding/providerSetupApi', () => ({
+  getHandlingPolicy: vi.fn(), listPortalIntents: vi.fn(), prepareUpload: vi.fn(), getUploadIntent: vi.fn(), uploadSource: vi.fn(),
 }));
 const offering: Offering = {
   offeringId: 'offering-a', providerId: 'provider-a', name: 'Synthetic offering', description: 'Source-backed service',
@@ -47,6 +53,19 @@ function mount(path: string) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(setupApi.getHandlingPolicy).mockResolvedValue({ ...setupState().handling, syntheticOnly: false });
+  vi.mocked(setupApi.listPortalIntents).mockResolvedValue(page([]));
+  let intent: UploadIntent;
+  vi.mocked(setupApi.prepareUpload).mockImplementation(async (_revision, input) => {
+    intent = { input, intentId: input.intentId, intentHash: 'A'.repeat(64), revision: 1, savedAt: '', receipt: null,
+      reconciliation: { outcome: 'NotObserved', observedAt: '', nextAction: 'ReselectSameFiles' } };
+    return intent;
+  });
+  vi.mocked(setupApi.getUploadIntent).mockImplementation(async () => intent);
+  vi.mocked(setupApi.uploadSource).mockImplementation(async () => {
+    intent.receipt = { ...receipt.package, processingState: 'ReadyForReview' };
+    return intent.receipt;
+  });
   vi.mocked(api.listOfferings).mockResolvedValue(page([offering]));
   vi.mocked(api.getOffering).mockResolvedValue(offering);
   vi.mocked(api.getOfferingOverview).mockResolvedValue({ ...offeringOverview(), offeringId: offering.offeringId });
@@ -117,10 +136,14 @@ describe('source-backed offering workflow', () => {
     await screen.findByLabelText('Select source files');
     // Act
     fireEvent.change(screen.getByLabelText('Select source files'), { target: { files: [file] } });
+    fireEvent.change(await screen.findByLabelText('Declared source classification'), { target: { value: 'Unclassified' } });
     fireEvent.click(screen.getByRole('button', { name: 'Upload package' }));
     // Assert
     expect(await screen.findByRole('heading', { name: 'Review extracted scope' })).toBeInTheDocument();
-    expect(packageApi.receivePackage).toHaveBeenCalledExactlyOnceWith([file], expect.any(String));
+    expect(setupApi.uploadSource).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      input: expect.objectContaining({ entryPoint: 'ActivePortal', offeringHintId: offering.offeringId, context: null }),
+    }), [file], true);
+    expect(packageApi.receivePackage).not.toHaveBeenCalled();
     expect(api.uploadPackage).not.toHaveBeenCalled();
     expect(api.associatePackage).not.toHaveBeenCalled();
     // Act

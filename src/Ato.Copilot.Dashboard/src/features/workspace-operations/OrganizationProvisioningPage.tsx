@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Circle, AlertTriangle } from 'lucide-react';
-import PageHero from '../../components/layout/PageHero';
-import PageLayout from '../../components/layout/PageLayout';
+import SetupFrame, { SetupGuidance, SetupPanel } from '../onboarding/shared/SetupFrame';
+import * as onboarding from './organizationOnboardingApi';
 import { Link, useLocation, useNavigate } from '../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import * as api from './api';
@@ -9,7 +9,7 @@ import type { InitialAdministrator, ProvisioningResult } from './types';
 import { buttonClass, errorClass, message, secondaryButtonClass, Status, useRemote, warningClass } from './workspaceUi';
 import {
   AdministratorInputs, administratorIntent, emptyAdministrator, enrollmentComplete,
-  SetupInfo, setupCard, SetupSteps, validateAdministrator, type FieldErrors,
+  SetupInfo, setupCard, validateAdministrator, type FieldErrors,
 } from './OrganizationSetupPresentation';
 
 export default function OrganizationProvisioningPage({ tenantId }: { tenantId: string }) {
@@ -17,7 +17,9 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
   const navigate = useNavigate();
   const canManageMembers = useWorkspaceSession()?.workspace.permissions.canManageMemberships === true;
   const requestedKey = new URLSearchParams(location.search).get('key');
+  const requestedOperation = new URLSearchParams(location.search).get('operationId');
   const organization = useRemote(signal => api.getOrganization(tenantId, signal), [tenantId]);
+  const summary = useRemote(signal => onboarding.getOrganizationSetupSummary(tenantId, requestedOperation, signal), [tenantId, requestedOperation]);
   const [result, setResult] = useState<ProvisioningResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -34,6 +36,8 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
   const generation = useRef(0);
   const autoStarted = useRef(false);
   const localKey = useRef<string | null>(null);
+  const savedExitId = useRef(crypto.randomUUID());
+  const savedExitRevision = useRef(0);
   const [reload, setReload] = useState(0);
   const complete = !!result && enrollmentComplete(result);
   const hasIdentity = !!result?.initialAdministrator;
@@ -64,7 +68,8 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
     controller.current?.abort(); controller.current = read; pending.current = false;
     setResult(null); setFields(emptyAdministrator); setError(null); setLoadError(null); setErrors({});
     setLoading(true); setBusy(false); key.current = requestedKey;
-    const load = requestedKey ? api.getOrganizationProvisioning(tenantId, requestedKey, read.signal).catch(reason => {
+    const load = requestedOperation ? onboarding.getOrganizationSetupSummary(tenantId, requestedOperation, read.signal).then(value => value.requestedOperation)
+      : requestedKey ? api.getOrganizationProvisioning(tenantId, requestedKey, read.signal).catch(reason => {
       if (reason instanceof api.WorkspaceOperationError && reason.status === 404 && reason.code === 'PROVISIONING_NOT_FOUND') return null;
       throw reason;
     })
@@ -83,22 +88,25 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
     return () => read.abort();
     // The server response is scoped to these scalar route/reload identities.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, requestedKey, reload]);
+  }, [tenantId, requestedKey, requestedOperation, reload]);
 
   const resume = async (identity: InitialAdministrator) => {
-    if (!result || pending.current || loading || loadError || organization.error) return;
+    if (!result || pending.current || loading || loadError || organization.error
+      || summary.loading || summary.error || summary.data?.actorActions.canResumeEnrollment === false) return;
     pending.current = true; setBusy(true); setError(null); setErrors({});
     const current = generation.current;
     const action = new AbortController();
     controller.current?.abort(); controller.current = action;
     try {
-      const value = await api.resumeOrganizationProvisioning(tenantId, result.operationId, identity, action.signal);
-      if (alive.current && !action.signal.aborted && current === generation.current) adopt(value);
+      const value = await api.resumeOrganizationProvisioning(tenantId, result.operationId,
+        result.revision === undefined ? identity : { ...identity, expectedRevision: result.revision }, action.signal);
+      if (alive.current && !action.signal.aborted && current === generation.current) { adopt(value); summary.retry(); }
     } catch (reason) {
       if (!alive.current || action.signal.aborted || current !== generation.current) return;
       setError(message(reason));
       try {
-        const saved = key.current ? await api.getOrganizationProvisioning(tenantId, key.current, action.signal)
+        const saved = requestedOperation ? (await onboarding.getOrganizationSetupSummary(tenantId, requestedOperation, action.signal)).requestedOperation
+          : key.current ? await api.getOrganizationProvisioning(tenantId, key.current, action.signal)
           : await api.getCurrentOrganizationProvisioning(tenantId, action.signal);
         if (alive.current && !action.signal.aborted && current === generation.current && saved) adopt(saved);
       } catch (reloadReason) {
@@ -109,14 +117,15 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
     }
   };
   useEffect(() => {
-    if (autoStarted.current || !result?.initialAdministrator || loading || organization.loading || organization.error || complete) return;
+    if (autoStarted.current || !result?.initialAdministrator || loading || organization.loading || organization.error || complete
+      || summary.loading || summary.error || summary.data?.actorActions.canResumeEnrollment === false) return;
     if (!(location.state as { autoResume?: boolean } | null)?.autoResume) return;
     autoStarted.current = true;
     navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
     void resume(result.initialAdministrator);
     // Automatic continuation is limited to this confirmed navigation, never a refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, loading, organization.loading, organization.error, complete]);
+  }, [result, loading, organization.loading, organization.error, complete, summary.loading, summary.error, summary.data]);
 
   const begin = async () => {
     if (pending.current || loading || loadError || organization.error) return;
@@ -142,21 +151,56 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
     setErrors(validation);
     if (!Object.keys(validation).length) void resume(administratorIntent(fields, newPerson));
   };
+  const saveLater = async () => {
+    if (pending.current || busy) return;
+    pending.current = true; setBusy(true); setError(null);
+    try {
+      if (result?.canEditAdministrator !== false && (editing || !hasIdentity && Object.values(fields).some(value => value.trim()))) {
+        const saved = await onboarding.saveOrganizationDraft(savedExitId.current, {
+          organizationChoice: 'existing', existingTenantId: tenantId, displayName: organization.data?.displayName,
+          administratorChoice: 'other', administrator: { directoryTenantId: fields.directoryTenantId || null,
+            objectId: fields.objectId || null, ...(newPerson ? { newPerson: { displayName: fields.displayName, email: fields.email } } : { personId: fields.personId || null }) },
+        }, 'administrator', savedExitRevision.current);
+        savedExitRevision.current = saved.revision;
+      }
+      if (alive.current) navigate('/setup/resume');
+    } catch (reason) { if (alive.current) setError(message(reason)); }
+    finally { if (alive.current) { pending.current = false; setBusy(false); } }
+  };
   const retryLabel = result?.membershipState === 'Completed' ? 'Retry administrator enrollment'
     : result?.lastError ? 'Retry incomplete enrollment' : 'Continue enrollment';
-  const allowed = !busy && !loading && !loadError && !organization.loading && !!organization.data && !organization.error;
-  return <PageLayout title="Organization enrollment">
-    <PageHero eyebrow="Provider administration" title={organization.data?.displayName ?? 'Organization enrollment'}
-      description="Create the organization once, then resume administrator and membership enrollment independently."
-      actions={<SetupSteps step={4} />} />
+  const allowed = !busy && !loading && !loadError && !organization.loading && !!organization.data && !organization.error
+    && !summary.loading && !summary.error && summary.data?.actorActions.canResumeEnrollment !== false;
+  const currentAdmin = summary.data?.liveAccess.state === 'Available';
+  const repair = currentAdmin && !!result && !complete;
+  return <SetupFrame journey="Organization" title={repair ? 'Review administrator setup status' : 'Organization setup status'}
+    description="Current administrator access and the retained enrollment request are independent facts."
+    currentStep="ready" steps={[{ id: 'ready', label: repair ? 'Enrollment recovery' : 'Organization ready' }]}
+    busy={busy} error={error} onSaveLater={!complete ? () => void saveLater() : undefined}
+    onBack={() => navigate('/organizations')}
+    guidance={<><SetupGuidance title="Truthful readiness">A valid current administrator does not prove that a different requested identity was enrolled.</SetupGuidance>
+      <SetupGuidance title="Provider-created organizations">Hand off to an authorized organization user. Provider administration alone does not grant customer workspace or system access.</SetupGuidance></>}>
     <div className="space-y-5 text-slate-800 dark:text-gray-100">
-      <Status loading={loading || organization.loading} error={loadError ?? organization.error}
-        retry={() => { organization.retry(); setReload(value => value + 1); }} />
-      {error && <p role="alert" className={errorClass}>{error}</p>}
+      <Status loading={loading || organization.loading || summary.loading} error={loadError ?? organization.error ?? summary.error}
+        retry={() => { organization.retry(); summary.retry(); setReload(value => value + 1); }} />
+      {summary.data && <SetupPanel title="Current organization facts">
+        <dl className="space-y-2 text-sm">
+          <div><dt>Organization</dt><dd>{summary.data.tenant.displayName} · {summary.data.tenant.lifecycle}</dd></div>
+          <div><dt>Tenant activation</dt><dd>{summary.data.tenant.onboardingState}</dd></div>
+          <div><dt>Active memberships</dt><dd>{summary.data.liveAccess.activeMemberCount ?? 'Unavailable'}</dd></div>
+          <div><dt>Active scoped administrator</dt><dd>{currentAdmin ? summary.data.liveAccess.administrators.items.map(item => item.displayName).join(', ') : 'Not recorded'}</dd></div>
+        </dl>
+        {summary.data.reconciliation === 'DifferentIdentity' && <p role="status" className={warningClass}>An administrator already exists, but this request names another identity. Use membership and role administration; this request is not complete.</p>}
+        {summary.data.actorActions.canEnterOrganization
+          ? <Link className={secondaryButtonClass} to={`/workspaces/organizations/${tenantId}`}>Choose authorized organization workspace</Link>
+          : <p className="mt-3 text-sm">Hand off to the organization administrator. This provider view grants no customer-system access.</p>}
+      </SetupPanel>}
       {!loading && !loadError && !organization.error && !result && <section className={setupCard}>
-        <h2 className="mb-3 text-xl font-semibold">Enrollment not started</h2>
-        <p className="mb-4 text-sm">The organization already exists. Start a resumable enrollment record; this does not create another organization.</p>
-        <button className={buttonClass} disabled={!allowed} onClick={() => void begin()}>Start enrollment</button>
+        <h2 className="mb-3 text-xl font-semibold">{currentAdmin ? 'Administrator access is ready' : 'Enrollment not started'}</h2>
+        <p className="mb-4 text-sm">{currentAdmin
+          ? 'Current membership and Administrator role are recorded. No additional enrollment operation is required.'
+          : 'The organization already exists. Start a resumable enrollment record; this does not create another organization.'}</p>
+        {!currentAdmin && <button className={buttonClass} disabled={!allowed} onClick={() => void begin()}>Start enrollment</button>}
       </section>}
       {result && <section className={`${setupCard} space-y-5`} aria-busy={busy}>
         <h2 className="text-xl font-semibold">{title}</h2>
@@ -203,12 +247,13 @@ export default function OrganizationProvisioningPage({ tenantId }: { tenantId: s
         {complete && <SetupInfo>Required setup stages are saved. Organization users can now continue through their own authorized onboarding workflows. System roles, provider subscriptions and ATO decisions remain separate.</SetupInfo>}
         <div className="flex flex-wrap gap-3">
           <Link className={buttonClass} to={`/organizations/${tenantId}`}>View organization</Link>
-          <Link className={secondaryButtonClass} to="/organizations">{complete ? 'Back to organizations' : 'Finish later'}</Link>
-          <button className={secondaryButtonClass} disabled={busy} onClick={() => setReload(value => value + 1)}>Refresh setup status</button>
+          {complete ? <Link className={secondaryButtonClass} to="/organizations">Back to organizations</Link>
+            : <button className={secondaryButtonClass} disabled={busy} onClick={() => void saveLater()}>Finish later</button>}
+          <button className={secondaryButtonClass} disabled={busy} onClick={() => { summary.retry(); setReload(value => value + 1); }}>Refresh setup status</button>
         </div>
       </section>}
     </div>
-  </PageLayout>;
+  </SetupFrame>;
 }
 
 function Stage({ label, state, detail }: { label: string; state: string; detail: string }) {

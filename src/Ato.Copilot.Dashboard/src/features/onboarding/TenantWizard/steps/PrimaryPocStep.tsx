@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useTenantField, useTenantDraftRevision } from '../draftContext';
 import { tenantWizard } from '../api';
 import type { StepProps } from './types';
 
@@ -13,15 +13,17 @@ export default function PrimaryPocStep({
   onAdvance,
   onError,
 }: StepProps) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useTenantField('primaryPoc', 'primaryPocName');
+  const [email, setEmail] = useTenantField('primaryPoc', 'primaryPocEmail');
+  const [phone, setPhone] = useTenantField('primaryPoc', 'primaryPocPhone');
+  const expectedRevision = useTenantDraftRevision();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     beforeSubmit();
     try {
       const next = await tenantWizard.submitPrimaryPoc({
+        expectedRevision,
         primaryPocName: name.trim(),
         primaryPocEmail: email.trim(),
         primaryPocPhone: phone.trim() || null,

@@ -8,6 +8,13 @@ import { PackageImportError } from '../../features/package-imports/request';
 import { offering, boundary, receipt } from './testData';
 import { page } from '../package-imports/fixtures';
 import '../package-imports/crypto';
+import * as setupApi from '../../features/csp-onboarding/providerSetupApi';
+import type { UploadIntent } from '../../features/csp-onboarding/providerSetupApi';
+import { setupState } from './testData';
+vi.mock('../../features/csp-onboarding/providerSetupApi', () => ({
+  getHandlingPolicy: vi.fn(), listPortalIntents: vi.fn(), prepareUpload: vi.fn(), getUploadIntent: vi.fn(),
+}));
+let registered: UploadIntent | null;
 
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getOffering: vi.fn(), listBoundaries: vi.fn(), uploadPackage: vi.fn(),
@@ -18,6 +25,23 @@ vi.mock('../../features/package-imports/api', async original => ({
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  registered = null;
+  vi.mocked(setupApi.getHandlingPolicy).mockResolvedValue({ ...setupState().handling, syntheticOnly: false });
+  vi.mocked(setupApi.listPortalIntents).mockResolvedValue(page([]));
+  vi.mocked(setupApi.prepareUpload).mockImplementation(async (_revision, input) => {
+    registered = { intentId: input.intentId, input, intentHash: 'A'.repeat(64), revision: 1, savedAt: '',
+      receipt: null, reconciliation: { outcome: 'NotObserved', observedAt: '', nextAction: 'ReselectSameFiles' } };
+    return registered;
+  });
+  vi.mocked(setupApi.getUploadIntent).mockImplementation(async () => {
+    if (!registered) throw new Error('No synthetic intent');
+    const result = vi.mocked(api.uploadPackage).mock.results.at(-1);
+    if (result?.type === 'return') {
+      try { return { ...registered, receipt: (await result.value).package }; }
+      catch { return registered; }
+    }
+    return registered;
+  });
   vi.mocked(api.getOffering).mockResolvedValue(offering);
   vi.mocked(api.listBoundaries).mockResolvedValue(page([boundary]));
   vi.mocked(api.uploadPackage).mockResolvedValue(receipt);
@@ -29,9 +53,31 @@ async function prepare() {
   await screen.findByRole('option', { name: /Test service boundary/ });
   fireEvent.change(screen.getByLabelText('Boundary revision'), { target: { value: boundary.boundaryRevisionId } });
   fireEvent.change(screen.getByLabelText('Package name'), { target: { value: 'Original package name' } });
+  fireEvent.change(await screen.findByLabelText('Declared source classification'), { target: { value: 'Unclassified' } });
   fireEvent.change(screen.getByLabelText('Select source files'), { target: { files: [new File(['original bytes'], 'original.txt')] } });
 }
 describe('versioned offering intake', () => {
+  it('keeps real hashed upload keys within the server limit with UUID offering and boundary identities', async () => {
+    // Arrange
+    const offeringId = '11111111-1111-4111-8111-111111111111';
+    const boundaryId = '22222222-2222-4222-8222-222222222222';
+    vi.mocked(api.getOffering).mockResolvedValue({ ...offering, offeringId });
+    vi.mocked(api.listBoundaries).mockResolvedValue(page([{ ...boundary, offeringId, boundaryRevisionId: boundaryId }]));
+    render(<MemoryRouter><OfferingIntake initialOfferingId={offeringId} /></MemoryRouter>);
+    await screen.findByRole('option', { name: /Test service boundary/ });
+    fireEvent.change(screen.getByLabelText('Boundary revision'), { target: { value: boundaryId } });
+    fireEvent.change(screen.getByLabelText('Package name'), { target: { value: 'Synthetic source' } });
+    fireEvent.change(await screen.findByLabelText('Declared source classification'), { target: { value: 'Unclassified' } });
+    fireEvent.change(screen.getByLabelText('Select source files'), {
+      target: { files: [new File(['synthetic bytes'], 'synthetic.txt', { type: 'text/plain' })] },
+    });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Upload package' }));
+    // Assert
+    await waitFor(() => expect(api.uploadPackage).toHaveBeenCalledOnce());
+    expect(vi.mocked(api.uploadPackage).mock.calls[0]![3].length).toBeLessThanOrEqual(100);
+  });
+
   it('releases preparation controls and the wizard pending gate after a durable receipt and reload', async () => {
     // Arrange
     const pending = vi.fn();
@@ -86,7 +132,7 @@ describe('versioned offering intake', () => {
     await waitFor(() => expect(api.uploadPackage).toHaveBeenCalledWith(offering.offeringId, expect.objectContaining({
       seriesId: receipt.packageVersion.seriesId, previousVersionId: receipt.packageVersion.packageVersionId,
       expectedOfferingRevision: offering.revision, boundaryRevisionId: boundary.boundaryRevisionId,
-    }), expect.any(Array), expect.any(String)));
+    }), expect.any(Array), expect.any(String), expect.any(String)));
   });
   it('retains exact name, revision, bytes and key when upload response is lost', async () => {
     // Arrange
@@ -111,12 +157,13 @@ describe('versioned offering intake', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Upload package' }));
     await screen.findByText(/server rejected this request/i);
     // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare a corrected request' }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove original.txt' }));
     fireEvent.change(screen.getByLabelText('Package name'), { target: { value: 'Corrected package name' } });
     fireEvent.change(screen.getByLabelText('Select source files'), { target: { files: [new File(['corrected bytes'], 'corrected.txt')] } });
     fireEvent.click(screen.getByRole('button', { name: 'Upload package' }));
     // Assert
     await screen.findByText(/Receipt confirmed/);
-    expect(api.uploadPackage).toHaveBeenLastCalledWith(offering.offeringId, expect.objectContaining({ name: 'Corrected package name' }), expect.arrayContaining([expect.objectContaining({ name: 'corrected.txt' })]), expect.any(String));
+    expect(api.uploadPackage).toHaveBeenLastCalledWith(offering.offeringId, expect.objectContaining({ name: 'Corrected package name' }), expect.arrayContaining([expect.objectContaining({ name: 'corrected.txt' })]), expect.any(String), expect.any(String));
   });
 });

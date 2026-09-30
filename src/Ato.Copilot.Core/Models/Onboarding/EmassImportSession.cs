@@ -7,7 +7,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// (`ParseJobId` → preview → `CommitJobId` → committed entities).
 /// </summary>
 [TenantScoped]
-public class EmassImportSession
+public class EmassImportSession : ISystemSourceSession
 {
     /// <summary>Primary key.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -49,6 +49,14 @@ public class EmassImportSession
     public Guid CreatedBy { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public Guid UpdatedBy { get; set; }
+    public string? TargetSystemId { get; set; }
+    public string? RequestKey { get; set; }
+    public string? RequestPayloadHash { get; set; }
+    public Guid? RequestActorPersonId { get; set; }
+    public long ReviewRevision { get; set; }
+    public string? ReviewProposalJson { get; set; }
+    public string? ReviewSnapshotJson { get; set; }
+    public string? ApplyReceiptJson { get; set; }
 }
 
 /// <summary>Detected eMASS upload format.</summary>

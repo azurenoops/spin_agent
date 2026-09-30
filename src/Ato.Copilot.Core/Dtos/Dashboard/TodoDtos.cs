@@ -46,4 +46,8 @@ public class TodoItemDto
 
     /// <summary>Deferred prerequisite ID (present when category = "deferred").</summary>
     public string? DeferredId { get; init; }
+    public string? State { get; init; }
+    public string? OwnerRole { get; init; }
+    public string? Contribution { get; init; }
+    public bool? CanAct { get; init; }
 }

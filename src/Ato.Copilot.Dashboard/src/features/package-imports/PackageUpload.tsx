@@ -3,6 +3,7 @@ import { buttonClass, errorClass, secondaryButtonClass } from '../workspace-oper
 import { PACKAGE_FILE_ACCEPT, validatePackageFiles } from './validation';
 import { PackageImportError } from './request';
 import { preparePackageUpload } from './uploadIdentity';
+import { Link } from '../workspaces/workspaceNavigation';
 
 interface Props {
   upload: (files: File[], idempotencyKey: string) => Promise<void>;
@@ -14,6 +15,7 @@ export function PackageUpload({ upload, disabled = false, onPendingChange }: Pro
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requiresSetup, setRequiresSetup] = useState(false);
   const key = useRef<string | null>(null);
   const preparedFiles = useRef<File[]>([]);
   const submitting = useRef(false);
@@ -36,6 +38,7 @@ export function PackageUpload({ upload, disabled = false, onPendingChange }: Pro
     submitting.current = true;
     setBusy(true);
     setError(null);
+    setRequiresSetup(false);
     try {
       if (!key.current) {
         const prepared = await preparePackageUpload(files);
@@ -48,6 +51,7 @@ export function PackageUpload({ upload, disabled = false, onPendingChange }: Pro
       preparedFiles.current = [];
       if (input.current) input.current.value = '';
     } catch (reason) {
+      setRequiresSetup(reason instanceof Error && reason.message.includes('HANDLING_DECLARATION_REQUIRED'));
       const rejected = reason instanceof PackageImportError && [400, 401, 403, 413, 422].includes(reason.status ?? 0);
       if (rejected) key.current = null;
       setError(`${reason instanceof Error ? reason.message : 'Upload failed.'} ${rejected
@@ -85,6 +89,9 @@ export function PackageUpload({ upload, disabled = false, onPendingChange }: Pro
     </ul>}
     {errors.length > 0 && <div role="alert" className={errorClass}><ul>{errors.map(value => <li key={value}>{value}</li>)}</ul></div>}
     {error && <div role="alert" className={errorClass}>{error}</div>}
+    {requiresSetup && <p className="text-sm">This deployment requires a saved source intent and content declaration.
+      {' '}<Link className="text-indigo-700 underline" to="/onboarding/csp?reentry=resume&screen=p-sources">Continue in provider source setup</Link>.
+      Reselect the files there; this rejected request did not confirm a receipt.</p>}
     {files.length > 0 && <button type="button" className={buttonClass} disabled={disabled || busy || errors.length > 0}
       aria-busy={busy} onClick={() => void submit()}>{busy ? 'Uploading package...' : key.current ? 'Retry same upload' : 'Upload package'}</button>}
     {key.current && <p className="text-xs text-gray-600">Do not close this page until receipt is confirmed. No approval or publication occurs on upload.</p>}

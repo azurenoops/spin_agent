@@ -10,6 +10,34 @@ namespace Ato.Copilot.Tests.Unit.Data;
 public sealed class WorkspaceOperationsSchemaTests
 {
     [Fact]
+    public async Task OrganizationOnboarding_AdditiveSchemaPreservesLegacyTenantAndIsRepeatable()
+    {
+        // Arrange
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE Tenants (Id TEXT NOT NULL PRIMARY KEY, DisplayName TEXT NOT NULL);
+            CREATE TABLE CspProfiles (Id TEXT NOT NULL PRIMARY KEY);
+            INSERT INTO Tenants VALUES ('tenant-retained', 'Retained organization');
+            """;
+        await command.ExecuteNonQueryAsync();
+        await using var db = new AtoCopilotContext(new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(connection).Options);
+
+        // Act
+        await OrganizationOnboardingSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        await OrganizationOnboardingSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+
+        // Assert
+        command.CommandText = "SELECT DisplayName FROM Tenants WHERE Id='tenant-retained'";
+        Assert.Equal("Retained organization", await command.ExecuteScalarAsync());
+        command.CommandText = "SELECT OnboardingDraftRevision FROM Tenants WHERE Id='tenant-retained'";
+        Assert.Equal(0L, await command.ExecuteScalarAsync());
+        command.CommandText = "SELECT COUNT(*) FROM OrganizationOnboardingDrafts";
+        Assert.Equal(0L, await command.ExecuteScalarAsync());
+    }
+
+    [Fact]
     public async Task ApplyAsync_UpgradesLegacySupportTableAndIsIdempotent()
     {
         // Arrange

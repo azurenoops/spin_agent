@@ -14,11 +14,89 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Ato.Copilot.Core.Models.PackageImports;
 using Xunit;
+using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Services.Tenancy;
+using Microsoft.Extensions.Options;
 
 namespace Ato.Copilot.Tests.Unit.PackageImports;
 
 public sealed class CspPackageServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RegisteredReceipt_RevokedHandlingStopsWorkerWithoutLosingSourcesOrPublishing(bool revokeDuringAnalysis)
+    {
+        // Arrange
+        await using var fixture = await Fixture.CreateAsync();
+        var receipt = await fixture.ReceiveAsync($"policy-{Guid.NewGuid()}", "synthetic supporting quote");
+        var policy = new ProviderHandlingOptions { PolicyId = "synthetic", Version = "test-1", ApprovalReference = "Synthetic test policy",
+            ValidUntil = DateTimeOffset.UtcNow.AddHours(1), AllowedClassifications = ["Unclassified"], SyntheticOnly = true,
+            UploadsEnabled = true, AnalysisEnabled = true };
+        var intentId = Guid.NewGuid();
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var package = await db.CspPackages.SingleAsync(x => x.Id == receipt.PackageId);
+            var draft = new ProviderSetupDraft { ProviderId = fixture.ProviderId, CreatedBy = "synthetic", UpdatedBy = "synthetic" };
+            db.Add(draft);
+            var input = new ProviderUploadIntentInput(intentId, 1, package.Name, "ActivePortal", "Unassociated", null, null,
+                [], "test-1", new("Unclassified", [], true));
+            db.Add(new CspPackageUploadIntent { Id = intentId, ProviderId = fixture.ProviderId, DraftId = draft.Id,
+                IdempotencyKey = package.IdempotencyKey, IntentHash = new string('A', 64),
+                IntentJson = JsonSerializer.Serialize(input, new JsonSerializerOptions(JsonSerializerDefaults.Web)), CreatedBy = "synthetic" });
+            package.UploadIntentId = intentId;
+            package.RequiresOfferingAssociation = true;
+            package.Version++;
+            await db.SaveChangesAsync();
+        }
+        if (revokeDuringAnalysis)
+            fixture.Analyzer.Setup(x => x.AnalyzeAsync(It.IsAny<IReadOnlyList<CspPackageAnalysisInput>>(), It.IsAny<CancellationToken>()))
+                .Returns((IReadOnlyList<CspPackageAnalysisInput> inputs, CancellationToken _) =>
+                {
+                    policy.AnalysisEnabled = false;
+                    return Task.FromResult(Fixture.Analysis(inputs));
+                });
+        else policy.AnalysisEnabled = false;
+        var processor = new CspPackageProcessor(fixture.Factory, fixture.Storage, fixture.Analyzer.Object, NullLogger.Instance, Options.Create(policy));
+        // Act
+        await processor.ProcessAsync(receipt.PackageId, default);
+        // Assert
+        await using var verify = fixture.Factory.CreateDbContext();
+        var retained = await verify.CspPackages.SingleAsync(x => x.Id == receipt.PackageId);
+        retained.ProcessingState.Should().Be("NeedsAttention");
+        retained.LastError.Should().StartWith("HANDLING_POLICY_UNKNOWN");
+        retained.PublicationState.Should().Be("Unpublished");
+        (await verify.CspPackageEntries.CountAsync(x => x.PackageId == receipt.PackageId && x.IsOriginal)).Should().Be(1);
+        (await verify.CspPackageCandidates.CountAsync(x => x.PackageId == receipt.PackageId)).Should().Be(0);
+        (await verify.CspInheritedComponents.CountAsync()).Should().Be(0);
+        fixture.Files.Should().HaveCount(1);
+        fixture.Analyzer.Verify(x => x.AnalyzeAsync(It.IsAny<IReadOnlyList<CspPackageAnalysisInput>>(), It.IsAny<CancellationToken>()),
+            revokeDuringAnalysis ? Times.Once() : Times.Never());
+    }
+
+    [Fact]
+    public async Task NewSetupReceipt_RequiresExplicitOfferingAssociation_WithoutChangingLegacyPublication()
+    {
+        // Arrange
+        await using var fixture = await Fixture.CreateAsync();
+        var package = await fixture.AnalyzeAsync();
+        await fixture.ReviewAllAsync(package.PackageId);
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var row = await db.CspPackages.SingleAsync(x => x.Id == package.PackageId);
+            row.RequiresOfferingAssociation = true;
+            row.Version++;
+            await db.SaveChangesAsync();
+        }
+        // Act
+        var preview = () => fixture.PreviewAsync(package.PackageId);
+        // Assert
+        await preview.Should().ThrowAsync<Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderPublicationConflictException>()
+            .WithMessage("*Associate this setup receipt*");
+        await using var verified = fixture.Factory.CreateDbContext();
+        (await verified.CspInheritedComponents.CountAsync()).Should().Be(0);
+    }
+
     public static IEnumerable<object[]> CandidateKinds =>
         Enum.GetValues<CspPackageCandidateKind>().Select(kind => new object[] { kind });
 

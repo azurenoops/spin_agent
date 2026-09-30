@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useTenantField, useTenantDraftRevision } from '../draftContext';
 import { tenantWizard } from '../api';
 import type { StepProps } from './types';
 
@@ -8,15 +8,17 @@ import type { StepProps } from './types';
  * <c>POST /api/onboarding/tenant/legal-entity</c>.
  */
 export default function LegalEntityStep({ busy, beforeSubmit, onAdvance, onError }: StepProps) {
-  const [legalEntityName, setLegalEntityName] = useState('');
-  const [doDComponent, setDoDComponent] = useState('');
-  const [timeZone, setTimeZone] = useState('');
+  const [legalEntityName, setLegalEntityName] = useTenantField('legalEntity', 'legalEntityName');
+  const [doDComponent, setDoDComponent] = useTenantField('legalEntity', 'doDComponent');
+  const [timeZone, setTimeZone] = useTenantField('legalEntity', 'timeZone');
+  const expectedRevision = useTenantDraftRevision();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     beforeSubmit();
     try {
       const next = await tenantWizard.submitLegalEntity({
+        expectedRevision,
         legalEntityName: legalEntityName.trim(),
         doDComponent: doDComponent.trim() || null,
         timeZone: timeZone.trim() || null,

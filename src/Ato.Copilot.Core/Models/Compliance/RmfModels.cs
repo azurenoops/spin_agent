@@ -138,6 +138,16 @@ public class RegisteredSystem
     /// <summary>Soft delete flag.</summary>
     public bool IsActive { get; set; } = true;
 
+    public string? SetupDraftJson { get; set; }
+    public long SetupRevision { get; set; }
+    public DateTimeOffset? SetupCompletedAt { get; set; }
+    [MaxLength(100)]
+    public string? SetupRequestKey { get; set; }
+    [MaxLength(64)]
+    public string? SetupRequestHash { get; set; }
+    public Guid? SetupActorPersonId { get; set; }
+    public string? SetupLastCommandJson { get; set; }
+
     // ─── Owned entity ────────────────────────────────────────────────────────
 
     /// <summary>Azure environment profile (owned entity, stored in same table).</summary>

@@ -44,8 +44,13 @@ public static class CspPackageSchemaAdditions
                 }
             }
         }
+        await db.Database.ExecuteSqlRawAsync(UploadIntentIndex(sqlServer), ct);
         logger.LogInformation("Verified additive private CSP package schema for {Provider}", db.Database.ProviderName);
     }
+
+    private static string UploadIntentIndex(bool sqlServer) => sqlServer
+        ? "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CspPackages_UploadIntentId' AND object_id = OBJECT_ID(N'dbo.CspPackages')) CREATE UNIQUE INDEX IX_CspPackages_UploadIntentId ON dbo.CspPackages(UploadIntentId) WHERE UploadIntentId IS NOT NULL"
+        : "CREATE UNIQUE INDEX IF NOT EXISTS IX_CspPackages_UploadIntentId ON CspPackages(UploadIntentId) WHERE UploadIntentId IS NOT NULL";
 
     // ExecuteSqlRaw formats even parameterless commands; JSON defaults contain literal braces.
     private static string EscapeSqlFormat(string sql) => sql.Replace("{", "{{").Replace("}", "}}");
@@ -65,6 +70,10 @@ public static class CspPackageSchemaAdditions
                 ["SupersededAt"] = sqlServer ? "datetimeoffset NULL" : "TEXT NULL",
                 ["SupersededBy"] = sqlServer ? "nvarchar(254) NULL" : "TEXT NULL",
                 ["SupersedeReason"] = sqlServer ? "nvarchar(2000) NULL" : "TEXT NULL",
+                ["UploadIntentId"] = $"{(sqlServer ? "uniqueidentifier" : "TEXT")} NULL",
+                ["HandlingPolicyVersion"] = $"{(sqlServer ? "nvarchar(100)" : "TEXT")} NULL",
+                ["HandlingDeclarationJson"] = $"{text} NULL",
+                ["RequiresOfferingAssociation"] = $"{(sqlServer ? "bit" : "INTEGER")} NOT NULL DEFAULT 0",
                 ["AnalysisProfileVersion"] = $"{integer} NOT NULL DEFAULT 1",
                 ["TargetAnalysisProfileVersion"] = $"{integer} NULL",
                 ["FamilyCoverageJson"] = $"{text} NOT NULL DEFAULT '{{}}'",
@@ -148,6 +157,7 @@ public static class CspPackageSchemaAdditions
             foreach (var (table, columns) in profileColumns)
                 foreach (var (column, definition) in columns)
                     scripts.Add($"IF COL_LENGTH(N'dbo.{table}', N'{column}') IS NULL ALTER TABLE dbo.{table} ADD {column} {definition};");
+            scripts.Add(UploadIntentIndex(true));
         }
         var indexes = new[]
         {

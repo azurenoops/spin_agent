@@ -10,7 +10,7 @@ vi.mock('../../components/layout/PageLayout', () => ({ default: ({ children }: {
 vi.mock('../../components/layout/PageHero', () => ({ default: () => <h1>Component Library</h1> }));
 vi.mock('../../features/csp-inherited-components/api', () => ({
   listCspInheritedComponents: vi.fn<typeof api.listCspInheritedComponents>(async () => ({ items: [], total: 0, page: 1, pageSize: 200 })),
-  listCspInheritedCapabilities: vi.fn(async () => []), isUnavailable: () => false, importCspInheritedComponents: vi.fn(),
+  listCspInheritedCapabilities: vi.fn(async () => []), isUnavailable: () => false,
   archiveCspInheritedComponent: vi.fn(),
 }));
 function CurrentRoute() { return <output aria-label="Route">{useLocation().pathname}</output>; }
@@ -33,7 +33,7 @@ describe('legacy provider import entry', () => {
     confirm.mockRestore();
   });
 
-  it('hands import to the durable portal flow without issuing legacy synchronous ingestion', async () => {
+  it('hands import to the durable portal flow without rendering a legacy upload form', async () => {
     // Arrange
     render(<MemoryRouter initialEntries={['/csp/inherited-components']}><CurrentRoute /><CspInheritedComponentsPage /></MemoryRouter>);
     await screen.findByText('0 components');
@@ -41,7 +41,6 @@ describe('legacy provider import entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import ATO documents' }));
     // Assert
     expect(screen.getByLabelText('Route')).toHaveTextContent('/workspaces/csp/security-capabilities/imports');
-    expect(api.importCspInheritedComponents).not.toHaveBeenCalled();
     expect(screen.queryByLabelText('Import ATO documents')).not.toBeInTheDocument();
   });
 });

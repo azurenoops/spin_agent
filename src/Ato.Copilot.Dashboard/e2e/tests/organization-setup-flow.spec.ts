@@ -30,6 +30,17 @@ async function fixture(context: BrowserContext, baseURL: string, failFirst = fal
     ...organization, setupState: saved.administratorState === 'Completed' ? 'Completed' : 'Pending',
     memberCount: saved.membershipState === 'Completed' ? 1 : 0,
   } } }));
+  await context.route('**/api/csp/organizations/org-new/setup-summary*', route => route.fulfill({ json: { status: 'success', data: {
+    tenant: { id: organization.id, displayName: organization.displayName, lifecycle: 'Active', onboardingState: 'Pending' },
+    observedAt: '2026-09-30T13:00:00Z',
+    liveAccess: { state: saved.administratorState === 'Completed' && saved.membershipState === 'Completed' ? 'Available' : 'Missing',
+      activeMemberCount: saved.membershipState === 'Completed' ? 1 : 0,
+      administrators: { items: saved.administratorState === 'Completed' ? [{ personId: 'local-person', displayName: 'Jordan Lee',
+        membershipId: 'membership', directoryTenantId: directory, objectId: object, assignmentId: 'administrator-role' }] : [],
+      page: 1, pageSize: 25, total: saved.administratorState === 'Completed' ? 1 : 0 } },
+    requestedOperation: saved, reconciliation: saved.administratorState === 'Completed' ? 'SameIdentity' : 'Unbound',
+    actorActions: { canManageMemberships: true, canResumeEnrollment: saved.administratorState !== 'Completed', canEnterOrganization: false },
+  } } }));
   await context.route('**/api/csp/organizations?*', route => route.fulfill({ json: { data: {
     items: [{ ...organization, reviewState: 'NotRequired', systemCount: 0, distinctAdoptionCount: 0,
       setupState: saved.administratorState === 'Completed' ? 'Completed' : 'Pending' }], total: 1, page: 1, pageSize: 25,
@@ -98,7 +109,7 @@ for (const width of [1440, 390]) {
     await page.getByLabel('Administrator name', { exact: true }).fill('Jordan Lee');
     await page.getByLabel('Administrator email', { exact: true }).fill('administrator@example.mil');
     await capture(page, info, 'initial-administrator');
-    await page.getByRole('button', { name: 'Review setup' }).click();
+    await page.getByRole('button', { name: 'Review setup', exact: true }).click();
     await expect(page.getByText('Organization-local Person record', { exact: true })).toBeVisible();
     expect(state.counts()).toEqual({ creates: 0, resumes: 0 });
     await capture(page, info, 'review');
@@ -125,11 +136,11 @@ for (const width of [1440, 390]) {
     await page.getByLabel('Enroll administrator now').focus();
     await page.keyboard.press('ArrowDown');
     await expect(page.getByLabel('Complete enrollment later')).toBeChecked();
-    await page.getByRole('button', { name: 'Review setup' }).click();
+    await page.getByRole('button', { name: 'Review setup', exact: true }).click();
     await page.getByRole('button', { name: 'Create organization', exact: true }).click();
     await expect(page.getByText('Organization created · Enrollment pending', { exact: true })).toBeVisible();
     await capture(page, info, 'deferred-enrollment');
-    await page.getByRole('link', { name: 'Finish later' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await page.getByRole('link', { name: 'Resume setup' }).click();
     await page.reload();
     // Assert

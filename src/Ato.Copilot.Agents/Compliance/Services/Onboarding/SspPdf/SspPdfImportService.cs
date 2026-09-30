@@ -162,6 +162,8 @@ public sealed class SspPdfImportService : ISspPdfImportService
         await using var db = await _contextFactory.CreateDbContextAsync(ct);
         var session = await db.SspPdfImportSessions
             .FirstAsync(s => s.TenantId == tenantId && s.Id == sessionId, ct);
+        if (session.TargetSystemId is not null)
+            throw new InvalidOperationException("Use the selected-system reviewed source endpoint for this bound receipt.");
         session.UserCorrections = JsonSerializer.Serialize(corrections, JsonOpts);
         session.UpdatedAt = DateTimeOffset.UtcNow;
         session.UpdatedBy = actorUserId;
@@ -187,6 +189,8 @@ public sealed class SspPdfImportService : ISspPdfImportService
 
         if (session.Status != SspPdfStatus.Extracted)
             throw new InvalidOperationException($"Session {sessionId} cannot be committed (Status={session.Status}).");
+        if (session.TargetSystemId is not null)
+            throw new InvalidOperationException("Use the selected-system reviewed source endpoint for this bound receipt.");
 
         var extraction = session.ExtractionResult is null
             ? null

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useTenantField, useTenantDraftRevision } from '../draftContext';
 import { tenantWizard } from '../api';
 import type { StepProps } from './types';
 
@@ -8,18 +8,20 @@ import type { StepProps } from './types';
  * <c>POST /api/onboarding/tenant/hq-address</c>.
  */
 export default function HqAddressStep({ busy, beforeSubmit, onAdvance, onError }: StepProps) {
-  const [line1, setLine1] = useState('');
-  const [line2, setLine2] = useState('');
-  const [city, setCity] = useState('');
-  const [region, setRegion] = useState('');
-  const [postal, setPostal] = useState('');
-  const [country, setCountry] = useState('US');
+  const [line1, setLine1] = useTenantField('hqAddress', 'hqAddressLine1');
+  const [line2, setLine2] = useTenantField('hqAddress', 'hqAddressLine2');
+  const [city, setCity] = useTenantField('hqAddress', 'hqCity');
+  const [region, setRegion] = useTenantField('hqAddress', 'hqStateOrProvince');
+  const [postal, setPostal] = useTenantField('hqAddress', 'hqPostalCode');
+  const [country, setCountry] = useTenantField('hqAddress', 'hqCountry');
+  const expectedRevision = useTenantDraftRevision();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     beforeSubmit();
     try {
       const next = await tenantWizard.submitHqAddress({
+        expectedRevision,
         hqAddressLine1: line1.trim(),
         hqAddressLine2: line2.trim() || null,
         hqCity: city.trim(),

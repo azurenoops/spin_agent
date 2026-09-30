@@ -17,6 +17,64 @@ namespace Ato.Copilot.Tests.Integration.Data;
 public sealed class OrganizationProvisioningSqlServerTests(BoundarySchemaSqlServerFixture fixture)
     : IClassFixture<BoundarySchemaSqlServerFixture>
 {
+    [SkippableFact]
+    public async Task OrganizationDraftUpgrade_RetainsPrivateDraftAndTenantDraftAcrossRepeatedApply()
+    {
+        // Arrange
+        Skip.IfNot(fixture.Available, fixture.UnavailableReason);
+        await using var database = await fixture.CreateDatabaseAsync();
+        await database.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE dbo.Tenants (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY, DisplayName NVARCHAR(200) NOT NULL);
+            CREATE TABLE dbo.CspProfiles (Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY);
+            """);
+        var tenantId = Guid.NewGuid();
+        var providerId = Guid.NewGuid();
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO dbo.Tenants(Id,DisplayName) VALUES({tenantId},{"Retained SQL organization"})");
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO dbo.CspProfiles(Id) VALUES({providerId})");
+        await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationOnboardingSchemaAdditions
+            .ApplyAsync(database, NullLogger.Instance);
+        var draft = new Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft
+        {
+            Id = Guid.NewGuid(), ProviderId = providerId, Revision = 7, TenantId = tenantId,
+            CurrentStep = "administrator", State = "Draft", CreatedBy = "synthetic/creator",
+            UpdatedBy = "synthetic/reviewer", CreationKey = "retained-creation-key",
+            ValuesJson = """{"organizationChoice":"existing","primaryPocName":"Retained contact","administratorChoice":"deferred"}"""
+        };
+        database.Set<Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft>().Add(draft);
+        await database.SaveChangesAsync();
+        const string tenantDraft = """{"legalEntity":{"legalEntityName":"Unapplied tenant draft"}}""";
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE dbo.Tenants SET OnboardingDraftJson={tenantDraft}, OnboardingDraftRevision={9L}, OnboardingDraftStep={"Tenant.LegalEntity"} WHERE Id={tenantId}");
+
+        // Act
+        await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationOnboardingSchemaAdditions
+            .ApplyAsync(database, NullLogger.Instance);
+        await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationOnboardingSchemaAdditions
+            .ApplyAsync(database, NullLogger.Instance);
+        database.ChangeTracker.Clear();
+        var retained = await database.Set<Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft>()
+            .AsNoTracking().SingleAsync(x => x.Id == draft.Id);
+
+        // Assert
+        retained.ProviderId.Should().Be(providerId);
+        retained.TenantId.Should().Be(tenantId);
+        retained.Revision.Should().Be(7);
+        retained.ValuesJson.Should().Be(draft.ValuesJson);
+        retained.CreationKey.Should().Be("retained-creation-key");
+        retained.CurrentStep.Should().Be("administrator");
+        retained.UpdatedBy.Should().Be("synthetic/reviewer");
+        retained.CreatedAt.Should().Be(draft.CreatedAt);
+        retained.UpdatedAtTicks.Should().Be(draft.UpdatedAtTicks);
+        (await database.Database.SqlQuery<string>(
+            $"SELECT OnboardingDraftJson AS Value FROM dbo.Tenants WHERE Id={tenantId}").SingleAsync()).Should().Be(tenantDraft);
+        (await database.Database.SqlQuery<long>(
+            $"SELECT OnboardingDraftRevision AS Value FROM dbo.Tenants WHERE Id={tenantId}").SingleAsync()).Should().Be(9);
+        (await database.Database.SqlQuery<string>(
+            $"SELECT DisplayName AS Value FROM dbo.Tenants WHERE Id={tenantId}").SingleAsync()).Should().Be("Retained SQL organization");
+    }
+
     [SkippableTheory]
     [InlineData("concurrent")]
     [InlineData("lost-commit-response")]

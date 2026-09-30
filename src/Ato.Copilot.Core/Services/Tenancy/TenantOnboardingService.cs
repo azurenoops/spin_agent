@@ -23,7 +23,7 @@ namespace Ato.Copilot.Core.Services.Tenancy;
 /// transaction as the step write) to satisfy FR-056's "every step
 /// submission" guarantee.
 /// </remarks>
-public sealed class TenantOnboardingService : ITenantOnboardingService
+public sealed partial class TenantOnboardingService : ITenantOnboardingService
 {
     /// <summary>Step-name discriminators used both as wizard step ids and as audit-action suffixes.</summary>
     public static class StepNames
@@ -113,7 +113,7 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
         if (!Enum.TryParse<ClassificationLevel>(
                 request.DefaultClassificationLevel,
                 ignoreCase: true,
-                out var level))
+                out var level) || !Enum.IsDefined(level))
         {
             throw new ArgumentException(
                 $"defaultClassificationLevel must be one of: {string.Join(", ", Enum.GetNames<ClassificationLevel>())}.",
@@ -161,14 +161,21 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
         await using var db = await _contextFactory.CreateDbContextAsync(ct);
         var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct)
             ?? throw new InvalidOperationException($"Tenant {tenantId} not found.");
+        CheckTenantRevision(tenant, request.ExpectedRevision);
+        if (tenant.OnboardingFirstOrganizationId.HasValue && request.FirstOrganizationId.HasValue
+            && tenant.OnboardingFirstOrganizationId != request.FirstOrganizationId)
+            throw new ArgumentException("The selected profile differs from this tenant's recorded first organization.");
 
         // Re-entrancy: if Org.Profile was already submitted, look up the
         // first organization for this tenant by step-completion timestamp
         // and update it in place rather than creating a duplicate.
+        var firstId = tenant.OnboardingFirstOrganizationId ?? request.FirstOrganizationId;
         var existingOrg = await db.Organizations
-            .Where(o => o.TenantId == tenantId)
+            .Where(o => o.TenantId == tenantId && (firstId == null || o.Id == firstId))
             .OrderBy(o => o.Id)
             .FirstOrDefaultAsync(ct);
+        if (firstId.HasValue && existingOrg is null)
+            throw new InvalidOperationException("The recorded first organization is unavailable in this tenant.");
 
         if (existingOrg is null)
         {
@@ -188,6 +195,12 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
             existingOrg.Name = request.Name.Trim();
             existingOrg.Description = NullIfBlank(request.Description);
         }
+        tenant.OnboardingFirstOrganizationId = existingOrg.Id;
+        ApplyDraftSlice(tenant, StepNames.OrgProfile, request with
+        {
+            Name = existingOrg.Name, Description = existingOrg.Description,
+            ExpectedRevision = null, FirstOrganizationId = existingOrg.Id
+        });
 
         if (tenant.OnboardingState == OnboardingState.Pending)
             tenant.OnboardingState = OnboardingState.InWizard;
@@ -200,11 +213,14 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
     }
 
     public async Task<TenantOnboardingProgress> SubmitFinalAsync(
-        Guid tenantId, Guid actorUserId, CancellationToken ct = default)
+        Guid tenantId, Guid actorUserId, CancellationToken ct = default, long? expectedRevision = null)
     {
         await using var db = await _contextFactory.CreateDbContextAsync(ct);
         var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct)
             ?? throw new InvalidOperationException($"Tenant {tenantId} not found.");
+        CheckTenantRevision(tenant, expectedRevision);
+        if (expectedRevision.HasValue && HasUnappliedDraft(tenant, await SubmittedValuesAsync(db, tenant, ct)))
+            throw new InvalidOperationException("Apply saved draft changes in their steps before activating the tenant.");
 
         // Verify all required fields are populated.
         var missing = ListMissingRequiredFields(tenant);
@@ -227,6 +243,7 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
 
         var wasActive = tenant.OnboardingState == OnboardingState.Active;
         tenant.OnboardingState = OnboardingState.Active;
+        tenant.OnboardingDraftRevision++;
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
         tenant.UpdatedBy = actorUserId.ToString();
 
@@ -269,7 +286,9 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
         var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct)
             ?? throw new InvalidOperationException($"Tenant {tenantId} not found.");
 
+        CheckTenantRevision(tenant, (request as ITenantStepRequest)?.ExpectedRevision);
         mutate(tenant);
+        ApplyDraftSlice(tenant, stepName, request);
         if (tenant.OnboardingState == OnboardingState.Pending)
             tenant.OnboardingState = OnboardingState.InWizard;
         tenant.UpdatedAt = DateTimeOffset.UtcNow;
@@ -303,7 +322,7 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
                 completed.Add(step);
         }
 
-        var firstOrgId = await db.Organizations
+        var firstOrgId = tenant.OnboardingFirstOrganizationId ?? await db.Organizations
             .Where(o => o.TenantId == tenant.Id)
             .OrderBy(o => o.Id)
             .Select(o => (Guid?)o.Id)
@@ -317,7 +336,8 @@ public sealed class TenantOnboardingService : ITenantOnboardingService
             tenant.Id, current,
             OrderedSteps.Where(completed.Contains).ToList(),
             tenant.OnboardingState,
-            firstOrgId);
+            firstOrgId, await SubmittedValuesAsync(db, tenant, ct),
+            ReadTenantDraft(tenant), tenant.OnboardingDraftRevision, ListMissingRequiredFields(tenant));
     }
 
     private static void AppendAudit<TPayload>(

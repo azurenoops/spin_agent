@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Mcp;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -17,19 +18,16 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 /// <c>specs/048-tenant-isolation/contracts/tenant-onboarding.openapi.yaml</c>.
 /// </summary>
 /// <remarks>
-/// We re-use the seeded Tenant A but reset its <see cref="Tenant.OnboardingState"/>
-/// to <see cref="OnboardingState.Pending"/> at the start of each test so the
-/// wizard sees a fresh row. The fixture's mutable <c>FakeTenantContext</c>
-/// makes the request scope appear as Tenant A's administrator, mirroring the
-/// production claims pipeline.
+/// Uses the real workspace resolution pipeline with an explicit local Person,
+/// active membership and Administrator assignment, not fixture context bypass.
 /// </remarks>
 [Collection("Tenancy")]
-public class TenantOnboardingWizardTests
+public class TenantOnboardingWizardTests : IClassFixture<WorkspaceMembershipFactory>
 {
-    private readonly MultiTenantWebApplicationFactory<McpProgram> _factory;
+    private readonly WorkspaceMembershipFactory _factory;
     private readonly HttpClient _client;
 
-    public TenantOnboardingWizardTests(MultiTenantWebApplicationFactory<McpProgram> factory)
+    public TenantOnboardingWizardTests(WorkspaceMembershipFactory factory)
     {
         _factory = factory;
         _client = factory.CreateClient();
@@ -38,14 +36,33 @@ public class TenantOnboardingWizardTests
     [Fact]
     public async Task Wizard_HappyPath_ProducesActiveTenantAndFirstOrganization()
     {
-        var tenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var directoryId = Guid.NewGuid();
+        var objectId = Guid.NewGuid();
+        await using (var seed = _factory.Services.CreateAsyncScope())
+        {
+            var database = seed.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            database.Tenants.Add(new Tenant { Id = tenantId, DisplayName = $"Activation fixture {tenantId:N}" });
+            var person = new Person { TenantId = tenantId, DisplayName = "Activation Administrator", Email = $"{tenantId:N}@example.invalid" };
+            database.Persons.Add(person);
+            database.OrganizationMemberships.Add(new OrganizationMembership
+            {
+                TenantId = tenantId, PersonId = person.Id, DirectoryTenantId = directoryId, ObjectId = objectId, GrantedBy = "test"
+            });
+            database.OrganizationRoleAssignments.Add(new OrganizationRoleAssignment
+            {
+                TenantId = tenantId, PersonId = person.Id, Role = OrganizationRole.Administrator, CreatedBy = objectId, UpdatedBy = objectId
+            });
+            await database.SaveChangesAsync();
+        }
         await ResetTenantAsync(tenantId);
+        _client.DefaultRequestHeaders.Add("X-Test-Tid", directoryId.ToString());
+        _client.DefaultRequestHeaders.Add("X-Test-Oid", objectId.ToString());
+        _client.DefaultRequestHeaders.Add("X-Workspace-Kind", "organization");
+        _client.DefaultRequestHeaders.Add("X-Workspace-Tenant-Id", tenantId.ToString());
 
-        var ctx = _factory.GetActiveContext();
-        ctx.TenantId = tenantId;
-        ctx.IsCspAdmin = false;
-        ctx.Status = TenantStatus.Active;
-
+        // Act
         // Step 1 — legal entity.
         var legal = await _client.PostAsJsonAsync("/api/onboarding/tenant/legal-entity",
             new { legalEntityName = "Acme Defense LLC", doDComponent = "Army", timeZone = "America/New_York" });
@@ -107,7 +124,7 @@ public class TenantOnboardingWizardTests
         finalState.GetProperty("currentStep").GetString().Should().Be("Submitted");
         finalState.GetProperty("onboardingState").GetString().Should().Be("Active");
 
-        // Verify the tenant row was populated and an Organization was created.
+        // Assert
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var tenant = await db.Tenants.FirstAsync(t => t.Id == tenantId);

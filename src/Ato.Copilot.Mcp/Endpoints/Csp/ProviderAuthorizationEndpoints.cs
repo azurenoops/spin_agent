@@ -137,6 +137,8 @@ public static class ProviderAuthorizationEndpoints
     private static Task<IResult> ReceiveAsync(Guid id, HttpContext http, IProviderAuthorizationService service, CancellationToken ct) =>
         ExecuteAsync(http, async () =>
         {
+            await http.RequestServices.GetRequiredService<Ato.Copilot.Core.Services.Tenancy.ProviderSetupService>().RequireIngressAsync(
+                http.Request.Headers["X-Provider-Upload-Intent"].FirstOrDefault(), http.Request.Headers["Idempotency-Key"].ToString(), ct);
             if (!http.Request.HasFormContentType) throw new ArgumentException("Upload multipart/form-data.");
             var form = await http.Request.ReadFormAsync(ct);
             if (form.Files.Count is < 1 or > 1000 || form.Files.Sum(x => x.Length) > 50L * 1024 * 1024)

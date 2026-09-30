@@ -5,6 +5,30 @@
 **Status**: Draft  
 **Input**: User description: "Create a feature spec for a Registered System Intake Wizard. The wizard should take the place of the 'add system' button on the systems page. The wizard should allow the user to register a system, add capabilities, define system components, add auth boundaries, assign RMF roles, verify role assignments, then set categorization. The wizard should be intuitive and walks the user through the intake. Make sure you do performance, and documentation updates."
 
+## September 30 onboarding consolidation amendment
+
+The user authorized the phased onboarding consolidation under Feature 078 on
+`078-onboarding-consolidation`. Its
+[system contract](../078-role-aware-workspaces/contracts/onboarding-system-consolidation.md)
+owns the exact additive intake/resume changes and migration from this historical
+seven-step wizard. The
+[shared contract](../078-role-aware-workspaces/contracts/onboarding-consolidation.md)
+records the required Phase 0 review gate and mock acceptance mapping.
+
+The target journey follows the seven system states in the
+[onboarding mock](../../docs/design/onboarding-mock/index.html): identity and
+objective, effective team, optional sources, explicit hosting, optional
+monitoring, review and work-queue handoff. Detailed capability placement,
+categorization, boundary maintenance and RMF work move to their canonical
+destinations instead of becoming a second management interface.
+
+Save & finish later must retain the same draft system and confirm server
+persistence. It is distinct from an explicit discard. Initial preparation
+creates no fictitious existing ATO decision, and a maintenance objective does
+not establish authorization. Existing roles and reviewed/source records survive
+resumption and migration. The change is proposed contract work, not a statement
+that the new journey or artifact handoff already passes acceptance.
+
 ## Clarifications
 
 ### Session 2026-03-20

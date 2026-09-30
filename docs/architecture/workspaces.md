@@ -9,6 +9,34 @@ remain service-owned. Follow [ADR 004](adr-004-provider-mission-lineage.md) and 
 [mandatory UI targets](../design/index.md). This planning update does not
 supersede historical verification results below or authorize new application work.
 
+## Onboarding consolidation checkpoint (September 30, 2026)
+
+The user requested implementation on `078-onboarding-consolidation`. The
+[consolidation contract](../../specs/078-role-aware-workspaces/contracts/onboarding-consolidation.md)
+records the current source audit and exact domain amendments before behavioral
+implementation. Phase 0 review remains an explicit gate; the following is
+intended architecture, not a shipped-feature claim.
+
+Follow the [onboarding mock](../design/onboarding-mock/index.html) for the shared
+guided-setup presentation and all 22 journey/recovery states. Preserve the
+current workspace selector, scope-aware routes, real branding, authorization
+and canonical records. A shared UI does not combine deployment bootstrap, tenant
+activation, organization enrollment and system registration into one object.
+
+Provider onboarding may receive sources without inventing offering/boundary
+context; retained receipts continue to the provider review queue. Organization
+setup keeps contact, requested enrollment, live administrator readiness and
+current actor access distinct. System setup creates a resumable draft and
+explicit documentation/monitoring follow-up, not an authorization decision.
+Save & finish later requires a server-confirmed draft save, never an implicit
+grant/import/publication or a call to the intake discard operation.
+
+Minimum destinations reuse canonical tasks, import reviews, source versions
+and document output. Configuration, collection health, rule evaluation, package
+readiness, eMASS acceptance and cATO are different facts. Detailed portal/System
+redesign remains with existing issues; no parallel task store or readiness
+calculator is introduced by onboarding.
+
 ## Authorization-led offering amendment
 
 The September 23 22:54 request supersedes package-only ownership:

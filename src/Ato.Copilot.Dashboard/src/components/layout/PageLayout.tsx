@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from '../../features/workspaces/workspaceNavigation';
-import { Library } from 'lucide-react';
+import { Compass, Library } from 'lucide-react';
 import WorkspaceSwitchDialog from '../../features/workspaces/WorkspaceSwitchDialog';
 import { useMsal } from '@azure/msal-react';
 import HelpPanel from '../help/HelpPanel';
@@ -217,6 +217,12 @@ export default function PageLayout({ title, children, sidePanel, leftPanel, defa
               </svg>
             </button>
             <ChatToggle isOpen={panelState.isOpen} onClick={togglePanel} />
+            {workspace && !(workspace.target.kind === 'organization' && workspace.target.mode === 'support') && (
+              <Link to="/setup" aria-label="Guided setup" title="Guided setup"
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100">
+                <Compass className="h-5 w-5" aria-hidden="true" />
+              </Link>
+            )}
             {workspace && <Link to="/narrative-library"
               aria-label={`${workspace.target.kind === 'csp' ? 'Provider' : 'Organization'} Narrative Library`}
               title={`${workspace.target.kind === 'csp' ? 'Provider' : 'Organization'} Narrative Library`}

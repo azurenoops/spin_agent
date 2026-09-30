@@ -52,8 +52,8 @@ public static class ProviderAuthorizationHttp
         catch (UnauthorizedAccessException ex) { return Failure(http, 403, "PROVIDER_ACCESS_DENIED", ex.Message); }
         catch (KeyNotFoundException ex) { return Failure(http, 404, "PROVIDER_RECORD_NOT_FOUND", ex.Message); }
         catch (ProviderPublicationConflictException ex) { return Failure(http, 409, ex.ErrorCode, ex.Message); }
-        catch (DbUpdateConcurrencyException ex) { return Failure(http, 409, "AUTHORIZATION_CONTEXT_STALE", ex.Message); }
-        catch (ArgumentException ex) { return Failure(http, 400, "INVALID_PROVIDER_REQUEST", ex.Message); }
+        catch (DbUpdateConcurrencyException ex) { return Failure(http, 409, ProviderSetupEndpoints.ErrorCode(ex, "AUTHORIZATION_CONTEXT_STALE"), ex.Message); }
+        catch (ArgumentException ex) { return Failure(http, 400, ProviderSetupEndpoints.ErrorCode(ex, "INVALID_PROVIDER_REQUEST"), ex.Message); }
     }
 
     public static IResult Failure(HttpContext http, int status, string code, string message)

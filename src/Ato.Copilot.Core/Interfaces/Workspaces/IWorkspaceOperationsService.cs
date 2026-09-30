@@ -2,7 +2,7 @@ using Ato.Copilot.Core.Services.Workspaces;
 
 namespace Ato.Copilot.Core.Interfaces.Workspaces;
 
-public interface IWorkspaceOperationsService
+public partial interface IWorkspaceOperationsService
 {
     Task<SystemComponentPlacementOptions> GetSystemComponentPlacementsAsync(Guid tenantId, string systemId,
         string source, string recordId, SystemSecurityCapabilityAccess access, CancellationToken ct);
@@ -132,7 +132,8 @@ public sealed record OrganizationProvisioningResult(
     string MembershipState, string? LastError, string IdempotencyKey = "",
     UpdateProvisioningRequest? InitialAdministrator = null, string PersonState = "NotRequested",
     bool CanEditAdministrator = true,
-    [property: System.Text.Json.Serialization.JsonIgnore] Guid? BoundPersonId = null)
+    [property: System.Text.Json.Serialization.JsonIgnore] Guid? BoundPersonId = null,
+    long Revision = 0)
 {
     public string OverallState => TenantState == "Completed" && AdministratorState == "Completed"
         && MembershipState == "Completed" && PersonState != "Pending"
@@ -140,7 +141,11 @@ public sealed record OrganizationProvisioningResult(
 }
 /// <summary>Explicit directory identity with exactly one existing Person or local Person creation request.</summary>
 public sealed record UpdateProvisioningRequest(
-    Guid DirectoryTenantId, Guid ObjectId, Guid? PersonId = null, NewAdministratorPersonRequest? NewPerson = null);
+    Guid DirectoryTenantId, Guid ObjectId, Guid? PersonId = null, NewAdministratorPersonRequest? NewPerson = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? ExpectedRevision { get; init; }
+}
 /// <summary>Contact fields for a new local Person; these do not infer a directory identity.</summary>
 public sealed record NewAdministratorPersonRequest(string DisplayName, string Email);
 public sealed record OrganizationCapabilityItem(

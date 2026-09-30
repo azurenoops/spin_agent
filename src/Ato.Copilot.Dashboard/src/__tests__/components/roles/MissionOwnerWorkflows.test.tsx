@@ -1,8 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GateActionDialog from '../../../components/cards/GateActionDialog';
-import AssignRoles from '../../../components/wizard/steps/AssignRoles';
-import VerifyRoles from '../../../components/wizard/steps/VerifyRoles';
 import Step2RoleAssignments from '../../../features/onboarding/steps/Step2RoleAssignments';
 import { rolesApi } from '../../../api/roles';
 import { listComponents } from '../../../api/components';
@@ -54,17 +52,6 @@ describe('Mission Owner assignment workflows', () => {
     expect(option).toHaveValue('MissionOwner');
   });
 
-  it('offers Mission Owner during system registration', async () => {
-    // Arrange
-    render(<AssignRoles systemId="sys-1" onNext={vi.fn()} onErrors={vi.fn()} />);
-
-    // Act
-    const label = await screen.findByText('Mission Owner');
-
-    // Assert
-    expect(label).toBeInTheDocument();
-  });
-
   it('offers all seven roles during organization onboarding', async () => {
     // Arrange
     render(<Step2RoleAssignments />);
@@ -80,22 +67,4 @@ describe('Mission Owner assignment workflows', () => {
     expect(screen.getByRole('option', { name: /System Owner/ })).toHaveValue('SystemOwner');
   });
 
-  it('shows the canonical Mission Owner label during role verification', async () => {
-    // Arrange
-    vi.mocked(rolesApi.getSystemRoles).mockResolvedValueOnce({
-      systemId: 'sys-1',
-      roles: [{
-        role: 'MissionOwner',
-        person: { id: 'person-1', displayName: 'Morgan Owner' },
-        source: 'override',
-      }],
-    });
-    render(<VerifyRoles systemId="sys-1" onNext={vi.fn()} />);
-
-    // Act
-    const label = await screen.findByText('Mission Owner');
-
-    // Assert
-    expect(label).toBeInTheDocument();
-  });
 });

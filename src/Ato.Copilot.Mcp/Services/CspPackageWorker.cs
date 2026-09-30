@@ -3,6 +3,8 @@ using Ato.Copilot.Core.Interfaces.PackageImports;
 using Ato.Copilot.Core.Interfaces.Storage;
 using Ato.Copilot.Core.Services.PackageImports;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Ato.Copilot.Core.Configuration;
 
 namespace Ato.Copilot.Mcp.Services;
 
@@ -19,7 +21,8 @@ public sealed class CspPackageWorker(IServiceScopeFactory scopes, ILogger<CspPac
                 var processor = new CspPackageProcessor(
                     scope.ServiceProvider.GetRequiredService<IDbContextFactory<AtoCopilotContext>>(),
                     scope.ServiceProvider.GetRequiredService<IFileStorageProvider>(),
-                    scope.ServiceProvider.GetRequiredService<ICspPackageAnalyzer>(), logger);
+                    scope.ServiceProvider.GetRequiredService<ICspPackageAnalyzer>(), logger,
+                    scope.ServiceProvider.GetService<IOptions<ProviderHandlingOptions>>());
                 if (await processor.ProcessNextAsync(stoppingToken)) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }

@@ -5,13 +5,17 @@ using Ato.Copilot.Core.Models.PackageImports;
 using Ato.Copilot.Core.Models.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Services.Tenancy;
 using static Ato.Copilot.Core.Services.PackageImports.CspPackageService;
 
 namespace Ato.Copilot.Core.Services.PackageImports;
 
 /// <summary>Trusted background-only durable queue consumer; never registered as an HTTP service.</summary>
 public sealed partial class CspPackageProcessor(IDbContextFactory<AtoCopilotContext> factory,
-    IFileStorageProvider storage, ICspPackageAnalyzer analyzer, ILogger logger)
+    IFileStorageProvider storage, ICspPackageAnalyzer analyzer, ILogger logger,
+    IOptions<ProviderHandlingOptions>? handlingOptions = null)
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(15);
 
@@ -37,6 +41,7 @@ public sealed partial class CspPackageProcessor(IDbContextFactory<AtoCopilotCont
             CspPackageAnalysisResult output;
             try
             {
+                await ValidateProcessingContextAsync(id, ct);
                 var inputs = await InputsAsync(id, ct);
                 var resume = await ResumeRequestAsync(id, inputs, ct);
                 output = resume is null
@@ -57,6 +62,11 @@ public sealed partial class CspPackageProcessor(IDbContextFactory<AtoCopilotCont
             logger.LogInformation("CspPackage.ProcessingInterrupted package={PackageId}; lease permits restart recovery", id);
             throw;
         }
+        catch (DbUpdateConcurrencyException exception) when (exception.Message.StartsWith("HANDLING_", StringComparison.Ordinal))
+        {
+            await FailAsync(id, lease, exception.Message, ct);
+            return true;
+        }
         catch (DbUpdateConcurrencyException)
         {
             logger.LogWarning("CspPackage.LeaseLost package={PackageId}; stale worker output discarded", id);
@@ -68,6 +78,7 @@ public sealed partial class CspPackageProcessor(IDbContextFactory<AtoCopilotCont
             var message = exception switch
             {
                 InvalidDataException => exception.Message,
+                ArgumentException when exception.Message.StartsWith("HANDLING_", StringComparison.Ordinal) => exception.Message,
                 IOException => "Source storage failed; retry after restoring access.",
                 _ => "Package analysis failed; inspect retained sources and retry."
             };
@@ -129,6 +140,7 @@ public sealed partial class CspPackageProcessor(IDbContextFactory<AtoCopilotCont
 
     private async Task CheckpointAsync(Guid id, Guid lease, CspPackageAnalysisResult output, CancellationToken ct)
     {
+        await ValidateProcessingContextAsync(id, ct);
         var rootIds = new HashSet<Guid>();
         await using (var observed = await factory.CreateDbContextAsync(ct))
             rootIds.UnionWith(await observed.CspPackageEntries.Where(x => x.PackageId == id && x.IsOriginal).Select(x => x.Id).ToListAsync(ct));
@@ -300,7 +312,7 @@ public sealed partial class CspPackageProcessor(IDbContextFactory<AtoCopilotCont
             await using var db = await factory.CreateDbContextAsync(ct);
             var row = await db.CspPackages.SingleAsync(x => x.Id == id, ct);
             if (row.LeaseId != lease) return;
-            row.ProcessingState = "Failed";
+            row.ProcessingState = message.StartsWith("HANDLING_", StringComparison.Ordinal) ? "NeedsAttention" : "Failed";
             row.LastError = message;
             row.LeaseId = null;
             row.LeaseExpiresTicks = 0;
@@ -308,5 +320,23 @@ public sealed partial class CspPackageProcessor(IDbContextFactory<AtoCopilotCont
             Audit(db, row, "ProcessingFailed", "package-worker", message);
             await db.SaveChangesAsync(ct);
         });
+    }
+
+    private async Task ValidateProcessingContextAsync(Guid id, CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var package = await db.CspPackages.SingleAsync(x => x.Id == id, ct);
+        if (!package.UploadIntentId.HasValue) return;
+        if (!await db.CspProfiles.AnyAsync(x => x.Id == package.ProviderId, ct))
+            throw new InvalidDataException("Retained provider context is unavailable.");
+        var intent = await db.Set<CspPackageUploadIntent>().SingleOrDefaultAsync(x =>
+            x.Id == package.UploadIntentId && x.ProviderId == package.ProviderId, ct)
+            ?? throw new InvalidDataException("Retained source request context is unavailable.");
+        ProviderSetupService.RequireHandling(handlingOptions?.Value ?? new(),
+            ProviderSetupService.Read<ProviderUploadIntentInput>(intent.IntentJson), analysis: true);
+        if (package.PackageVersionId.HasValue && !await db.Set<Ato.Copilot.Core.Models.ProviderAuthorizations.ProviderPackageVersion>()
+            .AnyAsync(x => x.Id == package.PackageVersionId && x.ProviderId == package.ProviderId
+                && x.PackageId == id && x.OfferingId == package.OfferingId && x.BoundaryRevisionId == package.BoundaryRevisionId, ct))
+            throw new InvalidDataException("Retained offering association context changed.");
     }
 }

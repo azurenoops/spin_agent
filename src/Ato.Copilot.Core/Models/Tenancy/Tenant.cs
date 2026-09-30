@@ -83,6 +83,13 @@ public class Tenant
     /// <summary>Drives onboarding wizard routing.</summary>
     public OnboardingState OnboardingState { get; set; } = OnboardingState.Pending;
 
+    public string? OnboardingDraftJson { get; set; }
+    public int OnboardingDraftSchemaVersion { get; set; } = 1;
+    public long OnboardingDraftRevision { get; set; }
+    [MaxLength(32)]
+    public string? OnboardingDraftStep { get; set; }
+    public Guid? OnboardingFirstOrganizationId { get; set; }
+
     /// <summary>UTC timestamp when the tenant row was created.</summary>
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

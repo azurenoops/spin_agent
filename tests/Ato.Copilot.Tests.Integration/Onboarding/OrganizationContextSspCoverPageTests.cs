@@ -36,9 +36,18 @@ public class OrganizationContextSspCoverPageTests : IAsyncLifetime
         // Seed RegisteredSystem + OrganizationContext.
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var tenantId = Guid.NewGuid();
+        db.OrganizationContexts.Add(new OrganizationContext
+        {
+            Id = Guid.NewGuid(),
+            TenantId = Guid.NewGuid(),
+            OrganizationName = "Unrelated tenant organization",
+            Branch = BranchAffiliation.CivilAgency,
+        });
         db.RegisteredSystems.Add(new RegisteredSystem
         {
             Id = "sys-cover-test",
+            TenantId = tenantId,
             Name = "Test System",
             Acronym = "TST",
             SystemType = SystemType.MajorApplication,
@@ -49,7 +58,7 @@ public class OrganizationContextSspCoverPageTests : IAsyncLifetime
         db.OrganizationContexts.Add(new OrganizationContext
         {
             Id = Guid.NewGuid(),
-            TenantId = Guid.NewGuid(),
+            TenantId = tenantId,
             OrganizationName = "Department of Cover Page Testing",
             Branch = BranchAffiliation.AirForce,
             SubOrganization = "Office of Compliance",
@@ -66,11 +75,14 @@ public class OrganizationContextSspCoverPageTests : IAsyncLifetime
     [Fact]
     public async Task RenderDocxAsync_IncludesOrganizationName()
     {
+        // Arrange
         using var scope = _services.CreateScope();
         var renderer = scope.ServiceProvider.GetRequiredService<IDocumentTemplateService>();
 
+        // Act
         var docx = await renderer.RenderDocxAsync("sys-cover-test", "ssp");
 
+        // Assert
         docx.Should().NotBeNull();
         docx.Length.Should().BeGreaterThan(0);
 
@@ -86,6 +98,8 @@ public class OrganizationContextSspCoverPageTests : IAsyncLifetime
 
         documentXml.Should().Contain("Department of Cover Page Testing",
             "the SSP cover-page renderer must inject OrganizationContext.OrganizationName (FR-014)");
+        documentXml.Should().NotContain("Unrelated tenant organization",
+            "an unscoped renderer must select the system's actual tenant, not the first organization row");
     }
 
     /// <summary>

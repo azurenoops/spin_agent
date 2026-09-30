@@ -211,7 +211,8 @@ public sealed partial class OrganizationCreationFlowTests(WorkspaceMembershipFac
 
         // Assert
         creates.Count(x => x.StatusCode == HttpStatusCode.Created).Should().Be(1);
-        if (!differentCreationKeys) creates.Should().OnlyContain(x => x.IsSuccessStatusCode);
+        if (!differentCreationKeys) creates.Should().OnlyContain(x => x.IsSuccessStatusCode,
+            string.Join("\n", await Task.WhenAll(creates.Select(x => x.Content.ReadAsStringAsync()))));
         resumes.Should().OnlyContain(x => x.IsSuccessStatusCode || x.StatusCode == HttpStatusCode.Conflict);
         (await client.PatchAsJsonAsync(route, identity)).StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyAsync(async db =>

@@ -7,6 +7,24 @@
 
 ## Background
 
+### September 30 onboarding consolidation amendment
+
+The user-authorized [Feature 078 consolidation](../078-role-aware-workspaces/contracts/onboarding-consolidation.md)
+retains this feature's deployment/tenant/organization boundaries.
+The [organization/tenant contract](../078-role-aware-workspaces/contracts/onboarding-organization-consolidation.md)
+defines the pending draft hydration, exact identity association, enrollment
+recovery and migration changes. Phase 0 contract review precedes behavioral
+implementation; active users must not be forced through bootstrap again.
+
+Provider source setup may use the canonical unassociated receipt path described
+in the [provider contract](../078-role-aware-workspaces/contracts/onboarding-provider-consolidation.md).
+Never invent a boundary or raise deployment handling permission from an offering
+impact-level selection. Tenant activation, provider setup, live administrator
+availability, explicit membership and current actor access remain distinct.
+Preserve compound directory/object identity, local Person associations, original
+receipts, grants and audit. The historical descriptions below do not authorize
+relaxing the current ordinary-workspace/support separation.
+
 ### Superseding provider authorization ownership
 
 The September 23 22:54 request places provider offering, external authorization

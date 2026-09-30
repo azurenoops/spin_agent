@@ -73,13 +73,13 @@ export async function getAssociatedPackage(id: string, signal?: AbortSignal) {
 }
 export async function uploadPackage(id: string, data: {
   name: string; boundaryRevisionId: string; expectedOfferingRevision: number; seriesId?: string; previousVersionId?: string;
-}, files: File[], key: string) {
+}, files: File[], key: string, uploadIntentId?: string) {
   const form = new FormData();
   Object.entries(data).forEach(([name, value]) => { if (value !== undefined) form.append(name, String(value)); });
   files.forEach(file => form.append('files', file, file.name));
   const receipt = await packageRequest<PackageReceipt>({
     method: 'POST', url: `${offeringPath(id)}/package-versions`, data: form,
-    headers: { ...keyHeader(key), Prefer: 'respond-async' },
+    headers: { ...keyHeader(key), Prefer: 'respond-async', ...(uploadIntentId ? { 'X-Provider-Upload-Intent': uploadIntentId } : {}) },
   });
   if (!receipt.package?.packageId || !receipt.package.operationId || !receipt.packageVersion?.packageVersionId) {
     throw new Error('No durable offering package receipt was returned. Retry the same upload; keep the selected files.');

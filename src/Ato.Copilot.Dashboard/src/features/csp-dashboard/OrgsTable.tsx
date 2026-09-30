@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from '../workspaces/workspaceNavigation';
 import {
-  createCspDashboardTenant,
   getCspDashboardTenants,
   isUnavailable,
   updateTenantStatus,
@@ -80,7 +79,6 @@ export default function OrgsTable({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   // Wave 6 GAP-221-A: pending status action (Suspend / Disable / Reinstate)
@@ -204,7 +202,7 @@ export default function OrgsTable({
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <button
             type="button"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => navigate(buildWorkspaceUrl({ kind: 'csp' }, '/organizations/new'))}
             className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
             data-testid="orgs-create-button"
           >
@@ -448,17 +446,6 @@ export default function OrgsTable({
         </div>
       )}
 
-      {createOpen && (
-        <CreateOrgModal
-          onClose={() => setCreateOpen(false)}
-          onCreated={() => {
-            setCreateOpen(false);
-            setPage(1);
-            setRefreshNonce((n) => n + 1);
-          }}
-        />
-      )}
-
       {/* Wave 6 GAP-221-A: status action confirmation dialog */}
       {statusAction && (
         <div
@@ -532,157 +519,5 @@ function SortableHeader({
       {label}
       {arrow}
     </th>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// CreateOrgModal — CSP-Admin-only surface that provisions a new mission-owner
-// organization (== `Tenant` row) via `POST /api/csp/dashboard/tenants`.
-// Created in `OnboardingState.Pending` so the CSP-Admin can immediately
-// impersonate the new row and walk the per-tenant onboarding wizard.
-// ---------------------------------------------------------------------------
-
-function CreateOrgModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-}): ReactElement {
-  const [displayName, setDisplayName] = useState('');
-  const [legalEntityName, setLegalEntityName] = useState('');
-  const [pocName, setPocName] = useState('');
-  const [pocEmail, setPocEmail] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setFormError(null);
-    if (!displayName.trim()) {
-      setFormError('Display name is required.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await createCspDashboardTenant({
-        displayName: displayName.trim(),
-        legalEntityName: legalEntityName.trim() || undefined,
-        primaryPocName: pocName.trim() || undefined,
-        primaryPocEmail: pocEmail.trim() || undefined,
-      });
-      onCreated();
-    } catch (err) {
-      const ex = err as { errorCode?: string; message?: string };
-      setFormError(ex?.message ?? 'Failed to create organization.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-org-title"
-      onClick={onClose}
-      data-testid="create-org-modal"
-    >
-      <form
-        onSubmit={handleSubmit}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"
-      >
-        <h2 id="create-org-title" className="text-lg font-semibold text-gray-900">
-          Create organization
-        </h2>
-        <p className="mt-1 text-xs text-gray-500">
-          New orgs are created in <span className="font-medium">Pending</span>{' '}
-          onboarding state. After create you can impersonate the org to walk
-          the onboarding wizard.
-        </p>
-
-        {formError && (
-          <div role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {formError}
-          </div>
-        )}
-
-        <div className="mt-4 space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Display name *</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              maxLength={256}
-              required
-              autoFocus
-              placeholder="e.g., PEO Soldier"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              data-testid="create-org-display-name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Legal entity name</label>
-            <input
-              type="text"
-              value={legalEntityName}
-              onChange={(e) => setLegalEntityName(e.target.value)}
-              maxLength={256}
-              placeholder="Optional"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              data-testid="create-org-legal-name"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Primary POC name</label>
-              <input
-                type="text"
-                value={pocName}
-                onChange={(e) => setPocName(e.target.value)}
-                maxLength={256}
-                placeholder="Optional"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                data-testid="create-org-poc-name"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Primary POC email</label>
-              <input
-                type="email"
-                value={pocEmail}
-                onChange={(e) => setPocEmail(e.target.value)}
-                maxLength={256}
-                placeholder="Optional"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                data-testid="create-org-poc-email"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting || !displayName.trim()}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
-            data-testid="create-org-submit"
-          >
-            {submitting ? 'Creating…' : 'Create organization'}
-          </button>
-        </div>
-      </form>
-    </div>
   );
 }
