@@ -217,8 +217,7 @@ public sealed class InitialPackagePurposeTests
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
             db.AddRange(new AuthorizationBoundaryDefinition { RegisteredSystemId = "mission", Name = "DEMO boundary" },
                 new SecurityAssessmentReport { RegisteredSystemId = "mission", Status = SarStatus.Approved, Title = "DEMO SAR" },
-                new SecurityAssessmentPlan { RegisteredSystemId = "mission", Status = SapStatus.Finalized, Title = "DEMO SAP" },
-                new PrivacyThresholdAnalysis { RegisteredSystemId = "mission", Determination = PtaDetermination.PiaNotRequired });
+                new SecurityAssessmentPlan { RegisteredSystemId = "mission", Status = SapStatus.Finalized, Title = "DEMO SAP" });
             foreach (var number in Enumerable.Range(1, 13))
                 db.Add(new SspSection { RegisteredSystemId = "mission", SectionNumber = number,
                     SectionTitle = $"DEMO section {number}", Status = SspSectionStatus.Approved, Content = "DEMO reviewed content" });
