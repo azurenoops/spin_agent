@@ -2,6 +2,29 @@
 
 ## Status
 
+### Rebase onto main (October 1)
+
+Rebased onto `74273c46` after preserving all local narrative and responsibility
+work in a checkpoint commit. The only textual conflict was in package
+validation: upstream's approved system-design checks are retained unchanged,
+with requirement-coverage checks running alongside them.
+
+The first combined regression run exposed six schema-validation failures in
+the newly merged system-design export tests. Their fixture has a baseline and
+implementation but no retained catalog; the source-qualified exporter therefore
+correctly omits an unverified profile URI and control identifiers. The fixture
+now has an explicit synthetic source and matching `ac-1` catalog control.
+The previous fabricated source fallback was not restored, and schema/design
+assertions remain unchanged. This is test-context alignment, not a production
+design change.
+
+Post-rebase validation passed: solution build (10 warnings, zero errors in the
+final incremental run), 243 focused unit tests, 18 focused integration tests,
+Dashboard strict TypeScript checking, 46 focused Dashboard tests and six
+desktop/mobile browser cases. The full solution test suite was not rerun.
+Concurrent responsibility-draft edits continued after the checkpoint; these
+later edits remain outside the rebase follow-up commit.
+
 ### Hierarchical table correction (October 1)
 
 The flat-row renderer did not match the approved mock. The Dashboard now groups
