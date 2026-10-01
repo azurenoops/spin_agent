@@ -12,6 +12,9 @@ export interface ConfirmCapabilityResponsibilitiesRequest {
   sourceRevision: string;
   reviewRevision: string;
   allocations: CapabilityResponsibilityAllocation[];
+  providerCoverageVerified?: boolean;
+  customerDutiesReviewed?: boolean;
+  reviewNotes?: string;
 }
 export interface CapabilityResponsibilityItem {
   subscriptionId: string;
@@ -32,6 +35,9 @@ export interface CapabilityResponsibilityItem {
   sourceAvailable: boolean;
   sourceSnapshotJson: string | null;
   reviewedSourceSnapshotJson: string | null;
+  providerCoverageVerified?: boolean | null;
+  customerDutiesReviewed?: boolean | null;
+  reviewNotes?: string | null;
 }
 export interface ProviderReviewSnapshot {
   Id: string;
@@ -64,6 +70,9 @@ export interface CapabilityResponsibilityResponse {
   canConfirm: boolean;
   items: CapabilityResponsibilityItem[];
   pendingImpacts: CapabilityResponsibilityImpact[];
+  supportsResponsibilityDrafts?: boolean;
+  baselineControlIds?: string[];
+  systemAllocations?: CapabilityResponsibilityAllocation[];
 }
 export interface CapabilityResponsibilityDispatchResponse {
   delivered: number;
@@ -169,12 +178,12 @@ function errorFrom(reason: unknown): ResponsibilityApiError {
   const response = record(error?.response);
   if (error?.isAxiosError === true && !response) {
     return new ResponsibilityApiError(
-      'The responsibility service could not be reached. Your changes were not submitted; retry when the service is available.');
+      'No response was received from the responsibility service. Verify the saved state before submitting again.');
   }
   const body = record(response?.data) ?? error;
   const status = response?.status ?? body?.status;
   const message = body?.title ?? body?.detail ?? body?.error ?? body?.message;
-  return new ResponsibilityApiError(typeof message === 'string' ? message : 'The responsibility request failed. Refresh the preview and retry.',
+  return new ResponsibilityApiError(typeof message === 'string' ? message : 'The responsibility request failed. Verify the saved state before submitting again.',
     typeof status === 'number' ? status : undefined);
 }
 
@@ -189,8 +198,20 @@ export function getCapabilityResponsibilities(systemId: string, signal?: AbortSi
 }
 export function confirmCapabilityResponsibilities(systemId: string, capabilityId: string,
   body: ConfirmCapabilityResponsibilitiesRequest, signal?: AbortSignal) {
-  return request(async () => validatePreview((await apiClient.put<unknown>(
-    `${root(systemId)}/${encodeURIComponent(capabilityId)}/responsibilities`, body, { signal })).data, systemId));
+  return request(async () => {
+    const next = validatePreview((await apiClient.put<unknown>(
+      `${root(systemId)}/${encodeURIComponent(capabilityId)}/responsibilities`, body, { signal })).data, systemId);
+    if (body.reviewNotes !== undefined && (next.baselineId !== body.baselineId || body.allocations.some(allocation =>
+      !next.items.some(item => item.capabilityId === capabilityId && item.controlId === allocation.controlId
+        && item.reviewedSourceRevision === body.sourceRevision && item.reviewNotes === body.reviewNotes
+        && item.providerCoverageVerified === true && item.customerDutiesReviewed === true
+        && item.allocation?.inheritanceType === allocation.inheritanceType
+        && item.allocation.provider === allocation.provider
+        && item.allocation.customerResponsibility === allocation.customerResponsibility
+        && text(item.confirmedBy) && text(item.confirmedAt)))))
+      throw new ResponsibilityApiError('The confirmation response did not verify the saved allocation and review evidence. Refresh saved state before another write.', 502);
+    return next;
+  });
 }
 export function reconcileCapabilityResponsibilities(systemId: string, signal?: AbortSignal) {
   return request(async () => validatePreview((await apiClient.post<unknown>(`${root(systemId)}/reconcile`, undefined, { signal })).data, systemId));

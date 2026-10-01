@@ -81,6 +81,19 @@ public class PackageValidationService : IPackageValidationService
                     "Open System definition → System design and resolve the source/approval gap."));
             }
         }
+        var baseline = await db.ControlBaselines.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.RegisteredSystemId == systemId, cancellationToken);
+        var coverageImplementations = await db.ControlImplementations.AsNoTracking()
+            .Where(x => x.RegisteredSystemId == systemId).ToListAsync(cancellationToken);
+        var coverage = await RequirementCoverageDocumentData.LoadAsync(db, systemId, baseline,
+            coverageImplementations, cancellationToken, evaluateCurrent: true);
+        checks.Add(Check("requirement-coverage", "Source-qualified requirement coverage",
+            coverage.Gaps.Count == 0 ? "Passed" : "Blocking", true,
+            coverage.Gaps.Count == 0 ? "Selected source requirements have reviewed responses and pinned evidence. This is preparation, not eMASS acceptance."
+                : string.Join("\n", coverage.Gaps),
+            "Reconcile the catalog, responses, parameters, evidence and independent mapping review.", "Issm"));
+        findings.AddRange(coverage.Gaps.Select(gap => Error("requirement-coverage", "ssp", gap,
+            "Resolve requirement coverage gaps before new submission preparation; working previews remain available.")));
         var providerGaps = new List<string>();
         await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
         checks.Add(Check("provider-authorization", "Provider authorization provenance",
@@ -357,9 +370,11 @@ public class PackageValidationService : IPackageValidationService
         if (!agreements.IsFullyCompliant)
             findings.Add(Error("interconnection", null, checks[^1].Why, checks[^1].NextSteps[0]));
 
+        var requirementEvidenceIds = coverage.Controls.SelectMany(x => x.Responses).SelectMany(x => x.Evidence ?? [])
+            .Select(x => x.ArtifactId).Distinct().ToArray();
         var linkedEvidence = await db.EvidenceArtifacts.AsNoTracking().Where(x => x.RegisteredSystemId == systemId
-            && !x.IsDeleted && x.ControlImplementationId != null
-            && db.ControlImplementations.Any(c => c.Id == x.ControlImplementationId && c.RegisteredSystemId == systemId)).ToListAsync(cancellationToken);
+            && !x.IsDeleted && (requirementEvidenceIds.Contains(x.Id) || x.ControlImplementationId != null
+            && db.ControlImplementations.Any(c => c.Id == x.ControlImplementationId && c.RegisteredSystemId == systemId))).ToListAsync(cancellationToken);
         foreach (var evidence in linkedEvidence)
         {
             var actual = await PackageReadinessSources.EvidenceHashAsync(_evidenceService, evidence.Id, cancellationToken);

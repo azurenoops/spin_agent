@@ -63,6 +63,25 @@ public sealed class OscalGeneratedSchemaTests
                 GovernanceStatus = SspSectionStatus.UnderReview, DraftContent = "DEMO approved purpose\nSecond paragraph."
             });
         await db.SaveChangesAsync();
+        var baseline = await db.ControlBaselines.SingleAsync();
+        var raw = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "TestData", "Requirements", "export-audit-catalog.json"));
+        var binding = new BaselineCatalogBinding
+        {
+            TenantId = tenant, ControlBaselineId = baseline.Id, CatalogJson = raw,
+            ContentHash = RequirementCoverageService.Hash(raw), SourceUri = "https://example.invalid/audit-catalog.json",
+            CatalogVersion = "test-1"
+        };
+        baseline.RequirementCatalogBindingId = binding.Id;
+        db.Add(binding);
+        var implementation = await db.ControlImplementations.SingleAsync();
+        implementation.ApprovedRequirementCoverageJson = JsonSerializer.Serialize(new RequirementCoverageSnapshot(
+            binding.Id, binding.ContentHash,
+            [new("audit-statement", "Policy", "DEMO reviewed requirement policy", []),
+             new("audit-statement", "Technical", "DEMO reviewed requirement technical", [])],
+            new Dictionary<string, string>(), RequirementCoverageService.NarrativeHash(implementation),
+            Guid.NewGuid(), "DEMO author", DateTime.UtcNow, Guid.NewGuid(), "DEMO reviewer", DateTime.UtcNow),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        await db.SaveChangesAsync();
         await new SystemProfileService(services.GetRequiredService<IServiceScopeFactory>(), NullLogger<SystemProfileService>.Instance)
             .BatchApproveSectionsAsync(system.Id, "DEMO reviewer", RmfRole.Issm);
         var exporter = new OscalSspExportService(services.GetRequiredService<IServiceScopeFactory>(), NullLogger<OscalSspExportService>.Instance);
@@ -82,6 +101,11 @@ public sealed class OscalGeneratedSchemaTests
             .And.Contain("DEMO recorded event policy").And.Contain("DEMO explicit boundary scope");
         ssp.GetProperty("control-implementation").GetProperty("implemented-requirements")[0].TryGetProperty("by-components", out _)
             .Should().BeFalse("no persisted control-to-component relationship was recorded");
+        var statements = ssp.GetProperty("control-implementation").GetProperty("implemented-requirements")[0].GetProperty("statements");
+        statements.GetArrayLength().Should().Be(1);
+        statements[0].GetProperty("statement-id").GetString().Should().Be("audit-statement");
+        statements[0].GetProperty("remarks").GetString().Should()
+            .Contain("Policy: DEMO reviewed requirement policy").And.Contain("Technical: DEMO reviewed requirement technical");
         ssp.TryGetProperty("back-matter", out _).Should().BeFalse("an empty optional back-matter collection must be omitted");
         var invalid = System.Text.Json.Nodes.JsonNode.Parse(generated.OscalJson)!;
         invalid["system-security-plan"]!["system-characteristics"]!.AsObject().Remove("system-name");

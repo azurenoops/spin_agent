@@ -94,6 +94,8 @@ public sealed class OrganizationCatalogStartupTests(BoundarySchemaSqlServerFixtu
         await db.Database.ExecuteSqlRawAsync("""
             DROP TABLE OrganizationCatalogAdditions;
             DROP TABLE OrganizationCatalogEntries;
+            DROP TABLE RequirementEnhancementProposals;
+            DROP TABLE BaselineCatalogBindings;
             """);
         if (missingWorkspaceTables)
             await db.Database.ExecuteSqlRawAsync("""
@@ -106,6 +108,8 @@ public sealed class OrganizationCatalogStartupTests(BoundarySchemaSqlServerFixtu
     {
         (await db.OrganizationCatalogAdditions.IgnoreQueryFilters().CountAsync()).Should().Be(0);
         (await db.OrganizationCatalogEntries.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await db.BaselineCatalogBindings.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await db.RequirementEnhancementProposals.IgnoreQueryFilters().CountAsync()).Should().Be(0);
         (await db.Tenants.CountAsync(x => x.DisplayName == "Preserve legacy organization")).Should().Be(1);
         var operation = await db.OrganizationProvisioningOperations.AsNoTracking()
             .SingleAsync(x => x.IdempotencyKey == "preserve-legacy-provisioning");
@@ -118,7 +122,9 @@ public sealed class OrganizationCatalogStartupTests(BoundarySchemaSqlServerFixtu
         trace.Failures.Should().BeEmpty("first-upgrade startup must not issue commands against missing tables");
         trace.Messages.Should().NotContain(x => x.StartsWith("Creating table [OrganizationCatalog", StringComparison.Ordinal)
             || x.StartsWith("Creating table [CapabilitySetupOperations]", StringComparison.Ordinal)
-            || x.StartsWith("Creating table [ProviderReleaseImpacts]", StringComparison.Ordinal),
+            || x.StartsWith("Creating table [ProviderReleaseImpacts]", StringComparison.Ordinal)
+            || x.StartsWith("Creating table [BaselineCatalogBindings]", StringComparison.Ordinal)
+            || x.StartsWith("Creating table [RequirementEnhancementProposals]", StringComparison.Ordinal),
             "generic synchronization must observe tables already created by additive schema modules");
     }
 

@@ -177,6 +177,8 @@ public sealed partial class DocumentPreviewHttpTests : IClassFixture<WorkspaceMe
         result.GetProperty("contentHash").GetString().Should().Be(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content))));
         result.GetProperty("sourceGaps").EnumerateArray().Should().Contain(g =>
             g.GetProperty("message").GetString()!.Contains("No control baseline"));
+        result.GetProperty("sourceGaps").EnumerateArray().Should().Contain(g =>
+            g.GetProperty("message").GetString()!.Contains("Catalog source needs reconciliation"));
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         (await db.SspExports.CountAsync(x => x.SystemId == fixture.System)).Should().Be(0);

@@ -4,6 +4,85 @@
 
 ## Overview
 
+### Hierarchical table correction
+
+Verified gap: the workspace maps API items directly into flat table rows.
+Group the current page by its existing authoritative parent identifiers and
+render parent-first groups, indented enhancement rows and connecting guides.
+Navigation-only parent context handles child-only searches and page boundaries
+without fetching unfiltered records or changing server totals. This is a
+Dashboard-only presentation correction: no API, database, permission, source
+binding or export changes. Test ordering, missing parents, non-inferred
+relationships, drawer navigation and unchanged pagination before implementation;
+verify desktop/mobile styling and strict TypeScript checking afterward.
+
+### Requirement coverage continuation
+
+**October 1 user correction:** remove manual system catalog reconciliation from
+the narrative workflow. Add explicit baseline framework identity and a scoped,
+system-owned automatic association service. Invoke it at startup and after
+baseline selection/source import; ordinary read APIs do not write. Existing
+immutable bindings remain pinned. Retain baseline rows during reselection so
+their binding history is not destroyed. Preserve all content and approval state.
+
+The [catalog administration repair](contracts/requirement-coverage.md#catalog-administration-follow-up-2026-09-30)
+adds a shared server-side platform gate and non-destructive source capture.
+Reuse `IWorkspaceService.IsCspAdministrator`, require the provider workspace
+outside legacy mode, and deny support-session mutation. Source metadata is
+separate from the older flattened-catalog metadata. Admin-triggered backfill
+updates only missing reference source records; system binding remains explicit.
+The Control Catalog and narrative drawer consume server permissions/status,
+without browser-role inference or silent auto-import on ordinary page reads.
+
+**Base:** `a4d43d7ca64bbdbb57eeb2a6671ec7eb2e777399` (locally available
+`origin/main`, #1050). **Branch:** `feat/requirement-coverage-enhancement-nav`.
+**Status:** design approved; local implementation proceeding at the user's
+subsequent direction. GitHub feature/story writes and parent linkage remain
+pending explicit approval, and release traceability is not satisfied.
+
+Implement the [requirement coverage contract](contracts/requirement-coverage.md)
+in dependency order:
+
+1. Record verified gaps, contracts and approved feature/story traceability.
+2. Add immutable catalog snapshots and authorized per-baseline binding.
+3. Add governed requirement responses/evidence and staged enhancement proposals.
+4. Extend scoped workspace APIs and the existing table/detail components.
+5. Extend reviewed document projections, catalog-valid OSCAL and readiness.
+6. Run failing-test-first acceptance, required full checks, and local user testing.
+
+Reuse `ControlNarrativeWorkspace`, `ControlNarrativeDrawer`, their API validators,
+workspace permissions, narrative snapshots/reviews, tenant guards, and approved
+document projections. Do not replace the legacy full editor, add a mock role
+switch, auto-map existing prose, or auto-select catalog enhancements.
+
+Use additive, rerunnable SQLite/SQL Server schema additions, not the historical
+EF migration instructions below. Preserve existing narratives and approvals.
+Keep unselected enhancement drafts in proposal storage until atomic acceptance.
+Do not introduce separate-context baseline/narrative saves.
+
+Required complexity:
+
+- Immutable catalog snapshots preserve reviewed references across the current
+  importer's delete/reinsert refresh. Mutable framework-control row references
+  are insufficient.
+- Versioned mappings preserve exactly which response and evidence were reviewed.
+  Flat text and control-wide attachment counts cannot establish coverage.
+- A staged addition record preserves the active baseline across partial failures.
+  Calling existing immediate tailoring and narrative creation separately cannot.
+
+Validation commands include `dotnet build Ato.Copilot.sln`,
+`dotnet test Ato.Copilot.sln`, and, in the Dashboard,
+`npx --no-install tsc --noEmit -p tsconfig.json` (there is no `typecheck` script),
+plus affected Vitest/Playwright, export and relational isolation tests. Expect all
+required checks to pass without new warnings. Apply constitution section VI's
+100% modified-path combined coverage requirement rather than silently using its
+older 80% references. No execution results are claimed at this documentation gate.
+
+Rollback preserves additive data and audit history; verify older-binary writer
+compatibility before recommending a binary rollback. Accepted baseline changes
+require reviewed reversal, not deletion. Completion requires the user's local
+AC-11/AC-11(1) walkthrough and does not imply eMASS acceptance.
+
 ### #1001 backend continuation on the workspace branch
 
 The [issue-specific design](issue-1001.md) and [HTTP contract](contracts/http-api.md)

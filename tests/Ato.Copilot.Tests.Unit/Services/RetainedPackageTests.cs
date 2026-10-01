@@ -253,6 +253,141 @@ public sealed class RetainedPackageTests
     }
 
     [Fact]
+    public async Task ChangeSubmission_UnreviewedRequirementMappings_BlockNewPreparation()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync(), reviewRequirementMappings: false);
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(x => x.Description.Contains("requirement coverage gaps"));
+    }
+
+    [Fact]
+    public async Task ChangeSubmission_UsesRetainedCatalogSourceIds_NotDisplayIdsOrCurrentBinding()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync(), distinctSourceId: true);
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await db.ControlBaselines.SingleAsync()).RequirementCatalogBindingId = null;
+        await db.SaveChangesAsync();
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeTrue(string.Join("; ", validation.Findings.Select(f => f.Description)));
+        var bytes = await File.ReadAllTextAsync(Path.Combine(fixture.DirectoryPath, "exports", "reviewed-change.json"));
+        using var document = JsonDocument.Parse(bytes);
+        document.RootElement.GetProperty("system-security-plan").GetProperty("control-implementation")
+            .GetProperty("implemented-requirements")[0].GetProperty("control-id").GetString().Should().Be("audit-source-control");
+    }
+
+    [Theory]
+    [InlineData("catalog-hash")]
+    [InlineData("statement-id")]
+    [InlineData("param-id")]
+    [InlineData("catalog-tenant")]
+    [InlineData("catalog-system")]
+    [InlineData("control-case")]
+    [InlineData("missing-catalog-pin")]
+    [InlineData("null-source-pin")]
+    [InlineData("duplicate-source-manifest")]
+    [InlineData("missing-coverage-evaluation")]
+    public async Task ChangeSubmission_InvalidRetainedSourceReference_IsBlocked(string mutation)
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync());
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        if (mutation == "catalog-hash")
+            (await db.BaselineCatalogBindings.SingleAsync()).CatalogJson += " ";
+        else if (mutation == "catalog-tenant")
+            (await db.BaselineCatalogBindings.SingleAsync()).TenantId = Guid.NewGuid();
+        else if (mutation == "catalog-system")
+            (await db.ControlBaselines.SingleAsync()).RegisteredSystemId = "another-system";
+        else
+        {
+            var path = Path.Combine(fixture.DirectoryPath, "exports", "reviewed-change.json");
+            var document = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!;
+            var control = document["system-security-plan"]!["control-implementation"]!["implemented-requirements"]![0]!;
+            if (mutation == "statement-id")
+                control["statements"] = System.Text.Json.Nodes.JsonNode.Parse(
+                    """[{"uuid":"d3ad9c84-f7d8-4771-a7bf-e65d03154967","statement-id":"another-controls-statement","remarks":"DEMO response"}]""");
+            else if (mutation == "param-id")
+                control["set-parameters"] = System.Text.Json.Nodes.JsonNode.Parse(
+                    """[{"param-id":"another-controls-parameter","values":["DEMO"]}]""");
+            else if (mutation == "control-case")
+                control["control-id"] = "au-2";
+            else if (mutation == "missing-coverage-evaluation")
+            {
+                var props = document["system-security-plan"]!["metadata"]!["props"]!.AsArray();
+                props.Remove(props.Single(x => x!["name"]!.GetValue<string>() == "requirement-coverage-gaps"));
+            }
+            else if (mutation == "duplicate-source-manifest")
+            {
+                var props = document["system-security-plan"]!["metadata"]!["props"]!.AsArray();
+                props.Add(props.Single(x => x!["name"]!.GetValue<string>() == "requirement-source-manifest")!.DeepClone());
+            }
+            else
+                document["system-security-plan"]!["metadata"]!["props"]!.AsArray()
+                    .Single(x => x!["name"]!.GetValue<string>() == "requirement-source-manifest")!["value"] =
+                        mutation == "null-source-pin" ? "[null]" : "[]";
+            var json = document.ToJsonString();
+            await File.WriteAllTextAsync(path, json);
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
+            (await db.SspExports.SingleAsync()).ContentHash = hash;
+            selection = selection with { ChangeContentHash = hash };
+        }
+        await db.SaveChangesAsync();
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeFalse();
+        validation.Findings.Should().Contain(x => x.Description.Contains("catalog", StringComparison.OrdinalIgnoreCase)
+            || x.Description.Contains("source", StringComparison.OrdinalIgnoreCase)
+            || x.Description.Contains("requirement coverage", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ChangeSubmission_HistoricalPreviewWithoutCatalogManifest_PreservesLegacySemantics()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        var selection = await fixture.SeedReviewedChangeAsync(await fixture.SeedAsync());
+        var path = Path.Combine(fixture.DirectoryPath, "exports", "reviewed-change.json");
+        var document = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!;
+        var props = document["system-security-plan"]!["metadata"]!["props"]!.AsArray();
+        props.Remove(props.Single(x => x!["name"]!.GetValue<string>() == "requirement-source-manifest"));
+        props.Remove(props.Single(x => x!["name"]!.GetValue<string>() == "requirement-coverage-gaps"));
+        document["system-security-plan"]!["control-implementation"]!["implemented-requirements"]![0]!["control-id"] = "au-2";
+        var json = document.ToJsonString();
+        await File.WriteAllTextAsync(path, json);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        (await db.SspExports.SingleAsync()).ContentHash = hash;
+        await db.SaveChangesAsync();
+        selection = selection with { ChangeContentHash = hash };
+
+        // Act
+        var validation = await fixture.Service.ValidateRetainedPackageAsync("mission", PackagePurpose.ChangeSubmission, selection);
+
+        // Assert
+        validation.IsValid.Should().BeTrue(string.Join("; ", validation.Findings.Select(f => f.Description)));
+        (await File.ReadAllTextAsync(path)).Should().Be(json);
+    }
+
+    [Fact]
     public async Task ChangeBundle_RetainsPredecessorAndExactReviewedSsp_WithExplicitLimitedScope()
     {
         // Arrange
@@ -516,7 +651,8 @@ public sealed class RetainedPackageTests
 
         public async Task<RetainedPackageSelection> SeedReviewedChangeAsync(
             RetainedPackageSelection selection, bool approveCategories = true, bool removeDraftSiblingBeforeExport = false,
-            bool includeUnreviewedSibling = false, bool workingProfilePreview = false)
+            bool includeUnreviewedSibling = false, bool workingProfilePreview = false, bool distinctSourceId = false,
+            bool reviewRequirementMappings = true)
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
@@ -539,8 +675,34 @@ public sealed class RetainedPackageTests
                 SnapshotJson = NarrativeContentSnapshot.Capture(implementation)
             };
             implementation.ApprovedVersionId = version.Id;
+            var rawCatalog = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "TestData", "Requirements", "export-audit-catalog.json"));
+            if (distinctSourceId)
+            {
+                var catalog = System.Text.Json.Nodes.JsonNode.Parse(rawCatalog)!;
+                catalog["controls"]![0]!["id"] = "audit-source-control";
+                catalog["controls"]![0]!["props"] = System.Text.Json.Nodes.JsonNode.Parse("""[{"name":"label","value":"AU-2"}]""");
+                rawCatalog = catalog.ToJsonString();
+            }
+            var baseline = new ControlBaseline { TenantId = tenant, RegisteredSystemId = "mission",
+                BaselineLevel = "Moderate", ControlIds = ["AU-2"], TotalControls = 1 };
+            var binding = new BaselineCatalogBinding { TenantId = tenant, ControlBaselineId = baseline.Id,
+                CatalogJson = rawCatalog, ContentHash = RequirementCoverageService.Hash(rawCatalog),
+                CatalogVersion = "test-1", SourceUri = "https://example.invalid/audit-catalog.json" };
+            baseline.RequirementCatalogBindingId = binding.Id;
+            var evidence = new EvidenceArtifact { TenantId = tenant, RegisteredSystemId = "mission",
+                FileName = "reviewed-audit.txt", ContentHash = RequirementCoverageService.Hash("DEMO reviewed evidence") };
+            if (reviewRequirementMappings)
+            {
+                var snapshot = new RequirementCoverageSnapshot(binding.Id, binding.ContentHash,
+                    [new("audit-statement", "Technical", "DEMO reviewed audit response", [new(evidence.Id, evidence.ContentHash)])],
+                    new Dictionary<string, string>(), RequirementCoverageService.NarrativeHash(implementation),
+                    Guid.NewGuid(), "DEMO author", DateTime.UtcNow, Guid.NewGuid(), "DEMO reviewer", DateTime.UtcNow);
+                implementation.ApprovedRequirementCoverageJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                implementation.RequirementCoverageJson = implementation.ApprovedRequirementCoverageJson;
+                version.SnapshotJson = NarrativeContentSnapshot.Capture(implementation);
+            }
             db.AddRange(categorization, implementation, version,
-                new ControlBaseline { TenantId = tenant, RegisteredSystemId = "mission", BaselineLevel = "Moderate", ControlIds = ["AU-2"], TotalControls = 1 },
+                baseline, binding, evidence,
                 new RmfRoleAssignment { TenantId = tenant, RegisteredSystemId = "mission", UserId = "reviewer", UserDisplayName = "DEMO reviewer", RmfRole = RmfRole.Issm, IsActive = true },
                 new AuthorizationBoundaryDefinition { TenantId = tenant, RegisteredSystemId = "mission", Name = "DEMO documented boundary" },
                 new SystemComponent { TenantId = tenant, RegisteredSystemId = "mission", Name = "DEMO component", Description = "DEMO existing component", ComponentType = ComponentType.Thing });

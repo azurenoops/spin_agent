@@ -2,6 +2,23 @@
 
 _Epic #225 — phased implementation. Each task cites the file path(s) it touches and the relevant issue ref._
 
+## 2026-10-01 panel refinement — existing #957
+
+- [x] RR1: Read mock, serving UI, retained failure logs/status and current
+  responsibility lifecycle/permissions; update spec and plan before production code.
+- [x] RR2 (depends on RR1): Record failing UI/transport tests before implementation.
+- [x] RR3 (depends on RR2): Refine matrix drawer with local drafts, conditional
+  fields, summary, guarded confirmation and operation-specific recovery.
+- [x] RR4 (depends on RR3): Verify targeted UI/API/modal tests, source/history
+  visibility and 1440px/390px keyboard/accessibility browser cases.
+- [x] RR5a (depends on RR3): Run backend contract/authorization/SQL tests and new
+  CRM/SSP/eMASS preparation regressions: 1 unit + 82 integration passed.
+- [ ] RR5b (depends on RR5a): Full-suite, zero-warning and complete modified-path
+  coverage gates remain open; see the plan for actual failures/warnings/coverage.
+- [ ] RR6 (depends on RR4, RR5a): User manually reviews AU-11 using the
+  [guide](../../docs/guides/control-inheritance.md#local-au-11-manual-review).
+  Do not declare release acceptance or close #957 before its full criteria pass.
+
 ---
 
 ## Phase 1 — Backend Route Registration & Endpoint Skeleton

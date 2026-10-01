@@ -364,12 +364,13 @@ public class OscalSspExportServiceTests
         var reqs = result["implemented-requirements"] as List<Dictionary<string, object>>;
         reqs.Should().HaveCount(2);
 
-        var ac1 = reqs!.First(r => (string)r["control-id"] == "ac-1");
-        ac1["remarks"].Should().Be("Policy and technical implementation statements for AC-1.");
+        var ac1 = reqs!.First(r => (string)r["control-id"] == "AC-1");
+        ac1["remarks"].Should().BeOfType<string>().Which.Should().Contain("Access control policy established.")
+            .And.Contain("Requirement coverage gap");
         var ac1Props = ac1["props"] as Dictionary<string, string>[];
         ac1Props![0]["value"].Should().Be("implemented");
 
-        var au2 = reqs.First(r => (string)r["control-id"] == "au-2");
+        var au2 = reqs.First(r => (string)r["control-id"] == "AU-2");
         var au2Props = au2["props"] as Dictionary<string, string>[];
         au2Props![0]["value"].Should().Be("partial");
 
@@ -380,7 +381,7 @@ public class OscalSspExportServiceTests
     }
 
     [Fact]
-    public void BuildControlImplementation_DualNarratives_EmitsCanonicalStatementsInOrder()
+    public void BuildControlImplementation_UnmappedNarratives_RemainUnstructuredWithoutSyntheticStatements()
     {
         // Arrange
         var implementation = new ControlImplementation
@@ -400,12 +401,9 @@ public class OscalSspExportServiceTests
 
         // Assert
         var requirements = result["implemented-requirements"] as List<Dictionary<string, object>>;
-        var statements = requirements!.Single()["statements"] as List<Dictionary<string, object>>;
-        statements.Should().HaveCount(2);
-        statements![0]["statement-id"].Should().Be("AC-2_smt.policy");
-        statements[0]["remarks"].Should().Be("Account policy is reviewed annually.");
-        statements[1]["statement-id"].Should().Be("AC-2_smt.technical");
-        statements[1]["remarks"].Should().Be("[Not Authored]");
+        requirements!.Single().Should().NotContainKey("statements");
+        requirements!.Single()["remarks"].Should().BeOfType<string>().Which.Should()
+            .Contain("Account policy is reviewed annually.").And.Contain("Requirement coverage gap");
     }
 
     [Fact]

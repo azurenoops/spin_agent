@@ -14,6 +14,106 @@ _Implementation issue #892 (Epic #64 — Feature 052). Each task cites the file 
 
 ---
 
+## Requirement coverage continuation
+
+### Hierarchical table correction
+
+- [x] HT001: Add failing tests for parent-first groups, indentation, child-only
+  parent context, catalog-only relationships and preserved pagination/navigation.
+- [x] HT002: Implement the grouped table and accessible context links without
+  changing independent statement states or system/workspace scope.
+- [x] HT003: Run focused tests, Dashboard type/build checks and browser checks;
+  expose the corrected table on port 5197 for user manual acceptance.
+
+### Automatic catalog association
+
+- [x] AB001: Record baseline framework identity and migrate the verified legacy
+  NIST baseline contract without inferring relationships from identifier syntax.
+- [x] AB002: Automatically retain available source snapshots at startup and after
+  baseline/source changes, with tenant isolation, idempotency and diagnostics.
+- [x] AB003: Preserve binding history during baseline reselection and remove
+  catalog/rationale prompts from the narrative UI.
+- [x] AB004: Test lifecycle/data-preservation behavior, validate builds/types,
+  deploy locally and verify AC-11 requirements and parent links without user setup.
+
+The large-source follow-up replaces buffered SQL JSON materialization with
+scoped sequential streaming. Live list/detail/coverage requests are now measured
+at 174-216 ms, and both AC-11 requirements and AC-11(1) navigation are visible.
+See [the implementation report](implementation-report.md) for exact verification.
+
+### Catalog administration repair
+
+- [x] CA001: Enforce platform catalog authority on all import/capture mutations
+  and expose permission/source status to the frontend.
+- [x] CA002: Add non-destructive source-only capture and administrator-triggered
+  missing-source backfill with explicit partial-failure reporting.
+- [x] CA003: Keep catalog administration actions available for existing catalogs;
+  replace the narrative dead end with an actionable administrator-refresh link.
+- [x] CA004: Run authorization, data-preservation, UI and type-check tests, update
+  the local preview, and verify the live workflow without approving a system
+  binding on the user's behalf.
+
+Catalog administration validation: full solution build passed; 7,959 unit and
+1,763 integration tests passed (20 existing skips). Focused Dashboard checks
+passed 33 tests, strict type checking, production build and six browser cases.
+The local `catalog-admin-20260930-e98474e9` API is healthy. Live ordinary-workspace
+source status returned 200 with mutations unavailable, and an attempted source
+mutation correctly returned 403 `CATALOG_ADMIN_REQUIRED`. The live narrative and
+baseline fingerprints remain unchanged. The signed-in organization user is not
+a platform administrator; source backfill still requires that authorized login.
+
+Design approved against main #1050. Local implementation is present; validation
+and manual acceptance are tracked separately below. The exact proposed feature and four story issues were shown
+to the user; the approval tool reported the user unavailable. No external writes
+were made. Task RC001 is blocked on explicit approval, not implicitly approved
+by acceptance of the implementation plan.
+
+- [ ] RC001: Obtain approval for the previewed GitHub feature/story writes,
+  verify canonical repository and parent/sub-issue links, and synchronize task
+  checklists.   Release traceability depends on this gate; local implementation continues at
+    the user's subsequent direction without external writes.
+- [x] RC002 (local documentation gate): Write failing catalog/binding tests; implement immutable
+  source identity, recursive requirements/parameters and per-baseline binding.
+- [x] RC003 (RC002): Write failing mapping/history/evidence tests; implement
+  explicit Policy/Technical mappings and governed reviewed snapshots.
+- [x] RC004 (RC002): Write failing duplicate/concurrency/fault tests; implement
+  rationale-required enhancement proposals and atomic reviewed selection plus
+  separate Draft implementation creation.
+- [x] RC005 (RC003, RC004): Write failing authenticated HTTP scope/permission
+  tests; extend workspace reads and coverage/proposal operations.
+- [x] RC006 (RC005): Write failing Dashboard API/component/browser tests;
+  preserve the existing UI while adding relationships, coverage and proposals.
+- [x] RC007 (RC003, RC004): Write failing document-content and catalog-reference
+  tests; extend SSP/eMASS preparation, approved projections and readiness hashes.
+- [x] RC008 (RC006, RC007): Run full solution build/test, actual touched-project
+  TS checks, coverage, SQLite/SQL Server/RLS and browser acceptance. Record
+  failures/warnings explicitly; do not suppress baseline failures.
+- [ ] RC009 (RC008): Deliver local AC-11/AC-11(1) viewer/author/reviewer
+  walkthrough, compliance/architecture/results report, rollback and limitations.
+  Await user manual acceptance before claiming completion.
+
+See [the contract](contracts/requirement-coverage.md) for verified gaps,
+acceptance cases and the confirmed review/export boundaries.
+
+Provider-specific validation caught and corrected invalid SQL Server Unicode
+draft column widths and missing execution-strategy transaction wrapping.
+Transient retries now reload persisted state before replay; a real SQL Server
+fault-injection test verifies no duplicate proposal insert. Source/display alias
+tests also verify that navigation, selection and generated narrative content
+resolve through the catalog without creating duplicate implementation records.
+Returned proposal notes remain visible, and accepted manual Technical drafts
+do not retain AI-generated flags from an older narrative.
+
+The final report must distinguish full-suite outcomes from focused checks,
+existing warnings/unconfigured lint tooling, external traceability approval and
+real-user manual acceptance. Synthetic browser tests do not close RC009.
+
+See [the implementation report](implementation-report.md) for the final full
+suite counts, scoped coverage, warning/lint limitations, rollback guidance and
+the manual acceptance handoff. RC001 and RC009 remain open.
+
+---
+
 ## #1001 workspace-backend continuation
 
 - [x] Add failing tests for semantic freshness, component/boundary scope and

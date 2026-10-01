@@ -41,17 +41,20 @@ function renderReview() {
 
 async function openControl(controlId = 'AC-1') {
   fireEvent.click(await screen.findByRole('button', { name: `Open ${controlId} responsibility` }));
-  return screen.findByRole('dialog', { name: `Review ${controlId} responsibility` });
+  return screen.findByRole('dialog', { name: `Review responsibility ${controlId}` });
 }
 
 async function chooseShared() {
-  const drawer = screen.queryByRole('dialog', { name: 'Review AC-1 responsibility' }) ?? await openControl();
-  fireEvent.change(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' }), { target: { value: 'Shared' } });
+  const drawer = screen.queryByRole('dialog', { name: 'Review responsibility AC-1' }) ?? await openControl();
+  fireEvent.click(within(drawer).getByRole('radio', { name: /Provider and my team/ }));
   fireEvent.change(within(drawer).getByRole('textbox', { name: 'Provider for AC-1' }), { target: { value: 'Reviewed CSP' } });
-  fireEvent.change(within(drawer).getByRole('textbox', { name: 'Customer responsibility for AC-1' }), {
+  fireEvent.change(within(drawer).getByRole('textbox', { name: 'Customer duties' }), {
     target: { value: 'Customer reviews accounts.' },
   });
-  fireEvent.click(within(drawer).getByRole('checkbox', { name: 'I reviewed the provider revision and the selected allocations.' }));
+  fireEvent.change(within(drawer).getByRole('textbox', { name: 'Provider duties' }), { target: { value: 'Maintain service.' } });
+  fireEvent.change(within(drawer).getByRole('textbox', { name: 'Basis for this allocation' }), { target: { value: 'Reviewed source.' } });
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Review allocation' }));
+  fireEvent.click(within(drawer).getByRole('checkbox'));
   return drawer;
 }
 
@@ -86,10 +89,11 @@ describe('system subscription responsibility review', () => {
     );
     const drawer = await openControl();
     expect(drawer).toHaveClass('max-w-3xl');
-    expect(within(drawer).getByText('Current provider snapshot')).toBeVisible();
-    expect(within(drawer).getByText('Technical revision details')).toBeVisible();
+    expect(within(drawer).getByText('Provider contribution')).toBeVisible();
+    expect(within(drawer).getByText('Technical source details')).not.toBeVisible();
     expect(within(drawer).getByText('source-1')).not.toBeVisible();
-    fireEvent.click(within(drawer).getByText('Technical revision details'));
+    fireEvent.click(within(drawer).getByText('Review provider scope & evidence'));
+    fireEvent.click(within(drawer).getByText('Technical source details'));
     expect(within(drawer).getByText('source-1')).toBeVisible();
     expect(within(matrix).getByRole('link', { name: 'Review evidence for AC-1' })).toHaveAttribute(
       'href',
@@ -106,7 +110,7 @@ describe('system subscription responsibility review', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review allocations' }));
 
     // Assert
-    expect(await screen.findByRole('dialog', { name: 'Review AC-1 responsibility' })).toBeVisible();
+    expect(await screen.findByRole('dialog', { name: 'Review responsibility AC-1' })).toBeVisible();
   });
 
   it('defaults inherited allocations to the authoritative provider profile name', async () => {
@@ -115,13 +119,11 @@ describe('system subscription responsibility review', () => {
     const drawer = await openControl();
 
     // Act
-    fireEvent.change(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' }), {
-      target: { value: 'Inherited' },
-    });
+    fireEvent.click(within(drawer).getByRole('radio', { name: /Provider covers the control/ }));
 
     // Assert
     expect(within(drawer).getByRole('textbox', { name: 'Provider for AC-1' })).toHaveValue('Flankspeed');
-    expect(within(drawer).getByText('Flankspeed')).toBeVisible();
+    expect(within(drawer).getByText(/Flankspeed · Reviewed access capability/)).toBeVisible();
   });
 
   it('requires a baseline and preserves organization-scoped navigation', async () => {
@@ -141,7 +143,8 @@ describe('system subscription responsibility review', () => {
       '/workspaces/organizations/org-a/systems/system-a/baseline',
     );
     const drawer = await openControl();
-    expect(within(drawer).queryByRole('combobox')).toBeDisabled();
+    fireEvent.click(within(drawer).getByRole('radio', { name: /Provider and my team/ }));
+    expect(within(drawer).getByRole('button', { name: 'Review allocation' })).toBeDisabled();
   });
 
   it('uses server confirmation permission rather than browser role preferences', async () => {
@@ -155,7 +158,7 @@ describe('system subscription responsibility review', () => {
 
     // Assert
     expect(within(drawer).getByText(/effective assigned ISSM or ISSO/i)).toBeVisible();
-    expect(within(drawer).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    expect(within(drawer).getByRole('button', { name: 'Review information gap' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Reconcile current baseline' })).toBeDisabled();
     localStorage.removeItem('ato-dashboard-settings');
   });
@@ -164,17 +167,20 @@ describe('system subscription responsibility review', () => {
     // Arrange
     renderReview();
     const drawer = await openControl();
-    expect(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('');
+    expect(within(drawer).getByRole('radio', { name: /I need more information/ })).toBeChecked();
 
     // Act
     await chooseShared();
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm responsibility' }));
 
     // Assert
     await waitFor(() => expect(api.confirmCapabilityResponsibilities).toHaveBeenCalledWith('system-a', 'capability-a', {
       baselineId: 'baseline-a',
       sourceRevision: 'source-1',
       reviewRevision: 'review-1',
+      providerCoverageVerified: true,
+      customerDutiesReviewed: true,
+      reviewNotes: 'Provider duties: Maintain service.\n\nBasis for this allocation: Reviewed source.',
       allocations: [{
         controlId: 'AC-1',
         inheritanceType: 'Shared',
@@ -208,7 +214,7 @@ describe('system subscription responsibility review', () => {
     expect(screen.getByText('Customer')).toBeVisible();
   });
 
-  it('clears a stale drawer and reloads current revisions after a 409', async () => {
+  it('preserves a stale drawer and refreshes revisions only on request after a 409', async () => {
     // Arrange
     vi.mocked(api.confirmCapabilityResponsibilities).mockRejectedValue(new api.ResponsibilityApiError('Review changed.', 409));
     vi.mocked(api.getCapabilityResponsibilities).mockResolvedValueOnce(preview()).mockResolvedValueOnce(preview({
@@ -218,30 +224,31 @@ describe('system subscription responsibility review', () => {
     const drawer = await chooseShared();
 
     // Act
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm responsibility' }));
 
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent(/changed.*review again/i);
+    expect(api.getCapabilityResponsibilities).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Refresh saved state' }));
     await waitFor(() => expect(api.getCapabilityResponsibilities).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    const refreshedDrawer = await openControl();
-    fireEvent.click(within(refreshedDrawer).getByText('Technical revision details'));
-    expect(within(refreshedDrawer).getByText('source-2')).toBeVisible();
+    fireEvent.click(within(drawer).getByText('Review provider scope & evidence'));
+    fireEvent.click(within(drawer).getByText('Technical source details'));
+    expect(await within(drawer).findByText('source-2')).toBeVisible();
   });
 
-  it('removes editable data after write permission is denied', async () => {
+  it('disables mutation while preserving draft context after write permission is denied', async () => {
     // Arrange
     vi.mocked(api.confirmCapabilityResponsibilities).mockRejectedValue(new api.ResponsibilityApiError('ISSM or ISSO required.', 403));
     renderReview();
     const drawer = await chooseShared();
 
     // Act
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm responsibility' }));
 
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('ISSM or ISSO required.');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry preview' })).toBeVisible();
+    expect(within(drawer).getByRole('button', { name: 'Confirm responsibility' })).toBeDisabled();
+    expect(within(drawer).getByRole('button', { name: 'Refresh saved state' })).toBeVisible();
   });
 
   it('keeps reconciliation and mark-only impact delivery separate from narrative generation', async () => {
@@ -311,16 +318,18 @@ describe('system subscription responsibility review', () => {
     const drawer = await chooseShared();
 
     // Act
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm responsibility' }));
 
     // Assert
     expect(await within(drawer).findByRole('alert')).toHaveTextContent('Provider description is invalid.');
-    expect(within(drawer).getByRole('combobox', { name: 'Allocation for AC-1' })).toHaveValue('Shared');
-    expect(within(drawer).getByRole('textbox', { name: 'Customer responsibility for AC-1' }))
-      .toHaveValue('Customer reviews accounts.');
+    expect(within(drawer).getByText('Customer reviews accounts.')).toBeVisible();
 
     // Act
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm selected allocations' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Back to edit' }));
+    fireEvent.change(within(drawer).getByRole('textbox', { name: 'Provider for AC-1' }), { target: { value: 'Corrected provider' } });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Review allocation' }));
+    fireEvent.click(within(drawer).getByRole('checkbox'));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Confirm responsibility' }));
 
     // Assert
     expect(await screen.findByText(/Selected allocation confirmed/)).toBeVisible();
@@ -376,7 +385,8 @@ describe('system subscription responsibility review', () => {
     // Act
     fireEvent.click(screen.getByRole('link', { name: 'Other system' }));
     const drawer = await openControl();
-    fireEvent.click(within(drawer).getByText('Technical revision details'));
+    fireEvent.click(within(drawer).getByText('Review provider scope & evidence'));
+    fireEvent.click(within(drawer).getByText('Technical source details'));
     await within(drawer).findByText('system-b-source');
     await act(async () => { resolveOld(preview({ items: [{ ...item(), sourceRevision: 'stale-source' }] })); });
 
@@ -398,13 +408,13 @@ describe('system subscription responsibility review', () => {
 
     // Act
     const drawer = await openControl();
-    fireEvent.click(within(drawer).getByText('Compare reviewed and current provider snapshots for AC-1'));
+    fireEvent.click(within(drawer).getByText('Review provider scope & evidence'));
+    fireEvent.click(within(drawer).getByText('Technical source details'));
 
     // Assert
-    expect(within(drawer).getByText('Persisted reviewed capability')).toBeVisible();
-    expect(within(drawer).getAllByText('Current published capability').length).toBeGreaterThan(0);
-    expect(within(drawer).getByRole('region', { name: 'Current provider snapshot' }))
-      .toHaveTextContent('Artifact reference: [redacted]');
+    expect(within(drawer).getByText(/"Name": "Persisted reviewed capability"/)).toBeVisible();
+    expect(within(drawer).getByText(/Flankspeed · Current published capability/)).toBeVisible();
+    expect(within(drawer).getByRole('region', { name: 'Provider contribution' })).toHaveTextContent('[redacted]');
   });
 
   it('withholds unavailable provider content while preserving review access', async () => {
@@ -423,8 +433,9 @@ describe('system subscription responsibility review', () => {
 
     // Assert
     expect(within(drawer).getByText(/Provider source unavailable/)).toBeVisible();
-    expect(within(drawer).getByText('Previously reviewed public capability')).toBeVisible();
-    expect(within(drawer).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    expect(within(drawer).getByText(/Flankspeed · Previously reviewed public capability/)).toBeVisible();
+    fireEvent.click(within(drawer).getByRole('radio', { name: /Provider and my team/ }));
+    expect(within(drawer).getByRole('button', { name: 'Review allocation' })).toBeDisabled();
   });
 
   it('blocks removed historical controls while allowing a currently mapped control to be reviewed', async () => {
@@ -439,10 +450,11 @@ describe('system subscription responsibility review', () => {
     // Act / Assert
     const removed = await openControl();
     expect(within(removed).getByText(/AC-1 is no longer mapped/)).toBeVisible();
-    expect(within(removed).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    fireEvent.click(within(removed).getByRole('radio', { name: /Provider and my team/ }));
+    expect(within(removed).getByRole('button', { name: 'Review allocation' })).toBeDisabled();
     fireEvent.click(within(removed).getByRole('button', { name: 'Close dialog' }));
     const current = await openControl('AC-2');
-    expect(within(current).getByRole('combobox', { name: 'Allocation for AC-2' })).toBeEnabled();
+    expect(within(current).getByRole('radio', { name: /Provider and my team/ })).toBeEnabled();
   });
 
   it('shows a snapshot error and disables confirmation for malformed selected-control data', async () => {
@@ -457,7 +469,8 @@ describe('system subscription responsibility review', () => {
 
     // Assert
     expect(within(drawer).getByRole('alert')).toHaveTextContent(/snapshot.*malformed/i);
-    expect(within(drawer).getByRole('button', { name: 'Confirm selected allocations' })).toBeDisabled();
+    fireEvent.click(within(drawer).getByRole('radio', { name: /Provider and my team/ }));
+    expect(within(drawer).getByRole('button', { name: 'Review allocation' })).toBeDisabled();
     expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
   });
 });

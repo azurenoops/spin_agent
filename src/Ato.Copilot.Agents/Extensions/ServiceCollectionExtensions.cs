@@ -357,12 +357,18 @@ public static class ServiceCollectionExtensions
         services.AddScoped<NarrativeLibraryService>();
         services.AddScoped<ProviderNarrativeLibraryService>();
         services.AddScoped<NarrativeProposalService>();
+        services.AddScoped<RequirementCoverageService>();
+        services.AddSingleton<AutomaticCatalogBindingService>();
+        services.AddHostedService(provider => provider.GetRequiredService<AutomaticCatalogBindingService>());
         services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.INarrativeChangeImpactService>(
             provider => provider.GetRequiredService<NarrativeProposalService>());
         services.TryAddScoped<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService,
             Ato.Copilot.Core.Services.Tenancy.SystemWorkspaceAccessService>();
         services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ICapabilityResponsibilityService,
             Ato.Copilot.Core.Services.CapabilityResponsibilityService>();
+        services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.IResponsibilityDraftGenerator,
+            Ato.Copilot.Core.Services.ResponsibilityDraftGenerator>();
+        services.AddScoped<Ato.Copilot.Agents.Compliance.Services.ResponsibilityDraftService>();
         services.AddScoped<Ato.Copilot.Core.Interfaces.Compliance.ICapabilityResponsibilityImpactDispatcher,
             Ato.Copilot.Core.Services.CapabilityResponsibilityImpactDispatcher>();
         services.AddScoped<Ato.Copilot.Core.Services.CspResponsibilityFanoutService>();

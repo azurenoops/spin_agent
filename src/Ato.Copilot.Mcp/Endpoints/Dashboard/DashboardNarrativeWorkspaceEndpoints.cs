@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
@@ -39,6 +40,7 @@ public static partial class DashboardEndpoints
 
                 var access = await accessService.GetAccessAsync(
                     tenant.EffectiveTenantId, tenant.PersonId, systemId, tenant.IsCspAdmin, ct);
+                if (!access.Permissions.CanRead) return Results.NotFound();
                 var projection = await BuildNarrativeWorkspaceAsync(
                     db, systemId, access, nistControlsService, ct);
                 IEnumerable<NarrativeWorkspaceRow> filtered = projection;
@@ -88,13 +90,24 @@ public static partial class DashboardEndpoints
                 INistControlsService nistControlsService,
                 CancellationToken ct) =>
             {
+                var access = await accessService.GetAccessAsync(
+                    tenant.EffectiveTenantId, tenant.PersonId, systemId, tenant.IsCspAdmin, ct);
+                if (!access.Permissions.CanRead) return Results.NotFound();
+                var (_, sourceCatalog) = await BoundRequirementCatalogAsync(db, systemId, ct);
+                var sourceControl = sourceCatalog?.Controls.SingleOrDefault(x => x.DisplayId == controlId || x.Id == controlId);
                 var implementation = await db.ControlImplementations.AsNoTracking()
                     .SingleOrDefaultAsync(item => item.RegisteredSystemId == systemId && item.ControlId == controlId, ct);
                 if (implementation is null)
-                    return Results.NotFound(new { error = "Control narrative was not found in this system." });
+                {
+                    if (sourceControl is null)
+                        return Results.NotFound(new { error = "Control narrative was not found in this system." });
+                    return Results.Ok(new NarrativeWorkspaceDetail(systemId, null, controlId,
+                        sourceControl.Title, string.IsNullOrEmpty(sourceControl.Family) ? "Unknown" : sourceControl.Family,
+                        "NotStarted", "NotStarted", 0,
+                        new NarrativeStatements(MissingRequirementStatement("Policy"), MissingRequirementStatement("Technical")),
+                        null, [], [], [], [], Permissions(access.Permissions)));
+                }
 
-                var access = await accessService.GetAccessAsync(
-                    tenant.EffectiveTenantId, tenant.PersonId, systemId, tenant.IsCspAdmin, ct);
                 var versions = await db.NarrativeVersions.AsNoTracking()
                     .Where(item => item.ControlImplementationId == implementation.Id)
                     .OrderByDescending(item => item.VersionNumber).ToListAsync(ct);
@@ -117,8 +130,8 @@ public static partial class DashboardEndpoints
                     select responsibility).ToListAsync(ct);
                 var nist = await db.NistControls.AsNoTracking()
                     .SingleOrDefaultAsync(item => item.Id == controlId, ct);
-                var catalogControl = (await nistControlsService.GetAllControlsAsync(ct))
-                    .FirstOrDefault(item => item.Id.Equals(CatalogControlId(controlId), StringComparison.OrdinalIgnoreCase));
+                var catalogControl = sourceCatalog is null ? (await nistControlsService.GetAllControlsAsync(ct))
+                    .FirstOrDefault(item => item.Id.Equals(CatalogControlId(controlId), StringComparison.OrdinalIgnoreCase)) : null;
                 var approvedVersion = implementation.ApprovedVersionId is null
                     ? null
                     : versions.SingleOrDefault(item => item.Id == implementation.ApprovedVersionId);
@@ -133,8 +146,9 @@ public static partial class DashboardEndpoints
                     systemId,
                     implementation.Id,
                     implementation.ControlId,
-                    catalogControl?.Title ?? nist?.Title ?? implementation.ControlId,
-                    catalogControl?.Family ?? nist?.Family ?? ControlFamily(implementation.ControlId),
+                    sourceControl?.Title ?? (sourceCatalog is null ? catalogControl?.Title ?? nist?.Title : null) ?? implementation.ControlId,
+                    sourceCatalog is null ? catalogControl?.Family ?? nist?.Family ?? "Unknown"
+                        : string.IsNullOrWhiteSpace(sourceControl?.Family) ? "Unknown" : sourceControl.Family,
                     implementation.ImplementationStatus.ToString(),
                     implementation.ApprovalStatus.ToString(),
                     implementation.CurrentVersion,
@@ -183,6 +197,7 @@ public static partial class DashboardEndpoints
         INistControlsService nistControlsService,
         CancellationToken ct)
     {
+        var (baseline, sourceCatalog) = await BoundRequirementCatalogAsync(db, systemId, ct);
         var implementations = await db.ControlImplementations.AsNoTracking()
             .Where(item => item.RegisteredSystemId == systemId)
             .OrderBy(item => item.ControlId).ToListAsync(ct);
@@ -197,7 +212,7 @@ public static partial class DashboardEndpoints
         var controls = await db.NistControls.AsNoTracking()
             .Where(item => implementations.Select(implementation => implementation.ControlId).Contains(item.Id))
             .ToDictionaryAsync(item => item.Id, StringComparer.OrdinalIgnoreCase, ct);
-        var catalogControls = (await nistControlsService.GetAllControlsAsync(ct))
+        var catalogControls = (sourceCatalog is null ? await nistControlsService.GetAllControlsAsync(ct) : [])
             .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         var rows = new List<NarrativeWorkspaceRow>(implementations.Count);
@@ -220,14 +235,16 @@ public static partial class DashboardEndpoints
                 || proposalAttention;
             controls.TryGetValue(implementation.ControlId, out var control);
             catalogControls.TryGetValue(CatalogControlId(implementation.ControlId), out var catalogControl);
+            var sourceControl = sourceCatalog?.Controls.SingleOrDefault(x => x.DisplayId == implementation.ControlId || x.Id == implementation.ControlId);
             var policyProposal = controlProposals.FirstOrDefault(item => item.NarrativeType == "Policy");
             var technicalProposal = controlProposals.FirstOrDefault(item => item.NarrativeType == "Technical");
             var nextAction = NextAction(implementation, controlProposals, access.Permissions);
             rows.Add(new NarrativeWorkspaceRow(
                 implementation.Id,
                 implementation.ControlId,
-                catalogControl?.Title ?? control?.Title ?? implementation.ControlId,
-                catalogControl?.Family ?? control?.Family ?? ControlFamily(implementation.ControlId),
+                sourceControl?.Title ?? (sourceCatalog is null ? catalogControl?.Title ?? control?.Title : null) ?? implementation.ControlId,
+                sourceCatalog is null ? catalogControl?.Family ?? control?.Family ?? "Unknown"
+                    : string.IsNullOrWhiteSpace(sourceControl?.Family) ? "Unknown" : sourceControl.Family,
                 implementation.ImplementationStatus.ToString(),
                 implementation.ApprovalStatus.ToString(),
                 implementation.CurrentVersion,
@@ -240,9 +257,42 @@ public static partial class DashboardEndpoints
                 nextAction.Reason,
                 needsAttention,
                 hasApprovedStatements,
-                hasProposedUpdate));
+                hasProposedUpdate,
+                sourceCatalog?.Controls.SingleOrDefault(x => x.Id == sourceControl?.ParentId)?.DisplayId,
+                baseline is null ? null : baseline.ControlIds.Contains(implementation.ControlId)
+                    || sourceControl is not null && (baseline.ControlIds.Contains(sourceControl.Id)
+                        || baseline.ControlIds.Contains(sourceControl.DisplayId))));
         }
+        if (baseline is not null)
+            foreach (var controlId in baseline.ControlIds.Except(implementations.Select(x => x.ControlId)))
+            {
+                var source = sourceCatalog?.Controls.SingleOrDefault(x => x.DisplayId == controlId || x.Id == controlId);
+                if (source is not null && implementations.Any(x => x.ControlId == source.Id || x.ControlId == source.DisplayId))
+                    continue;
+                rows.Add(new NarrativeWorkspaceRow($"selected:{controlId}", controlId, source?.Title ?? controlId,
+                    string.IsNullOrEmpty(source?.Family) ? "Unknown" : source.Family, "NotStarted", "NotStarted", 0,
+                    new("Missing", false, false, null, null, false), new("Missing", false, false, null, null, false),
+                    "view-details", "View missing narrative", null, true, false, false,
+                    sourceCatalog?.Controls.SingleOrDefault(x => x.Id == source?.ParentId)?.DisplayId, true));
+            }
+        rows = rows.OrderBy(x => x.ControlId, StringComparer.Ordinal).ToList();
         return rows;
+    }
+
+    private static NarrativeStatementDetail MissingRequirementStatement(string kind) =>
+        new(kind, "", "", "Missing", false, false, null, null, null, null, "Unknown", false, false, false);
+
+    private static async Task<(ControlBaseline?, RequirementCatalog?)> BoundRequirementCatalogAsync(
+        AtoCopilotContext db, string systemId, CancellationToken ct)
+    {
+        var baseline = await db.ControlBaselines.AsNoTracking().SingleOrDefaultAsync(x => x.RegisteredSystemId == systemId, ct);
+        if (baseline?.RequirementCatalogBindingId is null) return (baseline, null);
+        var binding = await CatalogSourceReader.ReadBindingAsync(db, x =>
+            x.Id == baseline.RequirementCatalogBindingId && x.ControlBaselineId == baseline.Id, ct)
+            ?? throw new InvalidOperationException("The baseline catalog binding is unavailable.");
+        if (Ato.Copilot.Agents.Compliance.Services.RequirementCoverageService.Hash(binding.CatalogJson) != binding.ContentHash)
+            throw new InvalidOperationException("The baseline catalog source failed integrity validation.");
+        return (baseline, RequirementCatalog.Parse(binding.CatalogJson));
     }
 
     private static NarrativeStatementState ListStatementState(
@@ -440,7 +490,9 @@ public static partial class DashboardEndpoints
         string? NextActionReason,
         [property: JsonIgnore] bool NeedsAttention,
         [property: JsonIgnore] bool HasApprovedStatements,
-        [property: JsonIgnore] bool HasProposedUpdate);
+        [property: JsonIgnore] bool HasProposedUpdate,
+        string? ParentControlId = null,
+        bool? SelectedInBaseline = null);
 
     private sealed record NarrativeStatementState(
         string State,
@@ -452,7 +504,7 @@ public static partial class DashboardEndpoints
 
     private sealed record NarrativeWorkspaceDetail(
         string SystemId,
-        string Id,
+        string? Id,
         string ControlId,
         string ControlTitle,
         string Family,
@@ -476,8 +528,8 @@ public static partial class DashboardEndpoints
         string State,
         bool HasCurrentContent,
         bool HasApprovedContent,
-        string LastModifiedBy,
-        DateTime LastModifiedAt,
+        string? LastModifiedBy,
+        DateTime? LastModifiedAt,
         string? ApprovedVersionId,
         int? ApprovedVersionNumber,
         string SourceFreshness,

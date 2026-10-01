@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ExternalLink, FileText, Info, UserRound, UsersRound, X } from 'lucide-react';
 import type {
   ControlNarrativeDetailResponse,
@@ -6,6 +6,7 @@ import type {
   NarrativeStatementDetail,
 } from '../../api/controlNarrativeWorkspace';
 import ValidationEvidencePanel from '../compliance/components/ValidationEvidencePanel';
+import RequirementCoveragePanel from './RequirementCoveragePanel';
 
 interface Props {
   detail: ControlNarrativeDetailResponse;
@@ -15,6 +16,8 @@ interface Props {
   onEdit: () => void;
   onViewSource: () => void;
   onReviewProposal: (proposalId: string) => void;
+  onNavigate: (controlId: string) => void;
+  onChanged: () => void;
 }
 
 type DrawerTab = 'statements' | 'evidence' | 'history';
@@ -83,17 +86,22 @@ function StatementContent({ statement, proposal, kind, canAuthor, canReview, onE
 }
 
 export default function ControlNarrativeDrawer({
-  detail, initialStatement, onStatementChange, onClose, onEdit, onViewSource, onReviewProposal,
+  detail, initialStatement, onStatementChange, onClose, onEdit, onViewSource, onReviewProposal, onNavigate, onChanged,
 }: Props) {
   const [tab, setTab] = useState<DrawerTab>('statements');
   const [statement, setStatement] = useState<NarrativeStatementKind>(initialStatement);
   const closeRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
+  const unsaved = useRef(false);
+  const onDirtyChange = useCallback((dirty: boolean) => { unsaved.current = dirty; }, []);
+  const requestClose = useCallback(() => {
+    if (!unsaved.current || window.confirm('Discard unsaved requirement responses?')) onClose();
+  }, [onClose]);
 
   useEffect(() => {
     closeRef.current?.focus();
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') requestClose();
       if (event.key !== 'Tab' || !drawerRef.current) return;
       const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>(
         'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary',
@@ -111,7 +119,7 @@ export default function ControlNarrativeDrawer({
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [requestClose]);
 
   const selectStatement = (next: NarrativeStatementKind) => {
     setStatement(next);
@@ -119,13 +127,13 @@ export default function ControlNarrativeDrawer({
   };
 
   return <div className="cnw-drawer-layer">
-    <button type="button" className="cnw-scrim" aria-label="Close control details" onClick={onClose} />
+    <button type="button" className="cnw-scrim" aria-label="Close control details" onClick={requestClose} />
     <aside ref={drawerRef} className="cnw-drawer" role="dialog" aria-modal="true"
       aria-label={`${detail.controlId} ${detail.controlTitle}`}>
       <header className="cnw-drawer-header">
         <div><span className="cnw-drawer-kicker">Control detail · opened on selection</span>
           <h2>{detail.controlId} · {detail.controlTitle}</h2></div>
-        <button ref={closeRef} type="button" className="cnw-icon-button" aria-label="Close control details" onClick={onClose}><X size={20} /></button>
+        <button ref={closeRef} type="button" className="cnw-icon-button" aria-label="Close control details" onClick={requestClose}><X size={20} /></button>
       </header>
       <div className="cnw-tabs" role="tablist" aria-label="Control detail sections">
         {(['statements', 'evidence', 'history'] as const).map(value =>
@@ -133,7 +141,9 @@ export default function ControlNarrativeDrawer({
             onClick={() => setTab(value)}>{value.charAt(0).toUpperCase() + value.slice(1)}</button>)}
       </div>
       <div className="cnw-drawer-body">
-        {tab === 'statements' && <>
+        <div hidden={tab !== 'statements'}>
+          <RequirementCoveragePanel key={`${detail.systemId}:${detail.controlId}`} systemId={detail.systemId}
+            controlId={detail.controlId} kind={statement} onNavigate={onNavigate} onChanged={onChanged} onDirtyChange={onDirtyChange} />
           <div className="cnw-statement-tabs" role="tablist" aria-label="Narrative statement type">
             <button type="button" role="tab" aria-label="Policy statement" aria-selected={statement === 'policy'} onClick={() => selectStatement('policy')}>Policy</button>
             <button type="button" role="tab" aria-label="Technical statement" aria-selected={statement === 'technical'} onClick={() => selectStatement('technical')}>Technical</button>
@@ -152,7 +162,7 @@ export default function ControlNarrativeDrawer({
           </details>
           {detail.proposals.some(item => item.narrativeType.toLowerCase() === statement) &&
             <div className="cnw-retention-note"><Info size={17} />Current content stays unchanged until an authorized reviewer accepts the proposal.</div>}
-        </>}
+        </div>
         {tab === 'evidence' && <ValidationEvidencePanel systemId={detail.systemId}
           controlId={detail.controlId} canManage={detail.permissions.canManageEvidence} />}
         {tab === 'history' && <section className="cnw-history" aria-label="Narrative history">
@@ -170,7 +180,7 @@ export default function ControlNarrativeDrawer({
       <footer className="cnw-drawer-footer">
         <span><UserRound size={17} />{detail.permissions.canReview ? 'Reviewer · Approval available'
           : detail.permissions.canAuthor ? 'Author · Editing available' : 'Current role · View only'}</span>
-        <button type="button" onClick={onClose}>Close</button>
+        <button type="button" onClick={requestClose}>Close</button>
         <button type="button" className="cnw-primary" onClick={onViewSource}>View source <ExternalLink size={14} /></button>
       </footer>
     </aside>

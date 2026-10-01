@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
@@ -138,7 +139,8 @@ internal static class RetainedPackageContext
         var pinnedControls = await db.ControlImplementations.AsNoTracking().Where(i =>
             i.RegisteredSystemId == systemId && i.TenantId == tenantId && implementationIds.Contains(i.Id))
             .Select(i => i.ControlId).ToListAsync(ct);
-        if (implementationIds.Length != controls || !pinnedControls.ToHashSet(StringComparer.OrdinalIgnoreCase)
+        var pinnedSourceIds = await ResolveRetainedControlIdsAsync(db, systemId, tenantId, ssp, pinnedControls, ct);
+        if (implementationIds.Length != controls || !pinnedSourceIds
             .SetEquals(requirements.EnumerateArray().Select(r => r.GetProperty("control-id").GetString()!)))
             throw new InvalidOperationException("Reviewed narrative pins do not cover the exact changed SSP controls.");
         var embedded = ssp.GetProperty("metadata").GetProperty("props").EnumerateArray()
@@ -151,6 +153,67 @@ internal static class RetainedPackageContext
             .ValidateAsync(System.Text.Encoding.UTF8.GetString(bytes), "ssp", ct);
         if (!validation.IsValid) throw new InvalidOperationException("The retained SSP change does not pass the unchanged OSCAL schema.");
         return (preview, manifest);
+    }
+
+    private static async Task<HashSet<string>> ResolveRetainedControlIdsAsync(AtoCopilotContext db,
+        string systemId, Guid tenantId, JsonElement ssp, List<string> pinnedControls, CancellationToken ct)
+    {
+        var sourceManifest = ssp.GetProperty("metadata").GetProperty("props").EnumerateArray()
+            .Where(x => x.GetProperty("name").GetString() == "requirement-source-manifest").ToArray();
+        // Historical retained exports predate source catalog pins. Preserve their original ID semantics.
+        if (sourceManifest.Length == 0) return pinnedControls.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (sourceManifest.Length != 1)
+            throw new InvalidOperationException("The retained catalog source manifest is ambiguous.");
+        var coverageChecks = ssp.GetProperty("metadata").GetProperty("props").EnumerateArray()
+            .Where(x => x.GetProperty("name").GetString() == "requirement-coverage-gaps").ToArray();
+        if (coverageChecks.Length != 1)
+            throw new InvalidOperationException("The retained change has no unambiguous requirement coverage gap evaluation.");
+        var coverageGaps = JsonSerializer.Deserialize<string[]>(coverageChecks[0].GetProperty("value").GetString()!)
+            ?? throw new InvalidOperationException("The retained requirement coverage gap evaluation is unavailable.");
+        if (coverageGaps.Length != 0)
+            throw new InvalidOperationException("The retained SSP change contains unresolved requirement coverage gaps.");
+        var pins = JsonSerializer.Deserialize<DocumentSourceReference[]>(sourceManifest[0].GetProperty("value").GetString()!)
+            ?? throw new InvalidOperationException("The retained catalog source manifest is unavailable.");
+        if (pins.Any(x => x is null))
+            throw new InvalidOperationException("The retained catalog source manifest contains an invalid pin.");
+        var catalogPins = pins.Where(x => x.Kind == "RequirementCatalog").ToArray();
+        if (catalogPins.Length != 1)
+            throw new InvalidOperationException("The retained change requires exactly one catalog source pin.");
+        var pin = catalogPins[0];
+        var binding = await CatalogSourceReader.ReadBindingAsync(db, x =>
+            x.Id == pin.RecordId && x.TenantId == tenantId
+            && x.ControlBaseline.RegisteredSystemId == systemId && x.ControlBaseline.TenantId == tenantId, ct);
+        if (binding is null || binding.ContentHash != pin.ContentHash || binding.CatalogVersion != pin.VersionId
+            || RequirementCoverageService.Hash(binding.CatalogJson) != pin.ContentHash)
+            throw new InvalidOperationException("The retained catalog source pin is unavailable or failed its integrity check.");
+        var catalog = RequirementCatalog.Parse(binding.CatalogJson);
+        var sourceIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var controlId in pinnedControls)
+        {
+            var control = catalog.Controls.SingleOrDefault(x => x.Id == controlId || x.DisplayId == controlId)
+                ?? throw new InvalidOperationException($"Reviewed control '{controlId}' is absent from the retained catalog source.");
+            if (!sourceIds.Add(control.Id))
+                throw new InvalidOperationException("Reviewed control pins resolve to duplicate catalog source controls.");
+        }
+        ValidateRetainedRequirementReferences(ssp.GetProperty("control-implementation").GetProperty("implemented-requirements"), catalog);
+        return sourceIds;
+    }
+
+    private static void ValidateRetainedRequirementReferences(JsonElement requirements, RequirementCatalog catalog)
+    {
+        foreach (var requirement in requirements.EnumerateArray())
+        {
+            var control = catalog.Controls.SingleOrDefault(x => x.Id == requirement.GetProperty("control-id").GetString())
+                ?? throw new InvalidOperationException("The retained SSP control identifier is absent from its catalog source.");
+            if (requirement.TryGetProperty("statements", out var statements))
+                foreach (var statement in statements.EnumerateArray())
+                    if (!control.Requirements.Any(x => x.Id == statement.GetProperty("statement-id").GetString()))
+                        throw new InvalidOperationException($"The retained statement identifier is not a catalog source requirement of '{control.Id}'.");
+            if (requirement.TryGetProperty("set-parameters", out var parameters))
+                foreach (var parameter in parameters.EnumerateArray())
+                    if (!control.Parameters.Any(x => x.Id == parameter.GetProperty("param-id").GetString()))
+                        throw new InvalidOperationException($"The retained parameter identifier is not a catalog source parameter of '{control.Id}'.");
+        }
     }
 
     private static async Task RequireReviewedSourcesAsync(AtoCopilotContext db, string systemId, Guid tenantId,

@@ -520,6 +520,14 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
         }
         using var oscal = JsonDocument.Parse(content);
         var ssp = oscal.RootElement.GetProperty("system-security-plan");
+        var implemented = ssp.GetProperty("control-implementation").GetProperty("implemented-requirements");
+        implemented.GetArrayLength().Should().Be(1);
+        implemented[0].GetProperty("control-id").GetString().Should().Be("au-2");
+        implemented[0].TryGetProperty("statements", out _).Should().BeFalse(
+            "the authored narrative is still Draft and must not acquire fabricated requirement mappings");
+        ssp.GetProperty("metadata").GetProperty("props").EnumerateArray()
+            .Single(x => x.GetProperty("name").GetString() == "requirement-coverage-gaps")
+            .GetProperty("value").GetString().Should().Contain("unreviewed");
         ssp.TryGetProperty("back-matter", out var backMatter).Should().BeTrue(
             "the final approved-source export must retain the explicitly shared summary, not just the working preview");
         var retainedSummary = backMatter.GetProperty("resources").EnumerateArray()
@@ -599,6 +607,13 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
         }, HttpStatusCode.Created, envelope: false);
         narrative.GetProperty("approvalStatus").GetString().Should().Be("Draft",
             "authoring a prerequisite must not invent narrative approval or mission authorization");
+        await using var sourceScope = factory.Services.CreateAsyncScope();
+        var db = sourceScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var systemId = missing.GetProperty("systemId").GetString()!;
+        var baseline = await db.ControlBaselines.SingleAsync(x => x.RegisteredSystemId == systemId);
+        var framework = SyntheticRequirementCatalogFixture.CreateFramework(baseline.ControlIds);
+        db.AddRange(framework, SyntheticRequirementCatalogFixture.CreateBinding(baseline, framework));
+        await db.SaveChangesAsync();
     }
 
     private async Task SeedDocumentInventoryPrerequisiteAsync(string system)

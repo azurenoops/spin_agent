@@ -20,7 +20,14 @@ internal static class ApprovedNarrativeDocumentData
                 || version.ControlImplementationId != implementation.Id || version.Status != SspSectionStatus.Approved)
                 throw new InvalidOperationException($"Approved narrative version for {implementation.ControlId} is unavailable.");
             if (version.SnapshotJson != null)
+            {
+                // Requirement review is independent and can be newer than narrative approval.
+                var approvedCoverage = implementation.ApprovedRequirementCoverageJson;
+                var workingCoverage = implementation.RequirementCoverageJson;
                 NarrativeContentSnapshot.Restore(implementation, version.SnapshotJson);
+                implementation.ApprovedRequirementCoverageJson = approvedCoverage;
+                implementation.RequirementCoverageJson = workingCoverage;
+            }
             else
             {
                 // Legacy approval retained only the combined narrative. Do not borrow newer draft halves.

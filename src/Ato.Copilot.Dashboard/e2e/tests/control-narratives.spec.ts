@@ -40,6 +40,12 @@ async function installFixture(page: Page, baseURL: string) {
         canManageRemediation: false, canDecideAuthorization: false,
       },
     });
+    if (path === '/api/systems/system-a/requirement-coverage/AC-2') return intercepted.fulfill({ json: {
+      systemId: 'system-a', controlId: 'AC-2', framework: null, catalogVersion: null, sourceUri: null,
+      baselineRevision: 0, narrativeVersion: 3, parent: null, enhancements: [], requirements: [],
+      parameters: [], parameterValues: {}, gaps: ['Catalog source needs reconciliation.'], proposals: [],
+      canAuthor: true, canReview: false, canBind: false,
+    } });
     if (path === '/api/dashboard/systems/system-a/narrative-workspace') return intercepted.fulfill({ json: {
       systemId: 'system-a', counts: { needsAttention: 1, allControls: 1, approvedStatements: 0, proposedUpdates: 0 },
       items: [item], permissions: { canAuthor: true, canReview: true, canManageEvidence: true },
@@ -77,6 +83,102 @@ async function installFixture(page: Page, baseURL: string) {
     } });
     return intercepted.fulfill({ status: 404, json: { title: `No fixture for ${path}` } });
   });
+}
+
+for (const author of [false, true]) {
+  for (const width of [1440, 390]) {
+    test(`requirement relationships and ${author ? 'author' : 'viewer'} coverage at ${width}px`, async ({ page, baseURL }) => {
+      // Arrange
+      await page.setViewportSize({ width, height: 1000 });
+      await installFixture(page, baseURL!);
+      let saved = false;
+      const controls = [
+        { ...item, id: 'parent', controlId: 'AC-11', controlTitle: 'Synthetic device lock', parentControlId: null },
+        { ...item, id: 'child', controlId: 'AC-11(1)', controlTitle: 'Synthetic concealment', parentControlId: 'AC-11' },
+      ];
+      await page.route('**/api/dashboard/systems/system-a/narrative-workspace?*', intercepted =>
+        intercepted.fulfill({ json: { systemId: 'system-a', counts: { needsAttention: 2, allControls: 2, approvedStatements: 0, proposedUpdates: 0 },
+          items: controls, permissions: { canAuthor: author, canReview: false, canManageEvidence: author } } }));
+      await page.route('**/api/dashboard/systems/system-a/narrative-workspace/*', intercepted => {
+        const id = decodeURIComponent(new URL(intercepted.request().url()).pathname.split('/').pop()!);
+        const selected = controls.find(control => control.controlId === id)!;
+        return intercepted.fulfill({ json: {
+          systemId: 'system-a', ...selected,
+          statements: { policy: { currentContent: '', approvedContent: '', state: 'Missing' },
+            technical: { currentContent: 'Existing synthetic technical narrative', approvedContent: '', state: 'Draft' } },
+          proposals: [], responsibilities: [], history: [],
+          permissions: { canAuthor: author, authorReason: author ? null : 'View only', canReview: false,
+            reviewReason: 'Separate reviewer required', canManageEvidence: author, evidenceReason: null },
+        } });
+      });
+      await page.route('**/api/systems/system-a/requirement-coverage/**', async intercepted => {
+        const request = intercepted.request();
+        const path = decodeURIComponent(new URL(request.url()).pathname);
+        if (request.method() === 'PUT') {
+          expect(author).toBe(true);
+          expect(request.postDataJSON().expectedVersion).toBe(3);
+          expect(request.postDataJSON().responses[0].response).toBe('Synthetic policy response');
+          expect(request.headers()['x-workspace-tenant-id']).toBe('org-a');
+          saved = true;
+        }
+        const enhancement = path.includes('AC-11(1)');
+        return intercepted.fulfill({ json: {
+          systemId: 'system-a', controlId: enhancement ? 'AC-11(1)' : 'AC-11',
+          framework: 'SYNTHETIC', catalogVersion: 'test-1', sourceUri: 'https://example.invalid/catalog',
+          baselineRevision: 1, narrativeVersion: saved ? 4 : 3,
+          parent: enhancement ? { controlId: 'AC-11', title: 'Synthetic device lock', selected: true, hasNarrative: true } : null,
+          enhancements: enhancement ? [] : [{ controlId: 'AC-11(1)', title: 'Synthetic concealment', selected: true, hasNarrative: true }],
+          requirements: [{ id: enhancement ? 'synthetic-enhancement-statement' : 'synthetic-parent-statement',
+            label: enhancement ? null : 'a.', text: enhancement ? 'Synthetic concealment requirement' : 'Synthetic lock requirement',
+            responses: saved && !enhancement ? [{ statementId: 'synthetic-parent-statement', kind: 'Policy',
+              response: 'Synthetic policy response', evidence: [] }] : [], responseState: saved ? 'Draft' : 'Missing',
+            reviewed: false, evidenceGap: true }],
+          parameters: [], parameterValues: {}, gaps: ['Supporting evidence is needed.'], proposals: [],
+          canAuthor: author, canReview: false, canBind: false,
+        } });
+      });
+
+      // Act
+      await page.goto(`${route}?view=all&search=AC-11&page=1&control=AC-11&statement=policy`);
+      const parent = page.getByRole('dialog', { name: 'AC-11 Synthetic device lock' });
+
+      // Assert
+      await expect(parent.getByText('Synthetic lock requirement')).toBeVisible();
+      await expect(parent.getByText(/Supporting evidence is needed/)).toBeVisible();
+      await expect(page.getByText('Enhancement of AC-11')).toBeVisible();
+      if (author) {
+        await parent.getByRole('textbox', { name: 'Policy response for a.' }).fill('Synthetic policy response');
+        await parent.getByRole('button', { name: 'Save requirement responses' }).click();
+        await expect(parent.getByText(/Draft response/)).toBeVisible();
+        expect(saved).toBe(true);
+      } else {
+        await expect(parent.getByRole('button', { name: 'Save requirement responses' })).toHaveCount(0);
+      }
+      await parent.getByRole('button', { name: 'AC-11(1) · Synthetic concealment' }).click();
+      const child = page.getByRole('dialog', { name: 'AC-11(1) Synthetic concealment' });
+      await expect(child.getByText('Synthetic concealment requirement')).toBeVisible();
+      await child.getByRole('button', { name: 'Parent control: AC-11 · Synthetic device lock' }).click();
+      await expect(parent).toBeVisible();
+      expect(new URL(page.url()).searchParams.get('search')).toBe('AC-11');
+      expect(new URL(page.url()).searchParams.get('page')).toBe('1');
+      expect(new URL(page.url()).pathname).toBe(route);
+      await expect(page.getByText('Satisfied', { exact: true })).toHaveCount(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await page.keyboard.press('Escape');
+      await expect(parent).toHaveCount(0);
+      const parentRow = page.getByRole('row').filter({ hasText: 'Synthetic device lock' });
+      const childRow = page.getByRole('row').filter({ hasText: 'Synthetic concealment' });
+      await expect(childRow).toHaveClass(/cnw-enhancement-row/);
+      await expect(parentRow.getByText('1 enhancement shown')).toBeVisible();
+      const parentLink = parentRow.locator('.cnw-control-link');
+      const childLink = childRow.locator('.cnw-control-link');
+      const parentBox = await parentLink.boundingBox();
+      const childBox = await childLink.boundingBox();
+      expect(childBox!.x - parentBox!.x).toBeGreaterThanOrEqual(20);
+      expect(childBox!.y).toBeGreaterThan(parentBox!.y);
+      await expect(childLink.locator(':scope > span')).toHaveCSS('border-left-style', 'solid');
+    });
+  }
 }
 
 for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {

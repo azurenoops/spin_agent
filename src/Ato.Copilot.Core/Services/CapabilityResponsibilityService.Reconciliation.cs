@@ -147,7 +147,10 @@ public sealed partial class CapabilityResponsibilityService
             .Where(i => i.TenantId == state.TenantId && i.RegisteredSystemId == state.SystemId && i.AcknowledgedAt == null)
             .Select(i => new CapabilityResponsibilityImpactResponse(i.Id, i.ControlBaselineId, i.ControlId,
                 i.StateHash, i.Reason, i.SourcesJson, i.CreatedAt)).ToListAsync(ct);
-        return new(state.SystemId, state.Baseline?.Id, BaselineName(state.Baseline), canConfirm, items, impacts);
+        return new(state.SystemId, state.Baseline?.Id, BaselineName(state.Baseline), canConfirm, items, impacts)
+            { BaselineControlIds = state.Baseline?.ControlIds ?? [],
+              SystemAllocations = state.Baseline?.Inheritances.Select(x => new CapabilityResponsibilityAllocation(
+                  x.ControlId, x.InheritanceType.ToString(), x.Provider, x.CustomerResponsibility)).ToArray() ?? [] };
     }
 
     private static string? BaselineName(ControlBaseline? baseline)

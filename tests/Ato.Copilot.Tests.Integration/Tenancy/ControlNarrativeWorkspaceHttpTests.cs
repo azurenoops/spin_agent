@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Mcp;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Moq;
 using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Tenancy;
@@ -32,6 +34,12 @@ public sealed class ControlNarrativeWorkspaceHttpTests : IClassFixture<Workspace
             foreach (var descriptor in services.Where(service => service.ServiceType == typeof(IHostedService)
                 && service.ImplementationType != typeof(TenancySeedHostedService)).ToArray())
                 services.Remove(descriptor);
+            foreach (var descriptor in services.Where(x => x.ServiceType == typeof(INistControlsService)).ToArray())
+                services.Remove(descriptor);
+            var catalog = new Mock<INistControlsService>();
+            catalog.Setup(x => x.GetAllControlsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(
+                [new NistControl { Id = "ac-11.1", Family = "AC", Title = "Pattern-hiding Displays" }]);
+            services.AddSingleton(catalog.Object);
         }));
     }
 
@@ -181,6 +189,7 @@ public sealed class ControlNarrativeWorkspaceHttpTests : IClassFixture<Workspace
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
         result.GetProperty("items")[0].GetProperty("controlTitle").GetString()
             .Should().Be("Pattern-hiding Displays");
+        result.GetProperty("items")[0].GetProperty("selectedInBaseline").GetBoolean().Should().BeFalse();
     }
 
     [Fact]
@@ -255,6 +264,82 @@ public sealed class ControlNarrativeWorkspaceHttpTests : IClassFixture<Workspace
         client.DefaultRequestHeaders.Add("X-Workspace-Mode", "ordinary");
         client.DefaultRequestHeaders.Add("X-Workspace-Tenant-Id", Tenant.ToString());
         return client;
+    }
+
+    [Fact]
+    public async Task CatalogBoundWorkspace_LabelsEnhancementsAndOpensSelectedControlWithoutNarrative()
+    {
+        // Arrange
+        var fixture = await SeedAsync(OrganizationRole.Issm);
+        const string childId = "DEMO-ENHANCEMENT";
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var baseline = await db.ControlBaselines.SingleAsync(x => x.RegisteredSystemId == fixture.SystemId);
+            var raw = JsonSerializer.Serialize(new
+            {
+                uuid = Guid.NewGuid().ToString(), metadata = new { version = "synthetic-1" },
+                controls = new[] { new
+                {
+                    id = "parent-source", title = "Verified parent",
+                    props = new[] { new { name = "label", value = fixture.AttentionControlId } },
+                    controls = new[] { new { id = "child-source", title = "Verified enhancement",
+                        props = new[] { new { name = "label", value = childId } },
+                        parts = new[] { new { id = "child-statement", name = "statement", prose = "Synthetic requirement" } } } }
+                } }
+            });
+            var binding = new BaselineCatalogBinding { TenantId = Tenant, ControlBaselineId = baseline.Id,
+                FrameworkIdentifier = "SYNTHETIC", CatalogVersion = "synthetic-1", CatalogJson = raw,
+                SourceUri = "https://example.invalid/catalog", ContentHash = Ato.Copilot.Agents.Compliance.Services.RequirementCoverageService.Hash(raw) };
+            db.BaselineCatalogBindings.Add(binding);
+            baseline.RequirementCatalogBindingId = binding.Id;
+            baseline.ControlIds = ["parent-source", .. baseline.ControlIds.Where(id => id != fixture.AttentionControlId), childId];
+            await db.SaveChangesAsync();
+            Mock.Get(scope.ServiceProvider.GetRequiredService<INistControlsService>())
+                .Setup(x => x.GetAllControlsAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("A pinned catalog must not require a different live NIST source."));
+        }
+        using var client = Client(fixture.Actor);
+
+        // Act
+        var list = await client.GetFromJsonAsync<JsonElement>($"/api/dashboard/systems/{fixture.SystemId}/narrative-workspace");
+        var detailResponse = await client.GetAsync($"/api/dashboard/systems/{fixture.SystemId}/narrative-workspace/{childId}");
+        var coverageResponse = await client.GetAsync($"/api/systems/{fixture.SystemId}/requirement-coverage/{childId}");
+
+        // Assert
+        var row = list.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("controlId").GetString() == childId);
+        list.GetProperty("counts").GetProperty("allControls").GetInt32().Should().Be(4);
+        list.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("controlId").GetString() == fixture.AttentionControlId)
+            .GetProperty("selectedInBaseline").GetBoolean().Should().BeTrue();
+        list.GetProperty("items").EnumerateArray().Should().OnlyContain(x => x.GetProperty("family").GetString() == "Unknown");
+        row.GetProperty("parentControlId").GetString().Should().Be(fixture.AttentionControlId);
+        row.GetProperty("controlTitle").GetString().Should().Be("Verified enhancement");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        coverageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var coverage = await coverageResponse.Content.ReadFromJsonAsync<JsonElement>();
+        coverage.GetProperty("parent").GetProperty("controlId").GetString().Should().Be(fixture.AttentionControlId);
+        coverage.GetProperty("narrativeVersion").ValueKind.Should().Be(JsonValueKind.Null);
+        await using var verify = _factory.Services.CreateAsyncScope();
+        (await verify.ServiceProvider.GetRequiredService<AtoCopilotContext>().ControlImplementations
+            .AnyAsync(x => x.RegisteredSystemId == fixture.SystemId && x.ControlId == childId)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RequirementCoverage_RejectsViewerMutationAndForeignSystemRead()
+    {
+        // Arrange
+        var fixture = await SeedAsync(OrganizationRole.Assessor);
+        using var client = Client(fixture.Actor);
+
+        // Act
+        var mutation = await client.PostAsJsonAsync($"/api/systems/{fixture.SystemId}/requirement-coverage/enhancement-proposals",
+            new { parentControlId = fixture.AttentionControlId, controlId = "demo-child", expectedBaselineRevision = 0,
+                rationale = "Synthetic", technicalDraft = "Draft" });
+        var foreign = await client.GetAsync($"/api/systems/{fixture.ForeignTenantSystemId}/requirement-coverage/{fixture.AttentionControlId}");
+
+        // Assert
+        mutation.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     private async Task<WorkspaceFixture> SeedAsync(OrganizationRole role)

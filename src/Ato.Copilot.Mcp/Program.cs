@@ -648,6 +648,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapControlValidationEndpoints();
     app.MapNarrativeDualEndpoints();
     app.MapNarrativeLibraryEndpoints();
+    app.MapRequirementCoverageEndpoints();
     app.MapScopedNarrativeLibraryEndpoints();
 
     // Feature 051 [US1]: dashboard login surface — login-config + me.
@@ -1383,6 +1384,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TaskTicketingSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.RequirementCoverageSchemaAdditions
+        .ApplyAsync(db, ct);
     // Create workspace/catalog tables before retrofitting TenantId; legacy indexes below need the retrofit first.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantIdColumnAdditions
         .ApplyAsync(db, logger, ct);

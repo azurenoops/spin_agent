@@ -4,6 +4,15 @@
 
 This guide covers the end-to-end process for generating an eMASS-compatible authorization package containing all required RMF artifacts as a single ZIP archive.
 
+> Package preparation/export is distinct from actual eMASS submission, acceptance
+> and the Authorizing Official's decision. The [planned requirement coverage
+> continuation](../../specs/074-policy-technical-narrative/contracts/requirement-coverage.md#documents-and-export)
+> adds reviewed parent responses, separate enhancements and explicit readiness
+> gaps on the feature branch; full validation and manual acceptance remain
+> pending. Its working
+> previews may show gaps, while required unresolved gaps will block a new
+> submission-preparation readiness claim. Retained archives remain unchanged.
+
 ---
 
 ## Overview

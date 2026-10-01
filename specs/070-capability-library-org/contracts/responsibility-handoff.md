@@ -5,6 +5,21 @@ SQL Server deployment and user manual acceptance remain explicit delivery gates.
 
 ## HTTP and review UI
 
+The 2026-10-01 task-oriented drawer sends the existing optional
+`providerCoverageVerified`, `customerDutiesReviewed` and `reviewNotes` confirmation
+fields (both acknowledgements must be true and notes must contain 1-2000
+characters). Provider duties/scope/exclusions/supporting source and rationale are
+readable review context, not a new allocation entity. Customer duties remain the
+existing `customerResponsibility`, including local operational duties on Inherited
+allocations. The client checks returned saved allocation, notes, acknowledgement,
+source pin and actor/time before reporting confirmation success.
+
+There is no draft/proposal persistence in this contract. The unconfirmed choice
+stays local and makes no mutation. An open draft survives explicit preview refresh
+and conflicts; refreshed revisions require another summary acknowledgement.
+No blind retry is performed. Transport errors do not imply the server received
+nothing. See the [manual review guide](../../../docs/guides/control-inheritance.md#local-au-11-manual-review).
+
 Base: `/api/dashboard/systems/{systemId}/capability-subscriptions`.
 
 - `GET /responsibilities`: read-only preview. Returns `systemId`, the technical

@@ -511,6 +511,8 @@ public class SspService : ISspService
 
         foreach (var narrative in narratives) context.Entry(narrative).State = EntityState.Detached;
         await ApprovedNarrativeDocumentData.ApplyAsync(context, narratives, cancellationToken);
+        var requirementCoverage = await RequirementCoverageDocumentData.LoadAsync(context, systemId,
+            baseline, narratives, cancellationToken);
 
         // Load approved NarrativeVersion content for SSP generation (Feature 024)
         var approvedVersionIds = narratives
@@ -668,7 +670,7 @@ public class SspService : ISspService
                     4 => GenerateSection4Content(system),
                     7 => GenerateSection7Content(interconnections, system, storedSection),
                     9 => GenerateSection9Content(baseline, narratives),
-                    10 => GenerateSection10Content(system, baseline, narratives, approvedVersions),
+                    10 => GenerateSection10Content(system, baseline, requirementCoverage, approvedVersions),
                     11 => GenerateSection11Content(boundaryDefinitions, boundaries, inventoryItems, components, storedSection),
                     _ => ""
                 };
@@ -704,6 +706,11 @@ public class SspService : ISspService
 
             if (design?.Sections.ContainsKey(sectionNum) == true) content = design.Markdown(sectionNum);
             sb.AppendLine(content);
+            if (sectionNum == 10)
+            {
+                sb.AppendLine(RequirementCoverageDocumentData.Render(requirementCoverage));
+                doc.Warnings.AddRange(requirementCoverage.Gaps);
+            }
             if (sectionNum == 9) sb.AppendLine(providerSources.Content);
             foreach (var profile in approvedProfiles.Where(p => ApprovedProfileDocumentData.DestinationSection(p.Type) == sectionNum))
                 sb.AppendLine(ApprovedProfileDocumentData.Render(profile));
@@ -714,9 +721,8 @@ public class SspService : ISspService
             {
                 var controlIds = baseline?.ControlIds ?? new List<string>();
                 doc.TotalControls = controlIds.Count;
-                var narrativeMap = narratives.ToDictionary(n => n.ControlId, StringComparer.OrdinalIgnoreCase);
-                doc.ControlsWithNarratives = controlIds.Count(c =>
-                    narrativeMap.TryGetValue(c, out var implementation) && implementation.HasCanonicalNarrative());
+                doc.ControlsWithNarratives = requirementCoverage.Controls.Count(control =>
+                    controlIds.Contains(control.SelectedId) && control.Implementation?.HasCanonicalNarrative() == true);
                 doc.ControlsMissingNarratives = doc.TotalControls - doc.ControlsWithNarratives;
 
                 if (doc.ControlsMissingNarratives > 0)
@@ -798,6 +804,8 @@ public class SspService : ISspService
 
         foreach (var narrative in narratives) context.Entry(narrative).State = EntityState.Detached;
         await ApprovedNarrativeDocumentData.ApplyAsync(context, narratives, cancellationToken);
+        var requirementCoverage = await RequirementCoverageDocumentData.LoadAsync(context, systemId,
+            baseline, narratives, cancellationToken);
 
         var approvedVersionIds = narratives
             .Where(ci => !string.IsNullOrWhiteSpace(ci.ApprovedVersionId))
@@ -888,7 +896,7 @@ public class SspService : ISspService
                     4 => GenerateSection4Content(system),
                     7 => GenerateSection7Content(interconnections, system, storedSection),
                     9 => GenerateSection9Content(baseline, narratives),
-                    10 => GenerateSection10Content(system, baseline, narratives, approvedVersions),
+                    10 => GenerateSection10Content(system, baseline, requirementCoverage, approvedVersions),
                     11 => GenerateSection11Content(boundaryDefinitions, boundaries, inventoryItems, components, storedSection),
                     _ => ""
                 };
@@ -920,6 +928,7 @@ public class SspService : ISspService
 
             if (design?.Sections.ContainsKey(sectionNum) == true) content = design.Markdown(sectionNum);
             if (sectionNum == 9) content += "\n\n" + providerSources.Content;
+            if (sectionNum == 10) content += "\n\n" + RequirementCoverageDocumentData.Render(requirementCoverage);
             foreach (var profile in approvedProfiles.Where(p => ApprovedProfileDocumentData.DestinationSection(p.Type) == sectionNum))
                 content += "\n\n" + ApprovedProfileDocumentData.Render(profile);
             if (sectionNum == 1 && profileGaps.Count > 0)
@@ -933,7 +942,7 @@ public class SspService : ISspService
     private static string GenerateSection10Content(
         RegisteredSystem system,
         ControlBaseline? baseline,
-        List<ControlImplementation> narratives,
+        RequirementCoverageDocumentData.Projection requirementCoverage,
         Dictionary<string, string> approvedVersions)
     {
         var sb = new StringBuilder();
@@ -945,7 +954,8 @@ public class SspService : ISspService
             return sb.ToString();
         }
 
-        var narrativeMap = narratives.ToDictionary(n => n.ControlId, n => n, StringComparer.OrdinalIgnoreCase);
+        var narrativeMap = requirementCoverage.Controls.Where(control => control.Implementation != null)
+            .ToDictionary(control => control.SelectedId, control => control.Implementation!, StringComparer.OrdinalIgnoreCase);
         var inheritanceMap = baseline?.Inheritances
             ?.ToDictionary(i => i.ControlId, i => i, StringComparer.OrdinalIgnoreCase)
             ?? new Dictionary<string, ControlInheritance>(StringComparer.OrdinalIgnoreCase);

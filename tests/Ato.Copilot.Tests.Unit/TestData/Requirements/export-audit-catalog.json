@@ -1,0 +1,9 @@
+{
+  "uuid": "eb0bb451-a47b-4fcd-8092-09cc2f69b749",
+  "metadata": { "title": "Synthetic audit export catalog", "version": "test-1" },
+  "controls": [{
+    "id": "AU-2",
+    "title": "Synthetic audit events",
+    "parts": [{ "id": "audit-statement", "name": "statement", "prose": "Record synthetic audit events." }]
+  }]
+}

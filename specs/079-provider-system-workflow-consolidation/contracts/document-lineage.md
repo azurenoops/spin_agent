@@ -20,6 +20,17 @@ JSON DTO tests, and schema validity alone do not prove semantic traceability.
 
 ## Snapshot and generation
 
+### Requirement coverage integration under validation
+
+The [spec 074 continuation](../../074-policy-technical-narrative/contracts/requirement-coverage.md#documents-and-export)
+extends this lineage contract with pinned catalogs, versioned requirement
+responses, evidence mappings and review history. This integration is implemented
+on the feature branch but awaits final validation and manual acceptance.
+Parent requirements remain under their parent; enhancements
+remain separate controls. Both must survive reviewed SSP/eMASS preparation
+output with genuine catalog identifiers. Include these inputs in readiness
+freshness without reinterpreting retained archives or promoting working drafts.
+
 Resolve one authorized source/version manifest before preview/final generation.
 Preserve it with purpose, validator results, generation state, and output hashes.
 Detect source changes between validation and generation: retain pinned snapshot

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Tenancy;
@@ -51,6 +52,15 @@ internal static class PackageReadinessSources
         await Add(db.InventoryItems.Where(x => x.RegisteredSystemId == system.Id), "inventory", sources, db, ct);
         await Add(db.ControlBaselines.Where(x => x.RegisteredSystemId == system.Id), "baseline", sources, db, ct);
         var baselines = db.ControlBaselines.Where(x => x.RegisteredSystemId == system.Id).Select(x => x.Id);
+        var bindingIds = await db.BaselineCatalogBindings.AsNoTracking().Where(x => baselines.Contains(x.ControlBaselineId)
+            && x.TenantId == system.TenantId).Select(x => x.Id).ToListAsync(ct);
+        foreach (var bindingId in bindingIds)
+        {
+            var binding = await CatalogSourceReader.ReadBindingAsync(db, x => x.Id == bindingId
+                && x.TenantId == system.TenantId && baselines.Contains(x.ControlBaselineId), ct)
+                ?? throw new DbUpdateConcurrencyException("A retained catalog source changed during readiness capture.");
+            AddRows(new[] { binding }, "requirement-catalog", sources, db);
+        }
         await Add(db.ControlInheritances.Where(x => baselines.Contains(x.ControlBaselineId)), "responsibility", sources, db, ct);
         await Add(db.ControlTailorings.Where(x => baselines.Contains(x.ControlBaselineId)), "baseline", sources, db, ct);
         await Add(db.ControlImplementations.Where(x => x.RegisteredSystemId == system.Id), "ssp", sources, db, ct);
@@ -81,8 +91,14 @@ internal static class PackageReadinessSources
         var connections = db.SystemInterconnections.Where(x => x.RegisteredSystemId == system.Id).Select(x => x.Id);
         await Add(db.InterconnectionAgreements.Where(x => connections.Contains(x.SystemInterconnectionId)), "interconnection", sources, db, ct);
         await Add(db.EvidenceArtifacts.Where(x => x.RegisteredSystemId == system.Id), "evidence", sources, db, ct);
+        var baseline = await db.ControlBaselines.AsNoTracking().SingleOrDefaultAsync(x => x.RegisteredSystemId == system.Id, ct);
+        var coverage = await RequirementCoverageDocumentData.LoadAsync(db, system.Id, baseline,
+            await db.ControlImplementations.AsNoTracking().Where(x => x.RegisteredSystemId == system.Id).ToListAsync(ct), ct);
+        var requirementEvidenceIds = coverage.Controls.SelectMany(x => x.Responses).SelectMany(x => x.Evidence ?? [])
+            .Select(x => x.ArtifactId).Distinct().ToArray();
         foreach (var evidence in await db.EvidenceArtifacts.AsNoTracking().Where(x => x.RegisteredSystemId == system.Id
-            && !x.IsDeleted && x.ControlImplementationId != null && implementations.Contains(x.ControlImplementationId)).ToListAsync(ct))
+            && !x.IsDeleted && (requirementEvidenceIds.Contains(x.Id)
+                || x.ControlImplementationId != null && implementations.Contains(x.ControlImplementationId))).ToListAsync(ct))
         {
             var bytes = await EvidenceHashAsync(services.GetRequiredService<IEvidenceArtifactService>(), evidence.Id, ct);
             sources.Add(new("evidence-bytes", evidence.Id, null, bytes ?? Hash("Unavailable"), evidence.FileName));
@@ -135,10 +151,16 @@ internal static class PackageReadinessSources
     private static async Task Add<T>(IQueryable<T> query, string kind, List<PackageReadinessSource> sources,
         AtoCopilotContext db, CancellationToken ct) where T : class
     {
+        AddRows(await query.AsNoTracking().ToListAsync(ct), kind, sources, db);
+    }
+
+    private static void AddRows<T>(IReadOnlyList<T> rows, string kind, List<PackageReadinessSource> sources,
+        AtoCopilotContext db) where T : class
+    {
         var type = db.Model.FindEntityType(typeof(T)) ?? throw new InvalidOperationException("Readiness source model is unavailable.");
         var properties = type.GetProperties().Where(x => x.PropertyInfo != null).OrderBy(x => x.Name).ToArray();
         var key = type.FindPrimaryKey() ?? throw new InvalidOperationException("Readiness source identity is unavailable.");
-        foreach (var row in await query.AsNoTracking().ToListAsync(ct))
+        foreach (var row in rows)
         {
             var values = properties.ToDictionary(x => x.Name, x => x.PropertyInfo!.GetValue(row));
             var id = string.Join("/", key.Properties.Select(x => x.PropertyInfo!.GetValue(row)?.ToString()));

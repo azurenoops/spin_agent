@@ -14,6 +14,30 @@ const preview = {
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe('capability responsibility API contract', () => {
+  it('does not report confirmation success when returned saved review evidence differs', async () => {
+    // Arrange
+    const body = { baselineId: 'baseline-1', sourceRevision: 'source-1', reviewRevision: 'review-1',
+      allocations: [{ controlId: 'AC-1', inheritanceType: 'Shared' as const, provider: 'Reviewed CSP', customerResponsibility: 'Review alerts.' }],
+      providerCoverageVerified: true, customerDutiesReviewed: true, reviewNotes: 'Reviewed scoped evidence.',
+    };
+    vi.mocked(apiClient.put).mockResolvedValue({ data: { ...preview, items: [responsibilityItem()] } });
+    // Act / Assert
+    await expect(confirmCapabilityResponsibilities('system/a', 'capability-a', body)).rejects.toThrow(/did not verify/);
+  });
+  it('accepts a matching saved allocation, review evidence, source pin and server attribution', async () => {
+    // Arrange
+    const allocation = { controlId: 'AC-1', inheritanceType: 'Customer' as const, provider: null, customerResponsibility: 'Review alerts.' };
+    const body = { baselineId: 'baseline-1', sourceRevision: 'source-1', reviewRevision: 'review-1',
+      allocations: [allocation], providerCoverageVerified: true, customerDutiesReviewed: true, reviewNotes: 'Reviewed scope.',
+    };
+    const data = { ...preview, items: [{ ...responsibilityItem(), allocation,
+      reviewedSourceRevision: 'source-1', providerCoverageVerified: true, customerDutiesReviewed: true,
+      reviewNotes: 'Reviewed scope.', confirmedBy: 'synthetic-reviewer', confirmedAt: '2026-10-01T00:00:00Z',
+    }] };
+    vi.mocked(apiClient.put).mockResolvedValue({ data });
+    // Act / Assert
+    await expect(confirmCapabilityResponsibilities('system/a', 'capability-a', body)).resolves.toEqual(data);
+  });
   it('reads the raw preview using the scoped shared client and an encoded system ID', async () => {
     // Arrange
     vi.mocked(apiClient.get).mockResolvedValue({ data: preview });
@@ -88,7 +112,7 @@ describe('capability responsibility API contract', () => {
     vi.mocked(apiClient.get).mockRejectedValue({ isAxiosError: true, message: 'Network Error' });
     // Act / Assert
     await expect(getCapabilityResponsibilities('system/a')).rejects.toThrow(
-      'The responsibility service could not be reached. Your changes were not submitted; retry when the service is available.');
+      'No response was received from the responsibility service. Verify the saved state before submitting again.');
   });
 
   it('retains the opaque source pin instead of hashing the redacted display snapshot', async () => {

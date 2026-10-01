@@ -121,6 +121,9 @@ public partial class OscalSspExportService : IOscalSspExportService
             .OrderBy(ci => ci.ControlId)
             .ToListAsync(cancellationToken);
         var narrativeSources = await ApprovedNarrativeDocumentData.ApplyAsync(db, implementations, cancellationToken);
+        var requirementCoverage = await RequirementCoverageDocumentData.LoadAsync(db, registeredSystemId,
+            baseline, implementations, cancellationToken);
+        warnings.AddRange(requirementCoverage.Gaps);
 
         var roles = await db.RmfRoleAssignments
             .AsNoTracking()
@@ -175,7 +178,11 @@ public partial class OscalSspExportService : IOscalSspExportService
 
         // Build each OSCAL section
         var metadata = BuildMetadata(system, roles, partyMap, warnings);
-        var importProfile = BuildImportProfile(baseline, warnings);
+        var importProfile = new Dictionary<string, object>();
+        if (requirementCoverage.Binding is { } catalogBinding && !string.IsNullOrWhiteSpace(catalogBinding.SourceUri))
+            importProfile["href"] = catalogBinding.SourceUri;
+        else
+            warnings.Add("Catalog source URI is unavailable. Import-profile href is omitted.");
         var systemChars = BuildSystemCharacteristics(system, categorization, sectionMap, interconnections, baseline, boundaries, roles, warnings, boundaryDefinitions);
         var systemImpl = BuildSystemImplementation(boundaries, roles, baseline, componentMap, partyMap, warnings);
         AppendModernComponents(systemImpl, modernComponents, componentMap);
@@ -239,7 +246,7 @@ public partial class OscalSspExportService : IOscalSspExportService
         var providerSources = await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
         warnings.AddRange(providerGaps);
         ProviderDocumentProvenance.AppendOscal(providerSources, metadata, systemImpl);
-        var controlImpl = BuildControlImplementation(system, implementations, baseline, componentMap, deviations, warnings);
+        var controlImpl = BuildControlImplementation(system, implementations, baseline, componentMap, deviations, warnings, requirementCoverage);
 
         Dictionary<string, object>? backMatter = null;
         var backMatterCount = 0;
@@ -306,13 +313,25 @@ public partial class OscalSspExportService : IOscalSspExportService
                 ["name"] = "source-version-manifest",
                 ["ns"] = "https://ato-copilot.io/ns/document",
                 ["value"] = JsonSerializer.Serialize(manifest)
+            },
+            new Dictionary<string, string>
+            {
+                ["name"] = "requirement-source-manifest",
+                ["ns"] = "https://ato-copilot.io/ns/document",
+                ["value"] = JsonSerializer.Serialize(requirementCoverage.Sources)
+            },
+            new Dictionary<string, string>
+            {
+                ["name"] = "requirement-coverage-gaps",
+                ["ns"] = "https://ato-copilot.io/ns/document",
+                ["value"] = JsonSerializer.Serialize(requirementCoverage.Gaps)
             }
         };
         var opts = prettyPrint ? PrettyOpts : CompactOpts;
         var json = JsonSerializer.Serialize(root, opts);
 
         var stats = new OscalStatistics(
-            ControlCount: implementations.Count,
+            ControlCount: requirementCoverage.Controls.Count(x => x.Source != null && x.Implementation != null),
             ComponentCount: boundaries.Count + modernComponents.Count,
             InventoryItemCount: boundaries.Count,
             UserCount: roles.Count,
@@ -689,12 +708,21 @@ public partial class OscalSspExportService : IOscalSspExportService
         ControlBaseline? baseline,
         Dictionary<string, string> componentMap,
         List<Deviation> deviations,
-        List<string> warnings)
+        List<string> warnings,
+        RequirementCoverageDocumentData.Projection? coverage = null)
     {
         var ci = new Dictionary<string, object>
         {
             ["description"] = $"Control implementation narratives for {system.Name}."
         };
+        if (coverage != null)
+        {
+            var unresolved = coverage.Controls.Where(x => x.Source == null).Select(x =>
+                $"{x.SelectedId} (unstructured; source unresolved):\n{EmassExportService.BuildImplementationNarrative(x.Implementation)}");
+            ci["description"] += "\n" + string.Join("\n", unresolved);
+            implementations = coverage.Controls.Where(x => x.Source != null && x.Implementation != null)
+                .Select(x => x.Implementation!).ToList();
+        }
 
         if (implementations.Count == 0)
         {
@@ -715,6 +743,7 @@ public partial class OscalSspExportService : IOscalSspExportService
 
         ci["implemented-requirements"] = implementations.Select(impl =>
         {
+            var mapped = coverage?.Controls.Single(x => x.Implementation?.Id == impl.Id);
             var props = new List<Dictionary<string, string>>
             {
                 new()
@@ -751,27 +780,27 @@ public partial class OscalSspExportService : IOscalSspExportService
             var req = new Dictionary<string, object>
             {
                 ["uuid"] = Guid.NewGuid().ToString(),
-                ["control-id"] = impl.ControlId.ToLowerInvariant(),
-                ["remarks"] = impl.ApprovedVersionId != null && impl.PolicyNarrative == null
-                    && impl.TechnicalNarrative == null && !string.IsNullOrWhiteSpace(impl.Narrative)
-                    ? impl.Narrative : $"Policy and technical implementation statements for {impl.ControlId}.",
-                ["statements"] = new List<Dictionary<string, object>>
-                {
-                    new()
-                    {
-                        ["uuid"] = Guid.NewGuid().ToString(),
-                        ["statement-id"] = $"{impl.ControlId}_smt.policy",
-                        ["remarks"] = impl.PolicyNarrative ?? "[Not Authored]"
-                    },
-                    new()
-                    {
-                        ["uuid"] = Guid.NewGuid().ToString(),
-                        ["statement-id"] = $"{impl.ControlId}_smt.technical",
-                        ["remarks"] = impl.TechnicalNarrative ?? "[Not Authored]"
-                    }
-                },
+                ["control-id"] = mapped?.Source?.Id ?? impl.ControlId,
+                ["remarks"] = (EmassExportService.BuildImplementationNarrative(impl) ?? "[Not Authored]")
+                    + "\n" + (mapped == null ? "Requirement coverage gap: unstructured narrative; source mappings are unavailable."
+                        : RequirementCoverageDocumentData.Render(mapped)),
                 ["props"] = props.ToArray()
             };
+            if (mapped?.Source is { } source)
+            {
+                var statements = source.Requirements.Where(x => mapped.Responses.Any(r => r.StatementId == x.Id))
+                    .Select(statement => new Dictionary<string, object>
+                    {
+                        ["uuid"] = Guid.NewGuid().ToString(),
+                        ["statement-id"] = statement.Id,
+                        ["remarks"] = string.Join("\n\n", mapped.Responses.Where(r => r.StatementId == statement.Id)
+                            .Select(r => $"{r.Kind}: {r.Response}"))
+                    }).ToArray();
+                if (statements.Length > 0) req["statements"] = statements;
+                var parameters = mapped.Parameters.Select(x => new Dictionary<string, object>
+                    { ["param-id"] = x.Key, ["values"] = new[] { x.Value } }).ToArray();
+                if (parameters.Length > 0) req["set-parameters"] = parameters;
+            }
 
             // Inheritance is a recorded allocation, not a party/role assignment.
             if (inheritanceMap.TryGetValue(impl.ControlId, out var inh))

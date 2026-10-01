@@ -2,6 +2,28 @@
 
 ---
 
+## Requirement coverage additions
+
+**Implemented on the feature branch; final acceptance pending.** The continuation in
+[the requirement coverage contract](contracts/requirement-coverage.md) adds:
+
+- Unflattened current source JSON on `ComplianceFramework` and retained
+  tenant/system `BaselineCatalogBinding` snapshots preserving original control/
+  statement IDs, version/hash, hierarchy, parameters and reconciliation rationale.
+- A baseline pointer to the exact retained binding with a concurrency revision and explicit
+  reconciliation state for unverifiable legacy sources.
+- Working/reviewed JSON mappings on `ControlImplementation`, tied to narrative
+  revisions, evidence hashes, parameter values and retained review lineage.
+- Tenant-scoped `RequirementEnhancementProposal` additions with rationale, draft
+  halves, baseline/catalog preconditions, revision tokens and deduplication.
+
+Use existing narrative version snapshots for retained reviewed mapping content;
+working mappings must not rewrite approved snapshots. All new tenant entities
+require query filters, tenant stamping, FK guards and SQL Server RLS coverage.
+Catalog refresh must not delete sources referenced by approved responses.
+The concrete schema is added by `RequirementCoverageSchemaAdditions`, not a new
+EF migration. Do not treat feature-branch implementation as proof of deployment.
+
 ## #1001 Library and delivery additions
 
 - `NarrativeReference` remains tenant-scoped. `ImportedForSystemId` is nullable

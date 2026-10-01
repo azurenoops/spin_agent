@@ -33,6 +33,20 @@ public class ComplianceFramework
     [MaxLength(500)]
     public string? CatalogUrl { get; set; }
 
+    /// <summary>Latest imported, unflattened catalog; baseline bindings retain immutable copies.</summary>
+    public string? RequirementCatalogJson { get; set; }
+
+    /// <summary>Version of the retained source, independent of flattened control definitions.</summary>
+    [MaxLength(100)]
+    public string? RequirementCatalogVersion { get; set; }
+
+    /// <summary>Actual retrieval source, including explicit embedded fallback provenance.</summary>
+    [MaxLength(500)]
+    public string? RequirementCatalogSourceUri { get; set; }
+
+    /// <summary>When the full source was retained; null for unknown legacy provenance.</summary>
+    public DateTime? RequirementCatalogCapturedAt { get; set; }
+
     /// <summary>OSCAL model type: "catalog" or "profile".</summary>
     [MaxLength(50)]
     public string OscalModelType { get; set; } = "catalog";

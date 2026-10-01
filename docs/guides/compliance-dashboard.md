@@ -274,6 +274,60 @@ Deleting a capability unlinks all control narratives and creates review tasks fo
 
 ## Narratives and Narrative Library
 
+### Requirement coverage (local validation)
+
+#### Loading a missing reference source
+
+Catalog source loading is a **platform administrator** task, not a narrative
+author or organization-administrator permission. Sign in with the existing
+platform administrator account, choose the **provider workspace**, and open
+**Control Catalog**. The **Reference catalog sources** section remains available
+when framework definitions already exist.
+
+- **Load source** captures one official catalog without replacing flattened
+  control definitions, system selections, narratives or retained bindings.
+- **Load missing sources** performs that operation for registered frameworks
+  missing source documents. Failures are reported individually.
+- **Refresh source** replaces the current reference source capture; existing
+  system bindings continue using their retained copy.
+- **Import/refresh framework definitions** is the older, broader import operation
+  and requires confirmation for an existing framework. Use source-only loading
+  to repair the missing-source condition.
+
+Source version, URI and capture time are displayed separately from the older
+definition version. Ordinary organization users can inspect this information
+but cannot perform catalog mutations. Support sessions cannot update shared
+catalogs.
+
+After source loading, SPIN automatically attaches the source for each baseline's
+recorded framework. Users do not select a catalog or enter reconciliation
+rationale in Control Narratives. Existing source snapshots remain pinned across
+later refreshes. This technical association does not approve requirement
+mappings, narratives or authorization decisions.
+
+The [requirement coverage continuation](../../specs/074-policy-technical-narrative/contracts/requirement-coverage.md)
+is implemented on the feature branch and **awaits full validation and manual
+acceptance**. It preserves the
+existing control table and detail tabs while adding catalog-backed requirement
+responses, evidence mappings and parent/enhancement links. Existing text will
+remain intact; unreviewed mappings and missing source/parameter values will be
+shown explicitly.
+
+The table groups enhancements beneath their catalog parent with indentation and
+a connecting guide. Lettered requirements remain within the parent's Statements
+tab. Filters and pagination still count matching control records: a parent
+outside the current page is shown as **Parent context** with a navigation link,
+not as an additional match or an invented statement record. A page-local
+enhancement count describes only the enhancements shown, not the entire
+baseline or their review status.
+
+Enhancement proposals will not change the active baseline until separate
+authorized acceptance, and their narrative content will remain Draft until
+reviewed. Coverage is documentation status, not proof that a control is satisfied.
+GitHub traceability writes still await explicit approval. Follow the
+[local acceptance walkthrough](../../specs/074-policy-technical-narrative/quickstart.md#requirement-coverage-local-acceptance)
+before relying on the feature.
+
 Use the system sidebar to open **Narratives** or **Narrative Library**. There is
 no duplicate bottom workflow bar or system-context strip above Control Narratives.
 On small screens, use the page-header **Narrative Library** or **Narratives**
