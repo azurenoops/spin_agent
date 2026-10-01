@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle, ArrowRight, CircleAlert, Clock3, FileText, Info, RefreshCw,
   Search, SlidersHorizontal,
@@ -23,6 +23,25 @@ interface Props {
 }
 
 type WorkspaceView = 'needs-attention' | 'all' | 'approved';
+
+function groupControls(items: ControlNarrativeWorkspaceItem[]) {
+  const groups = new Map<string, {
+    controlId: string;
+    parent?: ControlNarrativeWorkspaceItem;
+    enhancements: ControlNarrativeWorkspaceItem[];
+  }>();
+  for (const item of items) {
+    const controlId = item.parentControlId || item.controlId;
+    let group = groups.get(controlId);
+    if (!group) {
+      group = { controlId, enhancements: [] };
+      groups.set(controlId, group);
+    }
+    if (item.parentControlId) group.enhancements.push(item);
+    else group.parent = item;
+  }
+  return [...groups.values()];
+}
 
 function message(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -90,7 +109,7 @@ export default function ControlNarrativeWorkspace({ systemId, onOpenEditor, onOp
     setDetailLoading(true);
     setDetailError('');
     getControlNarrativeDetail(systemId, selectedControl, controller.signal)
-      .then(setDetail)
+      .then(value => { if (!controller.signal.aborted) setDetail(value); })
       .catch(reason => { if (!controller.signal.aborted) setDetailError(message(reason)); })
       .finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
     return () => controller.abort();
@@ -109,11 +128,11 @@ export default function ControlNarrativeWorkspace({ systemId, onOpenEditor, onOp
   const pageCount = Math.max(1, Math.ceil(selectedTotal / pageSize));
   const proposedItem = data?.items.find(item => item.policy.proposalId || item.technical.proposalId);
 
-  const openControl = (item: ControlNarrativeWorkspaceItem, event: React.MouseEvent<HTMLElement>) => {
+  const openControl = (controlId: string, event: React.MouseEvent<HTMLElement>, statement: NarrativeStatementKind = 'policy') => {
     returnFocus.current = event.currentTarget;
     const next = new URLSearchParams(params);
-    next.set('control', item.controlId);
-    next.set('statement', !item.policy.hasContent ? 'policy' : 'technical');
+    next.set('control', controlId);
+    next.set('statement', statement);
     setParams(next);
   };
   const closeDrawer = useCallback(() => {
@@ -122,6 +141,29 @@ export default function ControlNarrativeWorkspace({ systemId, onOpenEditor, onOp
     setParams(next);
     window.setTimeout(() => returnFocus.current?.focus(), 0);
   }, [params, setParams]);
+
+  const renderControl = (item: ControlNarrativeWorkspaceItem, enhancementCount = 0) =>
+    <tr key={item.id} className={[
+      item.parentControlId ? 'cnw-enhancement-row' : '',
+      selectedControl === item.controlId ? 'cnw-selected-row' : '',
+    ].filter(Boolean).join(' ')}>
+      <td><button type="button" className="cnw-control-link"
+        onClick={event => openControl(item.controlId, event, item.policy.hasContent ? 'technical' : 'policy')}>
+        <FileText size={18} /><span><strong>{item.controlTitle}</strong><small>{item.controlId}</small>
+          {enhancementCount > 0 && <span className="cnw-relationship-note">
+            {enhancementCount} enhancement{enhancementCount === 1 ? '' : 's'} shown
+          </span>}
+          {item.parentControlId && <span className="cnw-relationship-note">Enhancement of {item.parentControlId}</span>}
+          {item.selectedInBaseline === false && <span className="cnw-relationship-note">Not selected in baseline</span>}
+        </span></button></td>
+      <td><StatementState label="Policy" state={item.policy.state} stale={item.policy.isStale} /></td>
+      <td><StatementState label="Technical" state={item.technical.state} stale={item.technical.isStale} /></td>
+      <td><button type="button" className="cnw-next-action" disabled={item.nextAction === 'Blocked'}
+        title={item.nextActionReason ?? undefined}
+        onClick={event => openControl(item.controlId, event, item.policy.hasContent ? 'technical' : 'policy')}>
+        {item.nextActionLabel}<ArrowRight size={14} /></button>
+        {item.nextActionReason && <small>{item.nextActionReason}</small>}</td>
+    </tr>;
 
   return <section className="cnw-page" aria-labelledby="cnw-heading">
     <div className="cnw-context-heading">
@@ -146,7 +188,8 @@ export default function ControlNarrativeWorkspace({ systemId, onOpenEditor, onOp
       {data.counts.proposedUpdates > 0 && <div className="cnw-notification">
         <Clock3 size={21} /><div><strong>{data.counts.proposedUpdates} proposed update{data.counts.proposedUpdates === 1 ? '' : 's'} need{data.counts.proposedUpdates === 1 ? 's' : ''} attention</strong>
           <p>Compare the proposed statement with its sources.</p></div>
-        <button type="button" disabled={!proposedItem} onClick={event => proposedItem && openControl(proposedItem, event)}>
+        <button type="button" disabled={!proposedItem} onClick={event => proposedItem &&
+          openControl(proposedItem.controlId, event, proposedItem.policy.hasContent ? 'technical' : 'policy')}>
           View proposed update <ArrowRight size={15} /></button></div>}
       <div className="cnw-view-tabs" role="tablist" aria-label="Narrative views">
         <button type="button" role="tab" aria-selected={view === 'needs-attention'} onClick={() => setParam('view', 'needs-attention')}>Needs attention ({data.counts.needsAttention})</button>
@@ -169,16 +212,18 @@ export default function ControlNarrativeWorkspace({ systemId, onOpenEditor, onOp
         <p>Try another view or clear one of the filters.</p></div>
         : <div className="cnw-table-wrap"><table className="cnw-table">
           <thead><tr><th>Control</th><th>Policy statement</th><th>Technical statement</th><th>Next step</th></tr></thead>
-          <tbody>{visible.map(item => <tr key={item.id} className={selectedControl === item.controlId ? 'cnw-selected-row' : undefined}>
-            <td><button type="button" className="cnw-control-link" onClick={event => openControl(item, event)}>
-              <FileText size={18} /><span><strong>{item.controlTitle}</strong><small>{item.controlId}</small></span></button></td>
-            <td><StatementState label="Policy" state={item.policy.state} stale={item.policy.isStale} /></td>
-            <td><StatementState label="Technical" state={item.technical.state} stale={item.technical.isStale} /></td>
-            <td><button type="button" className="cnw-next-action" disabled={item.nextAction === 'Blocked'}
-              title={item.nextActionReason ?? undefined} onClick={event => openControl(item, event)}>
-              {item.nextActionLabel}<ArrowRight size={14} /></button>
-              {item.nextActionReason && <small>{item.nextActionReason}</small>}</td>
-          </tr>)}</tbody>
+          <tbody>{groupControls(visible).map(group => <Fragment key={group.controlId}>
+            {group.parent ? renderControl(group.parent, group.enhancements.length)
+              : <tr className="cnw-parent-context"><td colSpan={4}>
+                <button type="button" className="cnw-control-link" aria-label={`View parent control ${group.controlId}`}
+                  onClick={event => openControl(group.controlId, event)}>
+                  <FileText size={18} /><span><strong>{group.controlId}</strong>
+                    <span className="cnw-relationship-note">Parent context · not a matching record on this page</span>
+                  </span>
+                </button>
+              </td></tr>}
+            {group.enhancements.map(item => renderControl(item))}
+          </Fragment>)}</tbody>
         </table></div>}
       <div className="cnw-list-footer"><span>Showing {visible.length} of {selectedTotal} records</span>
       {selectedTotal > pageSize && <nav className="cnw-pagination" aria-label="Narrative pages">
@@ -197,9 +242,10 @@ export default function ControlNarrativeWorkspace({ systemId, onOpenEditor, onOp
     {selectedControl && detailError && <div className="cnw-drawer-status cnw-error" role="alert"><span>{detailError}</span>
       <button type="button" onClick={() => setRevision(value => value + 1)}>Retry</button>
       <button type="button" onClick={closeDrawer}>Close</button></div>}
-    {detail && selectedControl && !detailLoading && !detailError && <ControlNarrativeDrawer detail={detail}
+    {detail && selectedControl && !detailLoading && !detailError && <ControlNarrativeDrawer key={`${systemId}:${selectedControl}`} detail={detail}
       initialStatement={selectedStatement}
       onStatementChange={(kind: NarrativeStatementKind) => setParam('statement', kind, true)}
-      onClose={closeDrawer} onEdit={onOpenEditor} onViewSource={onOpenLibrary} onReviewProposal={onReviewProposal} />}
+      onClose={closeDrawer} onEdit={onOpenEditor} onViewSource={onOpenLibrary} onReviewProposal={onReviewProposal}
+      onNavigate={id => setParam('control', id)} onChanged={() => setRevision(value => value + 1)} />}
   </section>;
 }

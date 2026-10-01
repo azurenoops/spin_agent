@@ -16,6 +16,8 @@ export interface ControlNarrativeWorkspaceItem {
   controlId: string;
   controlTitle: string;
   family: string;
+  parentControlId?: string | null;
+  selectedInBaseline?: boolean | null;
   implementationStatus: string;
   currentVersion: number;
   approvalStatus: string;
@@ -86,7 +88,7 @@ export interface ResponsibilityDependency {
 
 export interface ControlNarrativeDetailResponse {
   systemId: string;
-  id: string;
+  id: string | null;
   controlId: string;
   controlTitle: string;
   family: string;
@@ -130,6 +132,8 @@ function isItem(value: unknown): value is ControlNarrativeWorkspaceItem {
     && ['id', 'controlId', 'controlTitle', 'family', 'implementationStatus', 'approvalStatus', 'nextAction', 'nextActionLabel']
       .every(key => text(value[key]))
     && nullableText(value.nextActionReason)
+    && (value.parentControlId === undefined || nullableText(value.parentControlId))
+    && (value.selectedInBaseline === undefined || value.selectedInBaseline === null || typeof value.selectedInBaseline === 'boolean')
     && count(value.currentVersion)
     && isStatementSummary(value.policy)
     && isStatementSummary(value.technical);
@@ -168,7 +172,8 @@ function isStatementDetail(value: unknown): value is NarrativeStatementDetail {
 
 function checkedDetail(value: unknown, systemId: string, controlId: string): ControlNarrativeDetailResponse {
   if (!object(value) || value.systemId !== systemId || value.controlId !== controlId
-    || !['id', 'controlTitle', 'family', 'implementationStatus', 'approvalStatus'].every(key => text(value[key]))
+    || !nullableText(value.id)
+    || !['controlTitle', 'family', 'implementationStatus', 'approvalStatus'].every(key => text(value[key]))
     || !count(value.currentVersion)
     || !object(value.statements) || !isStatementDetail(value.statements.policy) || !isStatementDetail(value.statements.technical)
     || !Array.isArray(value.proposals) || !value.proposals.every(isProposal)

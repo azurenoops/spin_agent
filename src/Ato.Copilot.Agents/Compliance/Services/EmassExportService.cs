@@ -100,6 +100,9 @@ public class EmassExportService : IEmassExportService
             .AsNoTracking()
             .Where(ci => ci.RegisteredSystemId == registeredSystemId)
             .ToListAsync(cancellationToken);
+        await ApprovedNarrativeDocumentData.ApplyAsync(db, implementations, cancellationToken);
+        var requirementCoverage = await RequirementCoverageDocumentData.LoadAsync(db, registeredSystemId,
+            baseline, implementations, cancellationToken);
 
         var inheritances = baseline != null
             ? await db.ControlInheritances
@@ -122,9 +125,9 @@ public class EmassExportService : IEmassExportService
             .ToListAsync(cancellationToken);
 
         var rows = BuildControlRows(system, baseline, implementations,
-            inheritances, tailorings, effectivenessRecords);
+            inheritances, tailorings, effectivenessRecords, requirementCoverage);
 
-        return GenerateExcel("Controls", ControlHeaders, rows);
+        return GenerateExcel("Controls", ControlHeaders, rows, requirementCoverage);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -253,10 +256,10 @@ public class EmassExportService : IEmassExportService
         List<ControlImplementation> implementations,
         List<ControlInheritance> inheritances,
         List<ControlTailoring> tailorings,
-        List<ControlEffectiveness> effectivenessRecords)
+        List<ControlEffectiveness> effectivenessRecords,
+        RequirementCoverageDocumentData.Projection coverage)
     {
         // Build lookup maps
-        var implByControl = implementations.ToDictionary(i => i.ControlId, i => i);
         var inheritByControl = inheritances.ToDictionary(i => i.ControlId, i => i);
         var tailorByControl = tailorings.Where(t => t.Action == TailoringAction.Added)
             .ToDictionary(t => t.ControlId, t => t);
@@ -267,23 +270,10 @@ public class EmassExportService : IEmassExportService
         // Get all control IDs from baseline
         var controlIds = baseline?.ControlIds ?? new List<string>();
 
-        // Add tailored-in controls
-        foreach (var t in tailorings.Where(t => t.Action == TailoringAction.Added))
-        {
-            if (!controlIds.Contains(t.ControlId))
-                controlIds.Add(t.ControlId);
-        }
-
-        // Add any implementations that exist but aren't in baseline
-        foreach (var impl in implementations)
-        {
-            if (!controlIds.Contains(impl.ControlId))
-                controlIds.Add(impl.ControlId);
-        }
-
         return controlIds.Select(controlId =>
         {
-            implByControl.TryGetValue(controlId, out var impl);
+            var mapped = coverage.Controls.Single(x => x.SelectedId == controlId);
+            var impl = mapped.Implementation;
             inheritByControl.TryGetValue(controlId, out var inherit);
             tailorByControl.TryGetValue(controlId, out var tailor);
             effectByControl.TryGetValue(controlId, out var effect);
@@ -319,11 +309,11 @@ public class EmassExportService : IEmassExportService
                 SystemAcronym: system.Acronym ?? "",
                 DitprId: system.DitprId ?? "",
                 EmassId: system.EmassId ?? "",
-                ControlIdentifier: controlId.ToUpperInvariant(),
-                ControlName: controlId, // simplified — full name would need catalog lookup
-                ControlFamily: family,
+                ControlIdentifier: mapped.Source?.Id ?? controlId,
+                ControlName: mapped.Source?.Title ?? controlId,
+                ControlFamily: mapped.Source?.Family ?? family,
                 ImplementationStatus: implStatus,
-                ImplementationNarrative: BuildImplementationNarrative(impl),
+                ImplementationNarrative: BuildImplementationNarrative(impl) + "\n\n" + RequirementCoverageDocumentData.Render(mapped),
                 CommonControlProvider: inherit?.Provider,
                 ResponsibilityType: responsibilityType,
                 ComplianceStatus: complianceStatus,
@@ -415,7 +405,7 @@ public class EmassExportService : IEmassExportService
     }
 
     private static byte[] GenerateExcel(string sheetName, string[] headers,
-        IReadOnlyList<object> rows)
+        IReadOnlyList<object> rows, RequirementCoverageDocumentData.Projection? coverage = null)
     {
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add(sheetName);
@@ -449,6 +439,15 @@ public class EmassExportService : IEmassExportService
 
         // Auto-fit columns
         worksheet.Columns().AdjustToContents();
+        if (coverage != null)
+        {
+            var coverageSheet = workbook.Worksheets.Add("Requirement coverage");
+            var line = 1;
+            foreach (var text in RequirementCoverageDocumentData.Render(coverage).Split('\n'))
+                coverageSheet.Cell(line++, 1).Value = text.TrimEnd('\r');
+            coverageSheet.Column(1).Width = 100;
+            coverageSheet.Column(1).Style.Alignment.WrapText = true;
+        }
 
         using var ms = new MemoryStream();
         workbook.SaveAs(ms);

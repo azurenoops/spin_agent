@@ -5,6 +5,53 @@ SQL Server deployment and user manual acceptance remain explicit delivery gates.
 
 ## HTTP and review UI
 
+### Proposed responsibility drafts (approved extension)
+
+Base: `/api/dashboard/systems/{systemId}/capability-subscriptions/drafts`.
+
+- `GET /{controlId}?scopeId={assignmentId}` reads authorized context and any saved
+  draft. Omitted scope uses recorded system information, not a fictitious provider.
+- `POST /{controlId}/prepare` takes `scopeId`, `expectedRevision` (0 for absent)
+  and `generate` (default true). False explicitly prepares source-only content
+  without AI. A failed AI attempt returns 503 plus `draftContext`, retaining
+  editable source-backed content and previous user edits.
+- `PUT /record/{id}` takes `expectedRevision`, the complete `values` dictionary
+  and `applySuggestion`. The server preserves provenance and marks human edits;
+  the client cannot supply origin/attribution. Applying a refreshed comparison
+  is explicit; a stale generated suggestion never overwrites a draft automatically.
+- `POST /record/{id}/confirm` takes the expected revision, source hash, coverage
+  and customer-duty acknowledgements, and review notes. It is the only draft
+  route that changes accepted responsibility. Unconfirmed, stale, incomplete or
+  un-compared drafts are rejected.
+- `GET /record/{id}/history?offset=0` returns at most 20 immutable history records
+  including retained source snapshots for generation/review events.
+
+Reads require current system read access. Generation, edit and confirmation
+require effective assigned ISSM/ISSO authority, checked server-side. Every query
+is system/tenant bound. Missing/foreign IDs remain 404; denied writes 403; invalid
+fields 400; changed draft/source 409. Authority is rechecked after model calls.
+Generation does not claim accepted inheritance, control satisfaction or an AO
+decision. Provider and system-only acceptance retain implementation and approved
+narrative state, with CRM/SSP/eMASS preparation reading effective designations.
+
+The earlier paragraph below describes the deployed confirmation-only predecessor;
+the proposed-draft endpoints replace its memory-only limitation when deployed.
+
+The 2026-10-01 task-oriented drawer sends the existing optional
+`providerCoverageVerified`, `customerDutiesReviewed` and `reviewNotes` confirmation
+fields (both acknowledgements must be true and notes must contain 1-2000
+characters). Provider duties/scope/exclusions/supporting source and rationale are
+readable review context, not a new allocation entity. Customer duties remain the
+existing `customerResponsibility`, including local operational duties on Inherited
+allocations. The client checks returned saved allocation, notes, acknowledgement,
+source pin and actor/time before reporting confirmation success.
+
+There is no draft/proposal persistence in this contract. The unconfirmed choice
+stays local and makes no mutation. An open draft survives explicit preview refresh
+and conflicts; refreshed revisions require another summary acknowledgement.
+No blind retry is performed. Transport errors do not imply the server received
+nothing. See the [manual review guide](../../../docs/guides/control-inheritance.md#local-au-11-manual-review).
+
 Base: `/api/dashboard/systems/{systemId}/capability-subscriptions`.
 
 - `GET /responsibilities`: read-only preview. Returns `systemId`, the technical

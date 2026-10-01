@@ -14,6 +14,69 @@ All endpoints follow the existing Security Posture Intelligence Navigator envelo
 Authentication: Bearer JWT (MSAL). All endpoints require an authenticated caller.
 Role constraints are noted per endpoint.
 
+## Requirement coverage API continuation
+
+The [requirement coverage contract](requirement-coverage.md) describes
+extensions to the existing Dashboard narrative-workspace list/detail DTOs and
+scoped mapping/proposal operations implemented on the feature branch and awaiting
+final acceptance. Preserve existing success/error conventions per surface; do not
+wrap the current direct workspace DTOs in the dual-narrative envelope.
+
+Every new read/write must validate authentication, tenant, system and nested
+record ownership on both legacy and workspace paths. Mutations require explicit
+expected revisions. Enhancement-selection acceptance additionally requires a
+different author/reviewer identity and both system-management and narrative-review
+permission. Selection acceptance leaves narrative content Draft.
+
+Root: `/api/systems/{systemId}/requirement-coverage`.
+
+- `GET /catalogs`: bounded registered-catalog choices and explicit source availability.
+- `POST /catalog-binding`: `{ frameworkId, expectedRevision, rationale }`.
+  Requires system-management and narrative-review permission; returns binding
+  ID/version/hash without exposing another system's source.
+- `GET /{controlId}`: authoritative requirements, parameter definitions,
+  mappings/gaps, explicit parent/enhancement availability and permitted actions.
+- `PUT /{controlId}/responses`:
+  `{ expectedVersion, responses: [{ statementId, kind, response, evidence:
+  [{ artifactId, contentHash }] }], parameters: { "<source-parameter-id>": "<value>" } }`.
+  Kind is `Policy` or `Technical`. Under-review narratives are locked.
+- `POST /{controlId}/review`: `{ expectedVersion }`. A different narrative
+  reviewer approves coverage only when required gaps are resolved.
+- `POST /enhancement-proposals`: `{ parentControlId, controlId,
+  expectedBaselineRevision, rationale, policyDraft, technicalDraft }`.
+  At least one separate draft is required; active selection is unchanged.
+- `POST /enhancement-proposals/{proposalId}/accept`: `{ expectedRevision }`.
+  Membership, tailoring audit and new/reconciled Draft implementation commit
+  atomically; retained approved content is not replaced.
+- `POST /enhancement-proposals/{proposalId}/return`:
+  `{ expectedRevision, note }`. Retains the reviewed proposal and permits a
+  revised proposal without changing selection.
+
+These routes use direct JSON DTOs and actionable `errorCode` / `error` /
+`suggestion` failures. Invalid inputs are 400, unauthorized writes 403,
+inaccessible records 404, and stale context/revisions 409.
+
+### Platform catalog administration
+
+Under `/api/dashboard/frameworks`:
+
+- `GET /source-management`: authenticated source status and server-derived
+  `isPlatformAdministrator`, `canManageSources`, management path and denial reason.
+- `POST /{identifier}/source`: capture/refresh authoritative source only. Does not
+  replace flattened definitions or any system record/binding.
+- `POST /backfill-sources`: capture missing sources for registered active
+  frameworks, leaving loaded sources untouched. Returns captured results and
+  explicit per-framework failures; mixed results use 207, all failures use 502.
+- Existing `POST /import` and `POST /{identifier}/import` retain their broader
+  definition-import behavior but use the same catalog administrator gate.
+
+Mutations require existing platform CSP administrator authority in the provider
+workspace (or authenticated legacy platform-admin context), and are denied in
+organization/support contexts. An organization administrator or system ISSM is
+not implicitly a global catalog administrator. Failed capture preserves existing
+source and system data. Capture provenance uses separate source version/URI/time
+columns instead of mislabeling the older definition version.
+
 ## Narrative Library continuation (#1001)
 
 The library endpoints use their existing direct JSON DTOs (not the dual-endpoint

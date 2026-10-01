@@ -11,6 +11,36 @@
 
 ## Background
 
+### Hierarchical table correction (2026-10-01)
+
+The approved mock requires enhancements to appear directly below their parent
+as indented table rows with a connecting guide, not only a parent label in a
+flat list. Use the API's catalog-backed `parentControlId`, never ID parsing.
+Each matching row retains its own statement states and detail action. Lettered
+requirements remain inside Statements. Preserve server filters, counts and
+pagination; when a parent is absent from the current matching page, show an
+explicit navigation-only parent context row, not invented narrative states.
+Do not add collapse controls, a role switch or mock sample counts.
+
+### Requirement coverage continuation (2026-09-30)
+
+**Status: design approved; local implementation in progress; GitHub writes pending approval.**
+The user approved extending the existing Control Narratives workspace with
+catalog-backed requirement coverage and parent/enhancement navigation. This is
+not a claim that the continuation is implemented or tested.
+
+The [requirement coverage contract](contracts/requirement-coverage.md) governs
+this continuation, including explicit baseline/catalog binding, independent
+Policy/Technical mappings, staged enhancement selection, permissions, and
+reviewed exports. It supersedes FR-007's synthetic OSCAL statement-ID convention
+for this work: response type is not a catalog statement identifier.
+
+New feature and user-story issue bodies have been previewed, but no approval to
+write them was available. No issue numbers or parent links have been invented.
+The user subsequently directed autonomous implementation to continue. Local
+implementation proceeds without external writes; release traceability remains
+an open gate in [tasks.md](tasks.md#requirement-coverage-continuation).
+
 Every NIST 800-53 control implementation in Security Posture Intelligence Navigator today has exactly one `ControlImplementation.Narrative`
 field. In real RMF practice auditors expect **two** canonical halves:
 
@@ -73,6 +103,12 @@ Three new MCP tools for agent-driven authoring and evidence classification (see
 `contracts/mcp-tools.md`).
 
 ### FR-007 — SSP Export Renders Both Halves
+**Planned correction:** The requirement-coverage continuation replaces the
+synthetic identifiers below with identifiers from the baseline's pinned catalog.
+Policy and Technical remain distinct responses, not invented catalog statements.
+The historical behavior below describes the inspected exporter, not catalog
+reference validity. See [the export contract](contracts/requirement-coverage.md#documents-and-export).
+
 OSCAL JSON export adds `statement-id` entries `{controlId}_smt.policy` and
 `{controlId}_smt.technical`. DOCX/PDF export renders `**Implementation Statement (Policy):**`
 followed by `**Implementation Statement (Technical):**`. Missing halves render the configured

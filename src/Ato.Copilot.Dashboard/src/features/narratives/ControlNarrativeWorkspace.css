@@ -243,6 +243,15 @@
   font-size: 10px;
 }
 
+.cnw-control-link > svg { flex-shrink: 0; }
+.cnw-relationship-note { color: var(--cnw-muted); font-size: 11px; font-weight: 400; }
+.cnw-enhancement-row .cnw-control-link { margin-left: 22px; align-items: flex-start; }
+.cnw-enhancement-row .cnw-control-link > span {
+  border-left: 2px solid var(--cnw-border);
+  padding-left: 10px;
+}
+.cnw-parent-context .cnw-control-link strong { color: var(--cnw-accent); }
+
 .cnw-statement-state {
   display: inline-flex;
   align-items: center;
@@ -500,3 +509,12 @@
   .cnw-drawer-footer { grid-template-columns: 1fr auto; }
   .cnw-drawer-footer > span { grid-column: 1 / -1; }
 }
+.cnw-requirements { overflow-wrap: anywhere; }
+.cnw-requirements label { display: block; margin: .75rem 0; }
+.cnw-requirements input, .cnw-requirements textarea, .cnw-requirements select {
+  display: block; box-sizing: border-box; width: 100%; max-width: 100%;
+  padding: .5rem; color: inherit; background: transparent;
+  border: 1px solid currentColor; border-radius: .3rem;
+}
+.cnw-requirement { border-top: 1px solid #64748b; padding: .75rem 0; margin-top: .75rem; }
+.cnw-requirement h4 { margin: 0; font-weight: 600; }

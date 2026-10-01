@@ -2,10 +2,11 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export default function SetupDialog({ children, busy, onClose, organizationName, expanded = false, title = 'Add a security capability', description, placement = 'center' }: {
+export default function SetupDialog({ children, busy, onClose, organizationName, expanded = false, title = 'Add a security capability', description, placement = 'center', footer }: {
   children: ReactNode; busy: boolean; onClose: () => void; organizationName?: string; expanded?: boolean;
   title?: string; description?: string;
   placement?: 'center' | 'right';
+  footer?: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const labelId = useId();
@@ -58,6 +59,7 @@ export default function SetupDialog({ children, busy, onClose, organizationName,
           className="rounded p-2 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-gray-800"><X size={20} aria-hidden="true" /></button>
       </header>
       <div className={`min-h-0 overflow-y-auto px-5 pb-4 ${organizationName !== undefined ? 'pt-2' : 'pt-5'}`}>{children}</div>
+      {footer && <footer className="mt-auto shrink-0 border-t border-slate-200 bg-white px-5 py-3 dark:border-gray-700 dark:bg-gray-900">{footer}</footer>}
     </div>
   </dialog>, document.body);
 }

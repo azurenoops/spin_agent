@@ -85,13 +85,15 @@ public class NarrativeVersion
 
 public sealed record NarrativeContentSnapshot(
     string? PolicyNarrative, string? TechnicalNarrative, string? Narrative,
-    bool AiSuggested, bool IsAutoPopulated, bool MigratedFromLegacy, bool IsManuallyCustomized)
+    bool AiSuggested, bool IsAutoPopulated, bool MigratedFromLegacy, bool IsManuallyCustomized,
+    string? RequirementCoverageJson = null, string? ApprovedRequirementCoverageJson = null)
 {
     public static string Capture(ControlImplementation implementation) =>
         System.Text.Json.JsonSerializer.Serialize(new NarrativeContentSnapshot(
             implementation.PolicyNarrative, implementation.TechnicalNarrative, implementation.Narrative,
             implementation.AiSuggested, implementation.IsAutoPopulated,
-            implementation.MigratedFromLegacy, implementation.IsManuallyCustomized));
+            implementation.MigratedFromLegacy, implementation.IsManuallyCustomized,
+            implementation.RequirementCoverageJson, implementation.ApprovedRequirementCoverageJson));
 
     public static void Restore(ControlImplementation implementation, string snapshotJson)
     {
@@ -104,6 +106,8 @@ public sealed record NarrativeContentSnapshot(
         implementation.IsAutoPopulated = snapshot.IsAutoPopulated;
         implementation.MigratedFromLegacy = snapshot.MigratedFromLegacy;
         implementation.IsManuallyCustomized = snapshot.IsManuallyCustomized;
+        implementation.RequirementCoverageJson = snapshot.RequirementCoverageJson;
+        implementation.ApprovedRequirementCoverageJson = snapshot.ApprovedRequirementCoverageJson;
     }
 }
 

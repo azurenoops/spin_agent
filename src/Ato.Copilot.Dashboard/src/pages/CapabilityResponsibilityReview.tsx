@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   confirmCapabilityResponsibilities,
   dispatchCapabilityResponsibilityImpacts,
   getCapabilityResponsibilities,
-  isResponsibilityType,
   readProviderSnapshot,
   readReviewedProviderSnapshot,
   reconcileCapabilityResponsibilities,
@@ -13,13 +12,11 @@ import {
   type CapabilityResponsibilityResponse,
   type ConfirmCapabilityResponsibilitiesRequest,
   type ProviderReviewSnapshot,
-  type ResponsibilityInheritanceType,
 } from '../api/capabilityResponsibilities';
-import SetupDialog from '../features/workspace-operations/SetupDialog';
+import ResponsibilityReviewPanel from '../components/ResponsibilityReviewPanel';
 import {
   buttonClass,
   errorClass,
-  inputClass,
   secondaryButtonClass,
   warningClass,
 } from '../features/workspace-operations/workspaceUi';
@@ -52,9 +49,11 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [dispatch, setDispatch] = useState<CapabilityResponsibilityDispatchResponse | null>(null);
   const [selected, setSelected] = useState<{ subscriptionId: string; controlId: string } | null>(null);
+  const [systemControl, setSystemControl] = useState('');
   const mounted = useRef(true);
   const changing = useRef(false);
   const readController = useRef<AbortController | null>(null);
@@ -63,9 +62,11 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
 
   const acceptPreview = useCallback((next: CapabilityResponsibilityResponse) => {
     setData(next);
+    setBlocked(false);
     setGeneration(value => value + 1);
-    setSelected(current => current && next.items.some(item =>
-      item.subscriptionId === current.subscriptionId && item.controlId === current.controlId) ? current : null);
+    setSelected(current => current && (next.items.some(item =>
+      item.subscriptionId === current.subscriptionId && item.controlId === current.controlId)
+      || !current.subscriptionId && next.baselineControlIds?.includes(current.controlId)) ? current : null);
   }, []);
   const load = useCallback(async () => {
     readController.current?.abort();
@@ -73,13 +74,13 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
     readController.current = controller;
     setLoading(true);
     setLoadError(null);
-    setData(null);
+    setBlocked(true);
     try {
       const next = await getCapabilityResponsibilities(systemId, controller.signal);
-      if (mounted.current && !controller.signal.aborted) acceptPreview(next);
+      if (mounted.current && !controller.signal.aborted) { acceptPreview(next); setActionError(null); }
     } catch (error) {
       if (mounted.current && !controller.signal.aborted)
-        setLoadError(error instanceof Error ? error.message : 'Unable to read responsibility preview.');
+        setLoadError(`Preview refresh failed. ${error instanceof Error ? error.message : 'Unable to read responsibility preview.'}`);
     } finally {
       if (mounted.current && !controller.signal.aborted) setLoading(false);
     }
@@ -95,8 +96,8 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
     };
   }, [load]);
 
-  const mutate = async (operation: (signal: AbortSignal) => Promise<void>) => {
-    if (changing.current) return false;
+  const mutate = async (label: string, operation: (signal: AbortSignal) => Promise<void>) => {
+    if (changing.current || blocked) return false;
     if (data?.canConfirm !== true) {
       setActionError('Server-authorized ISSM or ISSO confirmation permission is required.');
       return false;
@@ -114,36 +115,34 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
     } catch (error) {
       if (!mounted.current || controller.signal.aborted) return false;
       const detail = error instanceof Error ? error.message : 'The responsibility operation failed.';
-      if (error instanceof ResponsibilityApiError && error.status === 409) {
-        setActionError(`${detail} The baseline, source or review changed. Stale edits were cleared; review again before confirming.`);
-        setSelected(null);
-        await load();
-      } else if (error instanceof ResponsibilityApiError && (error.status === 403 || error.status === 404)) {
-        setSelected(null);
-        setData(null);
-        setLoadError(detail);
-      } else {
-        setActionError(detail);
-      }
+      const invalidInput = error instanceof ResponsibilityApiError && error.status === 400;
+      if (error instanceof ResponsibilityApiError && (error.status === 401 || error.status === 403 || error.status === 404))
+        setData(previous => previous ? { ...previous, canConfirm: false } : previous);
+      setBlocked(!invalidInput && label !== 'Impact delivery');
+      setActionError(`${label} failed. ${detail} ${invalidInput
+        ? 'Correct the draft and review it again; no confirmation was accepted.'
+        : error instanceof ResponsibilityApiError && error.status === 409
+        ? 'The baseline, source or review changed. Your draft is preserved; refresh and review again.'
+        : 'The saved outcome has not been verified. Your draft is preserved; refresh saved state before another write.'}`);
       return false;
     } finally {
       changing.current = false;
       if (mounted.current && !controller.signal.aborted) setBusy(false);
     }
   };
-  const confirm = (capabilityId: string, body: ConfirmCapabilityResponsibilitiesRequest) => mutate(async signal => {
+  const confirm = (capabilityId: string, body: ConfirmCapabilityResponsibilitiesRequest) => mutate('Confirmation', async signal => {
     const next = await confirmCapabilityResponsibilities(systemId, capabilityId, body, signal);
     if (!mounted.current || signal.aborted) return;
     acceptPreview(next);
     setNotice('Selected allocation confirmed. Review the effective designation and any pending impacts.');
   });
-  const reconcile = () => mutate(async signal => {
+  const reconcile = () => mutate('Reconciliation', async signal => {
     const next = await reconcileCapabilityResponsibilities(systemId, signal);
     if (!mounted.current || signal.aborted) return;
     acceptPreview(next);
     setNotice('Current baseline reconciled. No narratives were generated or approved.');
   });
-  const deliver = () => mutate(async signal => {
+  const deliver = () => mutate('Impact delivery', async signal => {
     const result = await dispatchCapabilityResponsibilityImpacts(systemId, signal);
     if (!mounted.current || signal.aborted) return;
     setDispatch(result);
@@ -152,8 +151,12 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
 
   const selectedItem = selected && data?.items.find(item =>
     item.subscriptionId === selected.subscriptionId && item.controlId === selected.controlId);
-  const reviewRequired = data?.items.filter(item => item.state !== 'Applied').length ?? 0;
+  const unallocatedSystemControls = data?.baselineControlIds?.filter(controlId =>
+    !data.items.some(item => item.controlId === controlId)
+    && !data.systemAllocations?.some(allocation => allocation.controlId === controlId)) ?? [];
+  const reviewRequired = (data?.items.filter(item => item.state !== 'Applied').length ?? 0) + unallocatedSystemControls.length;
   const firstReviewable = data?.items.find(item => editableStates.has(item.state)) ?? data?.items[0];
+  const firstSystemControl = unallocatedSystemControls[0] ?? data?.baselineControlIds?.[0];
   const inconsistentSubscription = data && [...new Set(data.items.map(item => item.subscriptionId))].find(subscriptionId => {
     const items = data.items.filter(item => item.subscriptionId === subscriptionId);
     const first = items[0];
@@ -171,34 +174,47 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
           Confirm what the provider delivers and what your team must implement. A capability subscription or mapped control is not proof of inheritance.
         </p>
       </div>
-      <button type="button" className={buttonClass} disabled={!firstReviewable || loading}
-        onClick={() => firstReviewable && setSelected({
-          subscriptionId: firstReviewable.subscriptionId,
-          controlId: firstReviewable.controlId,
+      <button type="button" className={buttonClass} disabled={(!firstReviewable && !firstSystemControl) || loading}
+        onClick={() => (firstReviewable || firstSystemControl) && setSelected({
+          subscriptionId: firstReviewable?.subscriptionId ?? '',
+          controlId: firstReviewable?.controlId ?? firstSystemControl!,
         })}>
         Review allocations
       </button>
     </header>
 
     {data && <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-gray-200 py-3 text-sm dark:border-gray-700">
-      <span className="font-medium">{reviewRequired ? `Draft · ${reviewRequired} review required` : 'Applied · No pending reviews'}</span>
+      <span className="font-medium">{reviewRequired ? `Review required · ${reviewRequired} outstanding allocation${reviewRequired === 1 ? '' : 's'}` : 'No unresolved allocations reported'}</span>
       <span className="text-gray-600 dark:text-gray-300">{data.items.length} control contributions</span>
       <span className="text-gray-600 dark:text-gray-300">Baseline: {data.baselineName ?? 'Not selected'}</span>
     </div>}
+    {data?.supportsResponsibilityDrafts && !!data.baselineControlIds?.length && <div className="flex flex-wrap items-end gap-3">
+      <label className="grid gap-1 text-sm">Review any baseline control, including without a provider
+        <select className="rounded border bg-white p-2 dark:bg-gray-900" value={systemControl}
+          onChange={event => setSystemControl(event.target.value)}>
+          <option value="">Select a control</option>
+          {data.baselineControlIds.map(id => <option key={id}>{id}</option>)}
+        </select>
+      </label>
+      <button type="button" className={secondaryButtonClass} disabled={!systemControl || busy}
+        onClick={() => setSelected({ subscriptionId: '', controlId: systemControl })}>Review system control</button>
+    </div>}
 
-    {actionError && <p role="alert" className={errorClass}>{actionError}</p>}
+    {(loadError || actionError) && !selected && <div className="space-y-2">
+      <p role="alert" className={errorClass}>{loadError ?? actionError}</p>
+      <button className={secondaryButtonClass} onClick={() => { void load(); }} disabled={busy || loading}>Retry preview</button>
+    </div>}
     {inconsistentSubscription && <p role="alert" className={errorClass}>
       Subscription {inconsistentSubscription} returned inconsistent revisions. Reload the preview before confirming.
     </p>}
     {notice && <p role="status" className="rounded border border-green-300 bg-green-50 p-3 text-sm text-green-900">{notice}</p>}
     {dispatch && <DeliveryResult dispatch={dispatch} base={base} />}
-    {loading ? <p role="status">Loading responsibility preview…</p> : loadError ? <div className="space-y-3">
-      <p role="alert" className={errorClass}>{loadError}</p>
-      <button className={secondaryButtonClass} onClick={() => { setActionError(null); void load(); }} disabled={busy}>Retry preview</button>
-    </div> : data && <>
+    {loading && <p role="status">Loading responsibility preview…</p>}
+    {data && <>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
         <ResponsibilityMatrix data={data} base={base} onOpen={item =>
-          setSelected({ subscriptionId: item.subscriptionId, controlId: item.controlId })} />
+          setSelected({ subscriptionId: item.subscriptionId, controlId: item.controlId })}
+          onOpenSystem={controlId => setSelected({ subscriptionId: '', controlId })} />
         <aside aria-label="Responsibility supporting actions" className="space-y-5">
           <section className="border-l-2 border-indigo-200 pl-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Used in your package</p>
@@ -220,10 +236,10 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
             </p>}
             {!data.canConfirm && <p className={`${warningClass} mt-3 text-sm`}>Read-only: an effective assigned ISSM or ISSO is required.</p>}
             <div className="mt-3 flex flex-col items-start gap-2">
-              <button type="button" className={secondaryButtonClass} disabled={busy || !data.canConfirm || !data.baselineId}
+              <button type="button" className={secondaryButtonClass} disabled={busy || blocked || !data.canConfirm || !data.baselineId}
                 onClick={() => { void reconcile(); }}>Reconcile current baseline</button>
               <button type="button" className={secondaryButtonClass}
-                disabled={busy || !data.canConfirm || data.pendingImpacts.length === 0}
+                disabled={busy || blocked || !data.canConfirm || data.pendingImpacts.length === 0}
                 onClick={() => { void deliver(); }}>Deliver pending review impacts</button>
             </div>
           </section>
@@ -237,16 +253,23 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
       <PendingImpacts items={data.pendingImpacts} />
     </>}
 
-    {selectedItem && data && <ResponsibilityDrawer key={`${generation}:${selectedItem.subscriptionId}:${selectedItem.controlId}`}
-      item={selectedItem} baselineId={data.baselineId} canConfirm={data.canConfirm} busy={busy}
-      systemId={systemId} actionError={actionError} onClose={() => setSelected(null)} onConfirm={confirm} />}
+    {selected && data && (selectedItem || !selected.subscriptionId) && <ResponsibilityReviewPanel key={`${selected.subscriptionId}:${selected.controlId}`}
+      item={selectedItem || null} controlId={selected.controlId} firstPass={data.supportsResponsibilityDrafts === true}
+      onDraftConfirmed={() => { setNotice('Responsibility confirmed through authorized review. Check effective matrix and document contributions.'); void load(); }}
+      baselineId={data.baselineId} canConfirm={data.canConfirm} busy={busy || loading}
+      eligible={(!selectedItem || editableStates.has(selectedItem.state)) && !inconsistentSubscription}
+      stateExplanation={selectedItem ? states[selectedItem.state]?.explanation ?? 'Unknown review state. Refresh before confirming.'
+        : 'System-only preparation does not assume customer ownership or create a provider.'}
+      generation={generation} blocked={blocked} onRefresh={() => { void load(); }}
+      systemId={systemId} actionError={loadError ?? actionError} onClose={() => setSelected(null)} onConfirm={confirm} />}
   </div>;
 }
 
-function ResponsibilityMatrix({ data, base, onOpen }: {
+function ResponsibilityMatrix({ data, base, onOpen, onOpenSystem }: {
   data: CapabilityResponsibilityResponse;
   base: string;
   onOpen: (item: CapabilityResponsibilityItem) => void;
+  onOpenSystem: (controlId: string) => void;
 }) {
   return <section aria-labelledby="responsibility-matrix-heading"
     className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -254,7 +277,7 @@ function ResponsibilityMatrix({ data, base, onOpen }: {
       <h2 id="responsibility-matrix-heading" className="text-lg font-semibold">Responsibility matrix</h2>
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Review the provider capability, allocation, organization duty, and evidence for each control.</p>
     </div>
-    {data.items.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+    {data.items.length || data.systemAllocations?.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm">
       <thead className="bg-gray-50 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
         <tr>{['Control', 'Provider capability', 'Allocation', 'Review', ''].map((label, index) =>
           <th key={`${label}:${index}`} scope="col" className="px-4 py-3 font-medium">{label}</th>)}</tr>
@@ -292,191 +315,18 @@ function ResponsibilityMatrix({ data, base, onOpen }: {
               onClick={() => onOpen(item)}>Open →</button>
           </td>
         </tr>;
-      })}</tbody>
+      })}
+        {data.systemAllocations?.filter(allocation => !data.items.some(item => item.controlId === allocation.controlId))
+          .map(allocation => <tr key={`system:${allocation.controlId}`}>
+            <td className="px-4 py-4">{allocation.controlId}</td>
+            <td className="px-4 py-4">{allocation.provider ?? 'System responsibility record'}
+              <p className="text-xs">{allocation.customerResponsibility}</p></td>
+            <td className="px-4 py-4">{allocation.inheritanceType}</td><td className="px-4 py-4">Recorded allocation</td>
+            <td className="px-4 py-4"><button type="button" className={secondaryButtonClass}
+              aria-label={`Open ${allocation.controlId} system responsibility`} onClick={() => onOpenSystem(allocation.controlId)}>Open →</button></td>
+          </tr>)}
+      </tbody>
     </table></div> : <p className="p-5 text-sm text-gray-600 dark:text-gray-300">No subscription control contributions are available for this system.</p>}
-  </section>;
-}
-
-interface AllocationDraft {
-  inheritanceType: ResponsibilityInheritanceType | '';
-  provider: string;
-  customerResponsibility: string;
-}
-const emptyDraft: AllocationDraft = { inheritanceType: '', provider: '', customerResponsibility: '' };
-
-function ResponsibilityDrawer({ item, baselineId, canConfirm, busy, systemId, actionError, onClose, onConfirm }: {
-  item: CapabilityResponsibilityItem;
-  baselineId: string | null;
-  canConfirm: boolean;
-  busy: boolean;
-  systemId: string;
-  actionError: string | null;
-  onClose: () => void;
-  onConfirm: (capabilityId: string, body: ConfirmCapabilityResponsibilitiesRequest) => Promise<boolean>;
-}) {
-  const [draft, setDraft] = useState<AllocationDraft>(() => item.allocation ? {
-    inheritanceType: item.allocation.inheritanceType,
-    provider: item.allocation.provider ?? '',
-    customerResponsibility: item.allocation.customerResponsibility ?? '',
-  } : emptyDraft);
-  const [reviewed, setReviewed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  let snapshot: ProviderReviewSnapshot | null = null;
-  let reviewedSnapshot: ProviderReviewSnapshot | null = null;
-  let snapshotError: string | null = null;
-  try {
-    snapshot = readProviderSnapshot(item);
-    reviewedSnapshot = readReviewedProviderSnapshot(item);
-  } catch (reason) {
-    snapshotError = reason instanceof Error ? reason.message : 'The provider snapshot is malformed.';
-  }
-  const currentlyMapped = snapshot?.Controls.some(control => control.toUpperCase() === item.controlId.toUpperCase()) === true;
-  const editable = canConfirm && !!baselineId && !snapshotError && item.sourceAvailable && snapshot !== null
-    && editableStates.has(item.state) && currentlyMapped;
-  const valid = isResponsibilityType(draft.inheritanceType)
-    && (draft.inheritanceType === 'Customer' || !!draft.provider.trim())
-    && (draft.inheritanceType === 'Inherited' || !!draft.customerResponsibility.trim())
-    && reviewed;
-  const update = (change: Partial<AllocationDraft>) => {
-    setDraft(current => ({ ...current, ...change }));
-    setReviewed(false);
-    setError(null);
-  };
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!editable || !baselineId || !valid || !isResponsibilityType(draft.inheritanceType) || busy) {
-      setError('Choose an explicit allocation, complete every required duty, and acknowledge the displayed revisions.');
-      return;
-    }
-    const succeeded = await onConfirm(item.capabilityId, {
-      baselineId,
-      sourceRevision: item.sourceRevision,
-      reviewRevision: item.reviewRevision,
-      allocations: [{
-        controlId: item.controlId,
-        inheritanceType: draft.inheritanceType,
-        provider: draft.provider.trim() || null,
-        customerResponsibility: draft.customerResponsibility.trim() || null,
-      }],
-    });
-    if (succeeded) onClose();
-  };
-
-  return <SetupDialog title={`Review ${item.controlId} responsibility`} description="Review the provider source and confirm this system's explicit control allocation."
-    placement="right" expanded busy={busy} onClose={onClose}>
-    <div className="space-y-6">
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium dark:border-gray-700 dark:bg-gray-800">
-            {states[item.state]?.label ?? `Unknown state: ${item.state}`}
-          </span>
-          <span className="text-xs text-gray-500">Effective: {item.effectiveInheritanceType ?? 'Not designated'}</span>
-        </div>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{states[item.state]?.explanation ?? 'This state cannot be confirmed until the preview is refreshed.'}</p>
-        <dl className="grid gap-2 text-sm sm:grid-cols-2">
-          <div><dt className="font-medium">Provider capability</dt><dd>{snapshot?.Name ?? 'Unavailable'}</dd></div>
-          <div><dt className="font-medium">Provider component</dt><dd>{snapshot?.Component.Name ?? 'Unavailable'}</dd></div>
-          <div>
-            <dt className="font-medium">Provider profile</dt>
-            <dd>{item.providerName ?? 'Unavailable'}</dd>
-          </div>
-        </dl>
-        <details className="text-sm">
-          <summary className="cursor-pointer font-medium text-gray-600 dark:text-gray-300">Technical revision details</summary>
-          <dl className="mt-3 grid gap-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-800 sm:grid-cols-2">
-            <div><dt className="font-medium">Provider release fingerprint</dt><dd className="break-all">{item.sourceRevision}</dd></div>
-            <div><dt className="font-medium">Review fingerprint</dt><dd className="break-all">{item.reviewRevision}</dd></div>
-            <div><dt className="font-medium">Component ID</dt><dd className="break-all">{item.componentId ?? 'Unavailable'}</dd></div>
-            <div><dt className="font-medium">Provider profile ID</dt><dd className="break-all">{item.cspProfileId ?? 'Unavailable'}</dd></div>
-          </dl>
-        </details>
-      </section>
-
-      {item.allocation && <section className="space-y-2 rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
-        <h3 className="font-semibold">Previously confirmed allocation</h3>
-        <p>{item.allocation.inheritanceType} · Provider: {item.allocation.provider ?? 'None'}</p>
-        <p>Customer responsibility: {item.allocation.customerResponsibility ?? 'None'}</p>
-        <p className="text-xs text-gray-500">Reviewed source {item.reviewedSourceRevision ?? 'not reported'} · Confirmed by {item.confirmedBy ?? 'not reported'} at {item.confirmedAt ?? 'not reported'}</p>
-      </section>}
-
-      {snapshotError && <p role="alert" className={errorClass}>{snapshotError}</p>}
-      {!item.sourceAvailable && <p className={warningClass}>Provider source unavailable. Historical review remains visible, but confirmation is disabled.</p>}
-      {snapshot && <ProviderSnapshotView snapshot={snapshot} label="Current provider snapshot" />}
-      {reviewedSnapshot && !snapshot && <ProviderSnapshotView snapshot={reviewedSnapshot}
-        label={`Reviewed provider snapshot for ${item.controlId}`} />}
-      {reviewedSnapshot && snapshot && <details className="text-sm">
-        <summary className="cursor-pointer font-medium">Compare reviewed and current provider snapshots for {item.controlId}</summary>
-        <div className="mt-3 grid gap-3">
-          <ProviderSnapshotView snapshot={reviewedSnapshot} label={`Reviewed provider snapshot for ${item.controlId}`} />
-          <ProviderSnapshotView snapshot={snapshot} label={`Current provider snapshot for ${item.controlId}`} />
-        </div>
-      </details>}
-      {snapshot && !currentlyMapped && <p className={warningClass}>{item.controlId} is no longer mapped by the current provider snapshot. Historical provenance is retained; confirmation is disabled.</p>}
-      {!canConfirm && <p className={warningClass}>Read-only: an effective assigned ISSM or ISSO is required to confirm responsibility.</p>}
-      {!baselineId && <p className={warningClass}>Select a system baseline before confirmation.</p>}
-      {actionError && <p role="alert" className={errorClass}>{actionError}</p>}
-
-      <form onSubmit={event => { void submit(event); }} className="space-y-4">
-        <fieldset disabled={!editable || busy} className="space-y-4">
-          <legend className="font-semibold">Explicit allocation for {item.controlId}</legend>
-          <label className="grid gap-1 text-sm">Allocation for {item.controlId}
-            <select className={inputClass} value={draft.inheritanceType} onChange={event => {
-              const inheritanceType = isResponsibilityType(event.target.value) ? event.target.value : '';
-              update({
-                inheritanceType,
-                provider: inheritanceType === 'Customer' || inheritanceType === ''
-                  ? ''
-                  : draft.provider || item.providerName || '',
-                customerResponsibility: inheritanceType === 'Inherited' || inheritanceType === ''
-                  ? ''
-                  : draft.customerResponsibility,
-              });
-            }}>
-              <option value="">Choose explicitly</option>
-              <option value="Inherited">Inherited</option>
-              <option value="Shared">Shared</option>
-              <option value="Customer">Customer</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">Provider for {item.controlId}
-            <input aria-label={`Provider for ${item.controlId}`} className={inputClass} maxLength={200} value={draft.provider} disabled={!draft.inheritanceType}
-              onChange={event => update({ provider: event.target.value })} />
-            <span className="text-xs text-gray-500">Required for Inherited and Shared.</span>
-          </label>
-          <label className="grid gap-1 text-sm">Customer responsibility for {item.controlId}
-            <textarea aria-label={`Customer responsibility for ${item.controlId}`} className={inputClass} rows={4} maxLength={2000} value={draft.customerResponsibility} disabled={!draft.inheritanceType}
-              onChange={event => update({ customerResponsibility: event.target.value })} />
-            <span className="text-xs text-gray-500">Required for Shared and Customer.</span>
-          </label>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} />
-            I reviewed the provider revision and the selected allocations.
-          </label>
-        </fieldset>
-        {error && <p role="alert" className={errorClass}>{error}</p>}
-        <div className="flex flex-wrap gap-3">
-          <button type="submit" className={buttonClass} disabled={!editable || !valid || busy}>Confirm selected allocations</button>
-          <Link className={secondaryButtonClass} to={`/systems/${encodeURIComponent(systemId)}/evidence`}>Review evidence</Link>
-        </div>
-      </form>
-    </div>
-  </SetupDialog>;
-}
-
-function ProviderSnapshotView({ snapshot, label }: {
-  snapshot: ProviderReviewSnapshot;
-  label: string;
-}) {
-  return <section aria-label={label} className="space-y-2 rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
-    <h3 className="font-semibold">{label}</h3>
-    <p className="font-medium">{snapshot.Name}</p>
-    <p>{snapshot.Description}</p>
-    <p>{snapshot.Component.Name} · {snapshot.Component.Description}</p>
-    <p>Mapped controls: {snapshot.Controls.length ? snapshot.Controls.join(', ') : 'None'}</p>
-    <p>Artifact reference: {snapshot.Component.SourceArtifactReference ?? 'Not supplied'}</p>
-    <details><summary className={`cursor-pointer ${linkClass}`}>View redacted snapshot JSON</summary>
-      <pre className="mt-2 whitespace-pre-wrap break-all text-xs">{JSON.stringify(snapshot, null, 2)}</pre>
-    </details>
   </section>;
 }
 

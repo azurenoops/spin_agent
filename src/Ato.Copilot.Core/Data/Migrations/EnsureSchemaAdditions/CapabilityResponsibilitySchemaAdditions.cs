@@ -16,6 +16,7 @@ public static class CapabilityResponsibilitySchemaAdditions
             throw new NotSupportedException("Capability responsibility persistence requires SQL Server or SQLite.");
         if (db.Database.IsSqlite()) await UpgradeSqliteSourceEventsAsync(db, ct);
         await db.Database.ExecuteSqlRawAsync(db.Database.IsSqlServer() ? SqlServerScript : SqliteScript, ct);
+        await ResponsibilityDraftSchemaAdditions.ApplyAsync(db, ct);
         await BackfillRoutingAsync(db, logger, ct);
         var unattributed = await db.Set<CspResponsibilitySourceEvent>().CountAsync(e => e.Actor == null, ct);
         if (unattributed > 0)

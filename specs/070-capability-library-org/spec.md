@@ -10,6 +10,74 @@
 
 ## Background
 
+### Requested AI-assisted responsibility first pass (2026-10-01)
+
+This extends #957's responsibility handoff. It is not implemented by the earlier
+local-only panel refinement. A proposed draft is a separate artifact from a
+confirmed source allocation and an effective baseline designation.
+
+Required behavior:
+
+- Resolve provider grounding from the selected system's actual hosting assignment,
+  offering/hosting revision and applicable published capability releases. Reuse the
+  environment service's published-duty validation rather than treating a catalog
+  mapping or provider name as an allocation.
+- Preserve explicit Provider/Shared/Customer splits from published `DutiesJson`
+  deterministically. AI cannot replace or reinterpret that published split.
+  Published allocation, applicability and customer acceptance are separate facts.
+- Use authorized system context when no provider scope is selected: declared
+  boundaries/components/capabilities, policies and narratives, evidence and
+  existing responsibility records. Missing provider data does not imply Customer.
+- Populate supported fields, provenance and missing questions before confirmation.
+  Clearly distinguish From provider source, From system records and AI proposed.
+  User corrections remain identifiable edits; they are not relabeled as source
+  statements. Unsupported or conflicting allocations remain Needs confirmation.
+- Persist generated proposals, source scope/version fingerprints, generated time,
+  user changes and review history. Generation and draft save never call baseline
+  reconciliation or change approved narratives, implementation status or controls.
+- Load an existing proposed draft on opening. Prepare first pass is available when
+  none exists; Refresh suggestion compares new proposals against the user's current
+  work before applying any field. User edits must survive failures and refreshes.
+- Preserve the current ISSM/ISSO review authority. Confirmation must check current
+  source/system fingerprints and optimistic draft revision, then use the existing
+  canonical responsibility path. System-only confirmation must not inherit the
+  legacy writer's implementation-status side effects.
+- Explicitly report unavailable grounding, unavailable AI, malformed output,
+  generation failure, stale drafts and concurrent edits. Do not fabricate a
+  successful AI result from a template or quietly retry a failed generation.
+
+The above is a requested contract extension. Tests, schema deployment and local
+human acceptance are required before it may be described as implemented.
+
+### Responsibility review refinement (2026-10-01, existing #957 handoff)
+
+Preserve the responsibility matrix and right-side review panel. Follow the
+interaction hierarchy in the reference
+`/Volumes/Internal/repos/ato-copilot/docs/design/workspace-ui-mocks/responsibility-review-simple.html`,
+not its synthetic provider facts or simulated save lifecycle.
+
+- Explain "Decide what the provider covers and what your team must do." Show the
+  selected control, last verified saved allocation and separate unsaved draft.
+- Use Shared, Inherited, Customer and unconfirmed plain-language radio choices;
+  never infer Inherited from a mapping. Switching choices preserves entered text.
+- Show relevant duties, scope/exclusions/source and rationale fields. Store
+  decision context using existing review notes, not new responsibility entities.
+  Preserve local operational duties even for Inherited.
+- Put provider scope/evidence and historical provenance in disclosure, with
+  identifiers/redacted JSON in secondary technical details. Keep unavailable,
+  stale, unverified and source-declared synthetic limitations visible.
+- Review a readable summary before explicit confirmation. There is no draft-save,
+  proposal or separate inheritance-approval endpoint in this handoff. Unconfirmed
+  information gaps remain local to the open panel and never call confirmation;
+  an existing confirmed allocation remains unchanged.
+- Preserve drafts and last verified saved state after request failures and source
+  refresh; invalidate review acknowledgement when pins change. Show a failure
+  once near its action. A failed write or lost response is never success.
+- Existing server authorization, tenant/system scope, revision checks, history,
+  CRM/SSP propagation and mark-only narrative impact remain authoritative.
+  Confirmation does not approve narratives, satisfy controls, submit to eMASS or
+  authorize the system.
+
 Security Posture Intelligence Navigator hosts a shared CSP (Cloud Service Provider) capability catalog managed by CSP Admins under
 Feature 048/050. Each `CspInheritedCapability` maps cloud service behaviors to NIST 800-53 Rev 5
 control IDs. When an organization subscribes a capability to a system, those controls are inherited

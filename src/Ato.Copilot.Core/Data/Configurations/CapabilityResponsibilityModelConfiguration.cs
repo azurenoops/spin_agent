@@ -8,6 +8,21 @@ public static class CapabilityResponsibilityModelConfiguration
 {
     public static void ConfigureCapabilityResponsibilities(this ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ResponsibilityDraft>(entity =>
+        {
+            entity.ToTable("ResponsibilityDrafts");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.RegisteredSystemId, x.ControlId, x.ScopeKey }).IsUnique();
+            entity.HasOne<RegisteredSystem>().WithMany().HasForeignKey(x => x.RegisteredSystemId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<ResponsibilityDraftHistory>(entity =>
+        {
+            entity.ToTable("ResponsibilityDraftHistory");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.TenantId, x.DraftId, x.Revision }).IsUnique();
+            entity.HasOne<ResponsibilityDraft>().WithMany().HasForeignKey(x => x.DraftId).OnDelete(DeleteBehavior.NoAction);
+        });
         modelBuilder.Entity<CapabilitySubscription>().HasIndex(e => new { e.RoutingCapabilityId, e.IsActive, e.Id })
             .HasDatabaseName("IX_CapabilitySubscription_Routing");
         modelBuilder.Entity<CspResponsibilitySourceEvent>(entity =>

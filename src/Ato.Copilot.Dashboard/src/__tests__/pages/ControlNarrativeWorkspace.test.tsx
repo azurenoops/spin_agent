@@ -8,6 +8,16 @@ vi.mock('../../api/controlNarrativeWorkspace', () => ({
   getControlNarrativeWorkspace: vi.fn(),
   getControlNarrativeDetail: vi.fn(),
 }));
+vi.mock('../../api/requirementCoverage', () => ({
+  getRequirementCoverage: vi.fn().mockImplementation(async (systemId: string, controlId: string) => ({
+    systemId, controlId, framework: null, catalogVersion: null, sourceUri: null,
+    baselineRevision: 0, narrativeVersion: null, parent: null, enhancements: [], requirements: [],
+    parameters: [], parameterValues: {}, gaps: ['Catalog source needs reconciliation.'], proposals: [],
+    canAuthor: false, canReview: false, canBind: false,
+  })),
+  saveRequirementResponses: vi.fn(), reviewRequirementResponses: vi.fn(), proposeEnhancement: vi.fn(),
+  acceptEnhancement: vi.fn(), returnEnhancement: vi.fn(), getRequirementCatalogs: vi.fn(), bindRequirementCatalog: vi.fn(),
+}));
 vi.mock('../../features/compliance/components/ValidationEvidencePanel', () => ({
   default: ({ controlId }: { controlId: string }) => <p>Evidence for {controlId}</p>,
 }));
@@ -71,6 +81,95 @@ beforeEach(() => {
 });
 
 describe('Control narrative workspace', () => {
+  it('groups catalog enhancements directly beneath their parent with independent statement states', async () => {
+    // Arrange
+    const parent = { ...item, id: 'parent', controlId: 'AC-11', controlTitle: 'Device Lock' };
+    const child = { ...item, id: 'child', controlId: 'AC-11(1)', controlTitle: 'Pattern-hiding Displays',
+      parentControlId: 'AC-11', policy: { ...statement, state: 'Approved', hasApprovedContent: true } };
+    vi.mocked(api.getControlNarrativeWorkspace).mockResolvedValue({
+      ...workspace, items: [child, item, parent], counts: { ...workspace.counts, allControls: 3 },
+    });
+
+    // Act
+    open('/systems/system-1/narratives?view=all');
+
+    // Assert
+    const table = await screen.findByRole('table');
+    const rows = within(table).getAllByRole('row').slice(1);
+    const parentRow = within(table).getByRole('row', { name: /Device Lock/ });
+    const childRow = within(table).getByRole('row', { name: /Pattern-hiding Displays/ });
+    expect(rows.map(row => row.querySelector('strong')?.textContent))
+      .toEqual(['Device Lock', 'Pattern-hiding Displays', 'Account Management']);
+    expect(rows[1]).toHaveClass('cnw-enhancement-row');
+    expect(within(childRow).getByText('Enhancement of AC-11')).toBeVisible();
+    expect(within(childRow).getByLabelText('Policy Approved')).toBeVisible();
+    expect(within(parentRow).getByLabelText('Policy Missing')).toBeVisible();
+    expect(within(parentRow).getByText('1 enhancement shown')).toBeVisible();
+    expect(screen.getByText('Showing 3 of 3 records')).toBeVisible();
+  });
+
+  it('provides one navigation-only parent context for child-only filtered pages without changing totals', async () => {
+    // Arrange
+    const children = [1, 2].map(number => ({
+      ...item, id: `child-${number}`, controlId: `AC-11(${number})`,
+      controlTitle: `Enhancement ${number}`, parentControlId: 'AC-11',
+    }));
+    vi.mocked(api.getControlNarrativeWorkspace).mockResolvedValue({
+      ...workspace, items: children, counts: { ...workspace.counts, allControls: 27 },
+    });
+    vi.mocked(api.getControlNarrativeDetail).mockResolvedValue({
+      ...detail, controlId: 'AC-11', controlTitle: 'Device Lock',
+    });
+
+    // Act
+    open('/systems/system-1/narratives?view=all&search=Enhancement&family=AC&status=Planned&page=2');
+    const parent = await screen.findByRole('button', { name: 'View parent control AC-11' });
+
+    // Assert
+    expect(screen.getAllByText('Parent context · not a matching record on this page')).toHaveLength(1);
+    const context = parent.closest('tr')!;
+    expect(within(context).queryByLabelText(/Policy/)).not.toBeInTheDocument();
+    expect(screen.getByText('Showing 2 of 27 records')).toBeVisible();
+    expect(screen.getByText('Page 2 of 2')).toBeVisible();
+    expect(api.getControlNarrativeWorkspace).toHaveBeenCalledWith('system-1', {
+      view: 'all-controls', search: 'Enhancement', family: 'AC', status: 'Planned', page: 2, pageSize: 25,
+    }, expect.any(AbortSignal));
+
+    // Act
+    fireEvent.click(parent);
+    expect(await screen.findByRole('dialog', { name: 'AC-11 Device Lock' })).toBeVisible();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    // Assert
+    await waitFor(() => expect(parent).toHaveFocus());
+    expect(screen.getByText('Page 2 of 2')).toBeVisible();
+    expect(screen.getByDisplayValue('Enhancement')).toBeVisible();
+  });
+
+  it('does not infer children from display syntax and follows non-NIST catalog relationships', async () => {
+    // Arrange
+    vi.mocked(api.getControlNarrativeWorkspace).mockResolvedValue({
+      ...workspace, items: [
+        { ...item, id: 'standalone', controlId: 'AC-11(a)', controlTitle: 'Standalone catalog record' },
+        { ...item, id: 'custom-child', controlId: 'CUSTOM-B', controlTitle: 'Catalog child', parentControlId: 'CUSTOM-A' },
+        { ...item, id: 'custom-parent', controlId: 'CUSTOM-A', controlTitle: 'Catalog parent' },
+        { ...item, id: 'custom-child-2', controlId: 'CUSTOM-C', controlTitle: 'Second child', parentControlId: 'CUSTOM-A' },
+      ],
+    });
+
+    // Act
+    open();
+
+    // Assert
+    const rows = within(await screen.findByRole('table')).getAllByRole('row').slice(1);
+    expect(rows[0]).not.toHaveClass('cnw-enhancement-row');
+    expect(rows.map(row => row.querySelector('strong')?.textContent))
+      .toEqual(['Standalone catalog record', 'Catalog parent', 'Catalog child', 'Second child']);
+    expect(screen.getByText('2 enhancements shown')).toBeVisible();
+    expect(rows[2]).toHaveClass('cnw-enhancement-row');
+    expect(rows[3]).toHaveClass('cnw-enhancement-row');
+  });
+
   it('shows consistent views, readable controls, independent statement states, and the next step', async () => {
     // Arrange / Act
     open();

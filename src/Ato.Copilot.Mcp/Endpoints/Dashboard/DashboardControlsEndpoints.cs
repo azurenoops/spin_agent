@@ -12,6 +12,7 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Kanban;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Constants;
+using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Kanban;
 using Ato.Copilot.Core.Models.Poam;
@@ -218,6 +219,7 @@ public static partial class DashboardEndpoints
             .WithName("GetControlDetail");
 
         // ─── Multi-Framework Catalog Endpoints (Feature 044) ────────────────
+        MapFrameworkSourceRoutes(group);
 
         group.MapGet("/frameworks", async (
             AtoCopilotContext context,
@@ -258,7 +260,9 @@ public static partial class DashboardEndpoints
         {
             // Resolve by ID or Identifier
             var framework = await context.ComplianceFrameworks
-                .FirstOrDefaultAsync(f => f.Id == frameworkId || f.Identifier == frameworkId, ct);
+                .Where(f => f.Id == frameworkId || f.Identifier == frameworkId)
+                .Select(f => new { f.Id, f.Identifier, f.Name, f.Version })
+                .FirstOrDefaultAsync(ct);
 
             if (framework is null)
                 return Results.NotFound(new { error = "Framework not found" });
@@ -340,7 +344,9 @@ public static partial class DashboardEndpoints
             CancellationToken ct) =>
         {
             var framework = await context.ComplianceFrameworks
-                .FirstOrDefaultAsync(f => f.Id == frameworkId || f.Identifier == frameworkId, ct);
+                .Where(f => f.Id == frameworkId || f.Identifier == frameworkId)
+                .Select(f => new { f.Id, f.Identifier, f.Name, f.Version })
+                .FirstOrDefaultAsync(ct);
             if (framework is null)
                 return Results.NotFound(new { error = "Framework not found" });
 
@@ -400,7 +406,8 @@ public static partial class DashboardEndpoints
                 errors = result.Errors,
             });
         })
-        .WithName("ImportAllFrameworks");
+        .WithName("ImportAllFrameworks")
+        .RequireCatalogAdministrator();
 
         group.MapPost("/frameworks/{identifier}/import", async (
             string identifier,
@@ -410,6 +417,7 @@ public static partial class DashboardEndpoints
             var count = await importService.ImportFrameworkAsync(identifier, ct);
             return Results.Ok(new { identifier, controlsImported = count });
         })
-        .WithName("ImportSingleFramework");
+        .WithName("ImportSingleFramework")
+        .RequireCatalogAdministrator();
     }
 }

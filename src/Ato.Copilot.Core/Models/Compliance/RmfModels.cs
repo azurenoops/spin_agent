@@ -604,6 +604,22 @@ public class RmfRoleAssignment
 [TenantScoped]
 public class ControlBaseline
 {
+    /// <summary>Framework selected by the baseline workflow, not a browser preference.</summary>
+    [MaxLength(100)]
+    public string? SourceFrameworkIdentifier { get; set; }
+
+    /// <summary>Operational source-association diagnostic; never a request for narrative authors to choose a catalog.</summary>
+    [MaxLength(1000)]
+    public string? CatalogResolutionMessage { get; set; }
+
+    /// <summary>Concurrency token for catalog binding and enhancement selection.</summary>
+    [ConcurrencyCheck]
+    public int CoverageRevision { get; set; }
+
+    /// <summary>Current explicitly reconciled catalog binding; older bindings are retained.</summary>
+    [MaxLength(36)]
+    public string? RequirementCatalogBindingId { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

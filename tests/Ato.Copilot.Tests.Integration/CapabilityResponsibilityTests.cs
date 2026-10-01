@@ -48,6 +48,8 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
     private readonly CommitFailureInterceptor _commitFailure = new();
     private readonly RoutingBoundaryInterceptor _routingBoundary = new();
     private readonly RoutingAckFailureInterceptor _routingAckFailure = new();
+    private readonly Mock<IResponsibilityDraftGenerator> _draftGenerator = new();
+    private readonly Mock<ISystemEnvironmentService> _draftEnvironments = new();
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private DbContextOptions<AtoCopilotContext> _options = null!;
@@ -72,6 +74,16 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
         builder.Services.AddSingleton(factory.Object);
         builder.Services.AddSingleton<ISystemWorkspaceAccessService, SystemWorkspaceAccessService>();
         builder.Services.AddScoped<ICapabilityResponsibilityService, CapabilityResponsibilityService>();
+        builder.Services.AddScoped<ResponsibilityDraftService>();
+        builder.Services.AddScoped<NarrativeLibraryService>();
+        _draftGenerator.Setup(x => x.GenerateAsync(It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<ResponsibilityDraftSource>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ResponsibilityGenerationException("Synthetic AI unavailable."));
+        builder.Services.AddSingleton(_draftGenerator.Object);
+        _draftEnvironments.Setup(x => x.ListAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, CancellationToken _) => new Ato.Copilot.Core.Dtos.Dashboard.SystemEnvironmentsResponse(
+                id, 1, new(false, false, false, false, false), [], []));
+        builder.Services.AddSingleton(_draftEnvironments.Object);
         builder.Services.AddScoped<ICapabilityResponsibilityImpactDispatcher, CapabilityResponsibilityImpactDispatcher>();
         builder.Services.AddSingleton(_impactConsumer.Object);
         builder.Services.AddSingleton<ITenantContext>(new TenantContext(_tenant)

@@ -8,6 +8,7 @@ import {
   listOrgControlOverrides,
 } from '../api/orgControlOverrides';
 import OrgControlOverridePanel from '../features/orgs/OrgControlOverridePanel';
+import CatalogSourceManagement from '../features/narratives/CatalogSourceManagement';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -294,15 +295,15 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
   const [selectedControlId, setSelectedControlId] = useState<string | null>(null);
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
   const [importing, setImporting] = useState(false);
+  const [canManageCatalog, setCanManageCatalog] = useState(false);
   const [importMessage, setImportMessage] = useState<{ tone: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
   // ─── Per-identifier import modal (Issue #242) ──────────────────────────────
   const KNOWN_FRAMEWORKS = [
     { label: 'NIST SP 800-53 Rev. 5', identifier: 'NIST-800-53-R5' },
     { label: 'NIST SP 800-53 Rev. 4', identifier: 'NIST-800-53-R4' },
-    { label: 'FedRAMP High Rev. 5',    identifier: 'FedRAMP-HIGH-R5' },
-    { label: 'FedRAMP Moderate Rev. 5', identifier: 'FedRAMP-MODERATE-R5' },
-    { label: 'FedRAMP Low Rev. 5',     identifier: 'FedRAMP-LOW-R5' },
+    { label: 'FedRAMP Rev. 5', identifier: 'FEDRAMP-R5' },
+    { label: 'NIST SP 800-171 Rev. 3', identifier: 'NIST-800-171-R3' },
   ] as const;
 
   const [showImportModal, setShowImportModal] = useState(false);
@@ -338,7 +339,7 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
   useEffect(() => {
     fetchFrameworks()
       .then(setFrameworks)
-      .catch(() => setFrameworks([]));
+      .catch(() => setImportMessage({ tone: 'error', text: 'Catalog definitions could not be loaded. Reload the page to retry.' }));
   }, []);
 
   // Load org-level overrides once on mount; refresh when the panel saves.
@@ -474,6 +475,10 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
   const handleLevelChange = (value: string) => { setLevelFilter(value); setPage(1); };
 
   const handleImportFrameworks = async () => {
+    if (!canManageCatalog) {
+      setImportMessage({ tone: 'error', text: 'Platform catalog administration permission is required.' });
+      return;
+    }
     setImporting(true);
     setImportMessage(null);
     try {
@@ -506,6 +511,10 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
 
   // ─── Per-identifier import handler (Issue #242) ────────────────────────────
   const handleImportFrameworkById = async () => {
+    if (!canManageCatalog) {
+      setImportIdentifierMessage({ tone: 'error', text: 'Platform catalog administration permission is required.' });
+      return;
+    }
     const id = (importCustomId.trim() || importIdentifier).trim();
     if (!id) return;
 
@@ -561,27 +570,18 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
         showOrgName={scope !== 'csp'}
       />
       <div className="space-y-4">
+        <CatalogSourceManagement refreshToken={frameworks.map(item => `${item.id}:${item.importedAt}`).join('|')}
+          onPermissionsChanged={setCanManageCatalog} onImportRequested={() => {
+          setShowImportModal(true); setImportIdentifierMessage(null); setImportConfirmExisting(false);
+        }} />
         {/* Import banner — show when no frameworks are imported yet */}
-        {frameworks.length === 0 && !loading && (
+        {frameworks.length === 0 && !loading && importMessage?.tone !== 'error' && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-amber-800">No frameworks imported yet</p>
               <p className="text-xs text-amber-600 mt-0.5">Import official NIST and FedRAMP frameworks from OSCAL GitHub repositories.</p>
-              {importMessage && (
-                <p
-                  className={`mt-2 text-xs ${
-                    importMessage.tone === 'error'
-                      ? 'text-red-700'
-                      : importMessage.tone === 'warning'
-                        ? 'text-amber-700'
-                        : 'text-green-700'
-                  }`}
-                >
-                  {importMessage.text}
-                </p>
-              )}
             </div>
-            <button
+            {canManageCatalog && <><button
               onClick={handleImportFrameworks}
               disabled={importing}
               className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
@@ -593,11 +593,11 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
               className="rounded-md border border-amber-500 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50"
             >
               Import by ID…
-            </button>
+            </button></>}
           </div>
         )}
 
-        {frameworks.length > 0 && importMessage && (
+        {importMessage && (
           <div
             className={`rounded-lg border p-3 text-sm ${
               importMessage.tone === 'error'
@@ -893,7 +893,7 @@ export default function ControlCatalog({ scope = 'org' }: ControlCatalogProps = 
       )}
 
       {/* Per-identifier import modal (Issue #242) */}
-      {showImportModal && (
+      {showImportModal && canManageCatalog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900 mb-1">Import Framework by Identifier</h3>

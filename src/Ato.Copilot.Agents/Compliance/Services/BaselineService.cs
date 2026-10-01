@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Constants;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 
@@ -101,7 +102,7 @@ public class BaselineService : IBaselineService
         // Sort control IDs for consistent ordering
         controlIds.Sort(ControlIdComparer.Instance);
 
-        // Remove existing baseline if present (full replace)
+        // Preserve the baseline identity so retained source snapshots remain addressable.
         var existing = await context.ControlBaselines
             .Include(b => b.Tailorings)
             .Include(b => b.Inheritances)
@@ -118,23 +119,30 @@ public class BaselineService : IBaselineService
         {
             context.ControlTailorings.RemoveRange(existing.Tailorings);
             context.ControlInheritances.RemoveRange(existing.Inheritances);
-            context.ControlBaselines.Remove(existing);
-            await context.SaveChangesAsync(cancellationToken);
         }
 
-        // Create new baseline
-        var baseline = new ControlBaseline
+        var baseline = existing ?? new ControlBaseline
         {
             RegisteredSystemId = systemId,
-            BaselineLevel = baselineLevel,
-            OverlayApplied = appliedOverlay,
-            TotalControls = controlIds.Count,
-            ControlIds = controlIds,
+            TenantId = system.TenantId,
             CreatedBy = selectedBy,
             CreatedAt = DateTime.UtcNow
         };
-
-        context.ControlBaselines.Add(baseline);
+        baseline.SourceFrameworkIdentifier = AutomaticCatalogBindingService.NistRev5;
+        baseline.BaselineLevel = baselineLevel;
+        baseline.OverlayApplied = appliedOverlay;
+        baseline.TotalControls = controlIds.Count;
+        baseline.ControlIds = controlIds;
+        baseline.CustomerControls = baseline.InheritedControls = baseline.SharedControls = 0;
+        baseline.TailoredInControls = baseline.TailoredOutControls = 0;
+        baseline.RequirementCatalogBindingId = null;
+        baseline.CatalogResolutionMessage = null;
+        if (existing is null) context.ControlBaselines.Add(baseline);
+        else
+        {
+            baseline.CoverageRevision++;
+            baseline.ModifiedAt = DateTime.UtcNow;
+        }
         system.ModifiedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(cancellationToken);
 
@@ -305,6 +313,13 @@ public class BaselineService : IBaselineService
             await context.SaveChangesAsync(cancellationToken);
         }
 
+        var automatic = scope.ServiceProvider.GetService<AutomaticCatalogBindingService>();
+        if (automatic is not null)
+        {
+            await automatic.AssociateAsync(baseline.TenantId, baseline.Id, cancellationToken);
+            await context.Entry(baseline).ReloadAsync(cancellationToken);
+        }
+
         _logger.LogInformation(
             "Selected {Level} baseline for system '{SystemId}': {Count} controls, overlay={Overlay}, {Reapplied} inheritances reapplied",
             baselineLevel, systemId, controlIds.Count, appliedOverlay ?? "none", reappliedCount);
@@ -336,6 +351,17 @@ public class BaselineService : IBaselineService
             .FirstOrDefaultAsync(b => b.RegisteredSystemId == systemId, cancellationToken)
             ?? throw new InvalidOperationException(
                 $"No baseline found for system '{systemId}'. Run select_baseline first.");
+
+        RequirementCatalog? requirementCatalog = null;
+        if (baseline.RequirementCatalogBindingId is not null)
+        {
+            var binding = await CatalogSourceReader.ReadBindingAsync(context, x =>
+                x.Id == baseline.RequirementCatalogBindingId && x.ControlBaselineId == baseline.Id && x.TenantId == baseline.TenantId,
+                cancellationToken) ?? throw new InvalidOperationException("Catalog binding is unavailable; reconcile the source before tailoring.");
+            if (RequirementCoverageService.Hash(binding.CatalogJson) != binding.ContentHash)
+                throw new InvalidOperationException("Catalog source integrity check failed.");
+            requirementCatalog = RequirementCatalog.Parse(binding.CatalogJson);
+        }
 
         // Determine overlay-required controls
         HashSet<string> overlayControls = new();
@@ -383,6 +409,17 @@ public class BaselineService : IBaselineService
             }
 
             var isOverlayRequired = overlayControls.Contains(action.ControlId);
+
+            if (tailoringAction == TailoringAction.Added && requirementCatalog?.Controls.Any(x =>
+                (x.DisplayId == action.ControlId || x.Id == action.ControlId) && x.ParentId is not null) == true)
+            {
+                result.Rejected.Add(new TailoringActionResult
+                {
+                    ControlId = action.ControlId, Action = action.Action, Accepted = false,
+                    Reason = "Use a reviewed enhancement proposal to coordinate baseline selection and the separate narrative draft."
+                });
+                continue;
+            }
 
             if (tailoringAction == TailoringAction.Removed)
             {

@@ -54,6 +54,181 @@ The header area contains action buttons that adapt based on context:
 
 ## Managing Designations
 
+### Task-oriented responsibility panel
+
+#### Prepared first pass and proposed drafts
+
+When the API advertises draft support, the panel loads the existing saved draft
+or source-backed values immediately. **Provider scope** selects an actual recorded
+system hosting assignment; **System records only** does not invent a provider or
+assume Customer responsibility. You can also select any baseline control above
+the matrix to prepare responsibilities without a provider contribution.
+
+**Prepare first pass** uses the configured AI service to propose concise duties
+and questions grounded in authorized records. Published Provider/Shared/Customer
+splits take precedence over model suggestions. Conflicting or incomplete source
+splits and insufficient system records remain **Needs confirmation**. A published
+split is not verification of system applicability or accepted inheritance.
+
+Populated fields identify **From provider source**, **From system records** or
+**AI proposed**. Human corrections are marked separately; typing a new value does
+not turn it into a provider claim. Inspect the named sources and version
+fingerprints in **First-pass sources & provenance**.
+
+**Save proposed draft** preserves your fields, source lineage and revision without
+changing accepted responsibility. It does not require AI to be available. A
+generation failure appears explicitly; **Use source records without AI** is an
+explicit manual alternative, not a successful AI result. Fields remain editable
+while a model suggestion is preparing.
+
+**Refresh suggestion** stages a comparison and retains current edits. Compare the
+new suggestion against your current text, then either **Apply refreshed suggestion**
+or **Keep my edits after comparison**. Refreshing sources and generating text do
+not confirm an allocation. Source or concurrent draft changes block confirmation
+until reviewed again.
+
+After saving, **Review allocation** shows the proposed outcome. An effective
+assigned ISSM/ISSO must acknowledge coverage and local duties before **Confirm
+responsibility**. Provider confirmation requires adoption bound to the selected
+scope and follows canonical reconciliation. System-only confirmation is audited
+without changing narrative approval or implementation status. Missing duties,
+scope, exclusions or supporting source must be resolved where applicable.
+
+Draft history records generation, edits, comparisons and review actor/time. The
+panel shows the latest 20 event summaries. The system-scoped draft history API
+also provides paged retained field/source snapshots; generation history is not
+reconstructed from today's provider data.
+
+**Local walkthrough:** in a disposable authorized AU-11 test system, open the
+panel, inspect its initial source-backed values, choose a recorded provider scope
+or System records only, prepare a suggestion, inspect provenance, correct a duty,
+and save the proposed draft. Verify the accepted matrix is unchanged. Refresh
+the suggestion and compare without losing your correction. Keep or apply the
+comparison, review the summary, then confirm only supported values. Verify the
+result in the matrix and CRM/SSP/eMASS controls preparation. Repeat as a view-only
+user and verify generation/save/confirmation are unavailable.
+
+In **Controls & evidence → Responsibilities**, the matrix still opens a right-side
+**Review responsibility** panel for the selected control. The last verified saved
+allocation and effective baseline designation are separate from your local draft.
+
+Choose **Provider and my team (Shared)**, **Provider covers the control (Inherited)**,
+**My team implements the control (Customer)**, or **I need more information**.
+Mapped controls do not default to Inherited. Switching choices retains entered
+text, including local operational duties when choosing Inherited.
+
+Provider scope, descriptions, evidence access and retention limitations are under
+**Review provider scope & evidence**. Revision pins and redacted snapshots are under
+**Technical source details**. Missing evidence, unavailable/changed sources and
+source text explicitly marked as synthetic remain visible outside disclosure.
+Names and facts come from returned records, not the design mock.
+
+**Review allocation** displays the exact proposed duties and decision context
+without confirming. After saving a proposed draft and acknowledging coverage and
+local duties, **Confirm responsibility** uses the existing review authority and
+confirmation/reconciliation boundary. An information gap can be saved as a
+proposed draft and never changes accepted responsibility. Older APIs without
+draft support retain the predecessor's explicitly local-only editing behavior.
+
+Confirmation retains actor/time, source pins, review notes and local duties.
+Eligible agreed allocations reach the matrix, CRM and SSP/eMASS preparation
+designation inputs. Conflicting subscriptions or preserved overrides can prevent
+application. Approved narratives are not replaced. Review notes are retained in
+the confirmation history; they are **not** automatically approved narrative text.
+Confirmation is not evidence sufficiency, a satisfied control, an eMASS submission
+or an authorization decision.
+
+#### Request failures
+
+- Initial read failure: no invented saved state. Use **Retry preview**.
+- Confirmation failure: one error appears near the panel action. The last
+  verified record and entered text remain visible. A transport failure does not
+  prove that the server received nothing.
+- Validation rejection (400): correct the draft, review it again, then confirm.
+- Conflict (409), server failure or uncertain response: **Refresh saved state**
+  explicitly; this does not resubmit a confirmation. Inspect the refreshed saved
+  record and source, then review again. Refresh failure preserves the draft and
+  blocks writes that require a verified preview.
+- Permission denial: mutation is disabled; server authorization remains the
+  authority. Refresh only after the appropriate access has been established.
+
+#### Local AU-11 manual review
+
+The updated worktree is `requirement-coverage-enhancement-nav`, served at
+`http://127.0.0.1:5197`. Sign in through the normal app and open a disposable
+system's **Controls & evidence → Responsibilities → AU-11**. Direct route:
+`/workspaces/organizations/<tenant-id>/systems/<system-id>/inheritance/subscriptions`.
+Use a current baseline containing AU-11 and an available provider contribution
+mapped to it. Confirm only genuine reviewed information in an authorized test
+system, not alternative test allocations on an approved production system.
+
+1. **Shared:** choose Provider and my team. Check the required provider, provider
+   duties, customer duties and basis. Review the summary; the matrix must not
+   change before confirmation. After confirming, reopen and inspect the saved
+   notes, actor/time and revisions. Review CRM and generated SSP/controls export;
+   effective application can remain blocked by overlapping sources or overrides.
+2. **Inherited:** enter verified provider duties, applicable scope, exclusions
+   (explicitly "none" only if verified) and supporting source/version. Retain local
+   duties. Switch to Shared and back: entered text must survive. Inspect the
+   summary before confirming.
+3. **Customer:** provider-only fields disappear. Customer duties and rationale
+   remain required. Hidden provider drafts must return when switching back, but
+   Customer confirmation must not send a provider allocation.
+4. **Unconfirmed:** choose I need more information and record the gap. Save it as a
+   proposed draft and reopen to verify persistence. There is no confirmation
+   action for an unresolved allocation; accepted records remain unchanged.
+5. **View-only:** use a readable system under a user without an effective assigned
+   ISSM/ISSO role. Inspect source/history. Allocation editing and mutation stay
+   disabled. Do not change local role preferences as a substitute for server access.
+6. **Request failure:** prefer the isolated synthetic browser suite below. For
+   manual local testing, block only the responsibility request in browser DevTools.
+   A failed confirmation must retain input, show one action error and no success.
+   Restore connectivity and explicitly refresh; verify the saved outcome before
+   reviewing again. Never replay the request automatically.
+7. **Concurrent review:** in an authorized disposable system, change the allocation
+   in a second tab. Confirm the old first-tab draft: expect 409, preserved input
+   and disabled confirmation until explicit refresh/re-review.
+8. **Keyboard/mobile:** Tab through disclosures and fields, use arrow keys on the
+   allocation group, verify summary focus and Back-to-edit focus. Escape closes
+   only when not busy and returns focus to Open. At 390px width the footer actions
+   remain visible and the panel has no horizontal overflow.
+
+From the Dashboard folder:
+
+```bash
+npx tsc --noEmit
+npm run build
+npm test -- src/__tests__/pages/ResponsibilityReviewTask.test.tsx \
+  src/__tests__/pages/CapabilityResponsibilityReview.test.tsx \
+  src/__tests__/api/capabilityResponsibilities.test.ts \
+  src/__tests__/workspaces/SetupDialog.test.tsx
+npx playwright test --config playwright.responsibility-review.config.ts
+```
+
+The isolated browser configuration starts its own server on port 4179 with an
+unreachable API proxy and intercepts synthetic fixture requests. It does not
+change the live 5197 system. Use `--headed` to inspect the same test flows.
+
+#### Rollback
+
+The current local API image is
+`ato-copilot-mcp:responsibility-drafts-643644cb-20261001`. Its predecessor is retained
+as the stopped container `ato-copilot-mcp-before-responsibility-drafts-20261001`.
+An operator can stop and rename the current container, restore the predecessor's
+`ato-copilot-mcp` name and start it. Verify `/health` on port 3002 afterward. Do not
+restore the database merely to roll back application code: the additive draft
+tables can remain, and restoring a backup would discard subsequent human work.
+The prechange backup passed SQL Server `RESTORE VERIFYONLY`.
+
+Revert only the task-oriented panel/API/page/modal-footer and related test/doc
+hunks from this increment after saving a reviewed diff. Restore the pre-increment
+matrix/drawer, not an older branch's grouped page. Do not reset this dirty worktree
+or remove other sessions' edits. The first-pass extension adds draft and history tables; retain them on rollback
+so proposed work and review provenance are not lost. Keep the independent
+32-character audit-source repair: shrinking it
+would reintroduce SQL truncation and could damage audit data. Rolling back the UI
+does not undo confirmations already saved by an authorized human.
+
 ### System CSP subscription review
 
 A subscription and its mapped control IDs do **not** establish full inheritance.

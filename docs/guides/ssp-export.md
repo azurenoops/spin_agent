@@ -2,6 +2,14 @@
 
 Export your System Security Plan (SSP) as a Word document, PDF, or OSCAL JSON with a single click. Exports run asynchronously in the background and notify you when ready for download.
 
+> **Planned requirement coverage:** The [approved continuation](../../specs/074-policy-technical-narrative/contracts/requirement-coverage.md#documents-and-export)
+> preserves parent requirement responses, separate enhancement identifiers,
+> and catalog-valid OSCAL statement IDs on the feature branch. Full validation
+> and real-user manual acceptance remain pending.
+> Do not treat current Policy/Technical statement IDs as proof of a validated
+> catalog mapping. Reviewed output fidelity and unresolved-gap checks remain
+> implementation gates for this continuation.
+
 ## Supported Formats
 
 ### SSP viewer reference layout

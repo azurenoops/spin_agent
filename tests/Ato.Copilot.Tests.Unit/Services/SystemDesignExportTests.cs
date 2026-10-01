@@ -438,7 +438,17 @@ public sealed class SystemDesignExportTests
             db.Add(new RegisteredSystem { Id = "design-system", Name = "DEMO Design System",
                 Description = "Synthetic system", HostingEnvironment = "Synthetic laboratory", OperationalStatus = OperationalStatus.UnderDevelopment });
             db.Add(new SystemDesignWorkspace { SystemId = "design-system", Revision = 3, ApprovedRevision = 3, GraphJson = "{}" });
-            db.Add(new ControlBaseline { RegisteredSystemId = "design-system", BaselineLevel = "Low", ControlIds = ["ac-1"] });
+            var baseline = new ControlBaseline { RegisteredSystemId = "design-system", BaselineLevel = "Low", ControlIds = ["ac-1"] };
+            var raw = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,
+                "TestData", "Requirements", "system-design-catalog.json"));
+            var binding = new BaselineCatalogBinding
+            {
+                TenantId = baseline.TenantId, ControlBaselineId = baseline.Id, CatalogJson = raw,
+                ContentHash = RequirementCoverageService.Hash(raw), CatalogVersion = "test-1",
+                SourceUri = "https://example.invalid/system-design-catalog.json"
+            };
+            baseline.RequirementCatalogBindingId = binding.Id;
+            db.AddRange(baseline, binding);
             var implementation = new ControlImplementation { RegisteredSystemId = "design-system", ControlId = "ac-1",
                 PolicyNarrative = "Synthetic reviewed policy.", TechnicalNarrative = "Synthetic reviewed implementation." };
             var narrative = new NarrativeVersion { ControlImplementationId = implementation.Id,
