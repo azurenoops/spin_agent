@@ -2,7 +2,7 @@ name: spin-capability-review
 
 services:
   mcp:
-    image: ato-copilot-mcp:applied-review-145446f0-20261001
+    image: ato-copilot-mcp:main69b7e407-reviewf7368843-20261001
     build:
       context: .
       dockerfile: Dockerfile
@@ -21,7 +21,7 @@ services:
       - capability-review-data:/data
 
   dashboard:
-    image: ato-copilot-dashboard:applied-review-145446f0-20261001
+    image: ato-copilot-dashboard:main69b7e407-reviewf7368843-20261001
     build:
       context: .
       dockerfile: src/Ato.Copilot.Dashboard/Dockerfile
@@ -30,7 +30,7 @@ services:
     ports:
       - "127.0.0.1:${CAPABILITY_REVIEW_PORT:-5197}:8080"
     environment:
-      MCP_BASE_URL: http://mcp:3001
+      MCP_BASE_URL: ${CAPABILITY_REVIEW_MCP_BASE_URL:-http://host.docker.internal:3002}
     depends_on:
       mcp:
         condition: service_healthy

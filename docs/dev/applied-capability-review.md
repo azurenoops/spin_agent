@@ -1,6 +1,64 @@
 # Applied capability review: local acceptance walkthrough
 
-## What changed
+## Current deployment after the main rebase
+
+The session branch now descends from `origin/main` at `69b7e407` (merged #1062).
+The panel uses the upstream `ResponsibilityDraftService`, `ResponsibilityFirstPass`
+and canonical control/scope draft APIs. The earlier session-specific draft
+store/endpoints were retired; no database tables or saved records were dropped.
+The implementation was preserved in a local commit and rebased, not pushed.
+
+Current images:
+
+- `ato-copilot-mcp:main69b7e407-reviewf7368843-20261001`
+- `ato-copilot-dashboard:main69b7e407-reviewf7368843-20261001`
+
+The original demo MCP/dashboard containers were upgraded while preserving their
+active environment, named volumes and ports (3002/5173). A copy-only,
+checksum-verified database backup was taken in the original SQL volume before
+upgrade. SQL Server still contains the active **SPIN Demo System** record.
+
+The review UI on **5197** now proxies to that same original demo backend on
+**3002**, so it uses the existing demo database instead of the earlier fresh
+preview database. Normal sign-in and organization/system permissions still apply;
+an unauthenticated/unscoped system-list request returns 403 rather than bypassing
+authorization. The isolated development backend/volume on 3197 is retained, not
+merged or deleted. To explicitly test it instead:
+
+```bash
+CAPABILITY_REVIEW_MCP_BASE_URL=http://mcp:3001 \
+  docker compose -f docker-compose.capability-review.yml up --no-build -d
+```
+
+Post-rebase verification: backend compilation, actual dashboard type-check and
+production build passed; **124 backend unit tests**, **88 integration tests**, **79 focused dashboard tests**
+and **18 delivered-image browser scenarios** passed. Earlier test totals below
+describe the pre-rebase implementation, not a new full-suite run on merged main.
+
+Canonical statuses are Proposed, ComparisonRequired and Accepted. Save is not
+acceptance; confirmation requires saved-state review, source/duty acknowledgements
+and notes and uses upstream enforcement. Saved counts are read from canonical
+authorized control/scope contexts, not inferred from component association.
+
+### Current local walkthrough
+
+1. Sign in on 5197 and select the original demo organization and SPIN Demo System.
+   Workspace authorization is required; a raw unscoped API call is not a data browser.
+2. Open Audit collection, inspect Overview and recorded component locations, then
+   select AU-11, AU-2 or AU-6 in Responsibilities.
+3. The canonical first pass starts with system records. Explicitly choose a recorded
+   provider scope when applicable; inspect source versions, duties, exclusions,
+   missing information and conflicts. Correct the populated fields.
+4. Save the draft. Refresh and compare suggestions using the canonical comparison
+   actions; corrections are not silently replaced. Saving does not accept inheritance.
+5. Choose Review saved responsibility, verify applicability/coverage and customer
+   duties, add review notes and explicitly confirm. Confirm the matrix and separately
+   reviewed narrative/document outputs. No action here submits eMASS or grants an ATO.
+
+The prior implementation notes and validation below are retained as a history of
+the original session, not as evidence of a full-suite run on the rebased code.
+
+## Prior implementation notes
 
 The Applied Capabilities list and right-side dialog remain in place. The dialog
 now has Overview, Where it applies, and Responsibilities sections. Keyboard

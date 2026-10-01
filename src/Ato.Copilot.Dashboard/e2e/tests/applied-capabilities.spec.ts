@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
 import { installWorkspaceFixture } from '../fixtures/workspace-shell';
+import { appliedResponsibilityContext } from '../fixtures/applied-responsibility';
 
 const systemRoot = '/workspaces/organizations/org-a/systems/system-a';
 const access = {
@@ -147,13 +148,8 @@ for (const width of [1440, 390, 320]) {
         },
       },
     }));
-    await page.route('**/responsibilities/AU-2/draft', route => route.fulfill({ json: { status: 'success', data: {
-      systemId: 'system-a', source: 'provider', capabilityId: 'capability-a', controlId: 'AU-2',
-      canSave: true, saved: null, isStale: false,
-      prepared: { controlId: 'AU-2', contextRevision: 'd'.repeat(64), allocation: null, allocationOrigin: 'From system records',
-        providerResponsibility: '', providerOrigin: 'From system records', customerResponsibility: 'Recorded fixture duty',
-        customerOrigin: 'From system records', aiSummary: null, flags: ['Verify applicability'], references: [] },
-    } } }));
+    await page.route('**/api/dashboard/systems/system-a/capability-subscriptions/drafts/**',
+      route => route.fulfill({ json: appliedResponsibilityContext('system-a', 'AU-2') }));
     await page.route('**/security-capabilities/setups/prepare', async route => {
       const request = route.request();
       const body = request.postDataJSON() as { idempotencyKey: string; selections: unknown[] };
