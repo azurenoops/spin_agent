@@ -20,7 +20,7 @@
 .system-nav-unavailable{color:#94a3b8}
 .system-mobile-page-selector{display:none;width:100%;margin:0 0 15px;padding:10px 12px;border:1px solid #dce1ec;border-radius:7px;background:white;color:#26344b;font:14px/1.5 system-ui,sans-serif}
 .system-section-tabs{position:relative;display:flex;flex-wrap:nowrap;max-width:100%;overflow-x:auto;gap:20px;border-bottom:1px solid #dfe4ed;font:12px/1.5 system-ui,sans-serif}
-.system-section-tabs a,.system-section-tabs > span{flex-shrink:0;white-space:nowrap;border-bottom:2px solid transparent;padding:11px 0;color:#69748c;text-decoration:none}
+.system-section-tabs a,.system-section-tabs > span{flex-shrink:0;white-space:nowrap;border-bottom:2px solid transparent;padding:11px 0;color:#596580;text-decoration:none}
 .system-section-tabs a[aria-current=page]{border-bottom-color:#5143d7;color:#5143d7}
 .organization-top-links a:focus-visible,.organization-mobile-nav summary:focus-visible,.organization-mobile-nav a:focus-visible,.system-sidebar a:focus-visible,.system-mobile-page-selector:focus-visible,.system-section-tabs a:focus-visible{outline:3px solid #a79af8;outline-offset:2px}
 .dark .system-sidebar,.dark .organization-mobile-nav nav,.dark .system-mobile-page-selector{background:#111827;color:#cbd5e1;border-color:#374151}

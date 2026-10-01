@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import axe from 'axe-core';
 import { installWorkspaceFixture } from '../fixtures/workspace-shell';
 
 const systemRoot = '/workspaces/organizations/org-a/systems/system-a';
@@ -75,7 +76,7 @@ const availableCapability = {
   reviewRequiredCount: 0,
 };
 
-for (const width of [1440, 390]) {
+for (const width of [1440, 390, 320]) {
   test(`applied capability review drawer works at ${width}px`, async ({ context, page, baseURL }) => {
     // Arrange
     let setupCompleted = false;
@@ -146,6 +147,13 @@ for (const width of [1440, 390]) {
         },
       },
     }));
+    await page.route('**/responsibilities/AU-2/draft', route => route.fulfill({ json: { status: 'success', data: {
+      systemId: 'system-a', source: 'provider', capabilityId: 'capability-a', controlId: 'AU-2',
+      canSave: true, saved: null, isStale: false,
+      prepared: { controlId: 'AU-2', contextRevision: 'd'.repeat(64), allocation: null, allocationOrigin: 'From system records',
+        providerResponsibility: '', providerOrigin: 'From system records', customerResponsibility: 'Recorded fixture duty',
+        customerOrigin: 'From system records', aiSummary: null, flags: ['Verify applicability'], references: [] },
+    } } }));
     await page.route('**/security-capabilities/setups/prepare', async route => {
       const request = route.request();
       const body = request.postDataJSON() as { idempotencyKey: string; selections: unknown[] };
@@ -224,8 +232,27 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: 'Open Audit logging' }).click();
     const reviewDrawer = page.getByRole('dialog', { name: 'Review applied capability' });
     await expect(reviewDrawer).toBeVisible();
+    const overview = reviewDrawer.getByRole('tab', { name: 'Overview' });
+    await overview.focus();
+    await page.keyboard.press('End');
+    await expect(reviewDrawer.getByRole('tab', { name: 'Responsibilities' })).toBeFocused();
+    await expect(reviewDrawer.getByRole('heading', { name: 'Prepared responsibility · AU-2' })).toBeVisible();
+    await reviewDrawer.getByRole('textbox', { name: 'Customer responsibility draft' }).fill('Reviewer correction');
     await expect(reviewDrawer.getByText('Collect audit records')).toBeVisible();
-    await reviewDrawer.getByRole('button', { name: 'Manage Provider collector placement' }).click();
+    expect(await reviewDrawer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.addScriptTag({ content: axe.source });
+    const violations = await page.evaluate(async () => {
+      const dialog = document.querySelector('dialog[open]');
+      if (!dialog) throw new Error('The capability review dialog is unavailable.');
+      const browserAxe = (window as Window & { axe: typeof import('axe-core') }).axe;
+      return (await browserAxe.run(dialog, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } })).violations;
+    });
+    expect(violations).toEqual([]);
+    await reviewDrawer.getByRole('tab', { name: 'Overview' }).click();
+    await reviewDrawer.getByRole('tab', { name: 'Responsibilities' }).click();
+    await expect(reviewDrawer.getByRole('textbox', { name: 'Customer responsibility draft' })).toHaveValue('Reviewer correction');
+    await reviewDrawer.getByRole('tab', { name: 'Where it applies' }).click();
+    await reviewDrawer.getByRole('button', { name: 'Change location for Provider collector' }).click();
     const componentDrawer = page.getByRole('dialog', { name: 'Component details' });
     await expect(componentDrawer).toBeVisible();
     await expect(componentDrawer.getByRole('button', { name: 'Manage system placement' })).toBeEnabled();
@@ -235,9 +262,9 @@ for (const width of [1440, 390]) {
     const setupDrawer = page.getByRole('dialog', { name: 'Add organization capability' });
     await expect(setupDrawer).toBeVisible();
     const drawerBox = await setupDrawer.boundingBox();
-    expect(drawerBox?.width).toBeGreaterThanOrEqual(width >= 768 ? 700 : 380);
+    expect(drawerBox?.width).toBeGreaterThanOrEqual(width >= 768 ? 700 : width - 10);
     const optionBox = await setupDrawer.getByTestId('capability-option').first().boundingBox();
-    expect(optionBox?.width).toBeGreaterThanOrEqual(width >= 768 ? 600 : 300);
+    expect(optionBox?.width).toBeGreaterThanOrEqual(width >= 768 ? 600 : width - 100);
     await setupDrawer.getByRole('checkbox', { name: 'Select Identity management' }).check();
     await setupDrawer.getByRole('button', { name: 'Continue to applicability' }).click();
     await setupDrawer.getByRole('button', { name: 'Continue to review' }).click();

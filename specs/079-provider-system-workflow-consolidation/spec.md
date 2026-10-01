@@ -9,6 +9,17 @@
 
 ## Product outcome and scope
 
+### October 1 merged responsibility review integration
+
+The task-oriented applied-capability panel uses the responsibility first-pass
+workflow merged in #1062, not a competing draft or approval lifecycle.
+Users select the control and optional recorded provider scope, correct source/
+system/AI-proposed fields, compare refreshed suggestions without losing their
+edits, save drafts and explicitly confirm through the existing authorized
+upstream lifecycle. Source references, versions and history remain canonical.
+Scope/component association does not imply provider coverage, deployed
+configuration, monitoring connectivity, control satisfaction or authorization.
+
 ### September 30: governed System design
 
 #### Rules-first automatic architecture assembly

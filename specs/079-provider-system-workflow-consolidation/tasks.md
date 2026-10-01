@@ -6,6 +6,42 @@
 
 Tests are mandatory, despite the older template's optional-test wording.
 
+### October 1 applied capability review checkpoint
+
+- [x] ACR01 — Verify repository identity and prerequisite revision; inspect
+  capability, placement, provider scope, responsibility and narrative contracts;
+  record verified gaps in the spec/plan before production changes.
+- [x] ACR02 — Retain red-test evidence, implement the three-section right-side
+  panel, source disclosures, actual scope/draft counts, short component actions
+  and selected system/control review links.
+- [x] ACR03 — Add tenant/system/control-scoped preparation and immutable draft/
+  generation history; retain authoritative splits, scope exclusions and versions;
+  provide source-grounded no-provider preparation and optional separate AI summary.
+- [x] ACR04 — Preserve in-memory user edits across control/section/placement
+  navigation and suggestion refresh; keep generated/saved/reviewed/accepted
+  states separate; transfer reviewed saved drafts only into existing confirmation.
+- [x] ACR05 — Verify server permission/isolation/concurrency, repeated SQL Server
+  draft startup and canonical accepted matrix/SSP/eMASS outputs. Required solution
+  build/test and actual dashboard type-check passed, with existing warnings/skips
+  explicitly reported in the walkthrough.
+- [x] ACR06 — Build uniquely tagged updated images; recover Docker after the user
+  requested startup; release only the identified development previews after the
+  user directed requested-port completion. Serve and verify the isolated app on
+  5197/API3197. All 18 browser workflows pass against the final image, including
+  keyboard/WCAG/1440/390/320px and light/dark checks.
+- [x] ACR07 — Deliver the AU-11/AU-2/AU-6 manual walkthrough, rollback and source/
+  AI limitations; make the requested local app available before completion.
+  All 2,969 dashboard tests pass. New UI modules have 100% executable-line coverage;
+  new backend preparation/persistence implementations also have 100% executable
+  lines covered. Final solution run: 7,899 unit / 1,816 integration passed,
+  20 skipped; 56 targeted closure tests passed. Full touched-file coverage and previous failed-run evidence are reported
+  separately. Human acceptance of real system/provider records is not fabricated.
+
+See [local delivery, validation and rollback](../../docs/dev/applied-capability-review.md).
+No commits, pushes or GitHub issue writes were made. Synthetic reference/mock
+statements were not used as production provider or AI content. Local preview uses
+a dedicated SQLite volume, not the existing main stack's data.
+
 ### September 30 SSP reference fidelity
 
 - [x] SSP01 — Inspect supplied DOCX layout and document source mappings/limits.

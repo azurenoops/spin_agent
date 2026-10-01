@@ -1,0 +1,39 @@
+name: spin-capability-review
+
+services:
+  mcp:
+    image: ato-copilot-mcp:applied-review-145446f0-20261001
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${CAPABILITY_REVIEW_API_PORT:-3197}:3001"
+    environment:
+      ATO_RUN_MODE: http
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:3001
+      ATO_DATABASE__PROVIDER: ${CAPABILITY_REVIEW_DATABASE_PROVIDER:-Sqlite}
+      ATO_CONNECTIONSTRINGS__DEFAULTCONNECTION: ${CAPABILITY_REVIEW_CONNECTIONSTRING:-Data Source=/data/capability-review.db}
+      ATO_DEPLOYMENT__MODE: SingleTenant
+      ATO_AZUREAI__ENABLED: "false"
+      ATO_ExportSettings__DataPath: /data
+    volumes:
+      - capability-review-data:/data
+
+  dashboard:
+    image: ato-copilot-dashboard:applied-review-145446f0-20261001
+    build:
+      context: .
+      dockerfile: src/Ato.Copilot.Dashboard/Dockerfile
+      args:
+        DASHBOARD_BUILD_ENV: development
+    ports:
+      - "127.0.0.1:${CAPABILITY_REVIEW_PORT:-5197}:8080"
+    environment:
+      MCP_BASE_URL: http://mcp:3001
+    depends_on:
+      mcp:
+        condition: service_healthy
+
+volumes:
+  capability-review-data:

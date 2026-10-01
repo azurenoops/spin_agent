@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '../../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../../workspaces/WorkspaceBoundary';
 import { useSystemContext } from '../../../components/layout/SystemLayout';
@@ -8,7 +8,9 @@ import { buttonClass, errorClass, moveTabFocus, secondaryButtonClass, Status, us
 import * as api from './systemCapabilityApi';
 import type { SystemCapabilityComponent, SystemCapabilityDetail as Detail, SystemCapabilitySource } from './systemCapabilityTypes';
 import { boundedRequest } from './systemCapabilityRequests';
-import SystemCapabilityResponsibility from './SystemCapabilityResponsibility';
+import SystemCapabilityResponsibility, { type ResponsibilityConfirmationEdits } from './SystemCapabilityResponsibility';
+import ResponsibilityDraftEditor, { type ResponsibilityDraftEdits } from './ResponsibilityDraftEditor';
+import { responsibilityLabel } from './responsibilityPresentation';
 import SystemCapabilityNarratives from './SystemCapabilityNarratives';
 import SystemCapabilityRemoval from './SystemCapabilityRemoval';
 
@@ -29,6 +31,8 @@ function CapabilityDetail({ tenantId, systemId, source, recordId }: {
   const tab = ['coverage', 'evidence'].includes(params.get('tab') ?? '') ? params.get('tab')! : 'implementation';
   const [removalOpen, setRemovalOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const draftEdits = useRef<ResponsibilityDraftEdits>(new Map());
+  const confirmationEdits = useRef<ResponsibilityConfirmationEdits>(new Map());
   const detail = useRemote(signal => boundedRequest(inner => api.getSystemCapability(tenantId, systemId,
     { source, recordType: 'capability', recordId }, inner), signal), [tenantId, systemId, source, recordId]);
   const responsibility = useRemote(signal => source === 'provider' && tab === 'coverage'
@@ -91,15 +95,19 @@ function CapabilityDetail({ tenantId, systemId, source, recordId }: {
               <Coverage data={data} selectedControl={selectedControl} onSelect={control => set({ control })} />
               {selected && <section className={`${workspaceCard} space-y-3`}><h2 className="text-lg font-semibold">{selected.controlId} source and responsibility</h2>
                 <dl className="grid gap-3 text-sm md:grid-cols-2">
-                  <div><dt className="font-medium">Provider coverage</dt><dd className="whitespace-pre-wrap">{selected.providerCoverage ?? 'Not recorded'}</dd></div>
+                  <div><dt className="font-medium">Provider source statement (not verified coverage)</dt><dd className="whitespace-pre-wrap">{selected.providerCoverage ?? 'Not recorded'}</dd></div>
                   <div><dt className="font-medium">Remaining organization duty</dt><dd className="whitespace-pre-wrap">{selected.organizationDuty ?? 'Not recorded; review required'}</dd></div>
                   <div><dt className="font-medium">Confirmed source revision</dt><dd className="break-all">{selected.confirmedSourceRevision ?? 'Not confirmed'}</dd></div>
                   <div><dt className="font-medium">Available source revision</dt><dd className="break-all">{selected.availableSourceRevision}</dd></div>
                 </dl>
               </section>}
+              {selected && <ResponsibilityDraftEditor tenantId={tenantId} systemId={systemId} source={source}
+                capabilityId={recordId} controlId={selected.controlId} edits={draftEdits.current}
+                onChanged={() => { detail.retry(); responsibility.retry(); }} />}
               {source === 'provider' ? <>
                 <Status loading={responsibility.loading} error={responsibility.error} retry={responsibility.retry} />
                 {selected && responsibility.data && <SystemCapabilityResponsibility tenantId={tenantId} systemId={systemId} capabilityId={recordId}
+                  edits={confirmationEdits.current}
                   controlId={selected.controlId} sourceRevision={selected.availableSourceRevision} reviewRevision={selected.reviewRevision} preview={{ ...responsibility.data,
                     canConfirm: responsibility.data.canConfirm && data.permissions.canReviewResponsibilities }} onChanged={next => {
                     setNotice(next ? 'Responsibility confirmation saved. Narrative acceptance remains a separate action.' : null);
@@ -111,7 +119,13 @@ function CapabilityDetail({ tenantId, systemId, source, recordId }: {
                 <Link className={secondaryButtonClass} to={`/systems/${encodeURIComponent(systemId)}/inheritance`}>Review control inheritance</Link>
               </div>
             </>}
-            {tab === 'evidence' && <SystemCapabilityNarratives tenantId={tenantId} systemId={systemId} detail={data} onChanged={detail.retry} />}
+            {tab === 'evidence' && <>
+              <Coverage data={data} selectedControl={selectedControl} onSelect={control => set({ tab: 'evidence', control })} />
+              {selected ? <SystemCapabilityNarratives tenantId={tenantId} systemId={systemId} detail={{ ...data,
+                evidence: data.evidence.filter(evidence => evidence.controlId === null || evidence.controlId === selected.controlId),
+                narratives: data.narratives.filter(narrative => narrative.controlId === selected.controlId),
+              }} onChanged={detail.retry} /> : <p className={warningClass}>Select a mapped control to inspect evidence and narratives in its system context.</p>}
+            </>}
           </div>
         </div>
         <div className={setPageContext ? 'xl:hidden' : undefined}>{context}</div>
@@ -166,7 +180,7 @@ function Coverage({ data, selectedControl, onSelect }: { data: Detail; selectedC
     </tr></thead><tbody className="divide-y divide-slate-200 dark:divide-gray-700">{data.controls.map(control => <tr key={control.controlId} className={selectedControl === control.controlId ? 'bg-indigo-50/60 dark:bg-indigo-950/40' : ''}>
       <td className="p-2"><button type="button" className="text-indigo-700 underline dark:text-indigo-300" onClick={() => onSelect(control.controlId)}>{control.controlId}</button></td>
       <td className="p-2">{control.providerCoverage ?? 'Not recorded'}</td><td className="p-2">{control.organizationDuty ?? 'Not recorded'}</td>
-      <td className="p-2">{control.allocation ?? 'Unresolved'}</td><td className="p-2">{control.reviewState}</td>
+      <td className="p-2">{control.allocation ?? 'Unresolved'}</td><td className="p-2">{responsibilityLabel(control.reviewState)}</td>
     </tr>)}</tbody></table></div>
     {!data.controls.length && <p className="text-sm text-slate-500 dark:text-gray-400">No scoped mapped controls are available.</p>}
     {!data.baselineId && <p className={warningClass}>This system has no selected baseline. Mapping a capability does not create one.</p>}

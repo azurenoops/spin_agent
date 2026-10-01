@@ -6,6 +6,28 @@
 
 ## Summary
 
+### October 1 upstream alignment after #1062
+
+The applied capability session is rebased onto `origin/main` at `69b7e407`.
+Upstream now owns the responsibility draft engine, generation, provenance,
+history, source-scope comparison and acceptance through `ResponsibilityDraftService`.
+Retire the session's duplicate workspace draft store/endpoints/schema integration;
+reuse upstream `responsibilityDrafts`, `useResponsibilityFirstPass` and
+`ResponsibilityFirstPass` without changing their contracts or source enforcement.
+No retained database tables or records are dropped.
+
+Keep the three-section right-side panel, short authorized placement actions,
+selected-control context, in-memory correction cache and readable statuses.
+Read saved draft counts through authorized canonical control/scope contexts;
+show failed count reads explicitly, never as zero. Draft save remains separate
+from acceptance, which uses the upstream confirmation method and required
+coverage/duty acknowledgements. Preserve unrelated prerequisite work in Git
+history while rebasing only the session's implementation onto merged main.
+
+Rebuild versioned MCP/dashboard images after build/type-check and focused source,
+scope, lifecycle and browser tests. Keep port 5197 and preserve the original demo
+SQL Server database/stack; do not push or make GitHub writes.
+
 ### Governed System design implementation
 
 Automatic assembly follow-through: introduce a bounded source-backed

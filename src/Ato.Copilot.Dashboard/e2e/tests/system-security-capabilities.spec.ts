@@ -54,7 +54,7 @@ for (const width of [1440, 390]) {
       // Act
       await page.goto(systemCapabilityRoot);
       // Assert
-      await expect(page.getByRole('heading', { name: 'Security Capabilities', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Applied security capabilities', exact: true })).toBeVisible();
       await expect(await openWorkspaceContext(page)).toContainText('Selected system: Synthetic Mission System');
       await page.keyboard.press('Escape');
       await expect(page.getByRole('link', { name: 'Security monitoring', exact: true })).toBeVisible();
@@ -103,8 +103,8 @@ for (const width of [1440, 390]) {
       await checkLayout(page, testInfo, '05-coverage-duties');
       // Act
       await page.getByRole('combobox', { name: 'Responsibility allocation', exact: true }).selectOption('Shared');
-      await page.getByLabel('Provider responsibility', { exact: true }).fill('Provider logging');
-      await page.getByLabel('Customer responsibility', { exact: true }).fill('Mission log review');
+      await page.getByRole('textbox', { name: 'Provider responsibility', exact: true }).fill('Provider logging');
+      await page.getByRole('textbox', { name: 'Customer responsibility', exact: true }).fill('Mission log review');
       await page.getByLabel('Provider coverage verified').check();
       await page.getByLabel('Customer duties reviewed').check();
       // Assert
@@ -147,7 +147,7 @@ test('organization-only systems, explicit recovery and denied writes remain usab
   // Assert
   await expect(page.getByRole('link', { name: 'Incident response', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Security monitoring', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Add from library' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add organization capability' })).toBeDisabled();
   expect(state.writes).toEqual([]);
 });
 
@@ -156,20 +156,20 @@ test('library selection persists across pages and partial setup recovers after r
   const state = await installSystemCapabilityFixture(context, baseURL!, { partial: true, paginatedLibrary: true });
   await page.goto(`${systemCapabilityRoot}/add`);
   // Act / Assert
-  await expect(page.getByRole('heading', { name: 'Add security capabilities to Synthetic Mission System' })).toBeVisible();
-  await expect(page.getByLabel('Select Security monitoring', { exact: true })).toBeDisabled();
-  await page.getByLabel('Select Boundary logging', { exact: true }).check();
+  await expect(page.getByRole('heading', { name: 'Add organization capabilities to Synthetic Mission System' })).toBeVisible();
+  await expect(page.getByLabel('Select Security monitoring', { exact: true })).toHaveCount(0);
+  await page.getByLabel('Select Incident response', { exact: true }).check();
   await page.getByLabel('Select Business continuity', { exact: true }).check();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByLabel('Select Recovery planning 26', { exact: true }).check();
   await page.getByRole('button', { name: 'Previous', exact: true }).click();
-  await expect(page.getByLabel('Select Boundary logging', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Select Incident response', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Select Business continuity', { exact: true })).toBeChecked();
   await checkLayout(page, testInfo, '07-library-selection');
   await page.getByRole('button', { name: 'Continue to applicability' }).click();
   await expect(page.getByRole('heading', { name: 'Review system applicability' })).toBeVisible();
-  await expect(page.getByText(/The target system is locked to this route/)).toBeVisible();
-  await page.getByLabel('Place Microsoft Sentinel in Azure workload', { exact: true }).check();
+  await expect(page).toHaveURL(new RegExp(`${systemCapabilityRoot}/add\\?.*step=2`));
+  await page.getByLabel('Place SOC analyst team in System-wide', { exact: true }).first().check();
   await checkLayout(page, testInfo, '08-applicability');
   await page.getByRole('button', { name: 'Continue to review' }).click();
   await expect(page.getByRole('heading', { name: 'Review changes before adding' })).toBeVisible();
@@ -186,12 +186,15 @@ test('library selection persists across pages and partial setup recovers after r
   await checkLayout(page, testInfo, 'setup-saved');
   const prepare = state.writes.filter(call => call.path.endsWith('/setups/prepare'));
   expect(prepare).toHaveLength(1);
-  expect(prepare[0].body).toMatchObject({ selections: [
-    { source: 'provider', recordId: '55555555-5555-5555-5555-555555555555',
-      placements: [{ source: 'provider', componentId: providerComponentId, boundaryId: 'boundary-a' }] },
-    { source: 'local', recordId: 'local-continuity' },
-    { source: 'local', recordId: 'local-extra-25' },
-  ] });
+  expect(prepare[0].body).toMatchObject({ selections: expect.arrayContaining([
+    expect.objectContaining({ source: 'local', recordId: 'local-response' }),
+    expect.objectContaining({ source: 'local', recordId: 'local-continuity' }),
+    expect.objectContaining({ source: 'local', recordId: 'local-extra-25' }),
+  ]) });
+  expect(prepare[0].body).toHaveProperty('selections.length', 3);
+  expect(prepare[0].body).toMatchObject({ selections: expect.arrayContaining([
+    expect.objectContaining({ placements: [{ source: 'local', componentId: 'local-team', boundaryId: null }] }),
+  ]) });
   expect(state.writes.filter(call => call.path.endsWith('/complete')).map(call => call.body)).toEqual([
     { expectedRevision: 1 }, { expectedRevision: 2 },
   ]);
@@ -224,6 +227,8 @@ test('removal presents retained records and refuses a stale preview before refre
   const state = await installSystemCapabilityFixture(context, baseURL!, { staleRemoval: true });
   await page.goto(`${systemCapabilityRoot}/provider/${providerCapabilityId}`);
   // Act
+  await expect(page.getByRole('heading', { name: 'Security monitoring', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand panel', exact: true }).click();
   await page.getByRole('button', { name: 'Remove from this system', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Remove from this system' });
   await expect(dialog.getByText('Shared library records, unrelated capability links, other systems and approved historical narratives are retained.')).toBeVisible();
@@ -306,7 +311,7 @@ test('provider drawer changes only the reviewed system boundary placement', asyn
   await dialog.getByRole('combobox', { name: 'Boundary for this component' }).selectOption('boundary-c');
   await dialog.getByRole('button', { name: 'Assign to boundary', exact: true }).click();
   // Assert
-  await expect(dialog.getByRole('status')).toHaveText('Assigned to Mission workload.');
+  await expect(dialog.getByRole('status').filter({ hasText: 'Assigned to Mission workload.' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Remove from Mission workload', exact: true })).toBeVisible();
   await expect(dialog.getByText(/source is managed by the provider and is read-only/)).toBeVisible();
   await checkLayout(page, testInfo, 'component-placement-assigned');

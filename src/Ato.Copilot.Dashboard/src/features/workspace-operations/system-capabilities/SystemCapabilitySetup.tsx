@@ -142,7 +142,7 @@ function Setup({ tenantId, systemId, identity, embedded = false, catalogSource, 
     <p>{operation ? operation.selections.length : chosen.length} selected capabilities</p>
     {!operation && <ul className="space-y-2 text-sm">{chosen.map(entry => <li key={recordKey(entry.item)}>{entry.item.name} · {entry.item.sourceName}</li>)}</ul>}
     {operation && <p className="text-sm">{operation.outcomes.filter(outcome => outcome.state === 'Completed').length} completed write checkpoints · {operation.state}</p>}
-    <p className="text-xs text-slate-500 dark:text-gray-400">Provider records remain read-only. Control review and narrative approval are separate from applicability.</p>
+    <p className="text-xs text-slate-600 dark:text-gray-400">Provider records remain read-only. Control review and narrative approval are separate from applicability.</p>
   </section>, [systemName, organizationName, operation, chosen]);
   useEffect(() => {
     if (embedded) return;
@@ -340,7 +340,7 @@ function Setup({ tenantId, systemId, identity, embedded = false, catalogSource, 
             <ul className="mt-2 space-y-2">{chosen.map(entry => <li key={recordKey(entry.item)}>{entry.item.name} · {entry.item.sourceName}</li>)}</ul>
           </details>
           : <ul className="space-y-2 text-sm">{chosen.map(entry => <li key={recordKey(entry.item)}>{entry.item.name} · {entry.item.sourceName}</li>)}</ul>}
-        <p className="text-xs text-slate-500 dark:text-gray-400">Selecting a library record does not grant or confirm inheritance.</p>
+        <p className="text-xs text-slate-600 dark:text-gray-400">Selecting a library record does not grant or confirm inheritance.</p>
         <button type="button" className={`${buttonClass} ${embedded ? 'w-full' : ''}`} disabled={locked || !chosen.length} onClick={() => set({ step: 2 })}>Continue to applicability</button>
       </aside>
     </div>}
@@ -371,9 +371,9 @@ function Setup({ tenantId, systemId, identity, embedded = false, catalogSource, 
         <Link className={secondaryButtonClass} to={`/systems/${encodeURIComponent(systemId)}/inheritance/subscriptions`}>Review responsibilities</Link>
       </div>
       {operation.state === 'InProgress' && <p role="status">The server is processing this operation. Refresh its saved outcomes; do not create another operation.</p>}
-      <p className="text-xs text-slate-500 dark:text-gray-400">Refresh or return using this URL to recover the same operation. A retry applies only unfinished server work; it cannot replace this plan.</p>
+      <p className="text-xs text-slate-600 dark:text-gray-400">Refresh or return using this URL to recover the same operation. A retry applies only unfinished server work; it cannot replace this plan.</p>
     </section>}
-    <p className="text-xs text-slate-500 dark:text-gray-400">Unsubmitted drafts are scoped to this actor, organization, system and browser tab for 24 hours. Server operations are authoritative. Leaving or cancelling never deletes shared or already-saved data.</p>
+    <p className="text-xs text-slate-600 dark:text-gray-400">Unsubmitted drafts are scoped to this actor, organization, system and browser tab for 24 hours. Server operations are authoritative. Leaving or cancelling never deletes shared or already-saved data.</p>
     {!busy && (embedded
       ? <button type="button" className="text-sm text-indigo-700 underline dark:text-indigo-300" onClick={onClose}>
         {completed ? 'Back to system' : 'Cancel and return to system'}
