@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,18 @@ public sealed partial class ResponsibilityDraftService
     private static T Read<T>(string value) => JsonSerializer.Deserialize<T>(value, Json)
         ?? throw new InvalidDataException("Responsibility draft data is invalid.");
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+    private static string NonAllocationInputs(Captured captured) => Hash(Serialize(captured.Sources
+        .Where(source => source.Id != "responsibility").Select(source =>
+        {
+            var content = source.Content;
+            if (source.Id is "policy" or "technical")
+            {
+                var document = JsonNode.Parse(content)!.AsObject();
+                document.Remove("declaredResponsibilities");
+                content = document.ToJsonString(Json);
+            }
+            return new { source.Id, Content = content };
+        })));
     private static string Control(string value) => string.IsNullOrWhiteSpace(value) || value.Length > 20
         ? throw new ArgumentException("A control identifier of 1-20 characters is required.") : value.Trim().ToUpperInvariant();
 
@@ -47,6 +60,21 @@ public sealed partial class ResponsibilityDraftService
         Add("system", system.Name, "From system records",
             new { system.Id, system.Name, system.Description, system.HostingEnvironment, BaselineId = baseline.Id,
                 baseline.BaselineLevel, baseline.ControlIds }, $"/systems/{systemId}/profile/MissionAndPurpose");
+        var boundaries = await db.AuthorizationBoundaryDefinitions.AsNoTracking().Where(x =>
+            x.TenantId == owner && x.RegisteredSystemId == systemId).OrderBy(x => x.Id)
+            .Select(x => new { x.Id, x.Name, x.Description, x.BoundaryType }).ToListAsync(ct);
+        var assignments = db.ComponentSystemAssignments.Where(x => x.TenantId == owner && x.RegisteredSystemId == systemId)
+            .Select(x => x.SystemComponentId);
+        var components = await db.SystemComponents.AsNoTracking().Where(x => x.TenantId == owner
+            && (x.RegisteredSystemId == systemId || assignments.Contains(x.Id))).OrderBy(x => x.Id)
+            .Select(x => new { x.Id, x.Name, x.Description, x.ComponentType, x.Status }).ToListAsync(ct);
+        var links = db.SystemCapabilityLinks.Where(x => x.TenantId == owner && x.RegisteredSystemId == systemId)
+            .Select(x => x.SecurityCapabilityId);
+        var capabilities = await db.SecurityCapabilities.AsNoTracking().Where(x => x.TenantId == owner && links.Contains(x.Id))
+            .OrderBy(x => x.Id).Select(x => new { x.Id, x.Name, x.Description, x.Owner, x.ImplementationStatus }).ToListAsync(ct);
+        Add("system-scope", "Recorded boundaries, components and capabilities", "From system records",
+            new { boundaries, components, capabilities, controlApplicability = "Must be reviewed; system membership alone does not allocate this control." },
+            $"/systems/{systemId}/security-capabilities");
         var implementation = await db.ControlImplementations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.TenantId == owner && x.RegisteredSystemId == systemId && x.ControlId == controlId, ct);
         var groundingRecord = implementation ?? new ControlImplementation

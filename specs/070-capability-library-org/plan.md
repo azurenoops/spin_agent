@@ -53,17 +53,106 @@ Proposed implementation increments:
 5. Verify matrix, CRM, SSP and eMASS preparation outputs after authorized acceptance;
    run required checks and provide a local walkthrough before acceptance.
 
-Design decision raised: add durable proposed drafts and a narrowly scoped,
-status-preserving system-only confirmation path, rather than pretending that
-memory-only fields or accepted confirmation rows are drafts. The user was not
-available to answer the design question. No new schema or production generation
-path has been implemented at this investigation checkpoint.
+The user explicitly approved implementation after this investigation. The chosen
+design adds durable proposed drafts and a narrowly scoped, status-preserving
+system-only confirmation method on the existing responsibility service. It does
+not add approval roles or repurpose accepted confirmation rows as drafts.
 
-Separate open defect: the live narrative workspace request started at 14:02:22 UTC
+Implementation architecture:
+
+- `ResponsibilityDrafts` holds the current proposed/compared/accepted artifact,
+  optimistic revision, source fingerprint, field provenance, AI suggestion and
+  generation outcome. `ResponsibilityDraftHistory` is append-only, with revision,
+  actor/time, values, generation source snapshots and review rationale. Separate
+  history rows avoid an ever-growing JSON history blob on each ordinary read.
+- Both entities are tenant-scoped, use the existing model/filter registration and
+  additive SQL Server/SQLite initializer, and are created before generic tenant
+  column/RLS setup. No accepted allocation is migrated or rewritten.
+- Source capture reuses the environment service's authorized published-split
+  resolver and scoped narrative grounding. The source fingerprint also includes
+  actual system boundaries/components/capabilities, saved narratives and current
+  responsibility state. A name, mapping or absence of a provider is not an
+  allocation. Explicit source splits override model suggestions deterministically.
+- Generation uses the existing configured `IChatClient`, an embedded untrusted-data
+  prompt and a bounded, citation-checked JSON response. The server owns origin
+  labels and provider identity. Missing AI/failure is explicit HTTP 503, with the
+  retained source-backed draft available for manual work; it is not fabricated AI.
+- Refresh retains user values and stages `ComparisonRequired`; only explicit
+  comparison/apply can make the refreshed draft confirmable. Edits can be saved
+  without invoking AI. Source/draft conflicts return 409, not silent retries.
+- Confirmation runs in a serializable execution-strategy unit, rechecks effective
+  ISSM/ISSO authority and source/draft pins, and atomically records review history.
+  Provider scope confirmation requires actual adoption and delegates to canonical
+  capability confirmation. System-only confirmation writes an audited Manual
+  designation through the same responsibility service, without changing
+  implementation or approved-narrative status.
+- The existing matrix/drawer remains. A baseline-control picker covers controls
+  without provider contributions, and real system-only allocations appear in the
+  matrix. No-provider gaps are included rather than claiming no outstanding work.
+
+Complexity justification: proposed draft persistence is required by the approved
+request; accepted confirmation rows and narrative proposals have different
+lifecycles and cannot safely be reused as this artifact. Two tenant-scoped tables
+are the smallest durable current-record/history design that avoids large history
+LOB reads. The existing authorization and reconciliation engines remain canonical.
+
+Separate defect: the live narrative workspace request started at 14:02:22 UTC
 while supporting library/access/proposal requests completed promptly. The running
 API image is `auto-catalog-20261001-e98474e9`. A large-catalog streaming reader is
 present in another session's local changes; no live speedup or deployment is
-claimed from its presence. Continue measuring the actual request before diagnosis.
+claimed from its presence. The user subsequently reported narrative loading fixed;
+that separate session's repair is not part of this first-pass increment.
+
+First-pass verification and local preview:
+
+- Full solution run passed with 8,083 unit and 1,852 integration tests, zero
+  failures and 20 existing skipped scenarios. Test collections were serialized
+  through an xUnit runsettings file; Docker tests remained required and no timeout
+  was increased. The initial parallel run exposed an inferred-service/body route
+  registration bug and Docker readiness timeouts. Explicit `[FromServices]`
+  binding corrected the code regression before the passing full run.
+- Targeted backend tests cover explicit source precedence, conflicting source
+  splits, insufficient no-provider context, preserved edits, failure history,
+  concurrent generation/edit, tenant isolation, reader write denial, applicable
+  duty validation and atomic rejection of source changes during confirmation.
+- Provider-scope acceptance is verified through actual subscription
+  reconciliation. System-only Customer/Shared/Inherited acceptance is verified
+  through generated CRM, SSP and eMASS controls preparation, with approved
+  narrative content and Planned implementation status preserved.
+- Desktop/mobile Chromium: 26 passing cases, including AU-11 preparation,
+  correction, saved draft, refreshed comparison, confirmation, failed generation,
+  keyboard/focus, readable labels and fixed actions. The browser fixtures are
+  synthetic, not evidence of a live model completion.
+- Dashboard production and touched browser-test TypeScript checks pass. Dashboard
+  build passes with its existing large-chunk warning. Solution build passes;
+  recompiling integration fixtures reports 10 warnings in unrelated test files.
+  No warning suppression or limit changes were introduced.
+- Final targeted Dashboard set: 100 passing tests. Additional final export/provider
+  adoption assertions passed in seven targeted integration cases after the full
+  run. Source-only drafts, recorded allocations, pending comparisons and unsaved
+  corrections have distinct labels. Frontend coverage measurement before the
+  last API assertions was 91.71% statements/lines and 86% branches across the
+  first-pass files; do not claim complete path coverage or release acceptance.
+- A verified COPY_ONLY SQL backup was taken at
+  `/var/opt/mssql/backup/responsibility-drafts-20261001-prechange.bak`.
+  The local API now uses `ato-copilot-mcp:responsibility-drafts-643644cb-20261001`.
+  The previous rebased-design container is retained as
+  `ato-copilot-mcp-before-responsibility-drafts-20261001`.
+- The API is healthy behind Dashboard port 5197. Both new tables have tenant FILTER
+  and BLOCK predicates. Pre/post SHA-256 checks of control implementations,
+  accepted inheritances and baselines match exactly. No live allocation was
+  confirmed by this implementation session.
+- Another session checkpointed/rebased the shared worktree and deployed a newer
+  system-design image during this task. The deployment guard stopped the first
+  replacement attempt; the final image was rebuilt from the combined current
+  tree, preserving that work. No GitHub write or push was performed here.
+- The shared browser is a provider-workspace session. Its live draft-context read
+  is denied because the environment resolver requires the ordinary system
+  organization workspace. No identity was switched or permission granted.
+  Authorized organization-user model generation and final human acceptance remain
+  manual checks; configured-model output quality is not established by synthetic
+  tests. Published DTOs carry explicit splits but may lack duty prose, which is
+  then proposed by AI and labeled accordingly rather than asserted as source text.
 
 ### Task-oriented review panel increment (2026-10-01)
 

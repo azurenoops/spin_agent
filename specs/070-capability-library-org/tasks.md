@@ -2,6 +2,22 @@
 
 _Epic #225 — phased implementation. Each task cites the file path(s) it touches and the relevant issue ref._
 
+## Approved AI first pass — existing #957
+
+- [x] FP1: Verify and document source splits, grounding, review authority and
+  status side effects before implementation; user approved the contract extension.
+- [x] FP2 (depends on FP1): Failing-first context, insufficient-data, conflicting
+  split, applicable-field and browser entry tests.
+- [x] FP3 (depends on FP2): Tenant-scoped versioned drafts/history, source capture,
+  configured AI generation, citation checks, edit/refresh comparison and guarded
+  confirmation using the existing authority/reconciliation boundary.
+- [x] FP4 (depends on FP3): Panel source labels, prepared values, editable
+  corrections, source-only save, comparison and no-provider matrix entry.
+- [x] FP5 (depends on FP3, FP4): Required full checks, additive SQL upgrade/RLS,
+  local preview health and unchanged accepted-record fingerprints verified;
+  actual outcomes and warning/skip/model limitations recorded in the plan.
+- [ ] FP6 (depends on FP5): Local user walkthrough before feature acceptance.
+
 ## 2026-10-01 panel refinement — existing #957
 
 - [x] RR1: Read mock, serving UI, retained failure logs/status and current

@@ -2,6 +2,53 @@
 
 ## Status
 
+### Local System design deployment repair (October 1)
+
+The port 5197 frontend moved to rebased main, but the local API remained on
+`streamed-catalog-20261001-e98474e9`. Authenticated reads of `/design`,
+`/design/history` and `/design/approved` returned empty 404 responses while the
+same system's narrative workspace returned 200. The running image predates the
+System design routes and additive schema. This is a deployment version mismatch,
+not a reason to remove permission checks or change the upstream design feature.
+
+The user authorized the repair. Deploy a frozen snapshot of committed
+`643644cb`, excluding concurrent uncommitted responsibility work. Before
+replacement, create and verify a fresh SQL backup and record existing narrative,
+version and baseline fingerprints. Preserve the current API container and
+runtime settings for rollback. Verify health, authenticated design reads,
+rendered design UI and narrative/coverage regressions after deployment.
+
+Deployment completed using image
+`ato-copilot-mcp:rebased-design-643644cb-e98474e9`, preserving the previous
+container as `ato-copilot-mcp-before-rebased-design-e98474e9`. The verified
+COPY_ONLY/CHECKSUM backup is
+`/var/opt/mssql/backup/requirement-coverage-e98474e9/AtoCopilot_before_rebased_design.bak`
+inside the SQL container. Runtime environment, ports and network configuration
+were preserved. The offline package feed was checksum-verified; the image build
+succeeded with NuGet version-resolution notices, not a warning-free claim.
+
+Authenticated design/history/approved/layout requests returned 200 (288, 131,
+59 and 176 ms respectively). The approved response is correctly null: no
+approval was invented. The narrative workspace returned 200 with its existing
+records. The rendered System design page and all four views (Context, Boundary,
+Network and Data flows) were checked with visible canvases and no page alerts.
+Final API health is healthy. Before/after/final fingerprints for narrative
+content, narrative versions and baseline control selections match exactly.
+
+During verification, shared Docker availability interrupted a view-switch
+check. Docker recorded an API OOM event at Unix time 1790868127 followed by exit
+137; SQL also exited 137. Several concurrent test containers were visible.
+Services recovered automatically; no manual restart, permission workaround or
+timeout increase was used. All four views passed after recovery. Shared Docker
+memory pressure remains an operational limitation, not a repaired application
+defect or a guarantee against recurrence.
+
+For manual testing, open System definition > System design on port 5197 and
+switch between the four diagram views. No save, build, submit or approval action
+was performed during verification. Rollback can use the retained predecessor
+API container; do not restore the database backup without explicitly reviewing
+any intervening user changes.
+
 ### Rebase onto main (October 1)
 
 Rebased onto `74273c46` after preserving all local narrative and responsibility

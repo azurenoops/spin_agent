@@ -2,6 +2,7 @@ using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Ato.Copilot.Mcp.Endpoints;
 
@@ -22,11 +23,11 @@ public static class ResponsibilityDraftEndpoints
             }
         });
         drafts.MapGet("/{controlId}", async (string systemId, string controlId, Guid? scopeId,
-            ResponsibilityDraftService service, CancellationToken ct) =>
+            [FromServices] ResponsibilityDraftService service, CancellationToken ct) =>
             TypedResults.Ok(await service.GetAsync(systemId, controlId, scopeId, ct)))
             .RequireResponsibilityAccess(false);
         drafts.MapPost("/{controlId}/prepare", async (string systemId, string controlId,
-            PrepareResponsibilityDraftRequest request, ResponsibilityDraftService service, ICurrentUserService user, CancellationToken ct) =>
+            PrepareResponsibilityDraftRequest request, [FromServices] ResponsibilityDraftService service, [FromServices] ICurrentUserService user, CancellationToken ct) =>
         {
             var result = await service.PrepareAsync(systemId, controlId, request, user.CurrentUserId, ct);
             return result.Draft?.GenerationState == "Failed"
@@ -35,15 +36,15 @@ public static class ResponsibilityDraftEndpoints
                 : Results.Ok(result);
         }).RequireResponsibilityAccess(true);
         drafts.MapPut("/record/{id:guid}", async (string systemId, Guid id, SaveResponsibilityDraftRequest request,
-            ResponsibilityDraftService service, ICurrentUserService user, CancellationToken ct) =>
+            [FromServices] ResponsibilityDraftService service, [FromServices] ICurrentUserService user, CancellationToken ct) =>
             TypedResults.Ok(await service.SaveAsync(systemId, id, request, user.CurrentUserId, ct)))
             .RequireResponsibilityAccess(true);
         drafts.MapPost("/record/{id:guid}/confirm", async (string systemId, Guid id, ConfirmResponsibilityDraftRequest request,
-            ResponsibilityDraftService service, ICurrentUserService user, CancellationToken ct) =>
+            [FromServices] ResponsibilityDraftService service, [FromServices] ICurrentUserService user, CancellationToken ct) =>
             TypedResults.Ok(await service.ConfirmAsync(systemId, id, request, user.CurrentUserId, ct)))
             .RequireResponsibilityAccess(true);
         drafts.MapGet("/record/{id:guid}/history", async (string systemId, Guid id, int? offset,
-            ResponsibilityDraftService service, CancellationToken ct) =>
+            [FromServices] ResponsibilityDraftService service, CancellationToken ct) =>
             TypedResults.Ok(await service.HistoryAsync(systemId, id, offset ?? 0, ct))).RequireResponsibilityAccess(false);
     }
 }

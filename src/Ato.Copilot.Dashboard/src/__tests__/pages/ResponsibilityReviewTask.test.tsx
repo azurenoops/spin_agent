@@ -73,6 +73,23 @@ it('offers a first pass when the API supports persisted responsibility drafts', 
   expect(within(drawer).getByText('Prepared first pass')).toBeVisible();
 });
 
+it('keeps system-only gaps visible and opens review without inventing a provider row', async () => {
+  // Arrange
+  vi.mocked(api.getCapabilityResponsibilities).mockResolvedValue({
+    ...preview(), items: [], supportsResponsibilityDrafts: true, baselineControlIds: ['AU-11'], systemAllocations: [],
+  });
+  render(<MemoryRouter initialEntries={['/systems/system-a/inheritance/subscriptions']}>
+    <Routes><Route path="/systems/:id/inheritance/subscriptions" element={<CapabilityResponsibilityReview />} /></Routes>
+  </MemoryRouter>);
+  // Act
+  const action = await screen.findByRole('button', { name: 'Review allocations' });
+  // Assert
+  expect(action).toBeEnabled();
+  expect(screen.getByText('Review required · 1 outstanding allocation')).toBeVisible();
+  fireEvent.click(action);
+  expect(screen.getByRole('dialog', { name: 'Review responsibility AU-11' })).toBeVisible();
+});
+
 it('preserves entered drafts across Shared, Inherited, Customer and unconfirmed choices', async () => {
   // Arrange
   const drawer = await open();

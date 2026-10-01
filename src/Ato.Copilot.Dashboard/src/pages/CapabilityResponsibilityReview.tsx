@@ -151,8 +151,12 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
 
   const selectedItem = selected && data?.items.find(item =>
     item.subscriptionId === selected.subscriptionId && item.controlId === selected.controlId);
-  const reviewRequired = data?.items.filter(item => item.state !== 'Applied').length ?? 0;
+  const unallocatedSystemControls = data?.baselineControlIds?.filter(controlId =>
+    !data.items.some(item => item.controlId === controlId)
+    && !data.systemAllocations?.some(allocation => allocation.controlId === controlId)) ?? [];
+  const reviewRequired = (data?.items.filter(item => item.state !== 'Applied').length ?? 0) + unallocatedSystemControls.length;
   const firstReviewable = data?.items.find(item => editableStates.has(item.state)) ?? data?.items[0];
+  const firstSystemControl = unallocatedSystemControls[0] ?? data?.baselineControlIds?.[0];
   const inconsistentSubscription = data && [...new Set(data.items.map(item => item.subscriptionId))].find(subscriptionId => {
     const items = data.items.filter(item => item.subscriptionId === subscriptionId);
     const first = items[0];
@@ -170,17 +174,17 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
           Confirm what the provider delivers and what your team must implement. A capability subscription or mapped control is not proof of inheritance.
         </p>
       </div>
-      <button type="button" className={buttonClass} disabled={!firstReviewable || loading}
-        onClick={() => firstReviewable && setSelected({
-          subscriptionId: firstReviewable.subscriptionId,
-          controlId: firstReviewable.controlId,
+      <button type="button" className={buttonClass} disabled={(!firstReviewable && !firstSystemControl) || loading}
+        onClick={() => (firstReviewable || firstSystemControl) && setSelected({
+          subscriptionId: firstReviewable?.subscriptionId ?? '',
+          controlId: firstReviewable?.controlId ?? firstSystemControl!,
         })}>
         Review allocations
       </button>
     </header>
 
     {data && <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-gray-200 py-3 text-sm dark:border-gray-700">
-      <span className="font-medium">{reviewRequired ? `Draft · ${reviewRequired} review required` : 'Applied · No pending reviews'}</span>
+      <span className="font-medium">{reviewRequired ? `Review required · ${reviewRequired} outstanding allocation${reviewRequired === 1 ? '' : 's'}` : 'No unresolved allocations reported'}</span>
       <span className="text-gray-600 dark:text-gray-300">{data.items.length} control contributions</span>
       <span className="text-gray-600 dark:text-gray-300">Baseline: {data.baselineName ?? 'Not selected'}</span>
     </div>}

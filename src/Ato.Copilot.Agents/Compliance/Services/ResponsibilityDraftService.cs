@@ -134,6 +134,10 @@ public sealed partial class ResponsibilityDraftService(AtoCopilotContext db,
         var values = Read<Dictionary<string, ResponsibilityDraftValue>>(row.ValuesJson);
         var allocation = values["allocation"].Value;
         if (allocation == "NeedsConfirmation") throw new ArgumentException("Resolve the allocation before confirmation.");
+        if (string.IsNullOrWhiteSpace(values["basis"].Value)
+            || allocation is "Inherited" or "Shared" && string.IsNullOrWhiteSpace(values["providerDuties"].Value)
+            || allocation == "Inherited" && new[] { "scope", "exclusions", "source" }.Any(key => string.IsNullOrWhiteSpace(values[key].Value)))
+            throw new ArgumentException("Complete the allocation basis, applicable provider duties, scope, exclusions and supporting source before confirming.");
         var input = new CapabilityResponsibilityAllocation(row.ControlId, allocation,
             Empty(values["provider"].Value), Empty(values["customer"].Value));
         if (Scope(row) is { } scopeId)
@@ -157,6 +161,8 @@ public sealed partial class ResponsibilityDraftService(AtoCopilotContext db,
         }
         else await responsibilities.ConfirmSystemAllocationAsync(systemId, captured.BaselineId, input, actor, ct);
         var acceptedSource = await CaptureAsync(systemId, row.ControlId, Scope(row), ct);
+        if (NonAllocationInputs(captured) != NonAllocationInputs(acceptedSource))
+            throw new ResponsibilityReviewConflictException("Source inputs changed during confirmation. No responsibility change was committed.");
         row.SourceHash = acceptedSource.Hash;
         row.SourceJson = Serialize(acceptedSource.Sources);
         row.Status = "Accepted"; row.Revision++;

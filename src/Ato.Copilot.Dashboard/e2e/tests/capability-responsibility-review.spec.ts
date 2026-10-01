@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import type { CapabilityResponsibilityResponse } from '../../src/api/capabilityResponsibilities';
 import type { NarrativeProposal } from '../../src/api/narrativeLibrary';
 import axe from 'axe-core';
+import type { ResponsibilityDraft, ResponsibilityDraftContext, ResponsibilityValue } from '../../src/api/responsibilityDrafts';
 
 declare global {
   interface Window { axe: typeof axe; }
@@ -30,6 +31,8 @@ async function installFixture(page: Page, baseURL: string, options: {
   source?: 'available' | 'unavailable' | 'removed' | 'malformed'; sourceRevision?: string;
   reviewed?: boolean;
   failSave?: boolean;
+  drafts?: boolean;
+  failGeneration?: boolean;
 } = {}) {
   const writes: { path: string; method: string; body: unknown; tenant: string | undefined; mode: string | undefined }[] = [];
   const reads: { path: string; tenant: string | undefined; mode: string | undefined }[] = [];
@@ -58,6 +61,29 @@ async function installFixture(page: Page, baseURL: string, options: {
       : item.reviewedSourceSnapshotJson,
     reviewedSourceRevision: options.reviewed && item.controlId === 'AC-1' ? 'REVIEWED-OPAQUE-PIN' : item.reviewedSourceRevision,
   }));
+  if (options.drafts) {
+    data.supportsResponsibilityDrafts = true;
+    data.baselineControlIds = ['AU-11'];
+    data.systemAllocations = [];
+  }
+  const sourceValue = (value: string): ResponsibilityValue => ({
+    value, origin: 'From system records', sourceIds: ['fixture-system'], explanation: 'Synthetic fixture record.',
+    userEdited: false, sourceHash: 'fixture-source-1',
+  });
+  let draft: ResponsibilityDraft | null = null;
+  const draftContext = (scopeId: string | null): ResponsibilityDraftContext => ({
+    systemId: 'system-a', controlId: 'AU-11', baselineId: 'baseline-a', scopeId, canPrepare: options.canConfirm !== false,
+    sourceHash: 'fixture-source-1', scopes: [], sources: [{
+      id: 'fixture-system', title: 'Synthetic system record', origin: 'From system records', version: 'fixture-source-1',
+      content: 'Synthetic system record for isolated tests only.', href: `${systemRoot.replace('/workspaces/organizations/org-a', '')}/evidence`,
+    }],
+    sourceValues: {
+      allocation: sourceValue('NeedsConfirmation'), provider: sourceValue(''), providerDuties: sourceValue(''),
+      customer: sourceValue('Recorded local operational duty.'), scope: sourceValue(''), exclusions: sourceValue(''),
+      source: sourceValue(''), basis: sourceValue('Recorded system ownership context.'), information: sourceValue('Confirm responsibility.'),
+    },
+    questions: ['Synthetic demonstration only.'], conflicts: [], draft,
+  });
   let proposal: NarrativeProposal = {
     id: proposalId, controlId: 'AC-1', narrativeType: 'Technical', baseVersion: 7, beforeContent: 'Preserved approved narrative',
     proposedContent: '', stateHash: 'opaque-narrative-state', provenance: { changeOrigin: { SubscriptionId: 'subscription-a' } },
@@ -97,6 +123,43 @@ async function installFixture(page: Page, baseURL: string, options: {
         canManageRemediation: false, canDecideAuthorization: false },
     });
     if (path === `${apiRoot}/responsibilities`) return json(data);
+    if (options.drafts && path.includes(`${apiRoot}/drafts/`)) {
+      const scopeId = new URL(request.url()).searchParams.get('scopeId');
+      if (request.method() === 'GET') return json(draftContext(scopeId));
+      const body = request.postDataJSON();
+      if (path.endsWith('/prepare')) {
+        const values = draftContext(body.scopeId).sourceValues;
+        const suggestion = { ...values, allocation: { ...sourceValue('Customer'), origin: 'AI proposed' as const },
+          customer: { ...sourceValue(draft ? 'Refreshed proposed duty.' : 'AI proposed local duty.'), origin: 'AI proposed' as const } };
+        draft = {
+          id: '55555555-5555-5555-5555-555555555555', revision: (draft?.revision ?? 0) + 1,
+          status: draft ? 'ComparisonRequired' : 'Proposed', sourceHash: 'fixture-source-1', isStale: false,
+          generationState: options.failGeneration ? 'Failed' : body.generate ? 'Prepared' : 'NotRequested',
+          generationError: options.failGeneration ? 'Synthetic generation unavailable.' : null,
+          preparedAt: '2026-10-01T00:00:00Z', generatedAt: body.generate ? '2026-10-01T00:00:00Z' : null,
+          preparedBy: 'Synthetic reviewer', reviewedAt: null, reviewedBy: null,
+          values: draft?.values ?? (body.generate && !options.failGeneration ? suggestion : values),
+          suggestion: { values: suggestion, questions: [], conflicts: [] },
+          sources: draftContext(body.scopeId).sources, history: [],
+        };
+        return options.failGeneration
+          ? route.fulfill({ status: 503, json: { status: 503, title: 'Synthetic generation unavailable.', draftContext: draftContext(body.scopeId) } })
+          : json(draftContext(body.scopeId));
+      }
+      if (request.method() === 'PUT' && draft) {
+        const savedDraft = draft;
+        draft = { ...draft, revision: draft.revision + 1, status: body.applySuggestion ? 'Proposed' : draft.status,
+          values: Object.fromEntries(Object.entries(body.values).map(([key, value]) =>
+            [key, { ...savedDraft.values[key as keyof typeof savedDraft.values], value: String(value), userEdited: true }])) as ResponsibilityDraft['values'] };
+        return json(draft);
+      }
+      if (path.endsWith('/confirm') && draft) {
+        draft = { ...draft, revision: draft.revision + 1, status: 'Accepted', reviewedBy: 'Synthetic reviewer', reviewedAt: '2026-10-01T01:00:00Z' };
+        data.systemAllocations = [{ controlId: 'AU-11', inheritanceType: 'Customer', provider: null, customerResponsibility: draft.values.customer.value }];
+        return json(draft);
+      }
+      return route.fulfill({ status: 400, json: { status: 400, title: 'Unexpected synthetic draft operation' } });
+    }
     if (path.endsWith('/responsibilities') && request.method() === 'PUT') {
       if (options.failSave) return route.fulfill({ status: 500, json: { status: 500, title: 'Synthetic save failure' } });
       if (conflicts-- > 0) {
@@ -173,6 +236,57 @@ async function chooseShared(page: Page) {
 }
 
 for (const width of [1440, 390]) {
+  test(`prepared AU-11 draft, correction, comparison and authorized confirmation at ${width}px`, async ({ page, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 900 });
+    const { writes } = await installFixture(page, baseURL!, { drafts: true });
+    await page.goto(`${systemRoot}/inheritance/subscriptions`);
+    await page.getByLabel('Review any baseline control, including without a provider').selectOption('AU-11');
+    await page.getByRole('button', { name: 'Review system control' }).click();
+    const panel = page.getByRole('dialog', { name: 'Review responsibility AU-11' });
+    // Act
+    await panel.getByRole('button', { name: 'Prepare first pass', exact: true }).click();
+    // Assert
+    await expect(panel.getByRole('textbox', { name: 'Customer duties', exact: true })).toHaveValue('AI proposed local duty.');
+    expect(writes.some(write => write.path.endsWith('/confirm'))).toBe(false);
+    // Act
+    await panel.getByRole('textbox', { name: 'Customer duties', exact: true }).fill('Human corrected local duty.');
+    await panel.getByRole('button', { name: 'Save proposed draft' }).click();
+    await expect(panel.getByText(/draft revision 2/)).toBeVisible();
+    await panel.getByRole('button', { name: 'Refresh suggestion' }).click();
+    await expect(panel.getByRole('region', { name: 'Compare refreshed suggestion' })).toBeVisible();
+    // Assert
+    await expect(panel.getByRole('textbox', { name: 'Customer duties', exact: true })).toHaveValue('Human corrected local duty.');
+    // Act
+    await panel.getByRole('button', { name: 'Keep my edits after comparison' }).click();
+    await expect(panel.getByRole('region', { name: 'Compare refreshed suggestion' })).toHaveCount(0);
+    await panel.getByRole('button', { name: 'Review allocation', exact: true }).click();
+    await panel.getByRole('checkbox').check();
+    await panel.getByRole('button', { name: 'Confirm responsibility' }).click();
+    // Assert
+    await expect(panel).toHaveCount(0);
+    await expect(page.getByRole('row').filter({ hasText: 'AU-11' })).toContainText('Human corrected local duty.');
+    expect(writes.filter(write => write.path.endsWith('/confirm'))).toHaveLength(1);
+  });
+
+  test(`generation failure is explicit and permits manual correction at ${width}px`, async ({ page, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 900 });
+    const { writes } = await installFixture(page, baseURL!, { drafts: true, failGeneration: true });
+    await page.goto(`${systemRoot}/inheritance/subscriptions`);
+    await page.getByLabel('Review any baseline control, including without a provider').selectOption('AU-11');
+    await page.getByRole('button', { name: 'Review system control' }).click();
+    const panel = page.getByRole('dialog');
+    // Act
+    await panel.getByRole('button', { name: 'Prepare first pass', exact: true }).click();
+    // Assert
+    await expect(panel.getByRole('alert')).toHaveCount(1);
+    await expect(panel.getByRole('alert')).toContainText('Synthetic generation unavailable');
+    await panel.getByRole('radio', { name: /My team implements/ }).check();
+    await expect(panel.getByRole('textbox', { name: 'Customer duties', exact: true })).toBeEditable();
+    expect(writes.some(write => write.path.endsWith('/confirm'))).toBe(false);
+  });
+
   test(`task choices, keyboard, disclosure and fixed actions at ${width}px`, async ({ page, baseURL }) => {
     // Arrange
     await page.setViewportSize({ width, height: 800 });

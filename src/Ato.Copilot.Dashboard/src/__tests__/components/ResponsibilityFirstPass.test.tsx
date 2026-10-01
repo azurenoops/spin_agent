@@ -97,6 +97,7 @@ it('saves a proposed manual draft without requiring AI generation', async () => 
   fireEvent.click(screen.getByRole('button', { name: 'Save proposed draft' }));
   // Assert
   await waitFor(() => expect(api.prepareResponsibilityDraft).toHaveBeenCalledWith('system-a', 'AU-11', null, 0, false, expect.any(AbortSignal)));
+  expect(await screen.findByText('Saved proposed draft · revision 2')).toBeVisible();
   expect(api.confirmResponsibilityDraft).not.toHaveBeenCalled();
 });
 

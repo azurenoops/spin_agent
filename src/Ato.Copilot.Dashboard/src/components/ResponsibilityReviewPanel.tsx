@@ -141,7 +141,11 @@ export default function ResponsibilityReviewPanel({
   const footer = <div className="space-y-2">
     {actionError && <p role="alert" className={`${errorClass} text-sm`}>{actionError}</p>}
     <p className="text-xs text-gray-500 dark:text-gray-400">
-      {blocked ? 'Saved state needs verification. Your draft is preserved.' : 'Unsaved draft · confirmation is a separate action'}
+      {blocked ? 'Saved state needs verification. Your draft is preserved.'
+        : firstPass && prepared.saved && prepared.matchesSaved
+          ? prepared.saved.status === 'Accepted' ? 'Accepted review recorded · edits require a new proposed draft'
+            : `Saved proposed draft · revision ${prepared.saved.revision}`
+          : 'Unsaved draft · confirmation is a separate action'}
     </p>
     <div className="flex flex-wrap gap-2">
       {reviewing ? <>
@@ -172,7 +176,8 @@ export default function ResponsibilityReviewPanel({
       <section aria-label="Saved responsibility" className="space-y-1 text-sm">
         <p className="font-medium">Last verified saved allocation: {item?.allocation?.inheritanceType ??
           (prepared.context?.sourceValues.allocation.sourceIds.includes('responsibility') ? prepared.context.sourceValues.allocation.value : 'Not confirmed')}</p>
-        <p>Effective in baseline: {item?.effectiveInheritanceType ?? 'Not designated'}</p>
+        <p>Effective in baseline: {item?.effectiveInheritanceType ??
+          (prepared.context?.sourceValues.allocation.sourceIds.includes('responsibility') ? prepared.context.sourceValues.allocation.value : 'Not designated')}</p>
         <p className="text-gray-600 dark:text-gray-300">{stateExplanation}</p>
         {item?.allocation && <details>
           <summary className="cursor-pointer">Saved duties & review history</summary>
@@ -191,6 +196,9 @@ export default function ResponsibilityReviewPanel({
         <p className={warningClass}>The provider source has changed since the saved review. Recheck coverage before confirming.</p>}
       {synthetic && <p className={warningClass}>Source text describes synthetic or demonstration content. It cannot establish real provider coverage.</p>}
       {firstPass && <ResponsibilityFirstPass state={prepared} />}
+      {firstPass && item && <p className="text-sm text-gray-600 dark:text-gray-300">
+        Matrix contribution: {item.providerName ?? 'Provider name unavailable'} · {current?.Name ?? 'Capability unavailable'} · {current?.Component.Name ?? 'Component unavailable'}
+      </p>}
       {item && !firstPass && <ProviderSource item={item} current={current} historical={historical} systemId={systemId} />}
       {reviewing ? <section aria-label="Draft review" className="space-y-3 text-sm">
         <h3 tabIndex={-1} ref={summary} className="font-semibold">Review before confirming</h3>
