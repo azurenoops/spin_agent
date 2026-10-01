@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.Claims;
+using Ato.Copilot.Core.Authorization;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
@@ -38,6 +40,7 @@ public static class AuditQueryEndpoints
     private static async Task<IResult> QueryAuditAsync(
         HttpContext http,
         ITenantContext tenant,
+        IEffectiveAccessService effectiveAccess,
         AtoCopilotContext db,
         [FromQuery] Guid? tenantId,
         [FromQuery] Guid? actorTenantId,
@@ -50,9 +53,10 @@ public static class AuditQueryEndpoints
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        if (!tenant.IsCspAdmin)
+        var access = await ResolveAuditAccessAsync(http, tenant, effectiveAccess, ct);
+        if (access is null)
         {
-            return ForbiddenNotCspAdmin(sw);
+            return ForbiddenNoAuditAccess(sw);
         }
 
         var p = page ?? 1;
@@ -72,9 +76,21 @@ public static class AuditQueryEndpoints
         // T073 cover (TenantId, Timestamp) and (ActorTenantId, Timestamp) — so
         // the most common dashboard filter ("recent activity for tenant X")
         // hits an index seek.
-        IQueryable<AuditLogEntry> q = db.AuditLogs.AsNoTracking();
-        if (tenantId is { } t)        q = q.Where(x => x.TenantId == t);
-        if (actorTenantId is { } at)  q = q.Where(x => x.ActorTenantId == at);
+        if (tenantId is { } requestedTenant && requestedTenant != access.ScopeTenantId)
+        {
+            return Error(sw, StatusCodes.Status403Forbidden, "AUDIT_SCOPE_FORBIDDEN",
+                "The requested audit scope is not authorized.");
+        }
+        if (actorTenantId is { } requestedActorTenant && requestedActorTenant != access.ScopeTenantId)
+        {
+            return Error(sw, StatusCodes.Status403Forbidden, "AUDIT_SCOPE_FORBIDDEN",
+                "The requested actor scope is not authorized.");
+        }
+
+        IQueryable<AuditLogEntry> q = db.AuditLogs
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.TenantId == access.ScopeTenantId);
         if (!string.IsNullOrEmpty(actorOid)) q = q.Where(x => x.UserId == actorOid);
         if (!string.IsNullOrEmpty(action))   q = q.Where(x => x.Action == action);
         if (from is { } f)            q = q.Where(x => x.Timestamp >= f);
@@ -141,9 +157,41 @@ public static class AuditQueryEndpoints
     private static IResult Success(Stopwatch sw, object data) =>
         Results.Json(BuildEnvelope(sw, data), statusCode: StatusCodes.Status200OK);
 
-    private static IResult ForbiddenNotCspAdmin(Stopwatch sw) =>
-        Error(sw, StatusCodes.Status403Forbidden, "FORBIDDEN_NOT_CSP_ADMIN",
-            "Operation requires CSP.Admin role.");
+    private static async Task<AuditAccess?> ResolveAuditAccessAsync(
+        HttpContext http,
+        ITenantContext tenant,
+        IEffectiveAccessService effectiveAccess,
+        CancellationToken ct)
+    {
+        if (tenant.IsCspAdmin)
+        {
+            return new AuditAccess(tenant.EffectiveTenantId);
+        }
+
+        var oidValue = http.User.FindFirstValue("oid")
+            ?? http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(oidValue, out var oid)) return null;
+
+        var result = await effectiveAccess.ResolveAsync(
+            new EffectiveAccessSubject(
+                oid,
+                http.User.Identity?.Name ?? "Audit user",
+                tenant.EffectiveTenantId,
+                tenant.IsCspAdmin),
+            ct);
+
+        var allowed = result.Destinations.Any(destination =>
+            (destination.ScopeId == tenant.EffectiveTenantId.ToString("D")
+                && destination.Actions.Contains(AdminPortalActions.OrganizationAuditView, StringComparer.Ordinal))
+            || destination.Actions.Contains(AdminPortalActions.ProviderAuditView, StringComparer.Ordinal));
+        return allowed ? new AuditAccess(tenant.EffectiveTenantId) : null;
+    }
+
+    private sealed record AuditAccess(Guid ScopeTenantId);
+
+    private static IResult ForbiddenNoAuditAccess(Stopwatch sw) =>
+        Error(sw, StatusCodes.Status403Forbidden, "FORBIDDEN_AUDIT_ACCESS",
+            "Operation requires audit permission for the active administrative scope.");
 
     private static IResult Error(Stopwatch sw, int statusCode, string code, string message) =>
         Results.Json(new

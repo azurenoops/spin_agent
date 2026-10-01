@@ -53,7 +53,7 @@ interface MigrationReport {
   error: string | null;
 }
 
-export default function AdminMigrationPage() {
+export default function AdminMigrationPage({ embedded = false }: { embedded?: boolean }) {
   const login = useLoginConfig();
   const deploymentName = login.branding.deploymentName || 'Security Posture Intelligence Navigator';
 
@@ -137,7 +137,7 @@ export default function AdminMigrationPage() {
   const isAlreadyMigrated = totalRowsMissingTenant === 0 && preview !== null && !loading;
 
   return (
-    <PageLayout title="Admin Migration">
+    <PageLayout title="Admin Migration" embedded={embedded}>
       <PageHero
         eyebrow="Administration"
         title="Tenant Migration"

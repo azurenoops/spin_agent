@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using Ato.Copilot.Core.Authorization;
 using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Configuration.Auth;
 using Ato.Copilot.Core.Data.Context;
@@ -56,12 +57,49 @@ public static class AuthEndpoints
 
         group.MapGet("/login-config", GetLoginConfig).WithName("GetLoginConfig");
         group.MapGet("/me", GetMeAsync).WithName("GetMe");
+        group.MapGet("/effective-access", GetEffectiveAccessAsync).WithName("GetEffectiveAccess");
         group.MapPost("/signout", PostSignOutAsync).WithName("PostSignOut");
         group.MapPost("/select-tenant", PostSelectTenantAsync).WithName("PostSelectTenant");
         group.MapPost("/simulate", PostSimulateAsync).WithName("PostSimulate");
         group.MapGet("/events", GetEventsAsync).WithName("GetAuthEvents");
 
         return app;
+    }
+
+    private static async Task<IResult> GetEffectiveAccessAsync(
+        HttpContext http,
+        ITenantContext tenantContext,
+        IEffectiveAccessService effectiveAccess,
+        CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        if (!(http.User.Identity?.IsAuthenticated ?? false))
+        {
+            return Unauthorized(sw);
+        }
+
+        var oidValue = http.User.FindFirst("oid")?.Value
+            ?? http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(oidValue, out var objectId))
+        {
+            return Unauthorized(sw);
+        }
+
+        var displayName = http.User.FindFirst(ClaimTypes.Name)?.Value
+            ?? http.User.FindFirst("name")?.Value
+            ?? http.User.FindFirst("preferred_username")?.Value
+            ?? "Unknown user";
+
+        var result = await effectiveAccess.ResolveAsync(
+            new EffectiveAccessSubject(
+                objectId,
+                displayName,
+                tenantContext.EffectiveTenantId,
+                tenantContext.IsCspAdmin),
+            ct);
+
+        http.Response.Headers.CacheControl = "no-store";
+        return Success(sw, result);
     }
 
     // ─── GET /login-config ──────────────────────────────────────────────
@@ -192,6 +230,9 @@ public static class AuthEndpoints
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var auditCtx = auditCtxAccessor.FromHttpContext(http);
+        var assignedTenantIds = Guid.TryParse(oid, out var authenticatedOid)
+            ? await GetAssignedTenantIdsAsync(db, authenticatedOid, ct)
+            : [];
 
         // Look up the home tenant via the Entra tid claim.
         Tenant? homeTenant = null;
@@ -326,7 +367,8 @@ public static class AuthEndpoints
                     var isCspAdminForCookie = http.User.IsInRole("CSP.Admin");
                     var isMember = isCspAdminForCookie ||
                                    (Guid.TryParse(tid, out var tidGuid2) &&
-                                    rememberedTenant.EntraTenantId == tidGuid2);
+                                    rememberedTenant.EntraTenantId == tidGuid2) ||
+                                   assignedTenantIds.Contains(rememberedTenant.Id);
                     if (isMember)
                     {
                         effectiveTenant = rememberedTenant;
@@ -429,7 +471,12 @@ public static class AuthEndpoints
         }
         else
         {
-            membershipTenants = new List<Tenant> { homeTenant };
+            membershipTenants = await db.Tenants
+                .IgnoreQueryFilters()
+                .Where(candidate => candidate.Id == homeTenant.Id
+                    || assignedTenantIds.Contains(candidate.Id))
+                .OrderBy(candidate => candidate.DisplayName)
+                .ToListAsync(ct);
         }
         var tenantMemberships = membershipTenants.Select(ProjectTenant).ToArray();
 
@@ -862,8 +909,11 @@ public static class AuthEndpoints
         if (!canonicalWorkspace && !isCspAdmin)
         {
             var tidGuid = Guid.TryParse(tid, out var t) ? (Guid?)t : null;
-            var isMember = tidGuid is not null &&
-                           target.EntraTenantId == tidGuid;
+            var assignedTenantIds = Guid.TryParse(oid, out var authenticatedOid)
+                ? await GetAssignedTenantIdsAsync(db, authenticatedOid, ct)
+                : [];
+            var isMember = (tidGuid is not null && target.EntraTenantId == tidGuid)
+                || assignedTenantIds.Contains(target.Id);
             if (!isMember)
             {
                 return ErrorEnvelope(sw,
@@ -1268,6 +1318,31 @@ public static class AuthEndpoints
         displayName = t.DisplayName,
         status = t.Status.ToString(),
     };
+
+    private static async Task<HashSet<Guid>> GetAssignedTenantIdsAsync(
+        AtoCopilotContext db,
+        Guid objectId,
+        CancellationToken ct)
+    {
+        var people = await db.Persons
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(person => person.EntraObjectId == objectId && person.IsLinkedToDirectory)
+            .Select(person => new { person.Id, person.TenantId })
+            .ToListAsync(ct);
+        if (people.Count == 0) return [];
+
+        var personIds = people.Select(person => person.Id).ToArray();
+        var organizationTenants = await db.OrganizationRoleAssignments
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(assignment => personIds.Contains(assignment.PersonId)
+                && assignment.RemovedAt == null)
+            .Select(assignment => assignment.TenantId)
+            .Distinct()
+            .ToListAsync(ct);
+        return organizationTenants.ToHashSet();
+    }
 
     private static IResult Success(Stopwatch sw, object data) =>
         Results.Json(new

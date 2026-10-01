@@ -25,7 +25,9 @@ public sealed class FakeTenantContext : ITenantContext
 
     public Guid? ImpersonatedTenantId { get; set; }
 
-    public Guid EffectiveTenantId => ImpersonatedTenantId ?? TenantId;
+    public Guid? SelectedTenantId { get; set; }
+
+    public Guid EffectiveTenantId => ImpersonatedTenantId ?? SelectedTenantId ?? TenantId;
 
     public TenantStatus Status { get; set; } = TenantStatus.Active;
 
@@ -37,5 +39,6 @@ public sealed class FakeTenantContext : ITenantContext
         TenantId = tenantId;
         IsCspAdmin = isCspAdmin;
         ImpersonatedTenantId = impersonatedTenantId;
+        SelectedTenantId = null;
     }
 }

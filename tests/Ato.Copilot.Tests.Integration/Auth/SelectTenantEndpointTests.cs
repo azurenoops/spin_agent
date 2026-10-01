@@ -4,6 +4,7 @@ using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Models.Auth;
+using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp;
 using Ato.Copilot.Tests.Integration.Tenancy;
@@ -139,6 +140,48 @@ public class SelectTenantEndpointTests
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("error").GetProperty("errorCode").GetString()
             .Should().Be("FORBIDDEN_NOT_TENANT_MEMBER");
+    }
+
+    [Fact]
+    public async Task Post_SelectTenant_VerifiedAdministratorAssignmentInAnotherTenant_Returns204()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var oid = Guid.NewGuid();
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = ServiceProviderServiceExtensions
+                .GetRequiredService<AtoCopilotContext>(scope.ServiceProvider);
+            var person = new Person
+            {
+                TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId,
+                DisplayName = "Cross-tenant administrator",
+                Email = $"{oid:N}@example.mil",
+                EntraObjectId = oid,
+                IsLinkedToDirectory = true,
+            };
+            db.Persons.Add(person);
+            db.OrganizationRoleAssignments.Add(new OrganizationRoleAssignment
+            {
+                TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId,
+                PersonId = person.Id,
+                Role = OrganizationRole.Administrator,
+            });
+            await db.SaveChangesAsync();
+        }
+        WireSyntheticIdentity(client, oid.ToString(), EntraTidForTenantA);
+
+        // Act
+        var resp = await client.PostAsJsonAsync(
+            "/api/auth/select-tenant",
+            new
+            {
+                tenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId.ToString(),
+                remember = true,
+            });
+
+        // Assert
+        resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     [Fact]

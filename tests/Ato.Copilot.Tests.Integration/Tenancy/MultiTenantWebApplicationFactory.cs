@@ -218,6 +218,10 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
             {
                 ["Deployment:Mode"] = DeploymentModeOverride,
                 ["Deployment:Tenants:AllowSelfOnboarding"] = "false",
+                ["PlatformOperations:AllowLegacyCspAdminMigration"] = "true",
+                ["PlatformOperations:LegacyCspAdminMigrationExpiresAt"] = "2099-01-01T00:00:00Z",
+                ["ProviderAdministration:AllowLegacyCustomerContent"] = "true",
+                ["ProviderAdministration:LegacyCustomerContentExpiresAt"] = "2099-01-01T00:00:00Z",
                 // Per-host connection — env vars are process-global and race
                 // when two WebApplicationFactory instances boot in parallel
                 // (CspOnboarding + SimulateEndpoint hung on the same SQLite

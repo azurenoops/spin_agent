@@ -169,6 +169,19 @@ public class MsalAuthEndpointTests : IAsyncLifetime
         msal.TryGetProperty("redirectUri", out _).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task GetEffectiveAccess_RoleClaimWithoutPersistedAssignment_GrantsNoDestination()
+    {
+        var response = await _client.GetAsync("/api/auth/effective-access");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.CacheControl?.NoStore.Should().BeTrue();
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("status").GetString().Should().Be("success");
+        body.GetProperty("data").GetProperty("destinations").GetArrayLength().Should().Be(0,
+            "the simulated ISSO role-name string is not an authoritative assignment");
+    }
+
     /// <summary>
     /// NFR: login-config must not expose any secrets in the response body.
     /// Client secrets and certificates must never leave the server.

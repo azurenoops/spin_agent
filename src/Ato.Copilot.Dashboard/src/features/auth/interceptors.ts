@@ -143,6 +143,19 @@ export function attachAuthInterceptor(
         return Promise.reject(error);
       }
 
+      if (status === 403 && cfg) {
+        const requestUrl = cfg.url ?? '';
+        if (
+          requestUrl.startsWith('/api/dashboard')
+          || requestUrl.startsWith('/api/onboarding')
+          || requestUrl.startsWith('/api/csp')
+          || requestUrl.startsWith('/api/admin')
+          || requestUrl.startsWith('/api/audit')
+        ) {
+          window.dispatchEvent(new CustomEvent('spin:access-revoked'));
+        }
+      }
+
       return Promise.reject(error);
     },
   );

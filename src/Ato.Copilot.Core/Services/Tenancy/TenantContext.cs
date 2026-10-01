@@ -25,12 +25,14 @@ public sealed class TenantContext : ITenantContext
         Guid? organizationId = null,
         bool isCspAdmin = false,
         Guid? impersonatedTenantId = null,
-        TenantStatus status = TenantStatus.Active)
+        TenantStatus status = TenantStatus.Active,
+        Guid? selectedTenantId = null)
     {
         TenantId = tenantId;
         OrganizationId = organizationId;
         IsCspAdmin = isCspAdmin;
         ImpersonatedTenantId = impersonatedTenantId;
+        SelectedTenantId = selectedTenantId;
         Status = status;
     }
 
@@ -47,7 +49,10 @@ public sealed class TenantContext : ITenantContext
     public Guid? ImpersonatedTenantId { get; set; }
 
     /// <inheritdoc />
-    public Guid EffectiveTenantId => ImpersonatedTenantId ?? TenantId;
+    public Guid? SelectedTenantId { get; set; }
+
+    /// <inheritdoc />
+    public Guid EffectiveTenantId => ImpersonatedTenantId ?? SelectedTenantId ?? TenantId;
 
     /// <inheritdoc />
     public TenantStatus Status { get; set; } = TenantStatus.Active;

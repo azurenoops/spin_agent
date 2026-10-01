@@ -17,7 +17,9 @@ using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models;
 using Ato.Copilot.Core.Observability;
 using Ato.Copilot.Core.Services;
+using Ato.Copilot.Core.Services.Authorization;
 using Ato.Copilot.Core.Services.Tenancy;
+using Ato.Copilot.Core.Authorization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
@@ -53,6 +55,10 @@ public static class CoreServiceExtensions
         services.Configure<AlertOptions>(configuration.GetSection(AlertOptions.SectionName));
         services.Configure<NotificationOptions>(configuration.GetSection(NotificationOptions.SectionName));
         services.Configure<EscalationOptions>(configuration.GetSection(EscalationOptions.SectionName));
+        services.Configure<PlatformOperationsOptions>(
+            configuration.GetSection(PlatformOperationsOptions.SectionName));
+        services.Configure<ProviderAdministrationOptions>(
+            configuration.GetSection(ProviderAdministrationOptions.SectionName));
 
         // Bind enterprise hardening configuration sections (Feature 029)
         services.Configure<ResilienceOptions>(configuration.GetSection(ResilienceOptions.SectionName));
@@ -84,6 +90,7 @@ public static class CoreServiceExtensions
         // shared extension so all consumers are covered).
         services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.TryAddScoped<ITenantContext, TenantContext>();
+        services.TryAddScoped<IEffectiveAccessService, EffectiveAccessService>();
 
         // Register IMemoryCache with configurable size limit (FR-020a)
         var cachingOptions = new CachingOptions();
