@@ -4,6 +4,20 @@ This guide explains how to use the **Control Inheritance** page in the Security 
 
 ## Overview
 
+### Responsibility-save audit storage
+
+SQL Server deployments must allow the complete `SubscriptionReconcile` audit
+source (21 characters). The model uses 32 characters and the responsibility
+schema initializer widens an older `InheritanceAuditEntries.ChangeSource`
+column without deleting audit history, changing nullability or shrinking a
+wider column. A 20-character legacy column causes SQL error 2628 and the UI's
+generic responsibility-request failure.
+
+After applying this schema correction, reload the responsibility preview and
+retry the intended confirmation. Do not shorten provider/customer text or
+rename audit values to work around it. Schema repair does not confirm
+allocations, accept inheritance or approve documents on the user's behalf.
+
 Every control in your selected NIST 800-53 baseline must be designated as one of:
 
 | Type | Meaning |
