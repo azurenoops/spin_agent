@@ -112,7 +112,7 @@ for (const width of [1440, 390]) {
     const heading = page.getByRole('heading', { name: 'Inventory & system boundary', exact: true });
     await expect(heading).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'System task views' });
-    await expect(tabs.getByRole('link')).toHaveCount(6);
+    await expect(tabs.getByRole('link')).toHaveCount(7);
     await expect(tabs.locator('[aria-current="page"]')).toHaveText('Inventory & boundary');
     expect((await heading.boundingBox())!.y).toBeLessThan((await tabs.boundingBox())!.y);
     await expect(page.getByRole('cell', { name: 'Production boundary', exact: true })).toBeVisible();

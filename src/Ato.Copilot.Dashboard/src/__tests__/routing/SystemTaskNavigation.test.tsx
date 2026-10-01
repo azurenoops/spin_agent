@@ -17,7 +17,7 @@ describe('Systems task navigation', () => {
         <Routes><Route path="/systems/:id/*" element={<RouteView definitionOnly />} /></Routes>
       </MemoryRouter>);
       // Assert
-      expect(screen.getAllByRole('link')).toHaveLength(6);
+      expect(screen.getAllByRole('link')).toHaveLength(7);
       expect(screen.getByRole('link', { name: label })).toHaveAttribute('aria-current', 'page');
       expect(screen.queryByText(/Contributes to/)).not.toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Provider hosting' })).not.toBeInTheDocument();

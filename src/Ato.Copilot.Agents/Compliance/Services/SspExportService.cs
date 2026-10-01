@@ -98,6 +98,10 @@ public partial class SspExportService : ISspExportService
             export.SourceTenantId = requester.EffectiveTenantId;
             export.RequestedPersonId = requester.PersonId;
         }
+        var design = await SystemDesignDocumentData.LoadAsync(scope.ServiceProvider, systemId, cancellationToken);
+        if (design != null)
+            export.SourceManifestJson = System.Text.Json.JsonSerializer.Serialize(new DocumentSourceManifest(
+                "QueuedApprovedDesign", [], []) { Design = design.Source, DesignArtifacts = design.ArtifactSources });
         db.SspExports.Add(export);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -414,6 +418,8 @@ public partial class SspExportService : ISspExportService
                 if (!await access.CanReadAsync(tenantId, personId, export.SystemId, false, cancellationToken))
                     throw new UnauthorizedAccessException("The captured requester no longer has access to this mission system.");
             }
+            await RequireCurrentDesignAsync(scope.ServiceProvider, export.SourceManifestJson, export.SystemId, cancellationToken);
+            var queuedDesignManifest = export.SourceManifestJson;
             await ReportProgressAsync(job.UserId, job.ExportId, "Loading system data", 20);
 
             byte[] fileBytes;
@@ -434,6 +440,7 @@ public partial class SspExportService : ISspExportService
                     throw new InvalidOperationException($"Unsupported format: {job.Format}");
             }
 
+            await RequireCurrentDesignAsync(scope.ServiceProvider, queuedDesignManifest, export.SystemId, cancellationToken);
             await ReportProgressAsync(job.UserId, job.ExportId, "Writing file", 80);
 
             // Enforce 50 MB limit (FR-020)
@@ -612,6 +619,8 @@ public partial class SspExportService : ISspExportService
             throw new InvalidOperationException(string.Join("; ", result.ProviderProvenanceGaps));
         if (result.ProfileSourceGaps.Count > 0)
             throw new InvalidOperationException(string.Join("; ", result.ProfileSourceGaps));
+        if (result.DesignSourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.DesignSourceGaps));
         result = await AddFinalDocumentSourcesAsync(job.SystemId, retained, result, cancellationToken);
         if (result.EvidenceSourceGaps.Count > 0)
             throw new InvalidOperationException(string.Join("; ", result.EvidenceSourceGaps));

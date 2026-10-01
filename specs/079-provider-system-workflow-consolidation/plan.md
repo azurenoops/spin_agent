@@ -846,7 +846,7 @@ as runtime verified.
 ## Technical context
 
 **Language/Version**: C# / .NET 9 backend; TypeScript 5.7 / React 19 dashboard
-**Primary Dependencies**: Existing ASP.NET Core, EF Core, React Router, Vite, Vitest, Playwright, MkDocs Material
+**Primary Dependencies**: Existing ASP.NET Core, EF Core, React Router, Vite, Vitest, Playwright, MkDocs Material; System design adds pinned @xyflow/react 12.11.6 and elkjs 0.12.0 behind a presentation adapter
 **Storage**: Existing SQLite / SQL Server and retained file storage; additive version/history metadata and scoped workflow records
 **Project Type**: Existing multi-project application; implemented changes with verification and release gates tracked in tasks.md
 **Testing**: Existing xUnit, FluentAssertions, Moq, Vitest, Testing Library, Playwright

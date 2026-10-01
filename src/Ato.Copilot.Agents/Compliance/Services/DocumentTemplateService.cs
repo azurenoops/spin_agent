@@ -313,17 +313,20 @@ public partial class DocumentTemplateService : IDocumentTemplateService
                     throw new InvalidOperationException($"Template omits required SSP merge fields: {string.Join(", ", validation.MergeFieldsMissing)}.");
             }
         }
-        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken, sapId);
+        var design = await LoadDesignAsync(systemId, docType, cancellationToken);
+        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken, sapId, design);
         if (template != null)
         {
             var merged = ApplyMailMerge(template.FileBytes, mergeData);
             // Older layouts may not contain the new planning fields. A retained-record
             // appendix keeps the export complete without invalidating those templates.
-            return docType == "sap" ? AppendSapSnapshot(merged, mergeData) : merged;
+            return docType == "sap" ? AppendSapSnapshot(merged, mergeData)
+                : design == null ? merged : AppendDesignDiagrams(merged, design, includeText: true);
         }
 
         // No custom template — generate a built-in DOCX with merge data
-        return GenerateBuiltInDocx(docType, mergeData);
+        var document = GenerateBuiltInDocx(docType, mergeData);
+        return design == null ? document : AppendDesignDiagrams(document, design, includeText: false);
     }
 
     private static byte[] ApplyMailMerge(byte[] templateBytes, Dictionary<string, string> mergeData)
@@ -475,11 +478,12 @@ public partial class DocumentTemplateService : IDocumentTemplateService
 
         progress?.Report(0.1);
 
-        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken, sapId);
+        var design = await LoadDesignAsync(systemId, docType, cancellationToken);
+        var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken, sapId, design);
 
         progress?.Report(0.3);
 
-        var pdfBytes = GeneratePdf(docType, mergeData, progress);
+        var pdfBytes = GeneratePdf(docType, mergeData, progress, design);
 
         progress?.Report(1.0);
         return pdfBytes;
@@ -488,7 +492,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
     private static byte[] GeneratePdf(
         string documentType,
         Dictionary<string, string> mergeData,
-        IProgress<double>? progress)
+        IProgress<double>? progress, SystemDesignDocumentData? design = null)
     {
         var doc = global::QuestPDF.Fluent.Document.Create(container =>
         {
@@ -544,6 +548,15 @@ public partial class DocumentTemplateService : IDocumentTemplateService
                         var sectionProgress = 0.5 + (0.4 * sectionIndex / Math.Max(1, totalSections));
                         progress?.Report(Math.Min(0.9, sectionProgress));
                     }
+                    if (design != null)
+                        foreach (var artifact in design.Artifacts)
+                        {
+                            col.Item().PageBreak();
+                            col.Item().Text(artifact.Title).Bold();
+                            col.Item().Text(artifact.Description).FontSize(8);
+                            col.Item().MaxHeight(520).Svg(Encoding.UTF8.GetString(artifact.Content)).FitArea();
+                            col.Item().Text($"Diagram SHA-256: {artifact.ContentHash}").FontSize(8);
+                        }
                 });
 
                 // Footer
@@ -590,7 +603,8 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         string systemId,
         string documentType,
         CancellationToken cancellationToken,
-        string? sapId = null)
+        string? sapId = null,
+        SystemDesignDocumentData? design = null)
     {
         if (sapId is not null && documentType != "sap")
             throw new ArgumentException("A SAP source ID can only be used for SAP documents.");
@@ -633,6 +647,11 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         {
             case "ssp":
                 await PopulateSspData(db, systemId, system, data, cancellationToken);
+                if (design != null)
+                {
+                    data["ApprovedSystemDesign"] = design.Text;
+                    data["AuthorizationBoundary"] = design.Sections[11];
+                }
                 break;
             case "sar":
                 await PopulateSarData(db, systemId, data, cancellationToken);

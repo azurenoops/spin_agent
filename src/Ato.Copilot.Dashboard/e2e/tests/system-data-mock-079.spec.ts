@@ -48,7 +48,7 @@ for (const width of [1440, 390]) {
       await expect(heading).toBeVisible();
       const header = page.locator('main header').first();
       const tabs = page.getByRole('navigation', { name: 'System task views' });
-      await expect(tabs.getByRole('link')).toHaveCount(6);
+      await expect(tabs.getByRole('link')).toHaveCount(7);
       await expect(tabs.locator('[aria-current="page"]')).toHaveText('Data');
       expect((await heading.boundingBox())!.y).toBeLessThan((await tabs.boundingBox())!.y);
       const table = page.getByRole('table', { name: 'Information types', exact: true });

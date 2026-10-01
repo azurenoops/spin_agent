@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
@@ -16,6 +17,7 @@ public class DocumentGenerationService : IDocumentGenerationService
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly INistControlsService _nistService;
     private readonly ILogger<DocumentGenerationService> _logger;
+    private readonly IServiceScopeFactory? _scopeFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DocumentGenerationService"/> class.
@@ -23,11 +25,13 @@ public class DocumentGenerationService : IDocumentGenerationService
     public DocumentGenerationService(
         IDbContextFactory<AtoCopilotContext> dbFactory,
         INistControlsService nistService,
-        ILogger<DocumentGenerationService> logger)
+        ILogger<DocumentGenerationService> logger,
+        IServiceScopeFactory? scopeFactory = null)
     {
         _dbFactory = dbFactory;
         _nistService = nistService;
         _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
     /// <inheritdoc />
@@ -337,6 +341,16 @@ public class DocumentGenerationService : IDocumentGenerationService
         }
 
         sb.AppendLine();
+        if (await db.Set<SystemDesignWorkspace>()
+            .AnyAsync(x => x.SystemId == registeredSystem.Id, cancellationToken))
+        {
+            using var scope = (_scopeFactory ?? throw new InvalidOperationException("System design export services are unavailable.")).CreateScope();
+            var designService = scope.ServiceProvider.GetRequiredService<ISystemDesignService>();
+            var design = await SystemDesignDocumentData.LoadAsync(designService, registeredSystem.Id, cancellationToken);
+            if (design != null)
+                foreach (var section in design.Sections.Keys.Order())
+                    sb.AppendLine(design.Markdown(section));
+        }
         sb.AppendLine($"*This SSP was auto-generated on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC by Security Posture Intelligence Navigator.*");
         sb.AppendLine("*Review and approval by the System Owner and Authorizing Official is required.*");
 

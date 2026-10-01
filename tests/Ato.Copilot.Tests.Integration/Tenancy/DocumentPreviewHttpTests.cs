@@ -172,7 +172,8 @@ public sealed partial class DocumentPreviewHttpTests : IClassFixture<WorkspaceMe
         using var oscal = JsonDocument.Parse(content);
         var characteristics = oscal.RootElement.GetProperty("system-security-plan").GetProperty("system-characteristics");
         characteristics.GetProperty("system-name").GetString().Should().Be("DEMO route-backed mission");
-        characteristics.GetProperty("description").GetString().Should().Be("DEMO retained mission description");
+        characteristics.GetProperty("description").GetString().Should().Contain("DEMO retained mission description")
+            .And.Contain("DRAFT / UNAPPROVED").And.Contain("NotStarted");
         result.GetProperty("contentHash").GetString().Should().Be(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content))));
         result.GetProperty("sourceGaps").EnumerateArray().Should().Contain(g =>
             g.GetProperty("message").GetString()!.Contains("No control baseline"));

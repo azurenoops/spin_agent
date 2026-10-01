@@ -806,6 +806,9 @@ export interface ProfileOverview {
 }
 
 export interface ProfileCompletenessResponse {
+  designStatus?: string;
+  designRevision?: number;
+  approvedDesignRevision?: number | null;
   systemId: string;
   totalSections: number;
   statusCounts: Record<string, number>;

@@ -15,6 +15,10 @@ public sealed record DocumentSourceManifest(string Scope, IReadOnlyList<Document
     public IReadOnlyList<DocumentEvidenceReference> Evidence { get; init; } = [];
     public string EvidenceStatus { get; init; } = "NotEvaluated";
     public IReadOnlyList<DocumentResponsibilityReference> Responsibilities { get; init; } = [];
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DocumentSourceReference? Design { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<DocumentSourceReference>? DesignArtifacts { get; init; }
 }
 
 public sealed record DocumentResponsibilityReference(string? BaselineId, string SubscriptionId, Guid CapabilityId,
@@ -45,8 +49,10 @@ public sealed record DocumentPreviewDto(
     public Guid? PreviewId { get; init; }
     public DocumentSourceManifest? SourceManifest { get; init; }
     public bool IsPreview => true;
-    public string SourceState => "CurrentWorkingData";
-    public bool CanGenerate => SourceManifest is not null && !SourceManifest.HasWorkingProfileSources &&
+    public string SourceState { get; init; } = "CurrentWorkingData";
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool GenerationAuthorized { get; init; } = true;
+    public bool CanGenerate => GenerationAuthorized && SourceManifest is not null && !SourceManifest.HasWorkingProfileSources &&
         SourceGaps.All(gap => gap.Code == "OSCAL_SOURCE_WARNING");
 }
 

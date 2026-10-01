@@ -15,7 +15,7 @@ describe('system role navigation', () => {
     ]);
   });
 
-  it('uses all eight task groups and all thirty mock screen labels', () => {
+  it('preserves eight task groups and adds System design to the thirty existing screens', () => {
     // Arrange
     const labels = SYSTEM_NAV_GROUPS.map(group => group.label);
     // Act
@@ -25,8 +25,9 @@ describe('system role navigation', () => {
       'Overview', 'System definition', 'Controls & evidence', 'Assessment & risk',
       'ATO Readiness', 'Continuous monitoring', 'Team & permissions', 'Activity & history',
     ]);
-    expect(items).toHaveLength(30);
-    expect(new Set(items.map(item => item.path)).size).toBe(30);
+    expect(items).toHaveLength(31);
+    expect(new Set(items.map(item => item.path)).size).toBe(31);
+    expect(items).toContainEqual(expect.objectContaining({ path: 'profile/SystemDesign', label: 'System design' }));
     expect(items).toContainEqual(expect.objectContaining({ path: 'inheritance/subscriptions', label: 'Responsibilities' }));
   });
 });

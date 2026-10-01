@@ -610,8 +610,17 @@ public partial class SystemProfileService : ISystemProfileService
             missionOwnerName = legacyAssignment?.UserDisplayName ?? legacyAssignment?.UserId;
         }
 
+        var design = await db.Set<SystemDesignWorkspace>().AsNoTracking()
+            .SingleOrDefaultAsync(x => x.TenantId == system.TenantId && x.SystemId == systemId, cancellationToken);
+        var designStatus = design is null ? "NotStarted" : await db.Set<SystemDesignRevision>().AsNoTracking()
+            .Where(x => x.TenantId == system.TenantId && x.SystemId == systemId && x.Revision == design.Revision)
+            .Select(x => x.GovernanceStatus).SingleAsync(cancellationToken);
+
         return new ProfileCompletenessResult
         {
+            DesignStatus = designStatus,
+            DesignRevision = design?.Revision ?? 0,
+            ApprovedDesignRevision = design?.ApprovedRevision,
             SystemId = systemId,
             TotalSections = MandatorySections.Length,
             StatusCounts = statusCounts,

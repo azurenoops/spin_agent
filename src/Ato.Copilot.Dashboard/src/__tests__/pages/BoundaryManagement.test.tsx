@@ -88,7 +88,7 @@ describe('Inventory and boundary mock parity', () => {
     expect(screen.getByText('Mission Alpha')).toBeVisible();
     expect(screen.getByRole('status', { name: 'Boundary record status' })).toHaveTextContent('2 boundaries defined');
     expect(screen.getByRole('status', { name: 'Boundary record status' })).toHaveTextContent('Viewing does not approve scope');
-    expect(within(screen.getByRole('navigation', { name: 'System task views' })).getAllByRole('link')).toHaveLength(6);
+    expect(within(screen.getByRole('navigation', { name: 'System task views' })).getAllByRole('link')).toHaveLength(7);
     expect(screen.getByRole('button', { name: 'Review boundary' })).toBeEnabled();
     expect(await screen.findAllByRole('table')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Manage boundaries' })).not.toBeInTheDocument();

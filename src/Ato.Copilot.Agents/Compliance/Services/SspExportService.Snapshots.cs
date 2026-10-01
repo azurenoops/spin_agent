@@ -12,14 +12,16 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 public partial class SspExportService
 {
     public async Task<DocumentPreviewDto> CreatePreviewAsync(string systemId, string userId,
-        CancellationToken cancellationToken = default, string? idempotencyKey = null)
+        CancellationToken cancellationToken = default, string? idempotencyKey = null, bool approvedSources = false)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-        var requestScope = await SnapshotRequestScopeAsync(db, systemId, userId, "Preview", idempotencyKey, cancellationToken);
+        var requestScope = await SnapshotRequestScopeAsync(db, systemId, userId, approvedSources ? "ApprovedPreview" : "Preview", idempotencyKey, cancellationToken);
         var prior = await FindSnapshotRequestAsync(db, requestScope, cancellationToken);
         if (prior != null) return await PreviewResponseAsync(prior, cancellationToken);
-        var generated = await _oscalService.PreviewAsync(systemId, true, true, cancellationToken);
+        var generated = approvedSources
+            ? await _oscalService.PreviewApprovedAsync(systemId, true, true, cancellationToken)
+            : await _oscalService.PreviewAsync(systemId, true, true, cancellationToken);
         generated = await AddResponsibilitiesAsync(systemId, generated, cancellationToken);
         generated = await AddProviderEvidenceAsync(systemId, generated, cancellationToken);
         var bytes = Encoding.UTF8.GetBytes(generated.OscalJson);
@@ -67,7 +69,8 @@ public partial class SspExportService
         }
         return new(systemId, "json", "application/json", generated.OscalJson, snapshot.ContentHash, snapshot.GeneratedAt, gaps)
         {
-            PreviewId = snapshot.Id, SourceManifest = generated.SourceManifest
+            PreviewId = snapshot.Id, SourceManifest = generated.SourceManifest,
+            SourceState = approvedSources ? "ApprovedSources" : "CurrentWorkingData"
         };
     }
 
@@ -80,6 +83,7 @@ public partial class SspExportService
         var prior = await FindSnapshotRequestAsync(db, requestScope, cancellationToken);
         if (prior != null) return ReplayExport(prior, previewId);
         var preview = await RequirePreviewAsync(db, systemId, previewId, cancellationToken);
+        await RequireCurrentDesignAsync(scope.ServiceProvider, preview.SourceManifestJson, systemId, cancellationToken);
         await ValidateCurrentEvidenceAsync(preview.SourceManifestJson, systemId, cancellationToken);
         await ReadPreviewBytesAsync(preview, cancellationToken);
         var export = new SspExport
@@ -142,7 +146,10 @@ public partial class SspExportService
             JsonSerializer.Deserialize<DocumentSourceGapDto[]>(snapshot.SourceGapsJson ?? "[]") ?? [])
         {
             PreviewId = snapshot.Id,
-            SourceManifest = snapshot.SourceManifestJson == null ? null : JsonSerializer.Deserialize<DocumentSourceManifest>(snapshot.SourceManifestJson)
+            SourceManifest = snapshot.SourceManifestJson == null ? null : JsonSerializer.Deserialize<DocumentSourceManifest>(snapshot.SourceManifestJson),
+            SourceState = snapshot.SourceManifestJson != null &&
+                JsonSerializer.Deserialize<DocumentSourceManifest>(snapshot.SourceManifestJson)?.HasWorkingProfileSources == false
+                ? "ApprovedSources" : "CurrentWorkingData"
         };
     }
 
@@ -156,9 +163,20 @@ public partial class SspExportService
         if (manifest?.HasWorkingProfileSources == true)
             throw new ArgumentException("Working profile previews are review-only and cannot be promoted to final exports. Generate from approved sources instead.");
         var gaps = JsonSerializer.Deserialize<DocumentSourceGapDto[]>(preview.SourceGapsJson ?? "[]") ?? [];
-        if (gaps.Any(x => x.Code is "PROVIDER_PROVENANCE_UNVERIFIED" or "PROFILE_APPROVAL_UNVERIFIED" or "EVIDENCE_PERMISSION_UNVERIFIED"))
+        if (gaps.Any(x => x.Code != "OSCAL_SOURCE_WARNING"))
             throw new ArgumentException("Preview has unresolved source/approval gaps; review source metadata and generate a new preview.");
         return preview;
+    }
+
+    private static async Task RequireCurrentDesignAsync(IServiceProvider services, string? manifestJson, string systemId, CancellationToken ct)
+    {
+        var manifest = manifestJson == null ? null : JsonSerializer.Deserialize<DocumentSourceManifest>(manifestJson);
+        if (manifest?.Design == null) return;
+        var design = await SystemDesignDocumentData.LoadAsync(services, systemId, ct)
+            ?? throw new InvalidOperationException("DESIGN_APPROVAL_UNVERIFIED: Retained design source is unavailable.");
+        if (design.Source != manifest.Design || manifest.DesignArtifacts == null ||
+            !design.ArtifactSources.SequenceEqual(manifest.DesignArtifacts))
+            throw new InvalidOperationException("DESIGN_SOURCE_CHANGED: Create a fresh approved preview after reviewing changed design sources or artifacts.");
     }
 
     private async Task<byte[]> ReadPreviewBytesAsync(SspExport preview, CancellationToken ct)

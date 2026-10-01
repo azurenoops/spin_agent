@@ -5,6 +5,10 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// </summary>
 public interface IOscalSspExportService
 {
+    /// <summary>Preview the exact approved-source projection without promoting working profile content.</summary>
+    Task<OscalExportResult> PreviewApprovedAsync(string registeredSystemId, bool includeBackMatter = true,
+        bool prettyPrint = true, CancellationToken cancellationToken = default) =>
+        ExportAsync(registeredSystemId, includeBackMatter, prettyPrint, cancellationToken);
     /// <summary>Generate review-only OSCAL containing saved working profile contributions, never approval pins.</summary>
     Task<OscalExportResult> PreviewAsync(
         string registeredSystemId,
@@ -26,15 +30,17 @@ public record OscalExportResult(string OscalJson, List<string> Warnings, OscalSt
     public IReadOnlyList<string> ProviderProvenanceGaps { get; init; } = [];
     public IReadOnlyList<string> ProfileSourceGaps { get; init; } = [];
     public IReadOnlyList<string> EvidenceSourceGaps { get; init; } = [];
+    public IReadOnlyList<string> DesignSourceGaps { get; init; } = [];
     public Ato.Copilot.Core.Dtos.Dashboard.DocumentSourceManifest? SourceManifest { get; init; }
 
     public IReadOnlyList<Ato.Copilot.Core.Dtos.Dashboard.DocumentSourceGapDto> BuildPreviewSourceGaps()
     {
-        var gaps = Warnings.Concat(ProviderProvenanceGaps).Concat(ProfileSourceGaps).Concat(EvidenceSourceGaps)
+        var gaps = Warnings.Concat(ProviderProvenanceGaps).Concat(ProfileSourceGaps).Concat(EvidenceSourceGaps).Concat(DesignSourceGaps)
             .Distinct(StringComparer.Ordinal).Select(message => new Ato.Copilot.Core.Dtos.Dashboard.DocumentSourceGapDto(
                 ProviderProvenanceGaps.Contains(message) ? "PROVIDER_PROVENANCE_UNVERIFIED" :
                 ProfileSourceGaps.Contains(message) ? "PROFILE_APPROVAL_UNVERIFIED" :
-                EvidenceSourceGaps.Contains(message) ? "EVIDENCE_PERMISSION_UNVERIFIED" : "OSCAL_SOURCE_WARNING",
+                EvidenceSourceGaps.Contains(message) ? "EVIDENCE_PERMISSION_UNVERIFIED" :
+                DesignSourceGaps.Contains(message) ? "DESIGN_APPROVAL_UNVERIFIED" : "OSCAL_SOURCE_WARNING",
                 message)).ToList();
         if (SourceManifest?.HasWorkingProfileSources == true)
             gaps.Add(new("WORKING_PROFILE_PREVIEW_ONLY",

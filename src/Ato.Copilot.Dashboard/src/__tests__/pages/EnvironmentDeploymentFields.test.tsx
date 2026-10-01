@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ProfileSectionForm from '../../components/forms/ProfileSectionForm';
+vi.mock('../../features/system-design/UnsavedDesignGuard', () => ({ default: () => null }));
 
 vi.mock('../../features/systems/ConnectedSystemEnvironments', () => ({ default: () => <section aria-label="System subscriptions" /> }));
 function mount(content: Record<string, string>, locked = false) {

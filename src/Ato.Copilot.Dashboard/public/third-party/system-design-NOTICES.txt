@@ -1,0 +1,18 @@
+System design graph rendering dependencies
+
+@xyflow/react 12.11.6 and @xyflow/system 0.0.82
+Copyright (c) 2019-2025 webkid GmbH
+Licensed under MIT. See xyflow-MIT-LICENSE.txt in this directory.
+Upstream source: https://github.com/xyflow/xyflow
+
+elkjs 0.12.0
+Eclipse Layout Kernel JavaScript distribution
+Licensed here under the Eclipse Public License 2.0 option.
+See elkjs-0.12.0-LICENSE.md in this directory, including its upstream notices.
+Corresponding upstream source:
+https://github.com/kieler/elkjs/tree/0.12.0
+https://github.com/eclipse-elk/elk
+
+These libraries are used without modifications. Application graph records and
+presentation adapters are separate application code. Moving diagram nodes does
+not change canonical compliance records.

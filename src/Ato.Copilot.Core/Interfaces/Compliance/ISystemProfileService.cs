@@ -297,6 +297,9 @@ public class BatchApproveResult
 /// <summary>Completeness metrics for dashboard display.</summary>
 public class ProfileCompletenessResult
 {
+    public string DesignStatus { get; set; } = "NotStarted";
+    public long DesignRevision { get; set; }
+    public long? ApprovedDesignRevision { get; set; }
     /// <summary>System GUID.</summary>
     public string SystemId { get; set; } = string.Empty;
     /// <summary>Total mandatory sections (always 5).</summary>

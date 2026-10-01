@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import './features/system-design/navigationGuardRegistry';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import axios from 'axios';
