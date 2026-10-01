@@ -202,7 +202,8 @@ public static class SspPdfImportEndpoints
 
     private static bool TryGetTenantId(ClaimsPrincipal user, out Guid tenantId)
     {
-        var raw = user.FindFirstValue("tid")
+        var raw = user.FindFirstValue("ato:effective_tenant_id")
+            ?? user.FindFirstValue("tid")
             ?? user.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
         return Guid.TryParse(raw, out tenantId);
     }

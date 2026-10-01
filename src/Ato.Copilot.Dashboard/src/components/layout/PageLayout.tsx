@@ -45,9 +45,14 @@ interface PageLayoutProps {
   sidePanel?: ReactNode;
   leftPanel?: ReactNode;
   defaultSidePanelOpen?: boolean;
+  embedded?: boolean;
 }
 
-export default function PageLayout({ title, children, sidePanel, leftPanel, defaultSidePanelOpen = true }: PageLayoutProps) {
+export default function PageLayout({ embedded = false, ...props }: PageLayoutProps) {
+  return embedded ? <>{props.children}</> : <FullPageLayout {...props} />;
+}
+
+function FullPageLayout({ title, children, sidePanel, leftPanel, defaultSidePanelOpen = true }: PageLayoutProps) {
   const workspace = useWorkspaceSession();
   const location = useLocation();
   const inSystem = /^\/systems\/[^/]+(?:\/|$)/.test(location.pathname) && location.pathname !== '/systems/new';

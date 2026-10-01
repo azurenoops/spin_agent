@@ -65,7 +65,7 @@ public class AuditQueryEndpointTests
 
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("error").GetProperty("errorCode").GetString().Should().Be("FORBIDDEN_NOT_CSP_ADMIN");
+        body.GetProperty("error").GetProperty("errorCode").GetString().Should().Be("FORBIDDEN_AUDIT_ACCESS");
     }
 
     [Fact]
@@ -86,6 +86,17 @@ public class AuditQueryEndpointTests
                 "tenantId filter selects EffectiveTenantId per contract");
         }
         items.GetArrayLength().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Get_Audit_RejectsAnotherTenantScope()
+    {
+        var resp = await _client.GetAsync($"/api/audit?tenantId={_tenantB}");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetProperty("errorCode").GetString()
+            .Should().Be("AUDIT_SCOPE_FORBIDDEN");
     }
 
     [Fact]

@@ -88,13 +88,22 @@ public class AuditFieldsPopulatedTests
             CorrelationId = correlation,
         });
 
-        var page = await GetAuditPageAsync($"/api/audit?action={marker}");
-        var item = page.GetProperty("items")[0];
+        var tenantContext = _factory.GetActiveContext();
+        tenantContext.ImpersonatedTenantId = _tenantB;
+        try
+        {
+            var page = await GetAuditPageAsync($"/api/audit?action={marker}");
+            var item = page.GetProperty("items")[0];
 
-        item.GetProperty("actorTenantId").GetGuid().Should().Be(_tenantA);
-        item.GetProperty("effectiveTenantId").GetGuid().Should().Be(_tenantB);
-        item.GetProperty("impersonatedTenantId").GetGuid().Should().Be(_tenantB);
-        item.GetProperty("correlationId").GetString().Should().Be(correlation);
+            item.GetProperty("actorTenantId").GetGuid().Should().Be(_tenantA);
+            item.GetProperty("effectiveTenantId").GetGuid().Should().Be(_tenantB);
+            item.GetProperty("impersonatedTenantId").GetGuid().Should().Be(_tenantB);
+            item.GetProperty("correlationId").GetString().Should().Be(correlation);
+        }
+        finally
+        {
+            tenantContext.ImpersonatedTenantId = null;
+        }
     }
 
     private async Task SeedAsync(AuditLogEntry row)

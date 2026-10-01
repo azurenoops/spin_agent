@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Security.Claims;
+using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Mcp.Configuration;
@@ -7,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Ato.Copilot.Mcp.Endpoints.Csp;
@@ -88,6 +91,8 @@ public static class CspDashboardEndpoints
         ITenantContext tenantCtx,
         ICspDashboardService service,
         IOptions<DeploymentOptions> deployment,
+        IOptions<ProviderAdministrationOptions> providerOptions,
+        IDbContextFactory<AtoCopilotContext> dbFactory,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
@@ -95,8 +100,34 @@ public static class CspDashboardEndpoints
             return shortCircuit;
         if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
 
-        var summary = await service.GetSummaryAsync(ct);
-        return Success(sw, BuildSummaryDto(summary));
+        if (HasLegacyCustomerContent(providerOptions.Value))
+        {
+            var summary = await service.GetSummaryAsync(ct);
+            return Success(sw, BuildSummaryDto(summary));
+        }
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var tenantCounts = await db.Tenants
+            .IgnoreQueryFilters()
+            .GroupBy(tenant => tenant.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToListAsync(ct);
+        var active = tenantCounts.FirstOrDefault(item => item.Status == TenantStatus.Active)?.Count ?? 0;
+        var suspended = tenantCounts.FirstOrDefault(item => item.Status == TenantStatus.Suspended)?.Count ?? 0;
+        var disabled = tenantCounts.FirstOrDefault(item => item.Status == TenantStatus.Disabled)?.Count ?? 0;
+        return Success(sw, new
+        {
+            tenantCounts = new
+            {
+                active,
+                suspended,
+                disabled,
+                total = active + suspended + disabled,
+            },
+            organizationCount = active + suspended + disabled,
+            customerContentAvailable = false,
+            generatedAt = DateTimeOffset.UtcNow,
+        });
     }
 
     private static async Task<IResult> GetTenantsAsync(
@@ -104,6 +135,8 @@ public static class CspDashboardEndpoints
         ITenantContext tenantCtx,
         ICspDashboardService service,
         IOptions<DeploymentOptions> deployment,
+        IOptions<ProviderAdministrationOptions> providerOptions,
+        IDbContextFactory<AtoCopilotContext> dbFactory,
         CancellationToken ct,
         int? page = null,
         int? pageSize = null,
@@ -148,6 +181,41 @@ public static class CspDashboardEndpoints
             return ValidationError(sw, $"order '{order}' must be 'asc' or 'desc'.");
         }
 
+        if (!HasLegacyCustomerContent(providerOptions.Value))
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var query = db.Tenants.IgnoreQueryFilters().AsNoTracking();
+            if (statusFilter is not null)
+            {
+                query = query.Where(tenant => tenant.Status == statusFilter);
+            }
+
+            query = resolvedOrder.Equals("desc", StringComparison.OrdinalIgnoreCase)
+                ? query.OrderByDescending(tenant => tenant.DisplayName)
+                : query.OrderBy(tenant => tenant.DisplayName);
+            var total = await query.CountAsync(ct);
+            var items = await query
+                .Skip((resolvedPage - 1) * resolvedPageSize)
+                .Take(resolvedPageSize)
+                .Select(tenant => new
+                {
+                    tenantId = tenant.Id,
+                    displayName = tenant.DisplayName,
+                    status = tenant.Status.ToString(),
+                    onboardingState = tenant.OnboardingState.ToString(),
+                    createdAt = tenant.CreatedAt,
+                })
+                .ToListAsync(ct);
+            return Success(sw, new
+            {
+                items,
+                page = resolvedPage,
+                pageSize = resolvedPageSize,
+                totalCount = total,
+                customerContentAvailable = false,
+            });
+        }
+
         // ─── query + project ───────────────────────────────────────────────
         var result = await service.GetTenantsAsync(
             resolvedPage,
@@ -165,6 +233,7 @@ public static class CspDashboardEndpoints
         ITenantContext tenantCtx,
         ICspDashboardService service,
         IOptions<DeploymentOptions> deployment,
+        IOptions<ProviderAdministrationOptions> providerOptions,
         CancellationToken ct,
         int? page = null,
         int? pageSize = null,
@@ -177,6 +246,8 @@ public static class CspDashboardEndpoints
         if (ShouldShortCircuitSingleTenant(deployment, out var shortCircuit))
             return shortCircuit;
         if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!HasLegacyCustomerContent(providerOptions.Value))
+            return CustomerContentGrantRequired(sw);
 
         // ─── validation ────────────────────────────────────────────────────
         var (resolvedPage, pageError) = ResolvePage(page);
@@ -238,6 +309,7 @@ public static class CspDashboardEndpoints
         ITenantContext tenantCtx,
         ICspDashboardService service,
         IOptions<DeploymentOptions> deployment,
+        IOptions<ProviderAdministrationOptions> providerOptions,
         CancellationToken ct,
         int? page = null,
         int? pageSize = null,
@@ -250,6 +322,8 @@ public static class CspDashboardEndpoints
         if (ShouldShortCircuitSingleTenant(deployment, out var shortCircuit))
             return shortCircuit;
         if (!tenantCtx.IsCspAdmin) return ForbiddenNotCspAdmin(sw);
+        if (!HasLegacyCustomerContent(providerOptions.Value))
+            return CustomerContentGrantRequired(sw);
 
         // ─── validation ────────────────────────────────────────────────────
         var (resolvedPage, pageError) = ResolvePage(page);
@@ -409,6 +483,16 @@ public static class CspDashboardEndpoints
         openDeviationCount = s.OpenDeviationCount,
         generatedAt = s.GeneratedAt,
     };
+
+    private static bool HasLegacyCustomerContent(ProviderAdministrationOptions options) =>
+        options.AllowLegacyCustomerContent
+        && options.LegacyCustomerContentExpiresAt > DateTimeOffset.UtcNow;
+
+    private static IResult CustomerContentGrantRequired(Stopwatch sw) =>
+        Error(
+            StatusCodes.Status403Forbidden,
+            "CUSTOMER_SYSTEM_GRANT_REQUIRED",
+            "Provider administration does not grant access to customer-system ATO content.");
 
     private static object BuildTenantsPageDto(CspDashboardTenantsPage page) => new
     {

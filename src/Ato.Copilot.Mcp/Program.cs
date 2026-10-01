@@ -623,6 +623,7 @@ async Task RunHttpModeAsync(string[] args)
     // checks so role gates can read ITenantContext.IsCspAdmin and the global
     // EF query filter sees the resolved EffectiveTenantId.
     app.UseMiddleware<TenantResolutionMiddleware>();
+    app.UseMiddleware<DashboardAccessMiddleware>();
     app.UseMiddleware<ComplianceAuthorizationMiddleware>();
     app.UseMiddleware<RequestMetricsMiddleware>();
     app.UseMiddleware<AuditLoggingMiddleware>();

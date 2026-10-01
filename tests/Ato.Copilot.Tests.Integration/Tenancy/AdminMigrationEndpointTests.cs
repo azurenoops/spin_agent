@@ -49,7 +49,7 @@ public class AdminMigrationEndpointTests
     // ─── Preview endpoint ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Preview_AsCspAdmin_Returns200_WithPerTableRows()
+    public async Task Preview_WithTemporaryLegacyCspCompatibility_Returns200_WithPerTableRows()
     {
         var resp = await _client.GetAsync("/api/admin/migrate-to-multitenant/preview");
 
@@ -70,7 +70,7 @@ public class AdminMigrationEndpointTests
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("error").GetProperty("errorCode").GetString()
-            .Should().Be("FORBIDDEN_NOT_CSP_ADMIN");
+            .Should().Be("FORBIDDEN_NOT_PLATFORM_OPERATOR");
     }
 
     // ─── Execute — existing contract tests (updated to send confirmation header) ─
