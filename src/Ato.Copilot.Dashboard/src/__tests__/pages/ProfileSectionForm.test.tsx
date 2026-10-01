@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import ProfileSectionForm from '../../components/forms/ProfileSectionForm';
 import '../helpers/dialog';
+vi.mock('../../features/system-design/UnsavedDesignGuard', () => ({ default: () => null }));
 
 type Props = ComponentProps<typeof ProfileSectionForm>;
 const original = { missionStatement: 'Saved mission', businessPurpose: 'Saved purpose', customSource: 'preserve' };

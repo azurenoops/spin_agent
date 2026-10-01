@@ -42,7 +42,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('button', { name: 'Choose provider hosting', exact: true })).toBeVisible();
     await expect(header.getByRole('button', { name: 'Save Draft', exact: true })).toHaveCount(0);
     const tabs = page.getByRole('navigation', { name: 'System task views' });
-    await expect(tabs.getByRole('link')).toHaveCount(6);
+    await expect(tabs.getByRole('link')).toHaveCount(7);
     await expect(tabs.locator('[aria-current="page"]')).toHaveText('Environment & hosting');
     const model = page.getByRole('combobox', { name: 'Hosting model', exact: true });
     const cloud = page.getByRole('combobox', { name: 'Cloud environment', exact: true });

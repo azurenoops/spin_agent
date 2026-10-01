@@ -821,6 +821,11 @@ public static class ServiceCollectionExtensions
 
         // ─── System Profile services and tools (Feature 046) ────────────────
         services.AddSingleton<ISystemProfileService, SystemProfileService>();
+        services.AddScoped<ISystemDesignService>(sp => new SystemDesignService(
+            sp.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<Ato.Copilot.Core.Data.Context.AtoCopilotContext>>(),
+            sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor>().Current
+                ?? sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>(),
+            sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService>()));
         services.AddSingleton<IProfileNotificationService, ProfileNotificationService>();
         services.AddSingleton<IEmailSender, StubEmailSender>();
 

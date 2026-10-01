@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useParams } from '../features/workspaces/workspaceNavigation';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { useSettings } from '../hooks/useSettings';
@@ -21,6 +21,8 @@ import type {
   GovernanceStatus,
   UserCategoryReviewRequest,
 } from '../types/dashboard';
+
+const SystemDesign = lazy(() => import('../features/system-design/SystemDesign'));
 
 // ─── Governance badge color mapping ─────────────────────────────────────────
 
@@ -50,6 +52,11 @@ export default function SystemProfile() {
   const { sectionType } = useParams<{ sectionType: string }>();
   const { detail } = useSystemContext();
   const location = useLocation();
+  if (sectionType === 'SystemDesign') {
+    return <Suspense fallback={<p role="status">Loading System design…</p>}>
+      <SystemDesign key={detail.systemId} systemId={detail.systemId} />
+    </Suspense>;
+  }
   if (sectionType === 'EnvironmentAndDeployment' && location.hash === '#azure-assessment-environment') {
     return <Navigate replace to={`/systems/${encodeURIComponent(detail.systemId)}/assessments/environment#azure-assessment-environment`} />;
   }

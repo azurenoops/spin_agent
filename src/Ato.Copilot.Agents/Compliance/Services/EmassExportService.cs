@@ -653,6 +653,8 @@ public class EmassExportService : IEmassExportService
             throw new InvalidOperationException(string.Join("; ", result.ProviderProvenanceGaps));
         if (result.ProfileSourceGaps.Count > 0)
             throw new InvalidOperationException(string.Join("; ", result.ProfileSourceGaps));
+        if (result.DesignSourceGaps.Count > 0)
+            throw new InvalidOperationException(string.Join("; ", result.DesignSourceGaps));
         return result.OscalJson;
     }
 

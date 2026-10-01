@@ -37,6 +37,7 @@ const destinations: Record<string, string> = {
   '': 'Readiness', 'security-capabilities': 'Capability', roles: 'Team', boundaries: 'Boundary',
   'profile/MissionAndPurpose': 'Profile', 'profile/UsersAndAccess': 'Profile', 'profile/EnvironmentAndDeployment': 'Profile',
   'profile/DataTypes': 'Profile', 'profile/PortsProtocolsAndServices': 'Profile', 'profile/LeveragedAuthorizations': 'Profile',
+  'profile/SystemDesign': 'Profile',
   baseline: 'Baseline', inheritance: 'Inheritance', narratives: 'Narrative', 'narratives/library': 'Narrative',
   legal: 'Policy', assessments: 'Assessment', remediation: 'Remediation', poam: 'POAM', evidence: 'Evidence',
   deviations: 'Exception', authorize: 'Decision', documents: 'Document', conmon: 'Scoped monitoring', 'emass/status': 'eMASS',

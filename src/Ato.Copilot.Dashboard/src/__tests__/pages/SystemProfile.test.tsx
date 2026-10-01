@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { beforeEach,describe,expect,it,vi } from 'vitest';
 import SystemProfile,{ computeIsReadOnly } from '../../pages/SystemProfile';
 import type { ProfileSectionDetail,ProfileSectionType } from '../../types/dashboard';
+vi.mock('../../features/system-design/UnsavedDesignGuard', () => ({ default: () => null }));
 vi.mock('../../features/systems/SystemOperationalStatus', () => ({
   default: () => <p>Operational source status</p>,
 }));
@@ -155,7 +156,7 @@ describe('server-authoritative profile editing (#968)',() => {
     const nav = screen.getByRole('navigation', { name: 'System task views' });
     // Assert
     expect(heading.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(nav).getAllByRole('link')).toHaveLength(6);
+    expect(within(nav).getAllByRole('link')).toHaveLength(7);
     expect(await screen.findByDisplayValue('Recorded Owner')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save Draft' })).toHaveAttribute('form', 'system-profile-editor');
     expect(screen.getByRole('link', { name: 'Preview contribution' })).toHaveAttribute('href', '/systems/system-a/documents/preview?contribution=MissionAndPurpose');

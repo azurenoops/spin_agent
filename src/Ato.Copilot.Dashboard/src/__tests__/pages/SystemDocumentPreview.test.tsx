@@ -48,6 +48,46 @@ describe('generated document preview', () => {
     expect(screen.getByRole('navigation', { name: 'SSP document sections' })).toHaveTextContent('12. SSP Appendices List');
   });
 
+  it('requests and retains approved-source mode without relabeling it as a working draft or authorization', async () => {
+    // Arrange
+    vi.mocked(api.getSspPreview).mockResolvedValue({ ...preview, sourceState: 'ApprovedSources', sourceGaps: [] });
+    vi.mocked(api.retainSspPreview).mockResolvedValue({ ...preview, sourceState: 'ApprovedSources',
+      previewId: 'approved-preview-a', sourceGaps: [] });
+    // Act
+    mount('?source=approved&contribution=SystemDesign');
+    await screen.findByRole('heading', { name: 'Generated DEMO SSP' });
+    fireEvent.click(screen.getByRole('button', { name: 'Retain generated preview' }));
+    await screen.findByText(/server retained this exact generated document/);
+    // Assert
+    expect(api.getSspPreview).toHaveBeenCalledWith('system-a', expect.any(AbortSignal), 'approved');
+    expect(api.retainSspPreview).toHaveBeenCalledWith('system-a', expect.any(String), expect.any(AbortSignal), 'approved');
+    expect(screen.getByRole('region', { name: 'SSP cover page' })).toHaveTextContent('APPROVED SOURCE PREVIEW');
+    expect(screen.getByRole('region', { name: 'SSP cover page' })).not.toHaveTextContent('WORKING DRAFT');
+    expect(screen.getByRole('region', { name: 'SSP cover page' })).toHaveTextContent('does not establish authorization');
+    expect(screen.getByRole('link', { name: 'Review source mapping' })).toHaveAttribute('href', '/systems/system-a/profile/SystemDesign');
+  });
+  it('renders self-contained diagram artifacts from actual generated back matter without interpreting SVG as page markup', async () => {
+    // Arrange
+    const image = btoa('<svg xmlns="http://www.w3.org/2000/svg"><text>Approved fixture revision 2</text></svg>');
+    vi.mocked(api.getSspPreview).mockResolvedValue({ ...preview, sourceGaps: [], content: JSON.stringify({
+      'system-security-plan': {
+        metadata: { title: 'SSP with design artifacts' },
+        'back-matter': { resources: ['Context', 'Boundary', 'Network', 'Data flows'].map((view, index) => ({
+          uuid: `diagram-${index}`, title: `${view} diagram — revision 2`, description: 'Retained approved design fixture.',
+          base64: { filename: `${index}.svg`, 'media-type': 'image/svg+xml', value: image },
+        })) },
+      },
+    }) });
+    // Act
+    mount();
+    // Assert
+    for (const view of ['Context', 'Boundary', 'Network', 'Data flows']) {
+      expect(await screen.findByRole('img', { name: `${view} diagram — revision 2` }))
+        .toHaveAttribute('src', `data:image/svg+xml;base64,${image}`);
+    }
+    expect(screen.getByRole('region', { name: 'Generated diagram artifacts' })).toBeVisible();
+    expect(document.querySelectorAll('svg text')).toHaveLength(0);
+  });
   it('presents a formal working document without inventing version history or official approval', async () => {
     // Arrange / Act
     mount();

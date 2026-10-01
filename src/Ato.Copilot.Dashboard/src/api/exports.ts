@@ -36,6 +36,8 @@ export interface DocumentSourceManifest {
   narratives: DocumentSourceReference[];
   otherSources: string;
   previewOnly?: boolean;
+  design?: DocumentSourceReference | null;
+  designArtifacts?: DocumentSourceReference[] | null;
 }
 
 export interface SspPreview {
@@ -49,7 +51,7 @@ export interface SspPreview {
   generatedAt: string;
   sourceGaps: { code: string; message: string }[];
   isPreview: true;
-  sourceState: 'CurrentWorkingData';
+  sourceState: 'CurrentWorkingData' | 'ApprovedSources';
   canGenerate?: boolean;
 }
 
@@ -98,16 +100,26 @@ export async function getAdditionalDocumentPreview(
   return data;
 }
 
-export async function getSspPreview(systemId: string, signal?: AbortSignal): Promise<SspPreview> {
-  const { data } = await apiClient.get<SspPreview>(
-    `/systems/${encodeURIComponent(systemId)}/documents/ssp/preview`, { signal },
-  );
-  return checkedPreview(data, systemId);
+export type SspPreviewSource = 'working' | 'approved';
+
+function sspPreviewUrl(systemId: string, source: SspPreviewSource) {
+  return `/systems/${encodeURIComponent(systemId)}/documents/ssp/preview${source === 'approved' ? '?source=approved' : ''}`;
 }
 
-function checkedPreview(data: SspPreview, systemId: string): SspPreview {
+export async function getSspPreview(
+  systemId: string, signal?: AbortSignal, source: SspPreviewSource = 'working',
+): Promise<SspPreview> {
+  const { data } = await apiClient.get<SspPreview>(
+    sspPreviewUrl(systemId, source), { signal },
+  );
+  return checkedPreview(data, systemId, source);
+}
+
+function checkedPreview(data: SspPreview, systemId: string, source: SspPreviewSource = 'working'): SspPreview {
+  const validReference = (item: DocumentSourceReference) => item && typeof item.kind === 'string'
+    && typeof item.recordId === 'string' && typeof item.versionId === 'string' && typeof item.contentHash === 'string';
   if (data?.systemId !== systemId || data.format !== 'json' || data.contentType !== 'application/json'
-    || data.isPreview !== true || data.sourceState !== 'CurrentWorkingData'
+    || data.isPreview !== true || data.sourceState !== (source === 'approved' ? 'ApprovedSources' : 'CurrentWorkingData')
     || typeof data.content !== 'string' || typeof data.contentHash !== 'string'
     || typeof data.generatedAt !== 'string' || !Array.isArray(data.sourceGaps)
     || data.sourceGaps.some(gap => !gap || typeof gap.code !== 'string' || typeof gap.message !== 'string')) {
@@ -121,19 +133,32 @@ function checkedPreview(data: SspPreview, systemId: string): SspPreview {
         || typeof item.versionId !== 'string' || typeof item.contentHash !== 'string'))) {
     throw new Error('The server returned an invalid document source manifest.');
   }
+  if (data.sourceManifest?.design && !validReference(data.sourceManifest.design)
+    || data.sourceManifest?.designArtifacts != null && (!Array.isArray(data.sourceManifest.designArtifacts)
+      || data.sourceManifest.designArtifacts.some(item => !validReference(item)))) {
+    throw new Error('The server returned invalid design source or artifact pins.');
+  }
   if (data.canGenerate !== undefined && typeof data.canGenerate !== 'boolean'
     || data.sourceManifest?.scope === 'WorkingProfilePreview' && (data.sourceManifest.previewOnly !== true || data.canGenerate !== false)) {
     throw new Error('The server returned an invalid working-preview export authority.');
   }
+  if (source === 'approved' && (!data.sourceManifest || data.sourceManifest.previewOnly === true
+    || data.sourceManifest.scope === 'WorkingProfilePreview'
+    || data.sourceManifest.profiles.some(item => item.kind === 'WorkingProfile')
+    || typeof data.canGenerate !== 'boolean')) {
+    throw new Error('The server returned working or unverified sources for an approved-source preview.');
+  }
   return data;
 }
 
-export async function retainSspPreview(systemId: string, key: string, signal?: AbortSignal): Promise<SspPreview> {
+export async function retainSspPreview(
+  systemId: string, key: string, signal?: AbortSignal, source: SspPreviewSource = 'working',
+): Promise<SspPreview> {
   const { data } = await apiClient.post<SspPreview>(
-    `/systems/${encodeURIComponent(systemId)}/documents/ssp/preview`, {},
+    sspPreviewUrl(systemId, source), {},
     { headers: { 'Idempotency-Key': key }, signal },
   );
-  const result = checkedPreview(data, systemId);
+  const result = checkedPreview(data, systemId, source);
   if (typeof result.previewId !== 'string' || !result.previewId) throw new Error('The server did not return a retained preview identity.');
   return result;
 }

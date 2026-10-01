@@ -59,7 +59,7 @@ for (const width of [1440, 390]) {
       await expect(page).toHaveURL(`${baseURL}${root}/${path}`);
       const heading = page.getByRole('heading', { name: title, exact: true });
       await expect(heading).toBeVisible();
-      await expect(navigation.getByRole('link')).toHaveCount(6);
+      await expect(navigation.getByRole('link')).toHaveCount(7);
       await expect(navigation.locator('[aria-current="page"]')).toHaveText(label);
       expect((await heading.boundingBox())!.y).toBeLessThan((await navigation.boundingBox())!.y);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

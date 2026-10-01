@@ -9,6 +9,123 @@
 
 ## Product outcome and scope
 
+### September 30: governed System design
+
+#### Rules-first automatic architecture assembly
+
+The system must assemble relationships supported by explicit canonical records
+instead of requiring authors to connect existing facts manually. Distinguish
+system membership, actor access, provider-service use, environment attachment,
+explicit hosting association and containment from actual data/network flows.
+Do not invent component dependencies: the inspected `SystemComponent` model has
+system/capability/boundary references, not a general application-dependency graph.
+Free-text PPS/data endpoints are not stable component IDs.
+
+The default canvas depicts architecture elements, not ProfileSection,
+InformationType, PPS or leveraged-authorization source rows. Keep those rows in
+source contributions/structured records and generated documentation, preserving
+provenance and mapping gaps. The server classifies and projects the relationships;
+the browser does not perform cross-API joins or infer connectivity.
+
+**Build from recorded information** creates/refreshes a working design with
+source-backed relationships and preserves manual decisions and the approved
+baseline. Known non-conflicting additions may be assembled automatically as
+unapproved source-derived design; source changes/removals/conflicts and observations
+requiring interpretation remain auditable proposals. Never label auto-assembly
+as source review, design approval, access, inherited controls or healthy monitoring.
+
+Only network/data-flow relationships require PPS/protection/interconnection
+checks. Membership/containment/hosting associations must not create false missing
+port or agreement blockers. Conversely, users cannot evade real flow checks by
+changing a free-text relationship type to a structural one: source-owned
+structural facts and semantic type must be verified server-side.
+
+AI extraction is not part of this deterministic implementation. Missing facts
+remain actionable questions/gaps; no external model request or invented diagrams.
+
+#### Usability correction after local acceptance
+
+Inspector refinement: the right-hand panel is a summary and action surface, not
+a serialized-record dump. Show readable element type, boundary/review status,
+the few meaningful context fields and concise Edit/Rename/Remove actions.
+Full provenance, IDs, hashes and source properties remain available in a wider
+detail drawer. Presentation options are collapsed initially. Avoid nested
+scrolling and repeated empty-field rows. Review-gate links use consistent
+secondary action styling; contribution cards must not underline entire contents.
+Preserve all existing actions, source authority and keyboard access.
+
+Local feedback identified five gaps in the first delivery: canvas handles were
+disabled, edit actions were buried below source metadata, no removal action or
+general proposed-element palette was available, design CSS overrode shared tab
+styles, and working SSP previews had no diagram images. Correct all five without
+weakening governance. Canvas connections stage a fully editable draft flow; a
+keyboard Connect action provides the same operation. Rename and removal actions
+are immediately visible for permitted editors. Removal is from the working graph
+only, with connected-edge impact confirmation; it never deletes canonical sources
+or the approved baseline, and required missing contributions remain gaps.
+
+Expose a labelled proposed-element palette (application/API/service/database/
+storage/network/identity/actor/external) in addition to canonical source choices.
+These are unreviewed design components, not fabricated Azure or canonical records.
+Reuse shared System definition tab styling. Working SSP previews render all four
+current graph diagrams with explicit draft/unapproved metadata; final exports
+continue to require immutable approved design.
+
+System definition gains a seventh, directly addressable **System design** tab.
+The existing labels remain exactly Mission, Users, Environment & hosting, Data,
+Inventory & boundary, and Ports & interconnections. The new capability assembles
+canonical records server-side into Context, Boundary, Network and Data flows;
+it does not split the six tabs or introduce a top-level design workspace.
+
+The domain graph owns design meaning: stable source references/versions,
+explicit boundary dispositions, directed data flows, protection/PPS/agreement
+details, provenance, precedence, review and SSP impacts. Presentation placement,
+viewport and routing are stored separately. Graph-library objects never become
+domain records. Actor categories are groups; provider hosting and Azure
+attachment are not authorization, inherited controls or approved boundary scope.
+
+Working revisions follow Not Started -> Draft -> Under Review -> Approved, with
+Needs Revision, withdrawal, retained comments and immutable approved baselines.
+MO/SO and authorized technical maintainers prepare/reconcile/submit; an authorized
+independent ISSM reviews/approves. Every read and write checks tenant/system and
+action authority on the server. Source changes generate reviewable proposals,
+not silent mutations of approved design.
+
+Reconciliation records Accept, Edit and accept, Reject and Defer with original
+source proposal, accepted result, version, actor, timestamp and rationale.
+Approved design decisions outrank approved canonical assignments, reviewed
+profile, Azure observations, imported proposals, AI proposals and unknown data.
+Conflicts remain visible. Azure/monitoring contributions are observed proposals
+and require existing authorized resource scope; unsupported collectors are not
+presented as healthy or connected.
+
+All four views share an equivalent structured editor, inspectable sources,
+filter/search, stable layout, keyboard navigation and design gaps. Completeness
+uses evaluated required design checks rather than diagram appearance. Missing
+endpoints, purpose/classification/protection/PPS, boundary decisions,
+interconnections/agreements, conflicts, unapproved sources and output mapping
+gaps have named resolution actions. No synthetic eMASS node or flow is invented.
+
+Approved design contributes stable diagram artifacts and actual SSP/OSCAL
+system description, authorization boundary, network architecture, data flows,
+components and back matter. Drafts must not overwrite approved exports.
+Approval alone is not package readiness, eMASS submission or an AO decision.
+See [System design contract](contracts/system-design.md) and the renderer ADR.
+
+Verified initial audit: `SystemProfileSection` has six enum values (including
+LeveragedAuthorizations); these do not correspond one-to-one to the six current
+tabs because boundary/inventory is separately canonical. `SystemProfile` uses
+reviewed snapshots for scalar/child data, `BoundaryComponentAssignment` records
+explicit included/excluded membership, and `SystemInterconnection` owns
+directions/PPS/agreement metadata. No governed design graph or dedicated graph
+editor was found in the inspected page/model paths. The mock is illustrative:
+its counts, approved version, nodes and compliance outcomes are not seed data.
+
+Existing issue owners verified open: azurenoops/spin_agent#1046 (system journey)
+and azurenoops/spin_agent#1041 (approved profile-to-output). New feature/story
+linkage proposals require explicit approval before GitHub writes; no creation,
+closure, push or live Azure mutation is authorized by this local implementation.
+
 ### September 30: consolidated workspace header
 
 Remove the separate blue workspace bar. Keep verified workspace, selected system

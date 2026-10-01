@@ -6,6 +6,58 @@
 
 ## Summary
 
+### Governed System design implementation
+
+Automatic assembly follow-through: introduce a bounded source-backed
+relationship pass over already scoped records. Stable relationship IDs and
+source hashes enable idempotent rebuild and proposal comparison. Preserve the
+existing manual graph, retained provider links and independent authorization
+states. Use explicit component/system membership, user-category/system records,
+provider-scope/system references, exact attachment resource IDs and verified
+optional hosting links. Do not derive data flows from names, co-location or prose.
+Profile/PPS/information-type rows remain semantic source contributors rather than
+rendered architecture boxes. Both browser and server SVG presentations respect
+the projection's element/relationship classes; exports retain structured data.
+TDD covers positive projected relationships, negative false-network cases,
+source tampering, saved manual/approved preservation, idempotence, retirement,
+tenant scope and real output schema/diagrams.
+
+1. Preserve current shell and six tab labels; add `profile/SystemDesign` as a
+   seventh task route, using existing system/workspace context. Guard unsaved
+   design edits before tab navigation and keep drafts reload-safe.
+2. Add tenant/system-scoped design workspace, immutable revision/history and
+   presentation-layout persistence through idempotent additive schema modules.
+   No existing boundary, interconnection or profile row is overwritten by graph
+   layout or proposal acceptance. Canonical-source changes use their owning flows.
+3. Project the six source areas, optional reviewed contributors and authorized
+   retained Azure/monitoring observations on the server. Use stable IDs and
+   source fingerprints; missing/unavailable sources produce explicit gaps.
+   A source refresh creates proposals with review dispositions and never
+   overrides higher-precedence design decisions.
+4. Version-fence every mutation. Record authors/reviewers and retain independent
+   approved baselines. Reject cross-tenant/system references, invalid graph
+   endpoints, arbitrary source claims and unbounded graph inputs.
+5. Use application DTOs behind a replaceable React Flow adapter; evaluate/pin
+   graph dependencies and use deterministic ELK layout. Keep static server SVG
+   artifacts independent of the browser/library and embed approved revision
+   metadata/provenance. Structured editing is required, not a fallback mock.
+6. Complete the authoritative approved-design-to-SSP bridge across current
+   generators, previews and queued/package exports. Extend existing profile
+   projection rather than create a competing SspSection editor; document
+   precedence and verify distinctive fixture content in real generated outputs.
+7. Tests: failing unit/HTTP/renderer tests first; then role/tenant isolation,
+   concurrency, approval history, reconciliation/precedence, stable layout,
+   large graphs, tab preservation, browser keyboard/mobile and actual SSP/
+   OSCAL/schema/diagram outputs. Build .NET serially; avoid concurrent Docker
+   and full-test overload observed previously on this shared host.
+
+Constitution check: existing authorization and source-review services retained;
+no new agent/tool surface, no automatic approval or cloud provisioning, no live
+data in automated tests. Separate domain/presentation contracts are justified by
+independent governance and renderer replaceability. Graph and layout storage are
+additive; rollback must retain approved versions and source/history references.
+Full external submission/live-collector claims remain out of scope until verified.
+
 ### Workspace header consolidation
 
 Retire `WorkspaceHeader` from `ApplicationFrame` after moving its information and
@@ -227,7 +279,7 @@ as runtime verified.
 ## Technical context
 
 **Language/Version**: C# / .NET 9 backend; TypeScript 5.7 / React 19 dashboard
-**Primary Dependencies**: Existing ASP.NET Core, EF Core, React Router, Vite, Vitest, Playwright, MkDocs Material
+**Primary Dependencies**: Existing ASP.NET Core, EF Core, React Router, Vite, Vitest, Playwright, MkDocs Material; System design adds pinned @xyflow/react 12.11.6 and elkjs 0.12.0 behind a presentation adapter
 **Storage**: Existing SQLite / SQL Server and retained file storage; additive version/history metadata and scoped workflow records
 **Project Type**: Existing multi-project application; implemented changes with verification and release gates tracked in tasks.md
 **Testing**: Existing xUnit, FluentAssertions, Moq, Vitest, Testing Library, Playwright

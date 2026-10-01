@@ -564,6 +564,7 @@ public class SspService : ISspService
         var profileGaps = new List<string>();
         var approvedProfiles = await ApprovedProfileDocumentData.LoadAsync(context, systemId, profileGaps, cancellationToken);
         var providerSources = await ProviderDocumentProvenance.ProjectDocumentAsync(context, system, cancellationToken);
+        var design = await SystemDesignDocumentData.LoadAsync(scope.ServiceProvider, systemId, cancellationToken);
 
         var tailorings = await context.ControlTailorings
             .Where(t => t.ControlBaselineId == (baseline != null ? baseline.Id : ""))
@@ -701,6 +702,7 @@ public class SspService : ISspService
                 }
             }
 
+            if (design?.Sections.ContainsKey(sectionNum) == true) content = design.Markdown(sectionNum);
             sb.AppendLine(content);
             if (sectionNum == 9) sb.AppendLine(providerSources.Content);
             foreach (var profile in approvedProfiles.Where(p => ApprovedProfileDocumentData.DestinationSection(p.Type) == sectionNum))
@@ -849,6 +851,7 @@ public class SspService : ISspService
         var profileGaps = new List<string>();
         var approvedProfiles = await ApprovedProfileDocumentData.LoadAsync(context, systemId, profileGaps, cancellationToken);
         var providerSources = await ProviderDocumentProvenance.ProjectDocumentAsync(context, system, cancellationToken);
+        var design = await SystemDesignDocumentData.LoadAsync(scope.ServiceProvider, systemId, cancellationToken);
 
         var sectionList = sections?.ToList();
         var includeAll = sectionList == null || sectionList.Count == 0;
@@ -915,6 +918,7 @@ public class SspService : ISspService
                 }
             }
 
+            if (design?.Sections.ContainsKey(sectionNum) == true) content = design.Markdown(sectionNum);
             if (sectionNum == 9) content += "\n\n" + providerSources.Content;
             foreach (var profile in approvedProfiles.Where(p => ApprovedProfileDocumentData.DestinationSection(p.Type) == sectionNum))
                 content += "\n\n" + ApprovedProfileDocumentData.Render(profile);

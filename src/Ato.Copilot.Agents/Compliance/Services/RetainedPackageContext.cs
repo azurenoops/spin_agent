@@ -156,6 +156,22 @@ internal static class RetainedPackageContext
     private static async Task RequireReviewedSourcesAsync(AtoCopilotContext db, string systemId, Guid tenantId,
         DocumentSourceManifest manifest, CancellationToken ct)
     {
+        if (manifest.Design is { } designPin)
+        {
+            if (designPin.RecordId != systemId || designPin.Kind != "ApprovedSystemDesign" ||
+                !long.TryParse(designPin.VersionId, out var revision))
+                throw new InvalidOperationException("The retained design pin does not identify this system.");
+            var snapshot = await db.Set<SystemDesignRevision>().AsNoTracking().SingleOrDefaultAsync(x =>
+                x.TenantId == tenantId && x.SystemId == systemId && x.Revision == revision && x.Action == "approve", ct);
+            if (snapshot == null || snapshot.SnapshotHash != designPin.ContentHash ||
+                ApprovedProfileDocumentData.Hash(snapshot.GraphJson) != designPin.ContentHash)
+                throw new InvalidOperationException("The SSP design lacks its exact retained approval.");
+            var graph = SystemDesignService.Read<Ato.Copilot.Core.Dtos.SystemDesign.SystemDesignGraph>(snapshot.GraphJson);
+            var projection = SystemDesignDocumentData.FromApproved(new(graph, revision, snapshot.Actor, snapshot.At,
+                snapshot.SnapshotHash, snapshot.SourceFingerprint, false));
+            if (manifest.DesignArtifacts == null || !projection.ArtifactSources.SequenceEqual(manifest.DesignArtifacts))
+                throw new InvalidOperationException("The retained design diagram manifest cannot be verified.");
+        }
         var reviewedTypes = new HashSet<ProfileSectionType>();
         foreach (var pin in manifest.Profiles)
         {

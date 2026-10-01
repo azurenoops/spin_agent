@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Dtos.Dashboard;
+using Ato.Copilot.Core.Interfaces.Compliance;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
@@ -66,15 +67,37 @@ public partial class OscalSspExportService : IOscalSspExportService
         CancellationToken cancellationToken = default) =>
         GenerateAsync(registeredSystemId, includeBackMatter, prettyPrint, workingProfiles: true, cancellationToken);
 
+    public Task<OscalExportResult> PreviewApprovedAsync(string registeredSystemId, bool includeBackMatter = true,
+        bool prettyPrint = true, CancellationToken cancellationToken = default) =>
+        GenerateAsync(registeredSystemId, includeBackMatter, prettyPrint, workingProfiles: false, cancellationToken, approvedPreview: true);
+
     private async Task<OscalExportResult> GenerateAsync(
         string registeredSystemId, bool includeBackMatter, bool prettyPrint, bool workingProfiles,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool approvedPreview = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(registeredSystemId, nameof(registeredSystemId));
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
         var warnings = new List<string>();
+        var designGaps = new List<string>();
+        SystemDesignDocumentData? design = null;
+        Ato.Copilot.Core.Dtos.SystemDesign.SystemDesignGraph? workingDesign = null;
+        var designService = scope.ServiceProvider.GetService<ISystemDesignService>();
+        if (!workingProfiles && designService != null)
+        {
+            if (approvedPreview)
+            {
+                var retained = await designService.GetApprovedAsync(registeredSystemId, cancellationToken);
+                if (retained != null)
+                {
+                    design = SystemDesignDocumentData.FromApproved(retained);
+                    if (retained.SourcesStale) designGaps.Add("DESIGN_SOURCE_STALE: Reconcile and review changed canonical sources before final export.");
+                }
+                else designGaps.Add("DESIGN_APPROVAL_REQUIRED: No approved System design is recorded.");
+            }
+            else design = await SystemDesignDocumentData.LoadAsync(scope.ServiceProvider, registeredSystemId, cancellationToken);
+        }
 
         // Load all entity data
         var system = await db.RegisteredSystems
@@ -197,6 +220,21 @@ public partial class OscalSspExportService : IOscalSspExportService
                     })
                 });
             if (profileProps.Count > 0) systemChars["props"] = profileProps;
+            if (designService != null)
+            {
+                var graph = await designService.GetAsync(registeredSystemId, cancellationToken);
+                if (graph.GovernanceStatus != "NotStarted" || graph.Nodes.Count > 0)
+                {
+                    profileProps.Add(new()
+                    {
+                        ["name"] = "working-system-design", ["ns"] = SystemDesignDocumentData.Namespace,
+                        ["value"] = JsonSerializer.Serialize(graph)
+                    });
+                    systemChars["props"] = profileProps;
+                    workingDesign = graph;
+                    designGaps.AddRange(graph.Gaps.Select(g => $"{g.Explanation} Source: {g.ResolutionUrl}"));
+                }
+            }
         }
         var providerSources = await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
         warnings.AddRange(providerGaps);
@@ -211,6 +249,20 @@ public partial class OscalSspExportService : IOscalSspExportService
             if (backMatter.TryGetValue("resources", out var resources) && resources is List<Dictionary<string, object>> resList)
                 backMatterCount = resList.Count;
         }
+        if (design != null)
+        {
+            backMatter ??= new Dictionary<string, object>();
+            design.AppendOscal(systemChars, systemImpl, backMatter, includeBackMatter);
+            if (backMatter.TryGetValue("resources", out var designResources) && designResources is List<Dictionary<string, object>> entries)
+                backMatterCount = entries.Count;
+        }
+        if (workingDesign != null)
+        {
+            backMatter ??= new Dictionary<string, object>();
+            SystemDesignDocumentData.AppendWorkingOscal(workingDesign, systemChars, systemImpl, backMatter, includeBackMatter);
+            if (backMatter.TryGetValue("resources", out var workingResources) && workingResources is List<Dictionary<string, object>> entries)
+                backMatterCount = entries.Count;
+        }
 
         // Assemble top-level structure
         var ssp = new Dictionary<string, object>
@@ -223,7 +275,7 @@ public partial class OscalSspExportService : IOscalSspExportService
             ["control-implementation"] = controlImpl
         };
 
-        if (backMatterCount > 0)
+        if (backMatterCount > 0 && backMatter != null)
             ssp["back-matter"] = backMatter;
 
         var root = new Dictionary<string, object>
@@ -242,7 +294,11 @@ public partial class OscalSspExportService : IOscalSspExportService
                 new DocumentSourceReference("MissionAdoption", p.Adoption.SubscriptionId, p.Adoption.Id.ToString(), p.Adoption.SnapshotHash),
                 new DocumentSourceReference("ProviderContext", p.Adoption.OfferingId.ToString(), p.Context.Id.ToString(), p.Context.SnapshotHash),
                 new DocumentSourceReference("ProviderRelease", p.Adoption.CapabilityId.ToString(), p.Release.Id.ToString(), p.Release.SnapshotHash)
-            }).Distinct().ToArray()) { Narratives = narrativeSources, PreviewOnly = workingProfiles };
+            }).Distinct().ToArray())
+        {
+            Narratives = narrativeSources, PreviewOnly = workingProfiles,
+            Design = design?.Source, DesignArtifacts = design?.ArtifactSources
+        };
         metadata["props"] = new[]
         {
             new Dictionary<string, string>
@@ -270,6 +326,7 @@ public partial class OscalSspExportService : IOscalSspExportService
         {
             ProviderProvenanceGaps = providerGaps,
             ProfileSourceGaps = profileGaps,
+            DesignSourceGaps = designGaps,
             SourceManifest = manifest
         };
     }
