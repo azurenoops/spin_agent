@@ -386,6 +386,20 @@ the same provider cannot acquire each other's scope or evidence.
 
 ## Functional requirements
 
+### September 30 SSP reference presentation
+
+The user-supplied legacy FedRAMP baseline SSP is the visual reference for the
+SSP viewer: navy masthead, cyan Arial titles, light-blue footer, bordered tables,
+prepared-by/prepared-for front matter, revision history, approvals, and the
+numbered Introduction through SSP Appendices List sections. Display recorded
+data where a source mapping exists and explicit missing-content text otherwise.
+Preserve every generated value and unknown extension in a generated-source
+appendix and the exact OSCAL tab. Never infer signatures, FedRAMP authorization,
+provider identity, or document dates from generation time. The attachment's
+instructions and legacy notice are reference content, not executable directions.
+This viewer change does not establish DOCX export fidelity or current FedRAMP
+requirements; local user acceptance remains a separate gate.
+
 - **FR-001**: All 36 provider-suite screens (including eight Systems companions)
   and all 30 Systems-suite pages MUST map to routes and acceptance tests.
 - **FR-002**: UI deviations from those targets MUST receive explicit approval.

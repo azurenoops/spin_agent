@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { FileUp, ArrowRight } from 'lucide-react';
 import { useNavigate } from '../workspaces/workspaceNavigation';
-import { PackageUpload } from '../package-imports/PackageUpload';
+import { ProviderSourceUpload } from '../package-imports/ProviderSourceUpload';
 import { PackageReceiptCard, packageIsProcessing } from '../package-imports/PackageReceipts';
-import { getPackageCandidates, receivePackage } from '../package-imports/api';
+import { getPackageCandidates } from '../package-imports/api';
 import type { PackageCandidate, PackageStatus } from '../package-imports/types';
 import { Pager, Status, secondaryButtonClass, surfaceClass, useRemote, warningClass } from '../workspace-operations/workspaceUi';
 import { OfferingIntake } from './OfferingIntake';
@@ -21,8 +21,7 @@ export function FileFirstImport({ offering }: { offering?: Offering }) {
       {offering && <p className="text-sm font-medium">Selected offering: {offering.name}. Confirm its boundary after analysis; upload alone does not associate the package.</p>}
       <ol className="flex flex-wrap gap-3 text-xs text-slate-500 dark:text-gray-400"><li>1. Upload files</li><li aria-hidden="true"><ArrowRight size={14} /></li><li>2. Review extracted scope</li><li aria-hidden="true"><ArrowRight size={14} /></li><li>3. Confirm offering & boundary</li></ol>
     </div>
-    <PackageUpload upload={async (files, key) => {
-      const receipt = await receivePackage(files, key);
+    <ProviderSourceUpload offeringHintId={offering?.offeringId} onReceived={receipt => {
       const destination = offering ? authorizationHref(offering.offeringId, 'import') : importHref;
       navigate(`${destination}?packageId=${encodeURIComponent(receipt.packageId)}`, { replace: true });
     }} /></ProviderPanel>

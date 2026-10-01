@@ -1,5 +1,5 @@
 import { useState, useId, type ReactNode } from 'react';
-import { Check, Info, UserRound, ShieldCheck } from 'lucide-react';
+import { Info, UserRound, ShieldCheck } from 'lucide-react';
 import type { InitialAdministrator, OrganizationCreationRequest, ProvisioningResult } from './types';
 import { inputClass, secondaryButtonClass } from './workspaceUi';
 import { EntraUserPicker } from './EntraUserPicker';
@@ -52,17 +52,6 @@ export function organizationSetupLabel(state?: string) {
     ?? 'Setup status unavailable';
 }
 
-export function SetupSteps({ step }: { step: number }) {
-  return <nav aria-label="Organization setup progress"><ol className="flex flex-wrap gap-3 text-xs">
-    {['Organization', 'Administrator', 'Review', 'Setup status'].map((name, index) =>
-      <li key={name} aria-current={step === index + 1 ? 'step' : undefined} className="flex min-w-16 flex-col items-center gap-1.5">
-        <span className={`grid h-7 w-7 place-items-center rounded-full border ${step === index + 1 ? 'bg-white font-bold text-indigo-700' : 'border-current'}`}>
-          {index + 1 < step ? <Check size={14} aria-label="Visited" /> : index + 1}
-        </span>{name}
-      </li>)}
-  </ol></nav>;
-}
-
 export function SetupInfo({ children }: { children: ReactNode }) {
   return <section className="flex items-start gap-3 rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm leading-relaxed text-indigo-950 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">
     <Info size={18} className="mt-0.5 shrink-0" aria-hidden="true" /><div>{children}</div>
@@ -80,12 +69,13 @@ export function SetupField({ label, value, onChange, error, type = 'text', maxLe
   </div>;
 }
 
-export function AdministratorInputs({ fields, newPerson, onNewPerson, onChange, errors }: {
+export function AdministratorInputs({ fields, newPerson, onNewPerson, onChange, errors, initialMode }: {
   fields: AdministratorFields; newPerson: boolean; onNewPerson: (value: boolean) => void;
   onChange: (key: keyof AdministratorFields, value: string) => void; errors: FieldErrors;
+  initialMode?: 'directory' | 'manual';
 }) {
   const group = useId();
-  const [mode, setMode] = useState<'directory' | 'manual'>(() => fields.objectId ? 'manual' : 'directory');
+  const [mode, setMode] = useState<'directory' | 'manual'>(() => initialMode ?? (fields.objectId ? 'manual' : 'directory'));
   const [selected, setSelected] = useState(false);
   return <div className="space-y-5">
     <div className="flex flex-wrap gap-2" role="group" aria-label="Administrator identity source">

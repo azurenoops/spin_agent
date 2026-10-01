@@ -1,5 +1,6 @@
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
+using Ato.Copilot.Core.Models.Tenancy;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,6 +10,108 @@ namespace Ato.Copilot.Tests.Unit.Data;
 
 public sealed class WorkspaceOperationsSchemaTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OrganizationOnboarding_FreshModelMatchesUpgradeDefaults(bool sqlServer)
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>();
+        if (sqlServer) options.UseSqlServer("Server=localhost;Database=SchemaMetadataOnly;Integrated Security=True");
+        else options.UseSqlite("Data Source=:memory:");
+        using var db = new AtoCopilotContext(options.Options);
+
+        // Act
+        var entity = db.Model.FindEntityType(typeof(Tenant))!;
+        var schemaVersion = entity.FindProperty(nameof(Tenant.OnboardingDraftSchemaVersion))!;
+        var revision = entity.FindProperty(nameof(Tenant.OnboardingDraftRevision))!;
+        var providerRevision = db.Model.FindEntityType(typeof(CspProfile))!
+            .FindProperty(nameof(CspProfile.SetupRevision))!;
+
+        // Assert
+        Assert.Equal(1, schemaVersion.GetDefaultValue());
+        Assert.Equal(0L, revision.GetDefaultValue());
+        Assert.False(schemaVersion.IsNullable);
+        Assert.False(revision.IsNullable);
+        Assert.True(revision.IsConcurrencyToken);
+        Assert.Equal(1L, providerRevision.GetDefaultValue());
+        Assert.False(providerRevision.IsNullable);
+        Assert.True(providerRevision.IsConcurrencyToken);
+    }
+
+    [Fact]
+    public async Task OrganizationOnboarding_FreshSchemaAcceptsLegacyInsertAndPreservesExplicitDraftRevision()
+    {
+        // Arrange
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AtoCopilotContext(new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var legacyId = Guid.NewGuid();
+        var providerId = Guid.NewGuid();
+        var explicitTenant = new Tenant
+        {
+            DisplayName = "Explicit draft revision",
+            OnboardingDraftSchemaVersion = 2,
+            OnboardingDraftRevision = 7,
+        };
+
+        // Act
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO Tenants
+                (Id, DisplayName, DefaultClassificationLevel, TimeZone, Status, OnboardingState, CreatedAt, CreatedBy)
+            VALUES ({legacyId}, 'Legacy tenant', 0, 'UTC', 0, 0, {DateTimeOffset.UtcNow}, 'synthetic-test')
+            """);
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO CspProfiles
+                (Id, LegalEntityName, DisplayName, DefaultClassificationFloor, OnboardingState, CreatedAt, CreatedBy)
+            VALUES ({providerId}, 'Synthetic provider', 'Legacy provider', 0, 0, {DateTimeOffset.UtcNow}, 'synthetic-test')
+            """);
+        db.Tenants.Add(explicitTenant);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var legacy = await db.Tenants.SingleAsync(x => x.Id == legacyId);
+        var explicitDraft = await db.Tenants.SingleAsync(x => x.Id == explicitTenant.Id);
+        var provider = await db.CspProfiles.SingleAsync(x => x.Id == providerId);
+
+        // Assert
+        Assert.Equal(1, legacy.OnboardingDraftSchemaVersion);
+        Assert.Equal(0L, legacy.OnboardingDraftRevision);
+        Assert.Null(legacy.OnboardingDraftJson);
+        Assert.Equal(OnboardingState.Pending, legacy.OnboardingState);
+        Assert.Equal(2, explicitDraft.OnboardingDraftSchemaVersion);
+        Assert.Equal(7L, explicitDraft.OnboardingDraftRevision);
+        Assert.Equal(1L, provider.SetupRevision);
+    }
+
+    [Fact]
+    public async Task OrganizationOnboarding_AdditiveSchemaPreservesLegacyTenantAndIsRepeatable()
+    {
+        // Arrange
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE Tenants (Id TEXT NOT NULL PRIMARY KEY, DisplayName TEXT NOT NULL);
+            CREATE TABLE CspProfiles (Id TEXT NOT NULL PRIMARY KEY);
+            INSERT INTO Tenants VALUES ('tenant-retained', 'Retained organization');
+            """;
+        await command.ExecuteNonQueryAsync();
+        await using var db = new AtoCopilotContext(new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(connection).Options);
+
+        // Act
+        await OrganizationOnboardingSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        await OrganizationOnboardingSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+
+        // Assert
+        command.CommandText = "SELECT DisplayName FROM Tenants WHERE Id='tenant-retained'";
+        Assert.Equal("Retained organization", await command.ExecuteScalarAsync());
+        command.CommandText = "SELECT OnboardingDraftRevision FROM Tenants WHERE Id='tenant-retained'";
+        Assert.Equal(0L, await command.ExecuteScalarAsync());
+        command.CommandText = "SELECT COUNT(*) FROM OrganizationOnboardingDrafts";
+        Assert.Equal(0L, await command.ExecuteScalarAsync());
+    }
+
     [Fact]
     public async Task ApplyAsync_UpgradesLegacySupportTableAndIsIdempotent()
     {

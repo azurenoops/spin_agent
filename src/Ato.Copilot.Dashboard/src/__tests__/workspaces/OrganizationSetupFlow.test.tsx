@@ -1,9 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import WorkspaceOperationsPage from '../../features/workspace-operations/WorkspaceOperationsPage';
 import * as api from '../../features/workspace-operations/api';
+import * as onboardingApi from '../../features/workspace-operations/organizationOnboardingApi';
+import AddOrganizationPage from '../../features/workspace-operations/AddOrganizationPage';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import { emptyOrganization, validateOrganization } from '../../features/workspace-operations/OrganizationSetupPresentation';
 
 vi.mock('../../features/workspace-operations/api', async importOriginal => ({
@@ -13,6 +16,17 @@ vi.mock('../../features/workspace-operations/api', async importOriginal => ({
   getOrganization: vi.fn(), getOrganizationProvisioning: vi.fn(),
   getCurrentOrganizationProvisioning: vi.fn(), beginOrganizationProvisioning: vi.fn(),
   resumeOrganizationProvisioning: vi.fn(),
+  listOrganizations: vi.fn(),
+  searchDirectoryUsers: vi.fn(),
+}));
+vi.mock('../../features/workspace-operations/organizationOnboardingApi', () => ({
+  saveOrganizationDraft: vi.fn(), getOrganizationDraft: vi.fn(), confirmOrganizationDraft: vi.fn(),
+  getOrganizationSetupSummary: vi.fn(async (tenantId: string) => ({
+    tenant: { id: tenantId, displayName: 'Mission Operations', lifecycle: 'Active', onboardingState: 'Pending' },
+    liveAccess: { state: 'Missing', activeMemberCount: 0, administrators: { items: [], page: 1, pageSize: 25, total: 0 } },
+    requestedOperation: null, reconciliation: 'None',
+    actorActions: { canManageMemberships: true, canResumeEnrollment: true, canEnterOrganization: false },
+  })),
 }));
 const permissions = { canAccessCsp: true, canManageMemberships: true };
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
@@ -38,9 +52,24 @@ const created = {
   tenantId: 'org-new', operationId: 'operation-1', displayName: 'Mission Operations',
   status: 'Active', onboardingState: 'Pending', existing: false,
 };
+const draftFixture: onboardingApi.OrganizationOnboardingDraft = {
+  draftId: 'draft-1', revision: 1, schemaVersion: 1, state: 'Draft', savedAt: '2026-09-30T12:00:00Z',
+  displayName: 'Retained organization', currentStep: 'details', creationKey: 'draft-key',
+  tenantId: null, operationId: null, resumeUrl: '/organizations/new?draft=draft-1',
+  values: { organizationChoice: 'create', displayName: 'Retained organization', administratorChoice: 'deferred' },
+};
+const liveSummary: onboardingApi.OrganizationSetupSummary = {
+  tenant: { id: 'org-new', displayName: 'Existing organization', lifecycle: 'Active', onboardingState: 'Pending' },
+  observedAt: '2026-09-30T12:00:00Z', reconciliation: 'Unbound', requestedOperation: null,
+  liveAccess: { state: 'Available', activeMemberCount: 1, administrators: { items: [{
+    personId: person, displayName: 'Existing admin', membershipId: 'member', directoryTenantId: directory, objectId: object, assignmentId: 'assignment',
+  }], page: 1, pageSize: 25, total: 1 } },
+  actorActions: { canManageMemberships: true, canResumeEnrollment: false, canEnterOrganization: false },
+};
 function Route() { const location = useLocation(); return <output aria-label="Route">{location.pathname}{location.search}</output>; }
+function OrganizationRoute() { return useLocation().pathname.startsWith('/organizations') ? <WorkspaceOperationsPage /> : null; }
 function page(route = '/organizations/new') {
-  return render(<MemoryRouter initialEntries={[route]}><Route /><WorkspaceOperationsPage /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[route]}><Route /><OrganizationRoute /></MemoryRouter>);
 }
 function details() {
   fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Mission Operations' } });
@@ -61,6 +90,7 @@ function identity() {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(api.getDirectoryConnections).mockResolvedValue([]);
+  vi.mocked(api.listOrganizations).mockResolvedValue({ items: [], page: 1, pageSize: 25, total: 0 });
   permissions.canAccessCsp = true;
   vi.mocked(api.createOrganization).mockResolvedValue(created);
   vi.mocked(api.getOrganizationCreation).mockResolvedValue(null);
@@ -70,9 +100,490 @@ beforeEach(() => {
   });
   vi.mocked(api.getOrganizationProvisioning).mockResolvedValue(pending);
   vi.mocked(api.getCurrentOrganizationProvisioning).mockResolvedValue(pending);
+  vi.mocked(onboardingApi.saveOrganizationDraft).mockImplementation(async id => ({ ...draftFixture, draftId: id }));
+  vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValue(draftFixture);
 });
 
 describe('CSP Add Organization approved flow', () => {
+  it('starts a clean draft after deliberately leaving a saved-draft URL', async () => {
+    // Arrange
+    function NewDraft() { const navigate = useNavigate(); return <button onClick={() => navigate('/organizations/new')}>Start fresh organization</button>; }
+    render(<MemoryRouter initialEntries={['/organizations/new?draft=draft-1']}><NewDraft /><AddOrganizationPage /></MemoryRouter>);
+    await screen.findByDisplayValue('Retained organization');
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Start fresh organization' }));
+    // Assert
+    expect(screen.getByLabelText('Organization name')).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+    expect(screen.queryByText('Server draft saved · revision 1')).not.toBeInTheDocument();
+  });
+  it('reconciles only an exact same-request uncertain draft save without adopting foreign edits', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockRejectedValue(new Error('Response interrupted'));
+    vi.mocked(onboardingApi.getOrganizationDraft).mockImplementation(async id => ({
+      ...draftFixture, draftId: id, values: vi.mocked(onboardingApi.saveOrganizationDraft).mock.calls[0]![1],
+    }));
+    page();
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Retained exact request' } });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Check saved draft' }));
+    // Assert
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Check saved draft' })).not.toBeInTheDocument());
+    expect(screen.getByLabelText('Organization name')).toHaveValue('Retained exact request');
+    expect(screen.getByText('Server draft saved · revision 1')).toBeInTheDocument();
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it.each([404, 503])('retains edits when uncertain draft read returns %s', async status => {
+    // Arrange
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockRejectedValue(new Error('Write response missing'));
+    vi.mocked(onboardingApi.getOrganizationDraft).mockRejectedValue(new api.WorkspaceOperationError('Read unavailable', status, 'NOT_FOUND'));
+    page();
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Keep while uncertain' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Check saved draft' }));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent(status === 404 ? 'No saved draft was found' : 'Saved outcome is not yet confirmed');
+    expect(screen.getByLabelText('Organization name')).toHaveValue('Keep while uncertain');
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('recovers an uncertain confirmation of the same saved intent without repeating creation', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValueOnce({ ...draftFixture, currentStep: 'review' })
+      .mockImplementation(async id => ({ ...draftFixture, draftId: id, state: 'Confirmed',
+        values: vi.mocked(onboardingApi.saveOrganizationDraft).mock.calls[0]![1], resumeUrl: '/organizations/org-new/provisioning?key=draft-key' }));
+    vi.mocked(onboardingApi.confirmOrganizationDraft).mockRejectedValue(new Error('Confirmation response interrupted'));
+    page('/organizations/new?draft=draft-1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Create organization' }));
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Check saved draft' }));
+    // Assert
+    await waitFor(() => expect(screen.getByLabelText('Route')).toHaveTextContent('/organizations/org-new/provisioning?key=draft-key'));
+    expect(onboardingApi.confirmOrganizationDraft).toHaveBeenCalledOnce();
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('blocks a discarded draft returned while reconciling an interrupted write', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockRejectedValue(new Error('Response interrupted'));
+    vi.mocked(onboardingApi.getOrganizationDraft).mockImplementation(async id => ({ ...draftFixture, draftId: id, state: 'Discarded' }));
+    page();
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Check saved draft' }));
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('discarded');
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+  it('supports Enter submission through the same validation/review commands', async () => {
+    // Arrange
+    page();
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Keyboard organization' } });
+    // Act
+    fireEvent.submit(screen.getByLabelText('Organization name').closest('form')!);
+    fireEvent.click(screen.getByLabelText('Complete enrollment later'));
+    fireEvent.submit(screen.getByLabelText('Complete enrollment later').closest('form')!);
+    fireEvent.submit(screen.getByRole('button', { name: 'Edit organization details' }).closest('form')!);
+    // Assert
+    await waitFor(() => expect(api.createOrganization).toHaveBeenCalledOnce());
+    expect(vi.mocked(api.createOrganization).mock.calls[0]![0].displayName).toBe('Keyboard organization');
+  });
+  it('distinguishes failure to start enrollment from a created enrollment operation', async () => {
+    // Arrange
+    vi.mocked(api.getCurrentOrganizationProvisioning).mockResolvedValue(null);
+    vi.mocked(api.beginOrganizationProvisioning).mockRejectedValue(new Error('Start response unavailable'));
+    page('/organizations/org-new/provisioning');
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Start enrollment' }));
+    // Assert
+    expect(await screen.findByText('The enrollment start outcome is uncertain. Reload saved status before retrying.')).toBeInTheDocument();
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('reports failed saved-state reload after enrollment failure instead of displaying success', async () => {
+    // Arrange
+    vi.mocked(api.getOrganizationProvisioning).mockResolvedValueOnce({ ...pending, initialAdministrator: { directoryTenantId: directory, objectId: object, personId: person } })
+      .mockRejectedValue(new Error('Saved state unavailable'));
+    vi.mocked(api.resumeOrganizationProvisioning).mockRejectedValue(new Error('Enrollment failed'));
+    page('/organizations/org-new/provisioning?key=stable-key');
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue enrollment' }));
+    // Assert
+    expect(await screen.findByText('Cannot confirm saved setup outcomes: Saved state unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('Organization setup complete')).not.toBeInTheDocument();
+  });
+  it('exposes customer navigation only when summary proves the current actor can enter', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationSetupSummary).mockResolvedValue({ ...liveSummary, actorActions: {
+      ...liveSummary.actorActions, canEnterOrganization: true,
+    } });
+    // Act
+    page('/organizations/org-new/provisioning');
+    // Assert
+    expect(await screen.findByRole('link', { name: 'Choose authorized organization workspace' })).toHaveAttribute('href', '/workspaces/organizations/org-new');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Back' })); });
+    expect(screen.getByLabelText('Route')).toHaveTextContent('/organizations');
+  });
+  it('distinguishes missing creation from failing creation-status reads on a recovery link', async () => {
+    // Arrange
+    page('/organizations/new?key=missing-key');
+    expect(await screen.findByText(/No saved organization was found for this request yet/)).toBeInTheDocument();
+    vi.mocked(api.getOrganizationCreation).mockRejectedValue(new Error('Creation status unavailable'));
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Check creation status' }));
+    // Assert
+    expect(await screen.findByText('Creation status unavailable')).toBeInTheDocument();
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('does not treat a different keyed provisioning error as enrollment-not-started', async () => {
+    // Arrange
+    vi.mocked(api.getOrganizationProvisioning).mockRejectedValue(
+      new api.WorkspaceOperationError('Organization access unavailable', 404, 'NOT_FOUND'));
+    // Act
+    page('/organizations/org-new/provisioning?key=foreign-key');
+    // Assert
+    expect(await screen.findByText('Organization access unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start enrollment' })).not.toBeInTheDocument();
+  });
+  it('reloads a keyless saved enrollment after failure without starting another operation', async () => {
+    // Arrange
+    vi.mocked(api.getCurrentOrganizationProvisioning).mockResolvedValue({
+      ...pending, idempotencyKey: '', initialAdministrator: { directoryTenantId: directory, objectId: object, personId: person },
+    });
+    vi.mocked(api.resumeOrganizationProvisioning).mockRejectedValue(new Error('Enrollment response lost'));
+    page('/organizations/org-new/provisioning');
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue enrollment' }));
+    // Assert
+    await waitFor(() => expect(api.getCurrentOrganizationProvisioning).toHaveBeenCalledTimes(2));
+    expect(api.beginOrganizationProvisioning).not.toHaveBeenCalled();
+  });
+  it('searches and explicitly reuses the existing administrator without another organization create', async () => {
+    // Arrange
+    vi.mocked(api.listOrganizations).mockResolvedValue({ items: [{ id: 'org-new', displayName: 'Existing organization',
+      lifecycle: 'Active', onboarding: 'Pending', reviewState: 'NotRequired', systemCount: 0, distinctAdoptionCount: 0 }], page: 1, pageSize: 25, total: 1 });
+    vi.mocked(onboardingApi.getOrganizationSetupSummary).mockResolvedValue(liveSummary);
+    vi.mocked(onboardingApi.confirmOrganizationDraft).mockImplementation(async id => ({ ...draftFixture, draftId: id,
+      state: 'Confirmed', tenantId: 'org-new', resumeUrl: '/organizations/org-new/provisioning' }));
+    page();
+    // Act
+    fireEvent.change(screen.getByLabelText('Find an authorized organization'), { target: { value: 'Existing' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search organizations' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Existing organization · Use existing organization/ }));
+    await waitFor(() => expect(onboardingApi.getOrganizationSetupSummary).toHaveBeenCalledWith('org-new', null, expect.any(AbortSignal)));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(await screen.findByLabelText('Use the existing administrator'));
+    fireEvent.click(screen.getByRole('button', { name: 'Review setup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm organization reuse' }));
+    // Assert
+    await waitFor(() => expect(onboardingApi.saveOrganizationDraft).toHaveBeenCalledWith(expect.any(String),
+      expect.objectContaining({ organizationChoice: 'existing', existingTenantId: 'org-new', administratorChoice: 'existing' }), 'review', 0));
+    expect(api.createOrganization).not.toHaveBeenCalled();
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+  });
+  it('offers existing-admin reuse from directory fallback and preserves deliberate fresh selection', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValue({ ...draftFixture, currentStep: 'administrator',
+      values: { ...draftFixture.values, organizationChoice: 'existing', existingTenantId: 'org-new' } });
+    vi.mocked(onboardingApi.getOrganizationSetupSummary).mockResolvedValue(liveSummary);
+    page('/organizations/new?draft=draft-1');
+    await screen.findByText(/Current administrator: Existing admin/);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Directory lookup is unavailable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use the existing administrator' }));
+    expect(screen.getByLabelText('Use the existing administrator')).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create a different organization' }));
+    fireEvent.click(screen.getByRole('button', { name: '2 Administrator access' }));
+    // Assert
+    expect(screen.queryByLabelText('Use the existing administrator')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Directory lookup is unavailable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Return to administrator setup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Directory lookup is unavailable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Complete enrollment later' }));
+    expect(screen.getByLabelText('Complete enrollment later')).toBeChecked();
+  });
+  it('surfaces search and existing-scope lookup failures instead of inventing organization matches', async () => {
+    // Arrange
+    vi.mocked(api.listOrganizations).mockRejectedValue(new Error('Organization search unavailable'));
+    page();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Search organizations' }));
+    // Assert
+    expect(await screen.findByText('Organization search unavailable')).toBeInTheDocument();
+    expect(onboardingApi.confirmOrganizationDraft).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['discarded', { ...draftFixture, state: 'Discarded' as const }, 'This draft was discarded.'],
+    ['wrong identity', { ...draftFixture, draftId: 'wrong-draft' }, 'does not match'],
+  ])('rejects a %s hydration response without enabling confirmation', async (_name, saved, message) => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValue(saved);
+    // Act
+    page('/organizations/new?draft=draft-1');
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+  it('recovers a confirmed draft through its retained destination using reads only', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValue({ ...draftFixture, state: 'Confirmed',
+      resumeUrl: '/organizations/org-new/provisioning?key=draft-key' });
+    // Act
+    page('/organizations/new?draft=draft-1');
+    // Assert
+    await waitFor(() => expect(screen.getByLabelText('Route')).toHaveTextContent('/organizations/org-new/provisioning?key=draft-key'));
+    expect(api.createOrganization).not.toHaveBeenCalled();
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+  });
+  it('keeps saved administrator identifiers editable only in the hydrated unbound draft', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValue({ ...draftFixture, currentStep: 'administrator',
+      values: { ...draftFixture.values, administratorChoice: 'other', administrator: { directoryTenantId: directory, objectId: object, personId: person } } });
+    page('/organizations/new?draft=draft-1');
+    // Assert
+    expect(await screen.findByLabelText('Person record ID')).toHaveValue(person);
+    expect(screen.getByLabelText('Directory tenant ID')).toHaveValue(directory);
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+  });
+  it('does not treat a failed existing-organization summary as usable administrator access', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValue({ ...draftFixture, currentStep: 'review',
+      values: { ...draftFixture.values, organizationChoice: 'existing', existingTenantId: 'org-new' } });
+    vi.mocked(onboardingApi.getOrganizationSetupSummary).mockRejectedValue(new Error('Live access unavailable'));
+    // Act
+    page('/organizations/new?draft=draft-1');
+    // Assert
+    expect(await screen.findByText('Live access unavailable')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm organization reuse' })).toBeDisabled();
+  });
+  it('lets directory discovery populate explicit intent, clear it, and switch to a manual existing Person', async () => {
+    // Arrange
+    vi.mocked(api.getDirectoryConnections).mockResolvedValue([{ id: 'connection', name: 'Authorized directory', directoryTenantId: directory, cloud: 'Public', configured: true }]);
+    vi.mocked(api.searchDirectoryUsers).mockResolvedValue({ users: [{ directoryTenantId: directory, objectId: object,
+      displayName: 'Discovered administrator', email: 'admin@example.invalid', userPrincipalName: 'admin@example.invalid' }], hasMore: false });
+    page(); details();
+    // Act
+    await screen.findByLabelText('Find a person');
+    fireEvent.change(screen.getByLabelText('Find a person'), { target: { value: 'Admin' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search Entra' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Discovered administrator (admin@example.invalid)' }));
+    // Assert
+    expect(screen.getByDisplayValue('Discovered administrator')).toBeInTheDocument();
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose another person' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enter manually' }));
+    expect(screen.getByLabelText('User object ID')).toHaveValue('');
+    fireEvent.click(screen.getByLabelText('Use an existing Person record'));
+    expect(screen.getByLabelText('Person record ID')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Find in Entra' }));
+    expect(await screen.findByLabelText('Find a person')).toBeInTheDocument();
+  });
+  it('saves unbound enrollment edits as a private draft instead of executing a grant', async () => {
+    // Arrange
+    page('/organizations/org-new/provisioning?key=old-key');
+    await screen.findByText('Administrator: Pending');
+    identity();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    // Assert
+    await waitFor(() => expect(onboardingApi.saveOrganizationDraft).toHaveBeenCalledWith(expect.any(String),
+      expect.objectContaining({ organizationChoice: 'existing', existingTenantId: 'org-new',
+        administrator: expect.objectContaining({ directoryTenantId: directory, objectId: object }) }), 'administrator', 0));
+    await waitFor(() => expect(screen.getByLabelText('Route')).toHaveTextContent('/setup/resume'));
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+  });
+  it('retains unbound enrollment edits when a draft save fails', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockRejectedValue(new Error('Enrollment draft unavailable'));
+    page('/organizations/org-new/provisioning?key=old-key');
+    await screen.findByText('Administrator: Pending');
+    identity();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
+    // Assert
+    expect(await screen.findByText('Enrollment draft unavailable')).toBeInTheDocument();
+    expect(screen.getByLabelText('User object ID')).toHaveValue(object);
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh setup status' }));
+    await waitFor(() => expect(api.getOrganizationProvisioning).toHaveBeenCalledTimes(2));
+  });
+  it('requires explicit server-value reconciliation after a stale draft save before adopting its newer revision', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValueOnce(draftFixture)
+      .mockResolvedValue({ ...draftFixture, revision: 2,
+        values: { ...draftFixture.values, displayName: 'Other tab saved name', primaryPocName: 'Other tab contact' } });
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockRejectedValueOnce(
+      new api.WorkspaceOperationError('Draft changed in another tab', 409, 'STALE_REVISION'));
+    page('/organizations/new?draft=draft-1');
+    await screen.findByDisplayValue('Retained organization');
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Stale local name' } });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Check saved draft' }));
+    // Assert
+    expect(await screen.findByRole('button', { name: 'Use saved server version' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Organization name')).toHaveValue('Stale local name');
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    expect(onboardingApi.saveOrganizationDraft).toHaveBeenCalledTimes(1);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Use saved server version' }));
+    // Assert
+    expect(screen.getByLabelText('Organization name')).toHaveValue('Other tab saved name');
+    expect(screen.getByLabelText('Primary contact name (optional)')).toHaveValue('Other tab contact');
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockResolvedValue({ ...draftFixture, revision: 3 });
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    await waitFor(() => expect(onboardingApi.saveOrganizationDraft).toHaveBeenLastCalledWith('draft-1',
+      expect.objectContaining({ displayName: 'Other tab saved name', primaryPocName: 'Other tab contact' }), 'details', 2));
+  });
+  it('does not rehydrate a locally edited draft when workspace navigation identity refreshes', async () => {
+    // Arrange
+    let resolveLateRead: ((value: onboardingApi.OrganizationOnboardingDraft) => void) | undefined;
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValueOnce(draftFixture)
+      .mockImplementation(() => new Promise(resolve => { resolveLateRead = resolve; }));
+    const tree = () => <MemoryRouter initialEntries={['/workspaces/csp/organizations/new?draft=draft-1']}>
+      <WorkspaceNavigationProvider workspace={{ kind: 'csp' }}><AddOrganizationPage /></WorkspaceNavigationProvider>
+    </MemoryRouter>;
+    const view = render(tree());
+    await screen.findByDisplayValue('Retained organization');
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Locally reviewed organization' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review setup' }));
+    // Act
+    view.rerender(tree());
+    await act(async () => { resolveLateRead?.(draftFixture); });
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Review organization setup', level: 1 })).toBeInTheDocument();
+    expect(screen.getByText('Locally reviewed organization', { exact: true })).toBeInTheDocument();
+    expect(onboardingApi.getOrganizationDraft).toHaveBeenCalledOnce();
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('cancels a prior draft read and ignores its response after an actual draft identity change', async () => {
+    // Arrange
+    let finishFirst!: (value: onboardingApi.OrganizationOnboardingDraft) => void;
+    let finishSecond!: (value: onboardingApi.OrganizationOnboardingDraft) => void;
+    vi.mocked(onboardingApi.getOrganizationDraft).mockImplementation(id => new Promise(resolve => {
+      if (id === 'draft-1') finishFirst = resolve; else finishSecond = resolve;
+    }));
+    function SwitchDraft() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate('/organizations/new?draft=draft-2')}>Choose another saved draft</button>;
+    }
+    render(<MemoryRouter initialEntries={['/organizations/new?draft=draft-1']}><SwitchDraft /><AddOrganizationPage /></MemoryRouter>);
+    const firstSignal = vi.mocked(onboardingApi.getOrganizationDraft).mock.calls[0]![1]!;
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Choose another saved draft' }));
+    await act(async () => finishSecond({ ...draftFixture, draftId: 'draft-2',
+      values: { ...draftFixture.values, displayName: 'Second organization' } }));
+    await act(async () => finishFirst(draftFixture));
+    // Assert
+    expect(firstSignal.aborted).toBe(true);
+    expect(screen.getByLabelText('Organization name')).toHaveValue('Second organization');
+    expect(screen.queryByDisplayValue('Retained organization')).not.toBeInTheDocument();
+  });
+  it('offers an explicit server-saved exit before organization creation', () => {
+    // Arrange
+    page();
+    // Act
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Partial organization' } });
+    // Assert
+    expect(screen.getByRole('button', { name: 'Save & finish later' })).toBeInTheDocument();
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('saves a partial draft and navigates only after server confirmation without creating access', async () => {
+    // Arrange
+    page();
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Partial organization' } });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    // Assert
+    await waitFor(() => expect(onboardingApi.saveOrganizationDraft).toHaveBeenCalledWith(expect.any(String),
+      expect.objectContaining({ displayName: 'Partial organization', organizationChoice: 'create' }), 'details', 0));
+    await waitFor(() => expect(screen.getByLabelText('Route')).toHaveTextContent('/setup/resume'));
+    expect(api.createOrganization).not.toHaveBeenCalled();
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+  });
+  it('keeps partial edits and the stable draft URL when saving fails', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockRejectedValue(new Error('Draft storage unavailable'));
+    page();
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Preserve this name' } });
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Save & finish later' }));
+    // Assert
+    expect(await screen.findByText('Draft storage unavailable')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Preserve this name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Route')).toHaveTextContent('/organizations/new?draft=');
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('hydrates a saved review and confirms the same draft without another legacy creation request', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationDraft).mockResolvedValue({ ...draftFixture, currentStep: 'review' });
+    vi.mocked(onboardingApi.saveOrganizationDraft).mockResolvedValue({ ...draftFixture, revision: 2 });
+    vi.mocked(onboardingApi.confirmOrganizationDraft).mockResolvedValue({ ...draftFixture, state: 'Confirmed',
+      tenantId: 'org-new', operationId: 'operation-1', resumeUrl: '/organizations/org-new/provisioning?key=draft-key' });
+    page('/organizations/new?draft=draft-1');
+    // Act
+    const confirm = await screen.findByRole('button', { name: 'Create organization' });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    // Assert
+    await waitFor(() => expect(onboardingApi.confirmOrganizationDraft).toHaveBeenCalledWith('draft-1', 2));
+    expect(api.createOrganization).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText('Route')).toHaveTextContent('/organizations/org-new/provisioning?key=draft-key'));
+  });
+  it('shows directory fallback without discarding the organization details', async () => {
+    // Arrange
+    page(); details();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Directory lookup is unavailable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enter identity details manually' }));
+    // Assert
+    expect(screen.getByLabelText('Directory tenant ID')).toBeInTheDocument();
+    expect(screen.getByText('Organization: Mission Operations')).toBeInTheDocument();
+    expect(api.createOrganization).not.toHaveBeenCalled();
+  });
+  it('shows another current administrator without completing or retrying the requested identity', async () => {
+    // Arrange
+    vi.mocked(onboardingApi.getOrganizationSetupSummary).mockResolvedValue({
+      tenant: { id: 'org-new', displayName: 'Mission Operations', lifecycle: 'Active', onboardingState: 'Pending' },
+      observedAt: '2026-09-30T12:00:00Z', reconciliation: 'DifferentIdentity', requestedOperation: pending,
+      liveAccess: { state: 'Available', activeMemberCount: 1, administrators: { items: [{
+        personId: person, displayName: 'Current administrator', membershipId: 'membership', directoryTenantId: directory,
+        objectId: object, assignmentId: 'role',
+      }], page: 1, pageSize: 25, total: 1 } },
+      actorActions: { canManageMemberships: true, canResumeEnrollment: false, canEnterOrganization: false },
+    });
+    // Act
+    page('/organizations/org-new/provisioning?key=old-key');
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Review administrator setup status' })).toBeInTheDocument();
+    expect(screen.getByText('Current administrator')).toBeInTheDocument();
+    expect(screen.getByText('Administrator: Pending')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume incomplete enrollment' })).toBeDisabled();
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+    expect(screen.queryByRole('link', { name: 'Choose authorized organization workspace' })).not.toBeInTheDocument();
+  });
+  it('reuses live administrator access without inventing a missing enrollment operation', async () => {
+    // Arrange
+    vi.mocked(api.getCurrentOrganizationProvisioning).mockResolvedValue(null);
+    vi.mocked(onboardingApi.getOrganizationSetupSummary).mockResolvedValue({
+      tenant: { id: 'org-new', displayName: 'Mission Operations', lifecycle: 'Active', onboardingState: 'Pending' },
+      observedAt: '2026-09-30T12:00:00Z', reconciliation: 'Unbound', requestedOperation: null,
+      liveAccess: { state: 'Available', activeMemberCount: 1, administrators: { items: [{
+        personId: person, displayName: 'Current administrator', membershipId: 'membership', directoryTenantId: directory,
+        objectId: object, assignmentId: 'role',
+      }], page: 1, pageSize: 25, total: 1 } },
+      actorActions: { canManageMemberships: true, canResumeEnrollment: false, canEnterOrganization: false },
+    });
+    // Act
+    page('/organizations/org-new/provisioning');
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Administrator access is ready' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start enrollment' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Review administrator setup status' })).not.toBeInTheDocument();
+    expect(api.beginOrganizationProvisioning).not.toHaveBeenCalled();
+    expect(api.resumeOrganizationProvisioning).not.toHaveBeenCalled();
+  });
   it.each([
     ['displayName', 200], ['legalEntityName', 300], ['primaryPocName', 200], ['primaryPocEmail', 254],
   ] as const)('enforces the persisted %s length boundary of %s', (field, limit) => {

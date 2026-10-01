@@ -504,6 +504,8 @@ async Task RunHttpModeAsync(string[] args)
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.PackageImports.ICspPackageService,
         Ato.Copilot.Core.Services.PackageImports.CspPackageService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationStore>();
+    builder.Services.AddProviderSetup(builder.Configuration);
+    builder.Services.AddSystemSetup();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderAuthorizationService,
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderHostingService,
@@ -686,6 +688,8 @@ async Task RunHttpModeAsync(string[] args)
     app.MapTenantOnboardingEndpoints();
     // Feature 048 (T163 [US7]): CSP-Admin onboarding wizard.
     app.MapCspOnboardingEndpoints();
+    app.MapProviderSetupEndpoints();
+    app.MapSystemSetupEndpoints();
     // Feature 048 (T208 [US9]): CSP-inherited components management surface
     // — read-only across tenants, write-gated to CSP-Admin (FR-104..FR-106).
     app.MapCspInheritedComponentEndpoints();
@@ -700,6 +704,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapProviderImpactEndpoints();
     app.MapProviderMonitoringEndpoints();
     app.MapWorkspaceOperationsEndpoints();
+    app.MapOrganizationOnboardingEndpoints();
     // Feature 048 (T181 [US8]): CSP-Admin cross-tenant operational dashboard.
     app.MapCspDashboardEndpoints();
     // Feature 048 (T116 [US6]): CSP-Admin audit query surface.
@@ -1346,6 +1351,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CspInheritedCatalogSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationOnboardingSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.CspPackageSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderAuthorizationSchemaAdditions
@@ -1364,6 +1371,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.UserCategoryReviewSchemaAdditions
         .ApplyAsync(db, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderSetupSchemaAdditions
+        .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.WorkspaceOperationsSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.OrganizationCatalogSchemaAdditions
@@ -1383,6 +1392,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ScopedMonitoringSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.EmassExchangeSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.SystemSetupSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.NotificationPreferencesSchemaAdditions
         .ApplyAsync(db, logger, ct);

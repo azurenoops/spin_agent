@@ -54,6 +54,8 @@ import SystemSecurityCapabilitiesPage from './features/workspace-operations/syst
 import ProviderWorkspacePage from './features/provider-workspace/ProviderWorkspacePage';
 import CspSystemsPage from './features/csp-dashboard/CspSystemsPage';
 import { useWorkspaceSession } from './features/workspaces/WorkspaceBoundary';
+import SetupHomeRoute from './features/onboarding/shared/SetupHomeRoute';
+import SystemSetupRoute from './pages/SystemSetupRoute';
 
 export default function ApplicationRoutes() {
   return (
@@ -62,6 +64,8 @@ export default function ApplicationRoutes() {
               loginRedirect with the deep-link as `state` when unauthenticated. */}
           <Route index element={<RequireAuth><PortfolioRoute /></RequireAuth>} />
           <Route path="systems" element={<RequireAuth><SystemsRoute /></RequireAuth>} />
+          <Route path="setup" element={<RequireAuth><SetupHomeRoute /></RequireAuth>} />
+          <Route path="setup/resume" element={<RequireAuth><SetupHomeRoute mode="resume" /></RequireAuth>} />
           <Route path="narrative-library/*" element={<RequireAuth><StandaloneNarrativeLibrary /></RequireAuth>} />
           {/* fix(#522): /systems/new must be registered BEFORE /systems/:id so React
               Router does not match it as id="new". SystemsNewRoute redirects to
@@ -70,6 +74,7 @@ export default function ApplicationRoutes() {
           <Route path="provider-relationships/setup" element={<RequireAuth><MissionAssociationWizard /></RequireAuth>} />
           <Route path="systems/:id" element={<RequireAuth><SystemLayout /></RequireAuth>}>
             <Route index element={<SystemDetail />} />
+            <Route path="setup" element={<SystemSetupRoute />} />
             <Route path="provider-relationships" element={<MissionAssociationWizard />} />
             <Route path="provider-relationships/setup" element={<MissionAssociationWizard />} />
             <Route path="profile/EnvironmentAndDeployment/hosting" element={<MissionAssociationWizard environmentEntry />} />

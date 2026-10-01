@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useTenantField, useTenantDraftRevision } from '../draftContext';
 import { tenantWizard } from '../api';
 import type { StepProps } from './types';
 
@@ -8,14 +8,16 @@ import type { StepProps } from './types';
  * via <c>POST /api/onboarding/tenant/ao</c>.
  */
 export default function AoStep({ busy, beforeSubmit, onAdvance, onError }: StepProps) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useTenantField('ao', 'authorizingOfficialName');
+  const [email, setEmail] = useTenantField('ao', 'authorizingOfficialEmail');
+  const expectedRevision = useTenantDraftRevision();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     beforeSubmit();
     try {
       const next = await tenantWizard.submitAo({
+        expectedRevision,
         authorizingOfficialName: name.trim(),
         authorizingOfficialEmail: email.trim(),
       });

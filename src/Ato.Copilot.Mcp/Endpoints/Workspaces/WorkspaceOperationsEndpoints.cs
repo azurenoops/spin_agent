@@ -241,19 +241,20 @@ public static partial class WorkspaceOperationsEndpoints
             using var scope = accessor.Push(new Ato.Copilot.Core.Services.Tenancy.TenantContext(tenantId));
             var state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct, actor);
             executionStarted = true;
+            var continuation = body with { ExpectedRevision = null };
             var personId = state.BoundPersonId
                 ?? throw new InvalidOperationException("Provisioning did not persist the Person binding.");
             if (state.MembershipState != "Completed")
             {
                 await memberships.GrantAsync(http, tenantId,
                     new(body.DirectoryTenantId, body.ObjectId, personId), ct);
-                state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct, actor);
+                state = await service.UpdateProvisioningAsync(tenantId, operationId, continuation, ct, actor);
             }
 
             if (state.AdministratorState != "Completed")
             {
                 await memberships.EnrollAdministratorAsync(http, tenantId, personId, ct);
-                state = await service.UpdateProvisioningAsync(tenantId, operationId, body, ct, actor);
+                state = await service.UpdateProvisioningAsync(tenantId, operationId, continuation, ct, actor);
             }
             return Results.Ok(new { data = state });
         }

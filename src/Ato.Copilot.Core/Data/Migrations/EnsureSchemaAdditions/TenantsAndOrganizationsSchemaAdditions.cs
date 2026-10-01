@@ -39,6 +39,11 @@ public static class TenantsAndOrganizationsSchemaAdditions
             else if (isSqlite)
             {
                 await db.Database.ExecuteSqlRawAsync(SqliteScript, cancellationToken);
+                var columns = await db.Database.SqlQueryRaw<string>(
+                    "SELECT name AS Value FROM pragma_table_info('CspProfiles')").ToListAsync(cancellationToken);
+                if (!columns.Contains("SetupRevision", StringComparer.OrdinalIgnoreCase))
+                    await db.Database.ExecuteSqlRawAsync(
+                        "ALTER TABLE CspProfiles ADD COLUMN SetupRevision INTEGER NOT NULL DEFAULT 1", cancellationToken);
             }
             else
             {
@@ -153,9 +158,12 @@ public static class TenantsAndOrganizationsSchemaAdditions
                 CreatedBy NVARCHAR(254) NOT NULL,
                 UpdatedAt DATETIMEOFFSET NULL,
                 UpdatedBy NVARCHAR(254) NULL,
+                SetupRevision BIGINT NOT NULL DEFAULT 1,
                 RowVersion ROWVERSION NULL
             );
         END;
+        IF COL_LENGTH(N'dbo.CspProfiles', N'SetupRevision') IS NULL
+            ALTER TABLE dbo.CspProfiles ADD SetupRevision BIGINT NOT NULL DEFAULT 1;
         """;
 
     // ─── SQLite (development) ────────────────────────────────────────────────
@@ -179,6 +187,7 @@ public static class TenantsAndOrganizationsSchemaAdditions
             CreatedBy TEXT NOT NULL,
             UpdatedAt TEXT NULL,
             UpdatedBy TEXT NULL,
+            SetupRevision INTEGER NOT NULL DEFAULT 1,
             RowVersion BLOB NULL
         );
 

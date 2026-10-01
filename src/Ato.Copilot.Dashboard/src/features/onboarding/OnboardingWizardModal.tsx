@@ -98,6 +98,7 @@ export default function OnboardingWizardModal({
     () => (initialState.lastStep as WizardStepName | null) ?? 'OrganizationContext',
   );
   const [starting, setStarting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Auto-start the wizard so the user doesn't have to click "Start" before
@@ -112,8 +113,8 @@ export default function OnboardingWizardModal({
         if (cancelled) return;
         setState(next);
         onStateChange(next);
-      } catch {
-        // Surface as a banner via the step component on retry.
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'Unable to start setup.');
       } finally {
         if (!cancelled) setStarting(false);
       }
@@ -158,12 +159,13 @@ export default function OnboardingWizardModal({
   const skipCurrent = async () => {
     const stepDef = ORDERED_STEPS.find((s) => s.name === currentStep);
     if (!stepDef?.skippable) return;
+    setActionError(null);
     try {
       await onboarding.skipStep(currentStep);
-    } catch {
-      // non-fatal
+      await advanceFromCurrent();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to save this choice.');
     }
-    await advanceFromCurrent();
   };
 
   const stepDef = ORDERED_STEPS.find((s) => s.name === currentStep);
@@ -357,6 +359,7 @@ export default function OnboardingWizardModal({
                 )}
               </div>
               <div className="px-6 py-6">
+                {actionError && <p role="alert" className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800">{actionError}</p>}
                 {currentStep === 'OrganizationContext' && (
                   <Step1OrganizationContext onSaved={() => void advanceFromCurrent()} />
                 )}
@@ -378,19 +381,16 @@ export default function OnboardingWizardModal({
                 {currentStep === 'NarrativeSeeds' && (
                   <Step7NarrativeSeeds
                     onComplete={async () => {
+                      setActionError(null);
                       try {
                         await onboarding.skipStep('NarrativeSeeds');
-                      } catch {
-                        // non-fatal
-                      }
-                      try {
                         await onboarding.complete();
-                      } catch {
-                        // non-fatal — best-effort completion stamp
+                        await refresh();
+                        onClose?.();
+                        navigate('/', { replace: true });
+                      } catch (error) {
+                        setActionError(error instanceof Error ? error.message : 'Unable to complete setup.');
                       }
-                      await refresh();
-                      onClose?.();
-                      navigate('/', { replace: true });
                     }}
                   />
                 )}

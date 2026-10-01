@@ -18,6 +18,8 @@ namespace Ato.Copilot.Core.Interfaces.Tenancy;
 /// </remarks>
 public interface ITenantOnboardingService
 {
+    Task<TenantOnboardingProgress> SaveDraftAsync(Guid tenantId, Guid actorUserId, SaveTenantDraftRequest request, CancellationToken ct = default);
+    Task<TenantOnboardingProgress> DiscardDraftAsync(Guid tenantId, Guid actorUserId, long expectedRevision, CancellationToken ct = default);
     /// <summary>Read the current onboarding state + next step for the tenant.</summary>
     Task<TenantOnboardingProgress> GetStateAsync(Guid tenantId, CancellationToken ct = default);
 
@@ -71,7 +73,8 @@ public interface ITenantOnboardingService
     Task<TenantOnboardingProgress> SubmitFinalAsync(
         Guid tenantId,
         Guid actorUserId,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        long? expectedRevision = null);
 }
 
 /// <summary>Read-model returned to the dashboard after each step.</summary>
@@ -80,13 +83,26 @@ public sealed record TenantOnboardingProgress(
     string CurrentStep,
     IReadOnlyList<string> CompletedSteps,
     OnboardingState OnboardingState,
-    Guid? FirstOrganizationId);
+    Guid? FirstOrganizationId,
+    TenantDraftValues? SubmittedValues = null,
+    TenantDraftState? Draft = null,
+    long DraftRevision = 0,
+    IReadOnlyList<string>? MissingRequiredFields = null);
+
+public interface ITenantStepRequest { long? ExpectedRevision { get; } }
+public sealed record TenantDraftValues(
+    LegalEntityStepRequest? LegalEntity = null, HqAddressStepRequest? HqAddress = null,
+    ClassificationStepRequest? Classification = null, AoStepRequest? Ao = null,
+    PrimaryPocStepRequest? PrimaryPoc = null, OrgProfileStepRequest? OrgProfile = null);
+public sealed record TenantDraftState(int SchemaVersion, long Revision, string CurrentStep, TenantDraftValues Values, DateTimeOffset? SavedAt);
+public sealed record SaveTenantDraftRequest(int SchemaVersion, long ExpectedRevision, string CurrentStep, TenantDraftValues Values);
 
 /// <summary>Step 1 — legal-entity payload.</summary>
 public sealed record LegalEntityStepRequest(
     string LegalEntityName,
     string? DoDComponent,
-    string? TimeZone);
+    string? TimeZone,
+    long? ExpectedRevision = null) : ITenantStepRequest;
 
 /// <summary>Step 2 — HQ address payload.</summary>
 public sealed record HqAddressStepRequest(
@@ -95,7 +111,8 @@ public sealed record HqAddressStepRequest(
     string HqCity,
     string HqStateOrProvince,
     string HqPostalCode,
-    string HqCountry);
+    string HqCountry,
+    long? ExpectedRevision = null) : ITenantStepRequest;
 
 /// <summary>Step 3 — default classification level.</summary>
 /// <remarks>
@@ -105,20 +122,25 @@ public sealed record HqAddressStepRequest(
 /// <c>Secret</c>.
 /// </remarks>
 public sealed record ClassificationStepRequest(
-    string DefaultClassificationLevel);
+    string DefaultClassificationLevel,
+    long? ExpectedRevision = null) : ITenantStepRequest;
 
 /// <summary>Step 4 — Authorizing Official.</summary>
 public sealed record AoStepRequest(
     string AuthorizingOfficialName,
-    string AuthorizingOfficialEmail);
+    string AuthorizingOfficialEmail,
+    long? ExpectedRevision = null) : ITenantStepRequest;
 
 /// <summary>Step 5 — primary POC.</summary>
 public sealed record PrimaryPocStepRequest(
     string PrimaryPocName,
     string PrimaryPocEmail,
-    string? PrimaryPocPhone);
+    string? PrimaryPocPhone,
+    long? ExpectedRevision = null) : ITenantStepRequest;
 
 /// <summary>Step 6 — first organization profile.</summary>
 public sealed record OrgProfileStepRequest(
     string Name,
-    string? Description);
+    string? Description,
+    Guid? FirstOrganizationId = null,
+    long? ExpectedRevision = null) : ITenantStepRequest;

@@ -26,6 +26,28 @@ function mount(query = '') {
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(api.getSspPreview).mockResolvedValue(preview); });
 
 describe('generated document preview', () => {
+  it('organizes the SSP using the supplied template headings and marks missing source content', async () => {
+    // Arrange
+    const headings = ['1. Introduction', '2. Purpose', '3. System Information', '4. System Owner',
+      '5. Assignment of Security Responsibility', '6. Leveraged FedRAMP-Authorized Services',
+      '7. External Systems and Services Not Having FedRAMP Authorization',
+      '8. Illustrated Architecture and Narratives', '9. Services, Ports, and Protocols',
+      '10. Cryptographic Modules Implemented for Data At Rest (DAR) and Data In Transit (DIT)',
+      '11. Separation of Duties', '12. SSP Appendices List'];
+    // Act
+    mount();
+    await screen.findByRole('heading', { name: 'Generated DEMO SSP' });
+    // Assert
+    const template = screen.getByRole('region', { name: 'SSP template sections' });
+    expect([...template.querySelectorAll('h3')].map(heading => heading.textContent)).toEqual(headings);
+    expect(screen.getByRole('heading', { name: 'Prepared by' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Prepared for' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'SYSTEM SECURITY PLAN APPROVALS' })).toBeVisible();
+    expect(screen.getByText('No approval signatures were supplied in the generated document.')).toBeVisible();
+    expect(screen.getByText('No cryptographic module records were supplied in the generated document.')).toBeVisible();
+    expect(screen.getByRole('navigation', { name: 'SSP document sections' })).toHaveTextContent('12. SSP Appendices List');
+  });
+
   it('presents a formal working document without inventing version history or official approval', async () => {
     // Arrange / Act
     mount();
@@ -106,10 +128,10 @@ describe('generated document preview', () => {
     // Act
     mount('?contribution=MissionAndPurpose');
     // Assert
-    expect(await screen.findByText('Approved mission content')).toBeVisible();
+    expect(await screen.findAllByText('Approved mission content')).toHaveLength(2);
     expect(screen.getByText('Approved source')).toBeVisible();
-    expect(screen.getByText('Yes')).toBeVisible();
-    expect(screen.getByText('No')).toBeVisible();
+    expect(screen.getAllByText('Yes')).toHaveLength(2);
+    expect(screen.getAllByText('No')).toHaveLength(2);
     expect(screen.getByText('Profile sources (1)')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Review source mapping' })).toHaveAttribute('href', '/systems/system-a/profile/MissionAndPurpose');
   });
@@ -118,7 +140,7 @@ describe('generated document preview', () => {
     // Arrange
     vi.mocked(api.getSspPreview).mockResolvedValueOnce(preview).mockRejectedValueOnce(new Error('Fresh source lookup failed')).mockResolvedValueOnce(preview);
     mount();
-    await screen.findByText('Exact generated mission description');
+    await screen.findAllByText('Exact generated mission description');
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Refresh preview' }));
     // Assert
@@ -127,7 +149,7 @@ describe('generated document preview', () => {
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     // Assert
-    expect(await screen.findByText('Exact generated mission description')).toBeVisible();
+    expect(await screen.findAllByText('Exact generated mission description')).toHaveLength(2);
   });
 
   it('reports a requested contribution missing from the generated document instead of substituting registration text', async () => {
@@ -193,7 +215,7 @@ describe('generated document preview', () => {
     mount();
     // Assert
     expect(await screen.findByRole('heading', { name: 'Generated DEMO SSP' })).toBeVisible();
-    expect(screen.getByText('Exact generated mission description')).toBeVisible();
+    expect(screen.getAllByText('Exact generated mission description')).toHaveLength(2);
     expect(screen.getByText('Reviewed issuer metadata is missing.')).toBeVisible();
     expect(screen.getByText(/Current working data preview/)).toBeVisible();
     expect(screen.getByRole('link', { name: 'Review source mapping' })).toHaveAttribute('href', '/systems/system-a/profile/EnvironmentAndDeployment');

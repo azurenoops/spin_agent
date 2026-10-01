@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate, useLocation } from '../features/workspaces/workspaceNavigation';
+import { useNavigate, useLocation, useWorkspaceTarget } from '../features/workspaces/workspaceNavigation';
 import PageLayout from '../components/layout/PageLayout';
 import PageHero from '../components/layout/PageHero';
 import SystemSummaryRow from '../components/cards/SystemSummaryRow';
@@ -32,6 +32,7 @@ export default function PortfolioDashboard() {
 
   // Intake wizard
   const wizard = useIntakeWizard();
+  const workspace = useWorkspaceTarget();
 
   // fix(#522): auto-open the intake wizard when navigated here from
   // /systems/new (which sets location.state.openWizard = true via redirect).
@@ -156,6 +157,14 @@ export default function PortfolioDashboard() {
     }
   };
 
+  const intake = (
+    <IntakeWizard
+      setupTenantId={workspace?.kind === 'organization' && !workspace.mode ? workspace.tenantId : undefined}
+      onClose={() => { wizard.close(); void fetchPortfolio(); }}
+    />
+  );
+  if (wizard.state.isOpen && workspace?.kind === 'organization' && !workspace.mode) return intake;
+
   return (
     <PageLayout title="Systems">
       <PageHero
@@ -209,20 +218,7 @@ export default function PortfolioDashboard() {
       </div>
 
       {/* Intake Wizard */}
-      {wizard.state.isOpen && (
-        <IntakeWizard
-          state={wizard.state}
-          onNext={wizard.nextStep}
-          onPrev={wizard.prevStep}
-          onSkip={wizard.skipStep}
-          onGoToStep={wizard.goToStep}
-          onCancel={() => { void wizard.cancelWithCleanup(wizard.state.systemId); fetchPortfolio(); }}
-          onFinish={wizard.finish}
-          onSystemId={wizard.setSystemId}
-          onValidationErrors={wizard.setValidationErrors}
-          onClearErrors={wizard.clearValidationErrors}
-        />
-      )}
+      {wizard.state.isOpen && intake}
 
       {/* Edit System Dialog */}
       {editDialogOpen && (

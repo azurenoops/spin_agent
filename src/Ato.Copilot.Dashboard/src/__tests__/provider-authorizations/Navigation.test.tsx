@@ -99,7 +99,7 @@ describe('authorization-led provider navigation', () => {
       : { kind: 'organization', tenantId: 'synthetic-org' };
     // Act
     renderNavigation(target);
-    fireEvent.click(screen.getByText('Navigation', { selector: 'summary' }));
+    fireEvent.click(screen.getByLabelText('Open organization navigation'));
     // Assert
     expect(screen.queryByRole('link', { name: 'Authorizations' })).not.toBeInTheDocument();
     for (const link of screen.getAllByRole('link', { name: 'Security Capabilities' })) {

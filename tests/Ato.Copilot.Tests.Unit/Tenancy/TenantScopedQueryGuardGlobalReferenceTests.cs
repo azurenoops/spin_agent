@@ -42,6 +42,49 @@ namespace Ato.Copilot.Tests.Unit.Tenancy;
 /// </summary>
 public class TenantScopedQueryGuardGlobalReferenceTests : IAsyncLifetime
 {
+    [Fact]
+    public async Task ProviderScoped_OrganizationDraftCannotUseGlobalReferenceExemption()
+    {
+        // Arrange
+        await using var scope = _sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var type = typeof(Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft);
+        type.GetCustomAttributes(typeof(GlobalReferenceAttribute), false).Should().BeEmpty();
+        type.GetCustomAttributes(typeof(ProviderScopedAttribute), false).Should().ContainSingle();
+        db.Model.FindEntityType(type)!.GetQueryFilter().Should().NotBeNull();
+
+        // Act
+        Func<Task> read = () => db.Set<Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft>().ToListAsync();
+
+        // Assert
+        await read.Should().ThrowAsync<InvalidOperationException>().WithMessage("*[SEC]*");
+    }
+
+    [Fact]
+    public async Task ProviderScoped_OrganizationDraftIsHiddenFromOrdinaryAndSupportReaders()
+    {
+        // Arrange
+        await using var scope = _sp.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var providerId = await db.CspProfiles.Select(x => x.Id).SingleAsync();
+        db.Set<Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft>().Add(new()
+        {
+            Id = Guid.NewGuid(), ProviderId = providerId, ValuesJson = "{\"primaryPocEmail\":\"private@example.invalid\"}",
+            CreatedBy = "fixture", UpdatedBy = "fixture"
+        });
+        await db.SaveChangesAsync();
+
+        // Act
+        using (_accessor.Push(new TenantContext(TenantId)))
+            (await db.Set<Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft>().AsNoTracking().CountAsync()).Should().Be(0);
+        using (_accessor.Push(new TenantContext(TenantId) { IsCspAdmin = true, ImpersonatedTenantId = TenantId }))
+            (await db.Set<Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft>().AsNoTracking().CountAsync()).Should().Be(0);
+
+        // Assert
+        using (_accessor.Push(new TenantContext { IsCspAdmin = true }))
+            (await db.Set<Ato.Copilot.Core.Models.Workspaces.OrganizationOnboardingDraft>().AsNoTracking().CountAsync()).Should().Be(1);
+    }
+
     private SqliteConnection _connection = null!;
     private ServiceProvider _sp = null!;
     private Mock<IHttpContextAccessor> _httpContextAccessorMock = null!;

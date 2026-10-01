@@ -334,46 +334,6 @@ export async function getCspDashboardSystems(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Provision a new mission-owner organization (tenant). Used by the
-// `+ Create org` action on the CSP Portfolio page.
-// ---------------------------------------------------------------------------
-
-export interface CreateCspTenantRequest {
-  displayName: string;
-  legalEntityName?: string;
-  primaryPocName?: string;
-  primaryPocEmail?: string;
-}
-
-export interface CreateCspTenantResponse {
-  tenantId: string;
-  displayName: string;
-  status: TenantStatus;
-  onboardingState: string;
-  createdAt: string;
-  createdBy: string;
-}
-
-/**
- * POST /api/csp/dashboard/tenants — provision a new organization.
- *
- * Errors are surfaced as Error objects with `errorCode`/`message` so the
- * caller can present them inline (e.g. duplicate name → `VALIDATION_FAILED`).
- * Unavailable states (single-tenant / not CSP-Admin) are NOT folded into
- * a sentinel here — the button that calls this is only rendered when the
- * sibling GET surfaces work, so an unavailable response is a real bug.
- */
-export async function createCspDashboardTenant(
-  body: CreateCspTenantRequest,
-): Promise<CreateCspTenantResponse> {
-  const { data } = await cspDashboardClient.post<Envelope<CreateCspTenantResponse>>(
-    '/csp/dashboard/tenants',
-    body,
-  );
-  return unwrap(data);
-}
-
 /**
  * PATCH /api/csp/dashboard/tenants/{tenantId}/status — update tenant lifecycle status.
  *

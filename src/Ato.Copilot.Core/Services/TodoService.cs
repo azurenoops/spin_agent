@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 
 namespace Ato.Copilot.Core.Services;
 
@@ -12,11 +13,13 @@ namespace Ato.Copilot.Core.Services;
 public class TodoService
 {
     private readonly AtoCopilotContext _db;
+    private readonly ISystemWorkspaceAccessService? _access;
     private string _systemName = "";
 
-    public TodoService(AtoCopilotContext db)
+    public TodoService(AtoCopilotContext db, ISystemWorkspaceAccessService? access = null)
     {
         _db = db;
+        _access = access;
     }
 
     private string SystemName(string _) => _systemName;
@@ -74,6 +77,21 @@ public class TodoService
         await AddFindingItems(items, systemId, ct);
         await AddDeviationItems(items, systemId, ct);
         await AddOutstandingInfoItems(items, systemId, ct);
+
+        if (system.SetupDraftJson is not null)
+        {
+            var permission = _access is not null && _db.WorkspacePersonId is { } person
+                ? (await _access.GetAccessAsync(system.TenantId, person, systemId, false, ct)).Permissions : null;
+            items.RemoveAll(item => item.Id == "assign-roles");
+            var sourceReceipts = await SystemSourceReadProjection.ListAsync(_db, system.TenantId, systemId, ct);
+            items.InsertRange(0, SystemSetupPreparationProjection.WithSources(
+                SystemSetupPreparationProjection.Build(system, permission), sourceReceipts, permission).Select(task => new TodoItemDto
+            {
+                Id = task.Id, Label = task.Label, Detail = task.Detail, Category = "preparation",
+                Link = task.CanAct ? task.Link : null, State = task.State, OwnerRole = task.OwnerRole,
+                Contribution = task.Contribution, CanAct = task.CanAct,
+            }));
+        }
 
         // ── Deferred prerequisites from force-advances ──────────────────────
         try { await AddDeferredPrerequisiteItems(items, systemId, ct); }

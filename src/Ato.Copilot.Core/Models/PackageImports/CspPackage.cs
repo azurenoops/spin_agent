@@ -10,6 +10,10 @@ public sealed class CspPackage
     public Guid? OfferingId { get; set; }
     public Guid? PackageVersionId { get; set; }
     public Guid? BoundaryRevisionId { get; set; }
+    public Guid? UploadIntentId { get; set; }
+    [MaxLength(100)] public string? HandlingPolicyVersion { get; set; }
+    public string? HandlingDeclarationJson { get; set; }
+    public bool RequiresOfferingAssociation { get; set; }
     [MaxLength(100)] public string IdempotencyKey { get; set; } = "";
     [MaxLength(64)] public string ContentHash { get; set; } = "";
     [MaxLength(256)] public string Name { get; set; } = "";

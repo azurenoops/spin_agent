@@ -3,6 +3,7 @@ import { installWorkspaceFixture } from '../fixtures/workspace-shell';
 import { candidate, entry, packageStatus, page as responsePage, preview } from '../../src/__tests__/package-imports/fixtures';
 import type { PackageCandidate, PackagePreview, PackagePublication } from '../../src/features/package-imports/types';
 import type { BrowserContext } from '@playwright/test';
+import { offering } from '../../src/__tests__/provider-authorizations/testData';
 
 const componentId = 'bbbbbbbb-1000-4000-8000-000000000002';
 const capabilityId = 'bbbbbbbb-1000-4000-8000-000000000004';
@@ -80,77 +81,13 @@ async function installPackageReview(context: BrowserContext, baseURL: string, lo
 }
 
 for (const width of [1440, 390]) {
-  test(`onboarding recovers upload receipt and continues without record review at ${width}px`, async ({ context, page, baseURL }, info) => {
-    // Arrange
-    await page.setViewportSize({ width, height: 1100 });
-    await installWorkspaceFixture(context, baseURL!, { providerOnly: true });
-    let received = false;
-    let completed = false;
-    const uploadKeys: string[] = [];
-    const packageMethods: string[] = [];
-    const receipt = packageStatus({ processingState: 'Received', revision: 1,
-      coverage: { total: 1, pending: 1, processed: 0, unsupported: 0, unreadable: 0, failed: 0, excluded: 0 } });
-    await context.route('**/api/csp/onboarding/state', route => route.fulfill({ json: { status: 'success', data: {
-      cspProfileId: 'synthetic-provider', onboardingState: completed ? 'Active' : 'InWizard', currentStep: 'Review',
-      identity: { legalEntityName: 'Synthetic provider', displayName: 'Synthetic provider' },
-      supportContact: { primarySupportEmail: 'support@example.invalid' }, classification: { defaultClassificationFloor: 'Unclassified' },
-    } } }));
-    await context.route('**/api/csp/onboarding/atos/upload', route => {
-      const headers = route.request().headers();
-      uploadKeys.push(headers['idempotency-key']);
-      expect(headers.prefer).toBe('respond-async');
-      expect(headers['x-workspace-kind']).toBe('csp');
-      expect(headers['x-workspace-mode']).toBe('ordinary');
-      expect(headers['x-workspace-tenant-id']).toBeUndefined();
-      received = true;
-      if (uploadKeys.length === 1) return route.abort('connectionfailed');
-      return route.fulfill({ status: 202, json: { status: 'success', data: receipt } });
-    });
-    await context.route('**/api/csp/package-imports**', route => {
-      packageMethods.push(route.request().method());
-      expect(route.request().headers()['x-workspace-kind']).toBe('csp');
-      return route.fulfill({ json: { status: 'success', data: responsePage(received ? [receipt] : []) } });
-    });
-    await context.route('**/api/csp/onboarding/submit', route => {
-      completed = true;
-      return route.fulfill({ json: { status: 'success', data: {
-        cspProfileId: 'synthetic-provider', onboardingState: 'Active', onboardingCompletedAt: '2026-09-23T12:00:00Z',
-      } } });
-    });
-    await page.goto('/onboarding/csp');
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
-
-    // Act
-    await page.getByLabel('Select source files').setInputFiles({
-      name: 'synthetic-package.json', mimeType: 'application/json', buffer: Buffer.from('{"fixture":"synthetic"}'),
-    });
-    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeDisabled();
-    await page.getByRole('button', { name: 'Upload package', exact: true }).click();
-    await page.getByRole('button', { name: 'Retry same upload', exact: true }).click();
-
-    // Assert
-    await expect(page.getByText('Receipt confirmed · Revision 1')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled();
-    expect(uploadKeys).toHaveLength(2);
-    expect(uploadKeys[0]).toBeTruthy();
-    expect(uploadKeys[1]).toBe(uploadKeys[0]);
-    await expect(page.getByRole('region', { name: 'Candidate records' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Mark reviewed' })).toHaveCount(0);
-    expect(packageMethods.every(method => method === 'GET')).toBe(true);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: info.outputPath(`onboarding-receipt-${width}.png`), fullPage: true });
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByRole('button', { name: 'Submit & finalize onboarding' }).click();
-    await expect.poll(() => completed).toBe(true);
-  });
-
   test(`source review precedes exact approval and publication at ${width}px`, async ({ context, page, baseURL }, info) => {
     // Arrange
     await page.setViewportSize({ width, height: 1100 });
     const state = await installPackageReview(context, baseURL!, true);
     await page.goto('/workspaces/csp/security-capabilities/imports/package-1');
     await expect(page.getByRole('heading', { name: 'Review extracted records', exact: true })).toBeVisible();
-    await page.screenshot({ path: `../../docs/design/package-review-${width}.png`, fullPage: true });
+    await page.screenshot({ path: info.outputPath(`package-review-${width}.png`), fullPage: true });
     await page.getByText('Publication controls', { exact: true }).click();
     await expect(page.getByRole('button', { name: 'Approve exact preview' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Publish approved set' })).toBeDisabled();
@@ -196,8 +133,9 @@ for (const width of [1440, 390]) {
     // Arrange
     await page.setViewportSize({ width, height: 1100 });
     await installWorkspaceFixture(context, baseURL!, { providerOnly: true });
-    const status = packageStatus({ processingState: 'NeedsAttention',
-      coverage: { total: 1, processed: 0, pending: 0, failed: 0, unreadable: 0, excluded: 0, unsupported: 1 } });
+    const status = { ...packageStatus({ processingState: 'NeedsAttention',
+      coverage: { total: 1, processed: 0, pending: 0, failed: 0, unreadable: 0, excluded: 0, unsupported: 1 } }),
+      association: { offeringId: offering.offeringId, packageVersionId: 'version-1', boundaryRevisionId: offering.currentBoundaryRevisionId } };
     const authorizationReference = { reference: 'Synthetic test-only letter', issuer: 'Synthetic test authority',
       issuedAt: '2026-01-01T00:00:00Z', expiresAt: '2027-01-01T00:00:00Z' };
     const reference = candidate({
@@ -209,6 +147,7 @@ for (const width of [1440, 390]) {
         locator: '/authorizationReferences/0', quote: JSON.stringify(authorizationReference) }],
     });
     const mutations: string[] = [];
+    await context.route('**/api/csp/offerings/offering-1', route => route.fulfill({ json: { status: 'success', data: offering } }));
     await context.route('**/api/csp/catalog?*', route => route.fulfill({ json: { status: 'success', data: {
       items: [], page: 1, pageSize: 25, total: 0, aggregateState: 'Available',
     } } }));
@@ -283,13 +222,15 @@ for (const width of [1440, 390]) {
 
     // Act
     await page.goto('/workspaces/csp/security-capabilities');
-    const reviewLink = page.getByRole('link', { name: 'Review imports', exact: true });
-    await expect(reviewLink).toHaveAttribute('href', '/workspaces/csp/security-capabilities/imports');
+    const reviewLink = page.getByRole('link', { name: 'Import authorization package', exact: true });
+    await expect(reviewLink).toHaveAttribute('href', '/workspaces/csp/authorizations/import');
     await reviewLink.focus();
     await page.keyboard.press('Enter');
 
     // Assert
-    await expect(page).toHaveURL(/\/workspaces\/csp\/security-capabilities\/imports$/);
+    await expect(page).toHaveURL(/\/workspaces\/csp\/authorizations\/import$/);
+    await expect(page.getByRole('heading', { name: 'Start with your authorization package' })).toBeVisible();
+    await page.goto('/workspaces/csp/security-capabilities/imports/package-1');
     await expect(page.getByText('Package review is not permitted.', { exact: false })).toBeVisible();
     expect(packageRequests.length).toBeGreaterThan(0);
     expect(packageRequests.every(method => method === 'GET')).toBe(true);

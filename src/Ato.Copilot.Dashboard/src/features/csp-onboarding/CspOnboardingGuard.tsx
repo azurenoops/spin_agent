@@ -18,6 +18,7 @@ interface CspOnboardingGuardProps {
  *  - Non-CSP-Admin caller (401/403) → guard is inert (the API gate already
  *    blocks them and there's nothing for them to do here).
  *  - Already on `/onboarding/csp` → renders children (don't redirect-loop).
+ *  - `/setup` and `/setup/resume` retain access to saved setup facts.
  *  - State `Active` → renders children.
  *  - State `Pending` / `InWizard` → redirects to `/onboarding/csp`.
  *
@@ -40,7 +41,8 @@ export default function CspOnboardingGuard({ children }: CspOnboardingGuardProps
           // SingleTenant or non-CSP-Admin — no redirect.
           return;
         }
-        if (next.onboardingState !== 'Active' && !location.pathname.startsWith('/onboarding/csp')) {
+        const setupEntry = location.pathname === '/setup' || location.pathname === '/setup/resume';
+        if (next.onboardingState !== 'Active' && !location.pathname.startsWith('/onboarding/csp') && !setupEntry) {
           setRedirecting(true);
           navigate('/onboarding/csp', { replace: true });
         }

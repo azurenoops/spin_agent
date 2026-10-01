@@ -3465,6 +3465,9 @@ public class AtoCopilotContext : DbContext
         Ato.Copilot.Core.Data.Configurations.ProviderMonitoringModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.ScopedMonitoringModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.ProviderEvidenceSharingConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ProviderSetupModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.OrganizationOnboardingModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.SystemSetupModelConfiguration.Configure(modelBuilder);
 
         // ─── Tenant query filters (Feature 048 T042) ─────────────────────────────
         // Applied last so all entity types are present in the model. Walks the

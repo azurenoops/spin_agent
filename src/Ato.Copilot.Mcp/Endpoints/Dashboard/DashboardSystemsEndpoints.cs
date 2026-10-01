@@ -221,28 +221,39 @@ public static partial class DashboardEndpoints
                 if (system is null)
                     return Results.NotFound(new ErrorResponse { Error = "System not found", ErrorCode = "SYSTEM_NOT_FOUND" });
 
+                var confirmedFields = new List<string>();
                 if (!string.IsNullOrWhiteSpace(body.Name))
                     system.Name = body.Name;
                 if (body.Acronym is not null)
                     system.Acronym = body.Acronym == "" ? null : body.Acronym;
                 if (!string.IsNullOrWhiteSpace(body.SystemType))
                 {
-                    if (!Enum.TryParse<SystemType>(body.SystemType, true, out var st))
+                    if (!Enum.TryParse<SystemType>(body.SystemType, true, out var st) || !Enum.IsDefined(st))
                         return Results.BadRequest(new ErrorResponse { Error = $"Invalid system_type '{body.SystemType}'", ErrorCode = "INVALID_INPUT" });
                     system.SystemType = st;
+                    confirmedFields.Add("systemType");
                 }
                 if (!string.IsNullOrWhiteSpace(body.MissionCriticality))
                 {
-                    if (!Enum.TryParse<MissionCriticality>(body.MissionCriticality, true, out var mc))
+                    if (!Enum.TryParse<MissionCriticality>(body.MissionCriticality, true, out var mc) || !Enum.IsDefined(mc))
                         return Results.BadRequest(new ErrorResponse { Error = $"Invalid mission_criticality '{body.MissionCriticality}'", ErrorCode = "INVALID_INPUT" });
                     system.MissionCriticality = mc;
+                    confirmedFields.Add("missionCriticality");
                 }
                 if (!string.IsNullOrWhiteSpace(body.HostingEnvironment))
-                    system.HostingEnvironment = body.HostingEnvironment;
+                {
+                    var hosting = body.HostingEnvironment.Trim();
+                    if (hosting.Length > 100 || system.SetupDraftJson is not null &&
+                        string.Equals(hosting, "Undetermined", StringComparison.OrdinalIgnoreCase))
+                        return Results.BadRequest(new ErrorResponse { Error = "Provide the actual hosting environment (maximum 100 characters).", ErrorCode = "INVALID_INPUT" });
+                    system.HostingEnvironment = hosting;
+                    confirmedFields.Add("hostingEnvironment");
+                }
                 if (body.Description is not null)
                     system.Description = body.Description == "" ? null : body.Description;
 
                 system.ModifiedAt = DateTime.UtcNow;
+                SystemSetupPreparationProjection.ConfirmExplicitFields(system, confirmedFields);
 
                 db.DashboardActivities.Add(new DashboardActivity
                 {
@@ -253,7 +264,15 @@ public static partial class DashboardEndpoints
                     RelatedEntityType = "RegisteredSystem",
                     RelatedEntityId = systemId,
                 });
-                await db.SaveChangesAsync(ct);
+                try { await db.SaveChangesAsync(ct); }
+                catch (DbUpdateConcurrencyException)
+                {
+                    return Results.Conflict(new ErrorResponse
+                    {
+                        Error = "The system changed while saving. Reload the current record before retrying.",
+                        ErrorCode = "STALE_SETUP",
+                    });
+                }
 
                 return Results.Ok(new
                 {

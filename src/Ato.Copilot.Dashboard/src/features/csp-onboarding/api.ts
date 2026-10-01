@@ -1,8 +1,7 @@
 /**
- * Feature 048 (T167–T170): Axios wrappers for the CSP-onboarding wizard
- * (`/api/csp/onboarding/*`). Singleton onboarding flow for the hosting CSP
- * itself in `MultiTenant` deployments. Available only to `CSP.Admin`
- * callers; hidden in `SingleTenant` deployments (every endpoint 404s).
+ * Legacy provider-profile state read for branding and guards. Guided setup
+ * mutations are owned by providerSetupApi; the legacy HTTP routes remain
+ * server-side compatibility surfaces, not a second Dashboard wizard engine.
  *
  * Wire types mirror specs/048-tenant-isolation/contracts/csp-onboarding.openapi.yaml.
  */
@@ -10,8 +9,6 @@
 import axios, { type AxiosError } from 'axios';
 import { attachAuthInterceptor } from '../auth/interceptors';
 import { getMsalInstance, DEFAULT_API_SCOPES } from '../auth/msalInstance';
-import { receivePackage } from '../package-imports/api';
-import type { PackageStatus } from '../package-imports/types';
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -50,27 +47,6 @@ export interface CspOnboardingStateDto {
     defaultClassificationFloor?: ClassificationFloor | null;
   };
   onboardingCompletedAt?: string | null;
-}
-
-export interface IdentityRequest {
-  legalEntityName: string;
-  displayName: string;
-  logoUrl?: string | null;
-}
-
-export interface SupportContactRequest {
-  primarySupportEmail: string;
-  supportPhone?: string | null;
-}
-
-export interface ClassificationRequest {
-  defaultClassificationFloor: ClassificationFloor;
-}
-
-export interface SubmitResponse {
-  cspProfileId: string;
-  onboardingState: CspOnboardingState;
-  onboardingCompletedAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,122 +123,4 @@ export async function getCspOnboardingState(): Promise<CspStateResult> {
     if (ax.response === undefined) return { unavailable: true, reason: 'NETWORK_UNREACHABLE' };
     throw err;
   }
-}
-
-export async function postCspOnboardingIdentity(
-  payload: IdentityRequest,
-): Promise<CspOnboardingStateDto> {
-  const { data } = await cspClient.post<Envelope<CspOnboardingStateDto>>(
-    '/csp/onboarding/identity',
-    payload,
-  );
-  return unwrap(data);
-}
-
-export async function postCspOnboardingSupport(
-  payload: SupportContactRequest,
-): Promise<CspOnboardingStateDto> {
-  const { data } = await cspClient.post<Envelope<CspOnboardingStateDto>>(
-    '/csp/onboarding/support',
-    payload,
-  );
-  return unwrap(data);
-}
-
-export async function postCspOnboardingClassification(
-  payload: ClassificationRequest,
-): Promise<CspOnboardingStateDto> {
-  const { data } = await cspClient.post<Envelope<CspOnboardingStateDto>>(
-    '/csp/onboarding/classification',
-    payload,
-  );
-  return unwrap(data);
-}
-
-export async function postCspOnboardingSubmit(): Promise<SubmitResponse> {
-  const { data } = await cspClient.post<Envelope<SubmitResponse>>(
-    '/csp/onboarding/submit',
-  );
-  return unwrap(data);
-}
-
-// ---------------------------------------------------------------------------
-// Feature 048 / US9 / T211 — ATO documents step (FR-099..FR-103)
-// ---------------------------------------------------------------------------
-
-export type AtoSourceFormat =
-  | 'Pdf'
-  | 'Docx'
-  | 'OscalJson'
-  | 'Xlsx'
-  | 'EmassZip'
-  | 'Manual';
-
-/** Per-file entry returned by `POST /csp/onboarding/atos/upload`. */
-export interface AtoUploadFileResult {
-  fileName: string;
-  sourceFormat: AtoSourceFormat;
-  parsedSuccessfully: boolean;
-  parseError?: string | null;
-  componentsExtracted: number;
-  capabilitiesMapped: number;
-  capabilitiesNeedsReview: number;
-}
-
-/** Aggregated response shape from `POST /csp/onboarding/atos/upload`. */
-export interface AtoUploadResponse {
-  documentsAccepted: number;
-  componentsExtracted: number;
-  capabilitiesMapped: number;
-  capabilitiesNeedsReview: number;
-  aiMappingAvailable: boolean;
-  aiMappingFailureReason?: string | null;
-  files: AtoUploadFileResult[];
-}
-
-/** Per-document entry inside `AtoStepState.documents`. */
-export interface AtoStepStateDocument {
-  fileName: string;
-  sourceFormat: AtoSourceFormat;
-  componentsExtracted: number;
-  capabilitiesMapped: number;
-  capabilitiesNeedsReview: number;
-}
-
-/** Response shape from `GET /csp/onboarding/atos/state`. */
-export interface AtoStepState {
-  cspProfileId?: string | null;
-  documentsUploaded: number;
-  componentsExtracted: number;
-  capabilitiesMapped: number;
-  capabilitiesNeedsReview: number;
-  aiMappingAvailable: boolean;
-  aiMappingFailureReason?: string | null;
-  files?: AtoStepStateDocument[];
-  documents?: AtoStepStateDocument[];
-}
-
-/**
- * Uploads one or more ATO source documents (PDF SSP, DOCX, OSCAL JSON, XLSX,
- * eMASS ZIP) during the CSP-onboarding wizard's ATO Documents step.
- * Negotiates durable asynchronous receipt; processing, review and publication
- * remain separate. The caller retains its idempotency key on uncertain failures.
- */
-export async function postCspOnboardingAtosUpload(
-  files: File[],
-  idempotencyKey: string,
-): Promise<PackageStatus> {
-  return receivePackage(files, idempotencyKey, true);
-}
-
-/**
- * Returns the running tally for the ATO Documents step. Re-entrant — safe to
- * call on every step mount so the user sees up-to-date totals after a
- * mid-wizard refresh.
- */
-export async function getCspOnboardingAtosState(): Promise<AtoStepState> {
-  const { data } = await cspClient.get<Envelope<AtoStepState>>(
-    '/csp/onboarding/atos/state',
-  );
-  return unwrap(data);
 }

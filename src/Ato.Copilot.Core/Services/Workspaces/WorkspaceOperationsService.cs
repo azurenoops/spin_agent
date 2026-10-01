@@ -617,6 +617,13 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
     public async Task<CreateWorkspaceOrganizationResult> CreateOrganizationAsync(
         CreateWorkspaceOrganizationRequest request, string idempotencyKey, string actor, CancellationToken ct)
     {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        return await CreateOrganizationCoreAsync(db, request, idempotencyKey, actor, ct);
+    }
+
+    private static async Task<CreateWorkspaceOrganizationResult> CreateOrganizationCoreAsync(
+        AtoCopilotContext db, CreateWorkspaceOrganizationRequest request, string idempotencyKey, string actor, CancellationToken ct)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
         if (idempotencyKey.Length > 100)
@@ -643,14 +650,20 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
                 normalized.PrimaryPocName, normalized.PrimaryPocEmail })
             : JsonSerializer.Serialize(normalized));
         var normalizedDisplayName = OrganizationNameNormalizer.Normalize(displayName);
-        await using var db = await factory.CreateDbContextAsync(ct);
         var existing = await db.OrganizationProvisioningOperations.AsNoTracking()
             .SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, ct);
         if (existing is not null)
             return await ProjectOrganizationCreationReplayAsync(db, existing, intentHash, ct);
         if (await db.Tenants.AsNoTracking().AnyAsync(
                 x => x.DisplayName.ToLower() == displayName.ToLowerInvariant(), ct))
+        {
+            // Another same-key request may commit between the key read and name check.
+            existing = await db.OrganizationProvisioningOperations.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, ct);
+            if (existing is not null)
+                return await ProjectOrganizationCreationReplayAsync(db, existing, intentHash, ct);
             throw new InvalidOperationException($"An organization named '{displayName}' already exists.");
+        }
         var now = DateTimeOffset.UtcNow;
         var tenant = new Models.Tenancy.Tenant
         {
@@ -741,7 +754,8 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
         Guid tenantId, Guid operationId, UpdateProvisioningRequest request, CancellationToken ct,
         Guid actorUserId = default)
     {
-        request = NormalizeAdministrator(request);
+        var expectedRevision = request.ExpectedRevision;
+        request = NormalizeAdministrator(request with { ExpectedRevision = null });
         await using var db = await factory.CreateDbContextAsync(ct);
         return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
@@ -752,6 +766,8 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             var operations = await db.OrganizationProvisioningOperations.Where(x => x.TenantId == tenantId).ToListAsync(ct);
             var row = operations.SingleOrDefault(x => x.Id == operationId)
                 ?? throw new KeyNotFoundException("Provisioning operation was not found.");
+            if (expectedRevision.HasValue && row.Revision != expectedRevision)
+                throw new DbUpdateConcurrencyException("Enrollment changed. Reload the saved operation before retrying.");
             var state = await ProjectProvisioningAsync(db, row, ct);
             var bound = !state.CanEditAdministrator;
             if (bound && state.InitialAdministrator != request)
@@ -812,6 +828,7 @@ public sealed partial class WorkspaceOperationsService(IDbContextFactory<AtoCopi
             .SingleOrDefaultAsync(x => x.Id == operationId && x.TenantId == tenantId, ct)
             ?? throw new KeyNotFoundException("Provisioning operation was not found.");
         row.LastError = error.Length > 200 ? error[..200] : error;
+        row.Revision++;
         row.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
         return await ProjectProvisioningAsync(db, row, ct);

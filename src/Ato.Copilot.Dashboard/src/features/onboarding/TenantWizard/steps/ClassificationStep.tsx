@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useTenantField, useTenantDraftRevision } from '../draftContext';
 import { tenantWizard, type ClassificationLevel } from '../api';
 import type { StepProps } from './types';
 
@@ -30,14 +30,15 @@ export default function ClassificationStep({
   onAdvance,
   onError,
 }: StepProps) {
-  const [level, setLevel] = useState<ClassificationLevel>('Unclassified');
+  const [level, setLevel] = useTenantField('classification', 'defaultClassificationLevel');
+  const expectedRevision = useTenantDraftRevision();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     beforeSubmit();
     try {
       const next = await tenantWizard.submitClassification({
-        defaultClassificationLevel: level,
+        defaultClassificationLevel: level as ClassificationLevel, expectedRevision,
       });
       onAdvance(next);
     } catch (err) {
@@ -50,11 +51,11 @@ export default function ClassificationStep({
       <header>
         <h2 className="text-lg font-semibold">Default classification level</h2>
         <p className="text-sm text-gray-600">
-          Sets the maximum data sensitivity this tenant may handle by default.
-          Individual systems can still be marked higher.
+          Records default document markings. This is not deployment handling authorization.
         </p>
       </header>
       <fieldset className="space-y-2">
+        {!LEVELS.some(option => option.value === level) && <p role="alert">The saved classification is not supported. Select an explicit supported value; it has not been replaced.</p>}
         {LEVELS.map((opt) => (
           <label
             key={opt.value}

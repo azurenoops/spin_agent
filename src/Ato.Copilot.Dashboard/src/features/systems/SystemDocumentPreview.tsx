@@ -6,6 +6,7 @@ import WorkspacePageHeader from '../../components/layout/WorkspacePageHeader';
 import ExportSspDialog from '../../components/ExportSspDialog';
 import { systemProfileTasks } from './systemProfileTasks';
 import './sspDocument.css';
+import SspTemplateSections, { SspTemplateFrontMatter, SspTemplateApprovals, sspTemplateHeadings } from './SspTemplateSections';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -278,17 +279,21 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
         }} className="ml-4 underline">Create a new preview</button>
       </section>}
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
-        <article className={view === 'document' ? 'ssp-paper' : 'min-w-0 rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900'}>
+        <article className={view === 'document' ? `ssp-paper ${documentType === 'ssp' ? 'ssp-reference-paper' : ''}` : 'min-w-0 rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900'}>
           {view === 'document' ? <>
+            {documentType === 'ssp' && <header className="ssp-masthead"><strong>SPIN</strong><div>
+              <p>System Security Plan (SSP)</p><p>{current.systemName} · Version {typeof current.metadata.version === 'string' ? current.metadata.version : 'Not recorded'}</p>
+            </div></header>}
             <section className="ssp-cover" aria-label={`${definition.label} cover page`}>
               <p className="ssp-kicker">{definition.title}</p>
               <h2>{current.title}</h2>
               <p className="ssp-cover-system">{current.systemName}</p>
               <p className="text-sm">Version: {typeof current.metadata.version === 'string' ? current.metadata.version : 'Not recorded'}</p>
               <p className="ssp-draft-notice">{documentType === 'ssp' ? 'WORKING DRAFT' : 'READ-ONLY PREVIEW'}<br />This preview is not a signed or approved submission package and does not establish authorization.</p>
-              <p className="text-xs">{documentType === 'ssp' ? 'FedRAMP-inspired presentation' : 'Formal document presentation'} · SPIN generated content<br />
+              <p className="text-xs">{documentType === 'ssp' ? 'Layout reference: supplied legacy FedRAMP SSP' : 'Formal document presentation'} · SPIN generated content<br />
                 {documentType === 'ssp' ? 'Not an official FedRAMP template or approval.' : 'Not a signed assessment or authorization decision.'}</p>
             </section>
+            {documentType === 'ssp' && <SspTemplateFrontMatter />}
             <section className="ssp-front-matter" aria-label="Document control">
               <h3 className="mb-4">Document control</h3>
               <table aria-label="Document control" className="ssp-control-table"><tbody>
@@ -313,11 +318,15 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
             <section className="ssp-front-matter">
             <h3>Table of contents</h3>
             <nav aria-label={`${definition.label} document sections`} className="ssp-toc">
+              {documentType === 'ssp' && sspTemplateHeadings.map((heading, index) =>
+                <a key={heading} href={`#ssp-template-${index + 1}`}>{index + 1}. {heading}</a>)}
               {profiles.length > 0 && <a href="#ssp-profile-contributions">Profile contributions</a>}
               {Object.keys(current.envelope).length > 0 && <a className="underline" href="#ssp-envelope">Document envelope</a>}
               {sections.map((section, index) => <a key={section.key} href={`#${documentType}-section-${index}`}>{index + 1}. {section.title}</a>)}
             </nav>
             </section>
+            {documentType === 'ssp' && <><SspTemplateApprovals /><SspTemplateSections body={current.body} profiles={profiles}
+              renderFields={value => <GeneratedFields value={value} />} /></>}
             {contribution && !profiles.some(profile => profile.sectionType === contribution) && <p role="alert" className="mt-5 rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               No {knownContribution ? systemProfileTasks[knownContribution].title : contribution} contribution was returned in this generated SSP.
               Review the source diagnostics; this is not evidence that the saved record is included.
@@ -332,7 +341,7 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
               </p>
               <GeneratedFields value={profile.fields} />
             </section>)}
-            <div className="my-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
+            <div id="ssp-complete-generated" className="my-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
               <h3 className="text-lg font-semibold">Complete generated {definition.label}</h3>
               <button type="button" className="text-sm text-indigo-700 underline dark:text-indigo-300"
                 onClick={() => setExpanded(value => !value)}>{expanded ? 'Collapse long records' : 'Expand all records'}</button>
@@ -348,7 +357,7 @@ function PreviewContent({ systemId, documentType, contribution }: { systemId: st
             </section>)}
             <p className="ssp-document-footer">SPIN · {documentType === 'ssp' ? 'Working' : 'Read-only'} {definition.title} preview<br />
               This view reads every {definition.label} section without assembling a separate export. Long records can be expanded individually or together; the {documentType === 'ssp' ? 'OSCAL' : 'JSON'} source tab preserves the exact response.
-              Section organization follows the {documentType === 'ssp' ? 'generated OSCAL' : 'canonical saved-record'} document, not a claim of FedRAMP template conformity.
+              {documentType === 'ssp' ? 'The reading sections follow the supplied legacy SSP layout; the complete generated appendix preserves OSCAL organization. Word pagination and export fidelity are not established by this view.' : 'Section organization follows the canonical saved-record document.'}
             </p>
           </> : <pre aria-label={documentType === 'ssp' ? 'Generated OSCAL JSON' : 'Document JSON'} className="max-h-[65vh] overflow-auto whitespace-pre-wrap break-all text-xs leading-6">{current.preview.content}</pre>}
         </article>

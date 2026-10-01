@@ -22,19 +22,9 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../../hooks/useIntakeWizard', () => ({
   useIntakeWizard: () => ({
-    state: { isOpen: false, currentStep: 1, systemId: null, stepData: {}, validationErrors: {}, completedSteps: [] },
+    state: { isOpen: false },
     open: mockWizardOpen,
-    cancel: vi.fn(),
-    cancelWithCleanup: vi.fn(),
-    reset: vi.fn(),
-    nextStep: vi.fn(),
-    prevStep: vi.fn(),
-    skipStep: vi.fn(),
-    goToStep: vi.fn(),
-    setSystemId: vi.fn(),
-    setValidationErrors: vi.fn(),
-    clearValidationErrors: vi.fn(),
-    finish: vi.fn(),
+    close: vi.fn(),
   }),
 }));
 

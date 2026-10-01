@@ -132,7 +132,7 @@ public sealed partial class CspPackageService
     public async Task<PackageUploadTally> ProcessSynchronouslyAsync(Guid id, CancellationToken ct)
     {
         await GetAsync(id, ct);
-        var processor = new CspPackageProcessor(factory, storage, analyzer, logger);
+        var processor = new CspPackageProcessor(factory, storage, analyzer, logger, handlingOptions);
         await processor.ProcessAsync(id, ct);
         while (true)
         {

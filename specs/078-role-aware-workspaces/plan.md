@@ -14,6 +14,61 @@
 
 ## Summary
 
+### Onboarding consolidation implementation (September 30, 2026)
+
+Final local implementation checkpoint: all 22 mock states and supported
+domain handoffs are implemented; superseded editing/state paths are retired
+with compatibility and historical records retained. The final affected HTTP
+suite passes 84 tests, full backend unit suite 7,254, required SQL Server upgrade
+suite three and coordinated browser suite 29. Strict Dashboard types and build
+pass. Full-suite baseline/tooling/coverage and user-acceptance limitations are
+recorded in [the local guide](../../docs/guides/onboarding-consolidation.md);
+this is not a release or live eMASS/ConMon acceptance claim.
+
+Working branch: `078-onboarding-consolidation`, created from
+`feature/1002-workspace-delivery-1037` at
+`052120a18647bf0078afceacd7b14d0fcea8aab0`. Unrelated untracked design work
+is preserved. No reset, rebase, external write or push is part of this step.
+
+Implement the session's approved phased plan through the
+[onboarding consolidation contract](contracts/onboarding-consolidation.md).
+Phase 0 first resolves the held system/import/task, organization write/identity
+and provider receipt/recovery traces against this checkout, not the older
+September 27 baseline. Its exact domain amendments must be presented for review
+before changing the affected application behavior.
+
+Delivery order:
+
+1. Complete and review the domain evidence/contract inventory; synchronize the
+   existing specs and issue mapping without introducing duplicate features.
+2. Implement domain-owned saved facts, explicit deferrals, idempotent recovery
+   and minimum destination projections. Extract shared setup presentation only
+   with actual provider/system consumers.
+3. Refactor provider setup around canonical receipt-first intake and review
+   handoff; keep publication independent.
+4. Consolidate organization reuse/create/enrollment and tenant draft hydration;
+   preserve separate activation and ordinary-login permissions.
+5. Adapt existing system intake around draft identity/objective/team, optional
+   reviewed imports, exact hosting choice and optional monitoring.
+6. Verify original setup facts in reviewed document output and scoped
+   monitoring follow-up using the existing audit-owned contracts.
+7. Migrate existing users and retire superseded editing/orchestration paths only
+   after retained-data, compatibility and local user-acceptance evidence.
+
+No parallel task database, readiness calculator, membership model or generic
+wizard engine is introduced. The mock's layout and 22 states are acceptance
+requirements; production data, authorization, persistence and accessibility
+replace its simulation. Both 1440px and 390px comparisons plus meaningful
+interaction tests are required.
+
+Phase 0 baseline check: the existing shared SetupDialog and workspace
+navigation/route suites passed **86 tests in three files** on September 30.
+This establishes those reuse surfaces only, not onboarding end-to-end behavior.
+The first invocation was mistakenly run from the repository root and failed
+because there is no root package.json; rerunning from the Dashboard directory
+passed without installing dependencies. No failing test was hidden or treated
+as a successful application validation.
+
 ### System Security Capabilities integration (#1037)
 
 Environment redesign after user review (September 26):
@@ -1336,6 +1391,9 @@ test, manual acceptance and release gates remain open.
 | Shared effective-context/permission projection | Multiple resolvers and local persona gates must agree with server policy | Per-page endpoint probes or copied role conditionals diverge and cannot establish authorization |
 | Immutable provider release plus editable working revision | #1028 requires released customer source to remain stable while new changes are reviewed | Reconstructing state from audit events cannot guarantee a complete immutable release |
 | Durable resumable capability setup operation | #1035 spans several existing services and requires truthful partial outcomes and idempotent retry | Sequential browser calls can leave ambiguous success and duplicate later writes |
+| Proposed private pre-creation onboarding drafts (Phase 0 review) | Explicit server save must work before an organization/system or committed setup operation exists, without granting access or reserving a fictitious object | Reusing a committed operation with a required target ID would fabricate context; browser-only state does not satisfy restart/resume. Exact ownership and query-guard mapping must be approved in the domain contracts |
+| Proposed domain-owned partial fields and finite deferred setup intent | Keep incomplete drafts separate from applied profile/identity values while projecting useful work through existing task readers | Saving incomplete fields directly over authoritative data risks silent corruption; a new general task/workflow database duplicates domain ownership |
+| Tooling prerequisite regression in existing Vitest runner | Required agent-context regeneration failed on leading-dash grep patterns and truncated macOS whitespace parsing | Manual generated-file edits or accepting success despite stderr would mask the root cause. Three script lines and an isolated synthetic fixture repair the required command; no new test runner |
 
 No new framework, query library, parallel membership store or generic policy
 engine is proposed. Any schema/API expansion must be justified in its owning

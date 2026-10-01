@@ -335,6 +335,25 @@ A rebuilt page must still call the canonical services.
 
 ## Complexity tracking
 
+### SSP reference presentation decision
+
+Add an SSP-only presentation component using the existing parsed preview and
+field renderer. Keep SAP/SAR/POA&M presentation, APIs, source selection, retention,
+and export behavior intact. Match the supplied DOCX's styling and section order;
+use a responsive continuous document rather than asserting Word pagination.
+Unmapped records remain in the complete generated appendix. Government logos,
+template example signatures and legacy instructional boilerplate are not system
+records and are not inserted. No new parser, package, or document engine is needed.
+
+Constitution check: documentation precedes code (§I); existing services and a
+single presentation component satisfy §II–IV; failing presentation tests precede
+implementation (§VI); server authorization and source provenance are unchanged.
+Verify focused unit tests, Dashboard `tsc --noEmit`, production build and synthetic
+desktop/mobile browser tests. Required backend commands remain
+`dotnet build Ato.Copilot.sln` and `dotnet test Ato.Copilot.sln` (expected: pass).
+Rollback reverts only this viewer component, its integration, scoped styles and
+associated documentation/tests; it does not modify any system records.
+
 No blanket exception requested. A shared readiness projection is justified by
 three existing divergent consumers; an evidence/provenance extension is
 justified by the broken provider-to-document relationship. Final entity shapes

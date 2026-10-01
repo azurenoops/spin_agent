@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
 import { createOrganization, getOrganizationCreation, getCurrentOrganizationProvisioning, resumeOrganizationProvisioning } from '../../features/workspace-operations/api';
+import { saveOrganizationDraft, listOrganizationDrafts, getOrganizationDraft, getOrganizationSetupSummary, confirmOrganizationDraft } from '../../features/workspace-operations/organizationOnboardingApi';
 
 vi.mock('axios', async importOriginal => {
   const actual = await importOriginal<typeof import('axios')>();
@@ -8,6 +9,37 @@ vi.mock('axios', async importOriginal => {
 });
 beforeEach(() => vi.resetAllMocks());
 describe('organization setup transport', () => {
+  it('saves a domain draft with an explicit revision and confirms without posting a new organization', async () => {
+    // Arrange
+    const values = { organizationChoice: 'create' as const, displayName: 'Partial name', administratorChoice: 'deferred' as const };
+    vi.mocked(axios.request).mockResolvedValue({ data: { status: 'success', data: { draftId: 'draft', revision: 4 } } });
+    // Act
+    await saveOrganizationDraft('draft', values, 'details', 3);
+    await confirmOrganizationDraft('draft', 4);
+    // Assert
+    expect(axios.request).toHaveBeenNthCalledWith(1, {
+      method: 'PUT', url: '/api/csp/organization-onboarding/drafts/draft',
+      data: { schemaVersion: 1, expectedRevision: 3, currentStep: 'details', values },
+    });
+    expect(axios.request).toHaveBeenNthCalledWith(2, {
+      method: 'POST', url: '/api/csp/organization-onboarding/drafts/draft/confirm',
+      data: { expectedRevision: 4, confirmed: true },
+    });
+  });
+  it('bounds resume discovery and keeps exact historical operation context on read-only summary', async () => {
+    // Arrange
+    vi.mocked(axios.request).mockResolvedValue({ data: { data: { items: [], total: 0 } } });
+    // Act
+    await listOrganizationDrafts(2, 25);
+    await getOrganizationSetupSummary('org', 'historical-operation');
+    await getOrganizationDraft('draft-id');
+    // Assert
+    expect(axios.request).toHaveBeenNthCalledWith(1, { method: 'GET', url: '/api/csp/organization-onboarding/drafts',
+      params: { page: 2, pageSize: 25 }, signal: undefined });
+    expect(axios.request).toHaveBeenNthCalledWith(2, { method: 'GET', url: '/api/csp/organizations/org/setup-summary',
+      params: { operationId: 'historical-operation', administratorPage: 1, administratorPageSize: 25 }, signal: undefined });
+    expect(axios.request).toHaveBeenNthCalledWith(3, { method: 'GET', url: '/api/csp/organization-onboarding/drafts/draft-id', signal: undefined });
+  });
   it('persists explicit administrator intent with the original creation key', async () => {
     // Arrange
     const body = { displayName: 'Org', initialAdministrator: {

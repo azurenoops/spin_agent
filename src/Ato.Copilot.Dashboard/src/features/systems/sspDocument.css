@@ -73,9 +73,82 @@
 .ssp-paper .ssp-profile-contribution { border-radius: 0; }
 .ssp-paper details { border-radius: 0; }
 .ssp-paper .ssp-document-footer { margin-top: 38px; border-top: 1px solid #9caaba; padding-top: 12px; font-size: 10px; }
+
+/* Supplied legacy SSP: Arial, navy masthead, cyan titles and pale-blue footer.
+   Scoped to SSP so assessment documents retain their existing presentation. */
+.ssp-preview-root .ssp-reference-paper {
+  --ssp-navy: #19447f;
+  --ssp-cyan: #137d9f;
+  --ssp-pale-blue: #ccecf9;
+  max-width: 816px;
+  width: 100%;
+  margin-inline: auto;
+  padding: 0 48px;
+  color: #515151;
+  font-size: 11pt;
+  line-height: 1.4;
+}
+.ssp-reference-paper .ssp-masthead {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin: 0 -48px;
+  padding: 24px 48px;
+  background: var(--ssp-navy);
+  color: #fff;
+}
+.ssp-reference-paper .ssp-masthead strong { font-size: 26px; letter-spacing: 1px; }
+.ssp-reference-paper .ssp-masthead div { flex: 1; min-width: 0; text-align: right; font-size: 10px; overflow-wrap: anywhere; }
+.ssp-reference-paper .ssp-masthead p + p { margin-top: 6px; color: var(--ssp-pale-blue); }
+.ssp-reference-paper .ssp-cover { min-height: 620px; border: 0; gap: 24px; padding: 64px 0; }
+.ssp-preview-root .ssp-reference-paper .ssp-kicker { color: var(--ssp-navy); letter-spacing: 0; font-size: 16px; }
+.ssp-preview-root .ssp-reference-paper .ssp-cover h2 {
+  color: var(--ssp-cyan);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 1.18;
+}
+.ssp-reference-paper .ssp-cover-system { font-size: 20px; font-weight: 700; color: var(--ssp-navy); }
+.ssp-reference-paper .ssp-draft-notice { border: 0; background: none; padding: 0; font-size: 11px; }
+.ssp-reference-paper .ssp-front-matter { margin: 0; padding: 34px 0; border-top: 1px solid #d3d3d3; }
+.ssp-preview-root .ssp-reference-paper :is(.ssp-front-matter, .ssp-generated-section) > h3 {
+  color: var(--ssp-navy);
+  border: 0;
+  padding: 0;
+  margin: 0 0 20px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+.ssp-preview-root .ssp-reference-paper .ssp-front-matter > h3 { color: var(--ssp-cyan); }
+.ssp-reference-paper h4 { margin: 24px 0 12px; font-size: 14px; font-weight: 700; }
+.ssp-reference-paper .ssp-control-table { font-size: 11px; }
+.ssp-reference-paper .ssp-control-table caption { padding: 8px 10px; background: var(--ssp-navy); color: #fff; text-align: left; font-weight: 700; }
+.ssp-reference-paper .ssp-control-table :is(th, td) { padding: 7px 9px; border-color: #aaa; }
+.ssp-reference-paper .ssp-control-table th { background: #f2f2f2; }
+.ssp-reference-paper .ssp-toc { font-size: 11px; gap: 7px; }
+.ssp-reference-paper .ssp-template-sections > section { padding: 30px 0; margin: 0; border-top: 1px solid #d3d3d3; }
+.ssp-reference-paper .ssp-section-note { margin-bottom: 16px; font-size: 11px; }
+.ssp-reference-paper .ssp-missing-content { font-style: italic; font-size: 12px; }
+.ssp-reference-paper .ssp-template-sections dl { display: block; border: 1px solid #aaa; }
+.ssp-reference-paper .ssp-template-sections dl > div { display: grid; grid-template-columns: minmax(0, 34%) minmax(0, 1fr); gap: 10px; padding: 8px 10px; border-bottom: 1px solid #d3d3d3; }
+.ssp-reference-paper .ssp-template-sections dl > div:last-child { border-bottom: 0; }
+.ssp-reference-paper .ssp-template-sections :is(dt, dd) { font-size: 11px; }
+.ssp-reference-paper .ssp-template-sections dt { color: #515151; font-weight: 700; }
+.ssp-reference-paper .ssp-template-sections .space-y-3 > div { border-radius: 0; border-color: #aaa; }
+.ssp-reference-paper .ssp-document-footer { margin: 38px -48px 0; padding: 18px 48px; border: 0; background: var(--ssp-pale-blue); }
+
 @media (max-width: 650px) {
   .ssp-preview-root .ssp-paper { padding: 18px; font-size: 10pt; }
   .ssp-paper .ssp-cover { min-height: 350px; padding: 28px 0; gap: 18px; }
   .ssp-paper .ssp-cover h2 { font-size: 24px; }
   .ssp-paper .ssp-control-table :is(th, td) { padding: 8px; }
+  .ssp-preview-root .ssp-reference-paper { padding: 0 18px; }
+  .ssp-reference-paper .ssp-masthead { margin: 0 -18px; padding: 18px; gap: 12px; }
+  .ssp-reference-paper .ssp-masthead strong { font-size: 20px; }
+  .ssp-reference-paper .ssp-cover { min-height: 450px; padding: 40px 0; }
+  .ssp-preview-root .ssp-reference-paper .ssp-cover h2 { font-size: 28px; }
+  .ssp-reference-paper .ssp-document-footer { margin-inline: -18px; padding-inline: 18px; }
 }

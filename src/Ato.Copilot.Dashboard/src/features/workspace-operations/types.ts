@@ -159,6 +159,7 @@ export interface ProvisioningResult {
   initialAdministrator?: InitialAdministrator | null;
   personState?: string;
   canEditAdministrator?: boolean;
+  revision?: number;
 }
 
 export interface InitialAdministrator {
@@ -166,6 +167,7 @@ export interface InitialAdministrator {
   objectId: string;
   personId?: string | null;
   newPerson?: { displayName: string; email: string } | null;
+  expectedRevision?: number;
 }
 
 export interface OrganizationCreationRequest {

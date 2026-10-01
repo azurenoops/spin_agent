@@ -24,31 +24,35 @@ import { tenantWizard, type TenantOnboardingProgress } from './api';
 export default function TenantOnboardingGuard({ children }: { children: React.ReactNode }) {
   const [progress, setProgress] = useState<TenantOnboardingProgress | null>(null);
   const [checked, setChecked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const location = useLocation();
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       try {
-        const next = await tenantWizard.getState();
+        const next = await tenantWizard.getState(controller.signal);
         if (!cancelled) setProgress(next);
-      } catch {
-        // 401/403/network → leave inert; app may still be usable for CSP admins.
+      } catch (reason) {
+        if (!cancelled) setError((reason as Error).message);
       } finally {
         if (!cancelled) setChecked(true);
       }
     })();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 
   if (!checked) return <>{children}</>;
-  if (!progress) return <>{children}</>;
+  if (!progress) return <>{error && <p role="status" className="bg-amber-50 p-3 text-sm text-amber-900">Tenant activation status is unavailable: {error}</p>}{children}</>;
   if (progress.onboardingState === 'Active') return <>{children}</>;
 
   // Don't redirect when already on the wizard route to avoid a render loop.
-  if (location.pathname.startsWith('/onboarding/tenant')) return <>{children}</>;
+  if (location.pathname === '/onboarding' || location.pathname.startsWith('/onboarding/tenant')
+    || location.pathname === '/setup' || location.pathname === '/setup/resume') return <>{children}</>;
 
   return <Navigate to="/onboarding/tenant" replace />;
 }

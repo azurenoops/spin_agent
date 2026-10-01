@@ -5,6 +5,28 @@
 **Format**: ID / story / dependency / exact affected paths and acceptance.
 
 Tests are mandatory, despite the older template's optional-test wording.
+
+### September 30 SSP reference fidelity
+
+- [x] SSP01 — Inspect supplied DOCX layout and document source mappings/limits.
+- [x] SSP02 — Add failing tests for template section order and explicit gaps.
+- [x] SSP03 — Implement SSP masthead, cover, front matter and numbered sections;
+  preserve complete generated values, provenance and other document types.
+- [ ] SSP04 — Verify unit/type/build and desktop/mobile rendering; provide local
+  manual acceptance steps. User acceptance and DOCX export fidelity stay open.
+
+SSP verification checkpoint: 23 focused Dashboard tests, `tsc --noEmit`, production
+Dashboard build and two Chromium scenarios at 1440/390px passed. Final screenshots
+were visually inspected; contents navigation, complete generated values and
+mobile overflow checks passed. The first browser run used `localhost`, which
+returned an older deployed bundle; the corrected source check uses
+`http://127.0.0.1:5173`. No deployed container was changed. Solution build completed
+with 144 warnings and zero errors, so the zero-warning gate is not met. Full .NET
+tests were interrupted after a CKL 5000-entry performance failure (12.642 seconds
+versus 10 seconds), a package-analyzer cancellation assertion failure, and SQL
+integration timeouts; no overall test success is claimed.
+User local acceptance, full-suite/coverage gates and export fidelity remain open.
+No external writes, commits or pushes were performed.
 Each behavioral task is red-green-refactor: commit or retain failing-test evidence
 before production changes, use AAA, then refactor. Do not mark a task complete
 from source inspection alone.

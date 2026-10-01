@@ -7,18 +7,21 @@ import { packageStatus, candidate, page } from '../package-imports/fixtures';
 import { offering } from './testData';
 
 vi.mock('../../features/package-imports/api', async original => ({ ...await original<typeof packages>(), receivePackage: vi.fn(), getPackageCandidates: vi.fn() }));
-vi.mock('../../features/package-imports/PackageUpload', () => ({ PackageUpload: ({ upload }: { upload: (files: File[], key: string) => Promise<void> }) => <button onClick={() => void upload([new File(['test'], 'source.pdf')], 'retained-key')}>Select and upload files</button> }));
+vi.mock('../../features/package-imports/ProviderSourceUpload', () => ({ ProviderSourceUpload: ({ onReceived }: {
+  onReceived: (receipt: ReturnType<typeof packageStatus>) => void;
+}) => <button onClick={() => onReceived(packageStatus())}>Confirm registered receipt</button> }));
 vi.mock('../../features/provider-authorizations/OfferingIntake', () => ({ OfferingIntake: ({ existingPackageId, initialOfferingId, suggestedBoundary }: { existingPackageId: string; initialOfferingId?: string; suggestedBoundary?: { scopeStatement: string } }) => <div>Associate {existingPackageId}<span>{suggestedBoundary?.scopeStatement}</span><output aria-label="Selected offering">{initialOfferingId ?? ''}</output></div> }));
 function Location() { const location = useLocation(); return <output aria-label="Receipt URL">{location.pathname}{location.search}</output>; }
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(packages.receivePackage).mockResolvedValue(packageStatus()); vi.mocked(packages.getPackageCandidates).mockResolvedValue(page([])); });
 describe('file-first import', () => {
   it('receives files without requiring offering or boundary metadata', async () => {
     // Arrange
-    render(<MemoryRouter><FileFirstImport /></MemoryRouter>);
+    render(<MemoryRouter><FileFirstImport /><Location /></MemoryRouter>);
     // Act
-    await act(async () => { fireEvent.click(screen.getByText('Select and upload files')); });
+    await act(async () => { fireEvent.click(screen.getByText('Confirm registered receipt')); });
     // Assert
-    await vi.waitFor(() => expect(packages.receivePackage).toHaveBeenCalledWith(expect.any(Array), 'retained-key'));
+    expect(screen.getByLabelText('Receipt URL')).toHaveTextContent('/workspaces/csp/authorizations/import?packageId=package-1');
+    expect(packages.receivePackage).not.toHaveBeenCalled();
     expect(screen.queryByText(/Associate/)).not.toBeInTheDocument();
   });
   it('does not expose association while analysis is processing', () => {
@@ -45,10 +48,10 @@ it('retains the selected offering in the file-first receipt URL without associat
   // Arrange
   render(<MemoryRouter><FileFirstImport offering={offering} /><Location /></MemoryRouter>);
   // Act
-  await act(async () => { fireEvent.click(screen.getByText('Select and upload files')); });
+  await act(async () => { fireEvent.click(screen.getByText('Confirm registered receipt')); });
   // Assert
   expect(screen.getByLabelText('Receipt URL')).toHaveTextContent(`/workspaces/csp/authorizations/offerings/${offering.offeringId}/import?packageId=package-1`);
-  expect(packages.receivePackage).toHaveBeenCalledWith(expect.any(Array), 'retained-key');
+  expect(packages.receivePackage).not.toHaveBeenCalled();
   expect(screen.queryByText(/Associate/)).not.toBeInTheDocument();
 });
 

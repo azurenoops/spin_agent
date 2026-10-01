@@ -10,12 +10,17 @@ using Ato.Copilot.Core.Interfaces.Workspaces;
 using Ato.Copilot.Core.Models.PackageImports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Ato.Copilot.Core.Configuration;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 
 namespace Ato.Copilot.Core.Services.PackageImports;
 
 public sealed partial class CspPackageService(
     IDbContextFactory<AtoCopilotContext> factory, IFileStorageProvider storage,
-    ICspPackageAnalyzer analyzer, ITenantContext tenant, ILogger<CspPackageService> logger) : ICspPackageService
+    ICspPackageAnalyzer analyzer, ITenantContext tenant, ILogger<CspPackageService> logger,
+    IOptions<ProviderHandlingOptions>? handlingOptions = null) : ICspPackageService
 {
     internal const long MaxBytes = 50L * 1024 * 1024;
     internal static string Hash(string value) => Hash(Encoding.UTF8.GetBytes(value));
@@ -100,6 +105,24 @@ public sealed partial class CspPackageService(
         Authorize();
         if (files.Count is < 1 or > 1000) throw new ArgumentException("Supply 1-1000 source files.");
         if (string.IsNullOrWhiteSpace(name) || name.Length > 256) throw new ArgumentException("Package name must contain 1-256 characters.");
+        if (!string.IsNullOrWhiteSpace(key)) ValidateKey(key);
+        CspPackageUploadIntent? registered;
+        await using (var intentDb = await factory.CreateDbContextAsync(ct))
+        {
+            if (await ProviderAsync(intentDb, ct) != providerId) throw new UnauthorizedAccessException("Provider does not match the current scope.");
+            registered = await intentDb.Set<CspPackageUploadIntent>().SingleOrDefaultAsync(x =>
+                x.ProviderId == providerId && x.IdempotencyKey == key, ct);
+            if (registered is null && (!string.IsNullOrWhiteSpace(handlingOptions?.Value.PolicyId)
+                || await intentDb.Set<ProviderSetupDraft>().AnyAsync(x => x.ProviderId == providerId, ct)))
+                throw new ArgumentException("HANDLING_DECLARATION_REQUIRED: Register the exact provider source intent and content declaration before uploading.");
+        }
+        var uploadIntent = registered is null ? null : ProviderSetupService.Read<ProviderUploadIntentInput>(registered.IntentJson);
+        if (uploadIntent is not null)
+        {
+            ProviderSetupService.RequireHandling(handlingOptions?.Value ?? new(), uploadIntent);
+            if (uploadIntent.PackageName != name || uploadIntent.Context != context || uploadIntent.Files.Count != files.Count)
+                throw new DbUpdateConcurrencyException("UPLOAD_INTENT_MISMATCH: Restore the exact saved name, context and source selection.");
+        }
         var buffers = new List<byte[]>();
         long total = 0;
         foreach (var file in files)
@@ -117,6 +140,10 @@ public sealed partial class CspPackageService(
             }
             buffers.Add(memory.ToArray());
         }
+        if (uploadIntent is not null && uploadIntent.Files.Where((file, index) =>
+            file.Ordinal != index || file.FileName != files[index].FileName || file.MediaType != files[index].MediaType
+            || file.ByteLength != buffers[index].LongLength || !file.Sha256.Equals(Hash(buffers[index]), StringComparison.OrdinalIgnoreCase)).Any())
+            throw new DbUpdateConcurrencyException("UPLOAD_INTENT_MISMATCH: Reselect the exact retained source manifest.");
         var fingerprint = Hash(Json(new { name, Files = files.Select((f, i) => new { f.FileName, f.MediaType, Hash = Hash(buffers[i]) }) }));
         if (context is not null) fingerprint = Hash(Json(new { Content = fingerprint, Context = context }));
         key = string.IsNullOrWhiteSpace(key) ? $"content-{fingerprint}" : key;
@@ -137,7 +164,10 @@ public sealed partial class CspPackageService(
                 if (transaction is not null) await transaction.CommitAsync(ct);
                 return await StatusAsync(db, existing, ct);
             }
-            var package = new CspPackage { ProviderId = providerId, Name = name, IdempotencyKey = key, ContentHash = fingerprint, CreatedBy = actor };
+            var package = new CspPackage { ProviderId = providerId, Name = name, IdempotencyKey = key, ContentHash = fingerprint, CreatedBy = actor,
+                UploadIntentId = registered?.Id, RequiresOfferingAssociation = registered is not null,
+                HandlingPolicyVersion = uploadIntent?.HandlingPolicyVersion,
+                HandlingDeclarationJson = uploadIntent is null ? null : ProviderSetupService.Json(uploadIntent.DeclaredContent) };
             var entries = files.Select((file, index) => new CspPackageEntry
             {
                 PackageId = package.Id, StableKey = Hash($"original/{index}"), IsOriginal = true, FileName = file.FileName,
@@ -157,6 +187,7 @@ public sealed partial class CspPackageService(
             Audit(db, package, "Received", actor);
             try
             {
+                if (uploadIntent is not null) ProviderSetupService.RequireHandling(handlingOptions?.Value ?? new(), uploadIntent);
                 await db.SaveChangesAsync(ct);
                 if (transaction is not null) await transaction.CommitAsync(ct);
             }

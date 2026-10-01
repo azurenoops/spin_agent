@@ -5,6 +5,27 @@
 **Status**: Draft
 **Input**: User description: "Onboarding wizard that guides new tenants through organization/branch context selection, document upload for narrative seeding, role assignment (ISSM/ISSO/admin/assessor), eMASS data import for system data, SSP PDF ingestion as authoritative export source, Azure subscription scope selection (where systems reside), and organization-level custom document template upload (SSP / SAR / SAP / CRM / Hardware-Software list)."
 
+## September 30 onboarding consolidation amendment
+
+The [Feature 078 consolidation contract](../078-role-aware-workspaces/contracts/onboarding-consolidation.md)
+coordinates the user-authorized implementation on `078-onboarding-consolidation`.
+Its [system/general-onboarding contract](../078-role-aware-workspaces/contracts/onboarding-system-consolidation.md)
+traces the existing seven steps, import jobs and destination ownership before
+optional orchestration can be retired.
+
+Retain current organization-context and role security requirements until an
+explicit action-specific replacement contract is reviewed and tested. Do not
+derive new bootstrap authority from this document's historical first-user
+description. Existing authentication, membership and scoped role policies remain
+authoritative; shortening a wizard cannot introduce automatic access grants.
+
+Move detailed optional imports, subscription configuration, templates and seeds
+to their canonical review/management destinations with a truthful handoff.
+Preserve original artifacts, job/session IDs, explicit skip reasons and legacy
+read/API compatibility. Completion cannot swallow a failed final request or
+represent receipt, analysis or import commit as approval. This amendment is
+Phase 0 contract work, not evidence of implemented or accepted new behavior.
+
 ## Clarifications
 
 ### Session 2026-05-07

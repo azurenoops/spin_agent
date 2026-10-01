@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useContext } from 'react';
+import { TenantDraftContext, useTenantField, useTenantDraftRevision } from '../draftContext';
 import { tenantWizard } from '../api';
 import type { StepProps } from './types';
 
@@ -13,14 +14,17 @@ export default function OrgProfileStep({
   onAdvance,
   onError,
 }: StepProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useTenantField('orgProfile', 'name');
+  const [description, setDescription] = useTenantField('orgProfile', 'description');
+  const expectedRevision = useTenantDraftRevision();
+  const firstOrganizationId = useContext(TenantDraftContext)?.values.orgProfile.firstOrganizationId;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     beforeSubmit();
     try {
       const next = await tenantWizard.submitOrgProfile({
+        expectedRevision, firstOrganizationId,
         name: name.trim(),
         description: description.trim() || null,
       });

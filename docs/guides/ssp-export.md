@@ -4,6 +4,40 @@ Export your System Security Plan (SSP) as a Word document, PDF, or OSCAL JSON wi
 
 ## Supported Formats
 
+### SSP viewer reference layout
+
+The system's Documents → Preview → SSP reading view follows the supplied legacy
+FedRAMP baseline SSP's navy masthead, Arial typography, cyan front-matter titles,
+bordered tables, light-blue footer and twelve numbered sections. It includes
+prepared-by/prepared-for placeholders, recorded revision history and explicit
+missing-signature text. The document's legacy notice and instructional examples
+are reference material, not instructions executed by the application.
+
+Available generated description, mission profile, system information, explicitly
+assigned owner/ISSO parties, leveraged authorization references, boundary/network/
+data-flow descriptions, environment profile, ports profile and back-matter
+resources appear in the matching reading sections. External-service authorization
+classification, cryptographic module records and a duties matrix are not supplied
+by this projection and remain explicit gaps. An unassigned metadata party is not
+assumed to be a preparer, recipient, owner or security officer.
+
+The complete generated appendix preserves all values, including unknown extensions
+and control implementation records. The OSCAL source tab displays the exact
+response. This responsive reading view does not establish Word pagination,
+matching DOCX exports, current FedRAMP requirements, or package approval.
+
+For local review, run `npm run dev` in `src/Ato.Copilot.Dashboard`, open a system's
+Documents → Preview → SSP, and compare its cover, front matter, numbered sections
+and footer with your reference. Follow the contents links, inspect missing records
+and source diagnostics, and compare the exact OSCAL source. Repeat at a narrow
+mobile width and switch to SAP/SAR/POA&M to verify their existing presentation.
+
+Validation commands: `npm test -- --run src/__tests__/pages/SystemDocumentPreview.test.tsx
+src/__tests__/pages/DocumentPreviewTypes.test.tsx`, `npx tsc --noEmit`, `npm run build`,
+and `npx playwright test e2e/tests/complete-ssp-document-079.spec.ts` with the local
+Dashboard running. Backend gates: `dotnet build Ato.Copilot.sln` and
+`dotnet test Ato.Copilot.sln` (expected: pass). User acceptance remains open.
+
 | Format | Extension | Use Case |
 |--------|-----------|----------|
 | **Word** | `.docx` | Editable SSP for review, markup, and submission |

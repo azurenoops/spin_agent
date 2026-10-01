@@ -81,6 +81,12 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('region', { name: 'SSP cover page', exact: true })).toContainText('WORKING DRAFT');
     await expect(page.getByRole('table', { name: 'Document control', exact: true })).toContainText('2.3');
     await expect(page.getByRole('heading', { name: 'Table of contents', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'SSP template sections', exact: true }).locator('h3')).toHaveCount(12);
+    await expect(page.locator('.ssp-masthead')).toHaveCSS('background-color', 'rgb(25, 68, 127)');
+    await expect(page.locator('.ssp-cover h2')).toHaveCSS('font-family', 'Arial, Helvetica, sans-serif');
+    await page.getByRole('link', { name: '9. Services, Ports, and Protocols', exact: true }).click();
+    await expect(page.locator('#ssp-template-9')).toBeInViewport();
+    await expect(page.getByText('No approval signatures were supplied in the generated document.', { exact: true })).toBeVisible();
     for (const title of ['Mission & purpose', 'Users & access']) await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     const rendered = await page.locator('[data-ssp-value-path]').evaluateAll(nodes =>
       Object.fromEntries(nodes.map(node => [node.getAttribute('data-ssp-value-path')!, node.textContent])));
@@ -102,5 +108,7 @@ for (const width of [1440, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('region', { name: 'SSP cover page', exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: info.outputPath(`formal-complete-ssp-${width}.png`) });
+    await page.locator('#ssp-template-3').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`ssp-reference-sections-${width}.png`) });
   });
 }

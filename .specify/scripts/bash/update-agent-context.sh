@@ -75,7 +75,7 @@ extract_plan_field() {
     local plan_file="$2"
     grep "^\*\*${field_pattern}\*\*: " "$plan_file" 2>/dev/null | \
         head -1 | sed "s|^\*\*${field_pattern}\*\*: ||" | \
-        sed 's/^[ \t]*//;s/[ \t]*$//' | \
+        sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
         grep -v "NEEDS CLARIFICATION" | grep -v "^N/A$" || echo ""
 }
 
@@ -163,13 +163,13 @@ update_existing_agent_file() {
     local new_tech_entries=()
     if [[ -n "$tech_stack" ]]; then
         local tech_entry="- $tech_stack ($CURRENT_BRANCH)"
-        if ! grep -Fxq "$tech_entry" "$target_file"; then
+        if ! grep -Fxq -- "$tech_entry" "$target_file"; then
             new_tech_entries+=("$tech_entry")
         fi
     fi
     if [[ -n "$NEW_DB" && "$NEW_DB" != "N/A" && "$NEW_DB" != "NEEDS CLARIFICATION" ]]; then
         local db_entry="- $NEW_DB ($CURRENT_BRANCH)"
-        if ! grep -Fxq "$db_entry" "$target_file"; then
+        if ! grep -Fxq -- "$db_entry" "$target_file"; then
             new_tech_entries+=("$db_entry")
         fi
     fi

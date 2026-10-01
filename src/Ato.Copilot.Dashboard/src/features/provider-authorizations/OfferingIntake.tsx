@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from '../workspaces/workspaceNavigation';
 import { Pager, Status, inputClass, secondaryButtonClass, surfaceClass, useRemote, warningClass } from '../workspace-operations/workspaceUi';
-import { PackageUpload } from '../package-imports/PackageUpload';
+import { ProviderSourceUpload } from '../package-imports/ProviderSourceUpload';
 import { PackageReceiptCard, packageIsProcessing } from '../package-imports/PackageReceipts';
 import { getPackageStatus } from '../package-imports/api';
-import { PackageImportError } from '../package-imports/request';
 import * as api from './api';
 import { CitationFields, compact, Field, Lines, MutationForm, ScopeFields } from './forms';
 import type { BoundaryInput, BoundaryRevision, OfferingEnvironment, Offering, PackageReceipt, PackageVersion } from './types';
@@ -130,7 +129,6 @@ export function OfferingIntake({ initialOfferingId = '', existingPackageId, prev
   const offering = useRemote(signal => offeringId ? api.getOffering(offeringId, signal) : Promise.resolve(null), [offeringId, refresh]);
   const boundaries = useRemote(signal => offeringId ? api.listBoundaries(offeringId, boundaryPage, signal) : Promise.resolve(null), [offeringId, boundaryPage, refresh]);
   const existing = useRemote(signal => existingPackageId ? api.getAssociatedPackage(existingPackageId, signal) : Promise.resolve(null), [existingPackageId, refresh]);
-  const intent = useRef<Parameters<typeof api.uploadPackage> | null>(null);
   const pendingChange = (value: boolean) => { setPending(value); onPendingChange?.(value); };
   const select = (id: string) => { setOfferingId(id); setBoundaryId(''); setReceipt(null); setBoundaryPage(1); };
   const boundarySaved = (saved: BoundaryRevision) => { setBoundaryId(saved.boundaryRevisionId); setRefresh(value => value + 1); };
@@ -169,19 +167,13 @@ export function OfferingIntake({ initialOfferingId = '', existingPackageId, prev
             offeringId, expectedOfferingRevision: offering.data.revision, boundaryRevisionId: boundaryId }, key);
           setReceipt(saved); onReceived?.(saved);
         }}><p>Associate the retained package without re-uploading or discarding original source bytes. Pending approvals are invalidated.</p></MutationForm>
-        : !existingPackageId && <PackageUpload disabled={!name.trim()} onPendingChange={pendingChange} upload={async (files, key) => {
-          if (!offering.data) throw new Error('Offering context is unavailable.');
-          intent.current ??= [offeringId, { name: name.trim(), boundaryRevisionId: boundaryId, expectedOfferingRevision: offering.data.revision,
-            ...(previousVersion ? { seriesId: previousVersion.seriesId, previousVersionId: previousVersion.packageVersionId } : {}) },
-          files, `${key}:${offeringId}:${boundaryId}${previousVersion ? `:${previousVersion.packageVersionId}` : ''}`];
-          try {
-            const saved = await api.uploadPackage(...intent.current);
-            intent.current = null; setReceipt(saved); setRefresh(value => value + 1); onReceived?.(saved);
-          } catch (reason) {
-            if (reason instanceof PackageImportError && [400, 401, 403, 413, 422].includes(reason.status ?? 0)) intent.current = null;
-            throw reason;
-          }
-        }} />}
+        : !existingPackageId && <ProviderSourceUpload disabled={!name.trim()} packageName={name.trim()} offeringHintId={offeringId} showReceipt={!receipt}
+          context={{ offeringId, boundaryRevisionId: boundaryId, expectedOfferingRevision: offering.data.revision,
+            seriesId: previousVersion?.seriesId ?? null, previousVersionId: previousVersion?.packageVersionId ?? null }}
+          onPendingChange={pendingChange} onReceived={(status, saved) => {
+            if (saved?.package.packageId === status.packageId) { setReceipt(saved); onReceived?.(saved); }
+            pendingChange(false); setRefresh(value => value + 1);
+          }} />}
     </>}
     {receipt && <PersistedReceipt receipt={receipt} />}
   </section>;

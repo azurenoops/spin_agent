@@ -19,6 +19,14 @@ vi.mock('../../features/package-imports/api', () => ({
   listPackages: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })),
   packageImportHref: () => '/workspaces/csp/security-capabilities/imports',
 }));
+vi.mock('../../features/workspace-operations/organizationOnboardingApi', () => ({
+  getOrganizationSetupSummary: vi.fn(async (tenantId: string) => ({
+    tenant: { id: tenantId, displayName: 'Organization', lifecycle: 'Active', onboardingState: 'Pending' },
+    liveAccess: { state: 'Missing', activeMemberCount: 0, administrators: { items: [], page: 1, pageSize: 25, total: 0 } },
+    requestedOperation: null, reconciliation: 'None',
+    actorActions: { canManageMemberships: true, canResumeEnrollment: true, canEnterOrganization: false },
+  })),
+}));
 
 vi.mock('../../features/workspace-operations/api', async importOriginal => ({
   WorkspaceOperationError: (await importOriginal<typeof api>()).WorkspaceOperationError,

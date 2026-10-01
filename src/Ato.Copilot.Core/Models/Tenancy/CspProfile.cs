@@ -93,4 +93,7 @@ public class CspProfile
     /// <summary>Concurrency token (rowversion / timestamp).</summary>
     [Timestamp]
     public byte[]? RowVersion { get; set; }
+
+    [ConcurrencyCheck]
+    public long SetupRevision { get; set; } = 1;
 }

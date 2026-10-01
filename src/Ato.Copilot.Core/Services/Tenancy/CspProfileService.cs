@@ -122,18 +122,20 @@ public sealed class CspProfileService : ICspProfileService
         string actor,
         CancellationToken ct = default)
     {
+        return await ApplyAsync(actor, ct, row => ApplyIdentity(row, legalEntityName, displayName, logoUrl));
+    }
+
+    internal static void ApplyIdentity(CspProfile row, string legalEntityName, string displayName, string? logoUrl)
+    {
         ValidateText(legalEntityName, nameof(legalEntityName), minLength: 2, maxLength: 256);
         ValidateText(displayName, nameof(displayName), minLength: 1, maxLength: 64);
         if (logoUrl is { Length: > 0 } && !Uri.TryCreate(logoUrl, UriKind.Absolute, out _))
             throw new ArgumentException("logoUrl must be an absolute URL.", nameof(logoUrl));
 
-        return await ApplyAsync(actor, ct, row =>
-        {
-            row.LegalEntityName = legalEntityName.Trim();
-            row.DisplayName = displayName.Trim();
-            row.LogoUrl = string.IsNullOrWhiteSpace(logoUrl) ? null : logoUrl.Trim();
-            row.IdentityCompletedAt ??= DateTimeOffset.UtcNow;
-        });
+        row.LegalEntityName = legalEntityName.Trim();
+        row.DisplayName = displayName.Trim();
+        row.LogoUrl = string.IsNullOrWhiteSpace(logoUrl) ? null : logoUrl.Trim();
+        row.IdentityCompletedAt ??= DateTimeOffset.UtcNow;
     }
 
     public async Task<CspProfile> UpdateSupportAsync(
@@ -142,18 +144,20 @@ public sealed class CspProfileService : ICspProfileService
         string actor,
         CancellationToken ct = default)
     {
+        return await ApplyAsync(actor, ct, row => ApplySupport(row, primarySupportEmail, supportPhone));
+    }
+
+    internal static void ApplySupport(CspProfile row, string primarySupportEmail, string? supportPhone)
+    {
         ValidateText(primarySupportEmail, nameof(primarySupportEmail), minLength: 3, maxLength: 254);
         if (!primarySupportEmail.Contains('@'))
             throw new ArgumentException("primarySupportEmail must be a valid email.", nameof(primarySupportEmail));
         if (supportPhone is { Length: > 40 })
             throw new ArgumentException("supportPhone must be ≤ 40 characters.", nameof(supportPhone));
 
-        return await ApplyAsync(actor, ct, row =>
-        {
-            row.PrimarySupportEmail = primarySupportEmail.Trim();
-            row.SupportPhone = string.IsNullOrWhiteSpace(supportPhone) ? null : supportPhone.Trim();
-            row.SupportCompletedAt ??= DateTimeOffset.UtcNow;
-        });
+        row.PrimarySupportEmail = primarySupportEmail.Trim();
+        row.SupportPhone = string.IsNullOrWhiteSpace(supportPhone) ? null : supportPhone.Trim();
+        row.SupportCompletedAt ??= DateTimeOffset.UtcNow;
     }
 
     public async Task<CspProfile> UpdateClassificationAsync(
@@ -161,14 +165,16 @@ public sealed class CspProfileService : ICspProfileService
         string actor,
         CancellationToken ct = default)
     {
+        return await ApplyAsync(actor, ct, row => ApplyClassification(row, defaultClassificationFloor));
+    }
+
+    internal static void ApplyClassification(CspProfile row, ClassificationLevel defaultClassificationFloor)
+    {
         if (!Enum.IsDefined(defaultClassificationFloor))
             throw new ArgumentException("defaultClassificationFloor is not a valid value.", nameof(defaultClassificationFloor));
 
-        return await ApplyAsync(actor, ct, row =>
-        {
-            row.DefaultClassificationFloor = defaultClassificationFloor;
-            row.ClassificationCompletedAt ??= DateTimeOffset.UtcNow;
-        });
+        row.DefaultClassificationFloor = defaultClassificationFloor;
+        row.ClassificationCompletedAt ??= DateTimeOffset.UtcNow;
     }
 
     public async Task<CspProfile> SubmitAsync(string actor, CancellationToken ct = default)
@@ -185,6 +191,7 @@ public sealed class CspProfileService : ICspProfileService
         if (row.OnboardingState == OnboardingState.Active)
             throw new CspAlreadyOnboardedException();
 
+        await ProviderSetupService.RequireLegacyCompletionAsync(db, row.Id, ct);
         var missing = ListMissingRequiredFields(row);
         if (missing.Count > 0)
             throw new CspOnboardingIncompleteException(missing);
@@ -194,6 +201,7 @@ public sealed class CspProfileService : ICspProfileService
         row.OnboardingCompletedAt = now;
         row.UpdatedAt = now;
         row.UpdatedBy = actor;
+        row.SetupRevision++;
 
         await db.SaveChangesAsync(ct);
         InvalidateCache();
@@ -238,6 +246,7 @@ public sealed class CspProfileService : ICspProfileService
         }
 
         mutate(row);
+        row.SetupRevision++;
         if (row.OnboardingState == OnboardingState.Pending)
             row.OnboardingState = OnboardingState.InWizard;
         if (!isNew)

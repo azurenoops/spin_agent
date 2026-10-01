@@ -14,7 +14,6 @@
 import axios, { type AxiosError } from 'axios';
 import { attachAuthInterceptor } from '../auth/interceptors';
 import { getMsalInstance, DEFAULT_API_SCOPES } from '../auth/msalInstance';
-import type { AtoUploadResponse } from '../csp-onboarding/api';
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -320,24 +319,6 @@ export async function archiveCspInheritedCapability(
   await cspClient.delete(
     `/csp/inherited-components/${encodeURIComponent(componentId)}/capabilities/${encodeURIComponent(capabilityId)}`,
   );
-}
-
-/**
- * `POST /csp/inherited-components/import` — CSP-Admin only. Same multipart
- * shape as the wizard upload; intended for use after CSP onboarding has
- * completed.
- */
-export async function importCspInheritedComponents(
-  files: File[],
-): Promise<AtoUploadResponse> {
-  const form = new FormData();
-  for (const f of files) form.append('files', f, f.name);
-  const { data } = await cspClient.post<Envelope<AtoUploadResponse>>(
-    '/csp/inherited-components/import',
-    form,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
-  );
-  return unwrap(data);
 }
 
 // ---------------------------------------------------------------------------

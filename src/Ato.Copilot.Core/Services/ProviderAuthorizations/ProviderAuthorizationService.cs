@@ -31,18 +31,7 @@ public sealed partial class ProviderAuthorizationService(
     public Task<ProviderOfferingResponse> CreateAsync(CreateProviderOfferingRequest request, string key, string actor, CancellationToken ct) =>
         store.WriteAsync(null, "OfferingCreated", key, request, actor, (db, provider, _) =>
         {
-            var environments = Environments(request.Environments, request.ServiceModel);
-            var row = new ProviderOffering
-            {
-                ProviderId = provider, Name = Text(request.Name, "name", 256),
-                Description = Text(request.Description, "description", 8000, false),
-                ServiceModel = ServiceModel(request.ServiceModel),
-                ManagementArrangement = ManagementArrangement(request.ManagementArrangement),
-                ServiceOwner = OptionalIdentity(request.ServiceOwner, "service owner"),
-                SecurityContact = OptionalIdentity(request.SecurityContact, "security contact"),
-                EnvironmentsJson = Json(environments), CreatedBy = actor
-            };
-            row.OfferingId = row.Id;
+            var row = CreateOfferingRow(provider, request, actor);
             db.Set<ProviderOffering>().Add(row);
             return Task.FromResult(Offering(row));
         }, ct);
@@ -163,6 +152,23 @@ public sealed partial class ProviderAuthorizationService(
         return new(row.OfferingId, offeringRevision, row.Id, row.Revision, row.SnapshotHash, row.PredecessorId,
             row.CreatedAt, body.Name, body.ScopeStatement, body.Services, body.ComponentSnapshotIds, body.IncludedScopes,
             body.Exclusions, body.ProviderResponsibilities, body.CustomerResponsibilities, body.Citations);
+    }
+
+    internal static ProviderOffering CreateOfferingRow(Guid provider, CreateProviderOfferingRequest request, string actor)
+    {
+        var environments = Environments(request.Environments, request.ServiceModel);
+        var row = new ProviderOffering
+        {
+            ProviderId = provider, Name = Text(request.Name, "name", 256),
+            Description = Text(request.Description, "description", 8000, false),
+            ServiceModel = ServiceModel(request.ServiceModel),
+            ManagementArrangement = ManagementArrangement(request.ManagementArrangement),
+            ServiceOwner = OptionalIdentity(request.ServiceOwner, "service owner"),
+            SecurityContact = OptionalIdentity(request.SecurityContact, "security contact"),
+            EnvironmentsJson = Json(environments), CreatedBy = actor
+        };
+        row.OfferingId = row.Id;
+        return row;
     }
 
     private static string[] Environments(IReadOnlyList<string> values, string? serviceModel)

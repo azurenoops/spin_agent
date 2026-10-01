@@ -6,7 +6,7 @@ namespace Ato.Copilot.Core.Models.Onboarding;
 /// <see cref="BatchId"/> when an admin uploads several PDFs at once.
 /// </summary>
 [TenantScoped]
-public class SspPdfImportSession
+public class SspPdfImportSession : ISystemSourceSession
 {
     /// <summary>Primary key.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -51,6 +51,14 @@ public class SspPdfImportSession
     public Guid CreatedBy { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public Guid UpdatedBy { get; set; }
+    public string? TargetSystemId { get; set; }
+    public string? RequestKey { get; set; }
+    public string? RequestPayloadHash { get; set; }
+    public Guid? RequestActorPersonId { get; set; }
+    public long ReviewRevision { get; set; }
+    public string? ReviewProposalJson { get; set; }
+    public string? ReviewSnapshotJson { get; set; }
+    public string? ApplyReceiptJson { get; set; }
 }
 
 /// <summary>Lifecycle status of an <see cref="SspPdfImportSession"/>.</summary>

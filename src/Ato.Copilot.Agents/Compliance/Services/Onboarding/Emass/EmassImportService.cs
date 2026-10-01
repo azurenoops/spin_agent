@@ -184,6 +184,8 @@ public class EmassImportService : IEmassImportService
             throw new InvalidOperationException(
                 $"Cannot commit session {sessionId} — current status is {session.Status}.");
         }
+        if (session.TargetSystemId is not null)
+            throw new InvalidOperationException("Use the selected-system reviewed source endpoint for this bound receipt.");
 
         var commitJob = await _jobRunner.EnqueueAsync(
             WizardJobType.EmassCommit,

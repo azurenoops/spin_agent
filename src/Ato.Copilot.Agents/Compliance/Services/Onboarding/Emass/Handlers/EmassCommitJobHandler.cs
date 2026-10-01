@@ -56,6 +56,8 @@ public class EmassCommitJobHandler : IWizardJobHandler
         await using (var db = await _contextFactory.CreateDbContextAsync(ct))
         {
             session = await db.EmassImportSessions.FirstAsync(s => s.Id == sessionId, ct);
+            if (session.TargetSystemId is not null)
+                throw new InvalidOperationException("A selected-system receipt cannot run a legacy bulk commit.");
             preview = string.IsNullOrEmpty(session.Preview)
                 ? null
                 : JsonSerializer.Deserialize<EmassParseResult>(session.Preview, JsonOpts);

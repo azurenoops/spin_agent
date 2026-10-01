@@ -54,6 +54,48 @@ simulation defaults and workspace authorization remain unchanged.
 
 ## Intent and confirmed decisions
 
+### Onboarding consolidation (September 30, 2026)
+
+The user authorized implementing the reviewed onboarding consolidation plan on
+the new `078-onboarding-consolidation` branch. The
+[consolidation contract](contracts/onboarding-consolidation.md) carries the
+Phase 0 evidence, domain contract amendments, issue ownership and implementation
+gates into the repository. The plan requires review of those exact amendments
+before affected behavioral implementation; this section does not claim that the
+new journeys are implemented or accepted.
+
+The [22-screen onboarding mock](../../docs/design/onboarding-mock/index.html)
+is the required UX reference, coordinated with the
+[provider](../../docs/design/provider-workspace-mock/README.md) and
+[Systems](../../docs/design/system-overview-mock/README.md) destination designs.
+Reuse production components and canonical services, not the old wizard layout
+or the mock's synthetic data and in-memory success.
+
+- Setup establishes a minimally usable, appropriately authorized workspace and
+  explicit remaining documentation/monitoring work. It does not approve source
+  content, publish a release, adopt capabilities, accept duties, grant an ATO,
+  establish cATO or submit to eMASS.
+- Deployment bootstrap, tenant activation, organization creation/enrollment and
+  system registration remain separate domain and permission boundaries.
+- Save & finish later explicitly saves partial draft fields to the server.
+  It does not silently commit imports, role grants or other follow-up actions.
+- Provider sources may use the existing unassociated receipt path when exact
+  offering/boundary context is unknown. Association and publication require
+  their explicit valid reviewed context; never fabricate a boundary.
+- Current administrator availability, the requested enrollment outcome and the
+  current actor's customer access are distinct facts.
+- Initial system preparation requires no fabricated prior authorization
+  decision. Hosting association, capability adoption, monitoring configuration,
+  successful collection and rule evaluation remain separate.
+- Scope includes minimum provider review-queue and Systems work-queue/document
+  handoffs, not the entire destination-page redesign.
+- Existing IDs, original source content, grants, reviewed versions, exports and
+  audit history survive migration. Active users are not forced to rebootstrap.
+
+Existing story ownership is retained under #1002 and #1038. New checklists and
+external issue updates remain subject to exact-content preview and approval;
+there is no authorization to push or close issues from this amendment.
+
 ### System-level Security Capabilities (issue #1037, September 25)
 
 September 26 initial navigation clarification (superseded by the Environment

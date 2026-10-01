@@ -1,5 +1,47 @@
 # Tasks: Mock-Aligned CSP and Organization Workspaces
 
+## PR 1051 upstream reconciliation (September 30, 2026)
+
+PR 1050 advanced `main` to `a4d43d7c` while the onboarding branch retained
+`dba40909`. Rebase the two local commits onto that upstream snapshot, preserving
+the verified fresh-schema-default CI repair and unrelated untracked design work.
+Upstream's provider/environment/readiness contracts, navigation and document
+renderer take precedence. Adapt onboarding extensions to those contracts rather
+than restoring retired workspace UI or dropping upstream schema modules.
+
+- [x] Resolve provider DTO/schema/service and Dashboard shell conflicts.
+- [x] Retain all upstream model/schema registrations alongside the three
+  onboarding registrations, preserving tenant-column-before-index ordering.
+- [x] Use upstream's complete paragraph renderer (already untruncated) with
+  onboarding source provenance and tenant-specific organization lookup.
+- [x] Rebuild, rerun required RLS and affected onboarding/document tests, and
+  validate Dashboard types/routes on the combined tree.
+- [ ] Obtain explicit approval before publishing rewritten branch history;
+  remote CI/mergeability verification follows the approved push.
+
+Rebase completed locally onto `a4d43d7c`. Provider setup now maps its saved
+declaration to upstream's canonical service model, management arrangement and
+environment fields instead of adding a competing offering JSON field. Upstream
+archive/supersession and schema registrations remain intact. Guided setup is
+attached to the current PageLayout navigation; the retired WorkspaceHeader is
+not restored. The upstream SystemComponents policy-reference actions are
+retained. Generated context was refreshed without removing Feature 079.
+
+Verified on the combined tree: Release solution build passes; 508 focused
+provider/schema/workspace unit tests, 5 fresh-schema tests, and 97 required
+RLS/onboarding/source integration tests pass with no skips. Dashboard strict
+type-check and production build pass; the focused UI reconciliation suite
+passes 604 tests in 53 files, with five additional environment-mapping cases in
+the provider follow-up run. Existing build warnings are retained and no
+warning-free full rebuild is claimed. Eight offering-form test failures were
+reproduced against immutable upstream CSS: jsdom/nwsapi fails during accessible
+heading-name calculation for `dialog:has(.aw-editor)` despite correct heading
+text. Only seven test heading queries were adapted to exact text plus semantic
+heading selectors; production markup and action/receipt assertions are unchanged.
+The offering workflow/identity/intake rerun passes 31 tests, including all eight
+former failures; strict type-check passes. Remote CI has not run on this
+rewritten history.
+
 ## PR 1050 CI repair (September 29, 2026)
 
 Run `36609347042` reports two verified failure causes: four responsibility test
@@ -92,6 +134,299 @@ available through the local preview/export workflow; no live data was changed.
 
 Tasks are dependency ordered. Tests marked `RED` must fail for the intended
 reason before their production task begins. Every test follows Arrange/Act/Assert.
+
+## Onboarding consolidation (September 30, 2026)
+
+### PR 1051 CI repair: fresh tenant schema defaults
+
+CI run `36751708833`, Integration Tests job `110013901212`, built successfully
+then reported 1,482 passed, 20 failed and 20 skipped. The job log and uploaded
+TRX show all 20 failures originate in `RlsIntegrationFixture.SeedAsync`:
+SQL Server rejects the tenant inserts because `OnboardingDraftSchemaVersion`
+is non-nullable and has no database default in the fresh EF-created schema.
+The fixture inserts the pre-existing tenant fields; it does not insert NULL
+explicitly or bypass row-level security.
+
+`OrganizationOnboardingSchemaAdditions` defines defaults 1/0 for schema version
+and draft revision on upgrades. `OrganizationOnboardingModelConfiguration`
+does not define either database default, so `EnsureCreatedAsync` diverges from
+the supported upgrade path. Align those model defaults, verify fresh creation
+on both relational providers, retain explicit saved revisions, and rerun the
+actual required SQL Server RLS suite without skips or weakened assertions.
+
+The first required RLS reproduction after fixing tenant defaults advanced to
+its provider-parent seed and exposed the same drift for `CspProfile.SetupRevision`
+(upgrade SQL default 1; fresh EF schema missing it). Include that model default
+and regression in the same root-cause repair; do not patch seed inserts to
+conceal the fresh/upgrade contract mismatch.
+
+- [x] CI1051-1 Reproduce missing defaults with a fresh-schema regression before
+  changing production mapping.
+- [x] CI1051-2 Add matching EF defaults for draft schema version/revision and
+  provider setup revision.
+- [x] CI1051-3 Run focused regression, required SQL Server RLS tests, and build;
+  retain local manual-test instructions and actual results.
+- [ ] CI1051-4 Obtain approval before publishing the fix; verify replacement CI
+  rather than treating local validation as a remote pass.
+
+Local validation: three new regressions failed before the corresponding fixes;
+the schema suite now passes **5/5**. The required SQL Server RLS suite passes
+**22/22**, including all 20 CI failures, with no skips. Related organization
+creation, tenant reentrancy, provider replay and SQL Server upgrade checks pass
+**37/37**, no skips. Release solution build passes with 65 existing test-project
+warnings and no errors. The RLS fixture/seed, installer, predicates, assertions,
+and CI required-Docker setting are unchanged. No application containers were
+restarted; SQL Server checks used disposable test containers.
+
+Local manual reproduction from the repository root:
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj \
+  --filter 'FullyQualifiedName~WorkspaceOperationsSchemaTests'
+ATO_REQUIRE_DOCKER_TESTS=1 dotnet test \
+  tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  -c Release --filter 'FullyQualifiedName~Ato.Copilot.Tests.Integration.Rls'
+```
+
+Expected: all tests pass without skips; tenant-isolation and blocked cross-tenant
+writes are still asserted. No manual business-data entry is needed for this
+schema-default fix. Remote CI cannot be called fixed until the approved patch
+is pushed and its replacement check completes.
+
+Branch: `078-onboarding-consolidation`. Contract:
+[onboarding consolidation](contracts/onboarding-consolidation.md).
+Existing story owners: #1025, #1026, #1031, #1037 and #1042/#1046; bootstrap,
+identity, import and artifact prerequisites retain their existing issues.
+These tasks are not new standalone Feature/User Story issues.
+
+- [x] ONB000 Create the requested new branch from the verified current checkout;
+  preserve unrelated design work and refresh existing issue hierarchy read-only.
+- [x] ONB001 Verify shared dialog/navigation reuse baseline: 86 tests pass across
+  SetupDialog, workspaceNavigation and workspaceRoutes.
+- [x] ONB002 Close provider, tenant/organization and general/system/import/task
+  evidence holds with exact endpoint/state/caller/permission inventories.
+  All three domain contracts are present. Findings are source-level; failing
+  runtime reproductions and behavior acceptance remain ONB004 and later gates.
+- [x] ONB003 Present exact contract amendments, migration and test mapping for
+  review; run agent-context generation and inspect the generated diff.
+  User directed autonomous local implementation at 09:16 on September 30 after
+  the checkpoint. External writes/pushes and final user acceptance remain
+  separate. No initial unavailability was treated as permission to publish.
+- [x] ONB003a Reproduce and repair the required generator's leading-dash grep and
+  macOS whitespace-trimming defects. Isolated failing-first regression passes;
+  87 combined tests and strict Dashboard types pass. Context generation reran
+  without those errors; no manual generated-section edits. Contract review in
+  ONB003 remains pending.
+- [x] ONB004 RED: saved draft, uncertainty, payload replay, stale revision,
+  explicit deferral, failed-completion and no-false-success regressions.
+- [x] ONB005 Implement domain-owned shared setup facts and minimum destination
+  projections, then reusable mock-aligned presentation with actual consumers.
+- [x] ONB006 RED -> GREEN provider screens `p-details`, `p-access`, `p-offering`,
+  `p-sources`, `p-uncertain`, `p-review`, `p-ready`; receipt-only unknown context,
+  persistent request reconciliation, background processing and portal handoff.
+- [x] ONB007 RED -> GREEN organization screens `o-details`, `o-admin`,
+  `directory-offline`, `o-review`, `o-ready`, `o-repair`; exact requested admin,
+  live readiness, partial enrollment and provider-only handoff. Coordinate #939
+  tenant hydration and #938 timezone semantics without weakening activation.
+- [x] ONB008 RED -> GREEN system screens `s-details`, `s-team`, `s-sources`,
+  `s-hosting`, `s-connect`, `s-review`, `s-ready`; reuse intake, effective roles,
+  canonical import review, hosting and scoped monitoring services.
+- [x] ONB009 Verify `start`/`resume` with server-authorized actions and saved
+  records, browser restart, two tabs, dirty navigation and failure recovery.
+- [x] ONB010 Verify reviewed identity/source/scope/version in actual document
+  output, independent/provider-backed systems and distinct subscription-shared
+  scopes. Coordinate #1039-1045; do not claim those issues closed by setup.
+- [x] ONB011 Exercise additive upgrades/replay/rollback, retained IDs/hashes/
+  grants/history, legacy URLs and non-Dashboard callers before retiring code.
+- [x] ONB012 Run affected backend/TS tests, strict type checks, build and
+  integration milestones; capture desktop/mobile mock comparisons and exact
+  local manual steps. Record user acceptance separately from tests/deployment.
+- [ ] ONB013 Release sign-off: obtain local user acceptance, satisfy the
+  whole-feature coverage target, resolve the independent full-suite/lint
+  limitations and verify any required live Entra/Azure/eMASS workflow. This is
+  not granted by local implementation or the synthetic acceptance results.
+
+September 30 implementation evidence (in progress, not full-plan acceptance):
+
+- Shared mock-aligned SetupFrame and SetupHome tests were added before the
+  components. Their initial runs failed because the components did not exist;
+  after implementation all 10 interaction tests pass. Domain adapters and
+  browser visual acceptance remain pending.
+- Organization HTTP RED: five tests executed, four failed on absent draft/
+  summary APIs or hydration data; ordinary-member denial passed. The sequential
+  trace also reproduced a successful administrator state read followed by
+  forbidden legal-entity submission. These are now implementation targets,
+  not claimed resolved behavior.
+- Provider HTTP RED: seven tests failed on absent setup APIs. Provider frontend
+  tests also reproduced the 152-character associated upload key exceeding the
+  server's 100-character bound using real hashing.
+- Shared entry/resume is now wired to canonical domain clients and workspace
+  routes. All 31 shared tests pass with 100% scoped statement/branch/function/
+  line coverage; header entry adds two passing tests. Four real-SPA synthetic
+  Chromium scenarios pass at 1440px/390px. Mobile sidebar visibility was checked
+  against the actual mock, reproduced as a mismatch and corrected. Backend
+  persistence and full domain journeys remain separate validation gates.
+- Combined backend startup reproduced a new ordering error: the system setup
+  unique index references RegisteredSystems.TenantId before the legacy tenant
+  retrofit adds that column. Sequential test-host logs show the failing CREATE
+  INDEX and SQLite's missing-column exception; the later "server not started"
+  failures are secondary. Move the setup schema application after the tenant
+  retrofit rather than changing authentication or restarting the host.
+- After that ordering fix, 43 of 46 focused integration tests pass. Remaining
+  failures are organization create concurrency, live administrator summary and
+  legacy tenant bootstrap authorization; the owning implementation is correcting
+  them. This is not a green integration milestone.
+- Full Dashboard run: 2041 passed, six failed in unchanged ApplicationShell
+  tests because their axios mock omits the named isAxiosError export consumed by
+  unchanged RequireAuth/authErrors. ApplicationRoutes and ApplicationFrame are
+  mocked in that suite. No unrelated auth behavior was changed or assertions
+  weakened; this full-suite limitation remains explicit pending baseline
+  reproduction. React act and jsdom canvas diagnostics also remain in output.
+- The three organization/tenant integration failures were corrected by their
+  owner; the combined 46-test onboarding lane now passes, alongside 11 schema/
+  private-guard tests and 55 retained workspace service tests. Additional
+  offering/source cases and broader regression are still running.
+- Current shared UI: 36 tests pass at 100% scoped statements/branches/functions/
+  lines, including pending-tenant activation resume. Five entry Chromium flows
+  pass. The combined provider/organization/entry browser run passed 21 of 22;
+  a 900px organization review step was reset by late hydration. The owner is
+  adding a deterministic regression; no timeout increase or flaky retry is
+  accepted as its fix.
+- Integrated Dashboard build passes with the same reported warning categories
+  as the Phase 0 build. `npm run lint` cannot execute because `eslint` is absent
+  from the project's installed tools and dependency manifest; no clean lint
+  result is claimed and no new lint stack was installed for this task.
+- Correctness review identified four provider/organization defects and three
+  system output/review defects. Shared pre-activation resume now loads provider
+  facts without forbidden organization probes and preserves `/setup/resume`
+  through the CSP guard (27 focused tests and six entry browser cases pass).
+  Owners are adding regressions for operation-revision changes, stale-draft
+  reconciliation, portal-intake capacity, exact confirmation identity, technical
+  field confirmation and full-length document provenance. Review findings are
+  not closed by unrelated passing tests.
+- All seven review findings are now corrected in source and the reviewer
+  verified those exact corrections. The combined onboarding/import/document
+  HTTP lane passes **81/81**, no skips. Actual default DOCX assertions cover
+  long mission-purpose text, all reviewed source hashes and technical values.
+- Broader validation remains active: solution build passed; full unit run
+  produced **7244 passed / 9 failed**, all failures in provider schema fixtures
+  that exercise standalone base modules against newly mapped columns. The
+  provider owner is correcting base-module create/upgrade compatibility without
+  weakening the exact-model assertions.
+- Docker availability was verified and three required SQL Server fixture tests
+  ran (no skips). Provider and organization retained-data/repeat upgrades passed.
+  System upgrade failed because its index referenced newly added columns in
+  the same SQL Server compilation batch. That actual relational failure is
+  being fixed; SQLite success was not substituted for SQL Server evidence.
+- Standalone provider schema fixes now pass **28 targeted unit tests**, with
+  the exact-model/type/retention assertions unchanged. After splitting SQL
+  Server column and index batches, and correcting parameterized JSON in the
+  new fixture, **all three required SQL Server upgrade tests pass**, no skips.
+  They retain provider draft/command/intent/package data, organization/tenant
+  drafts and opaque system/source records through repeated application.
+- Final coordinated browser run passes **29/29** across all 22 mock states,
+  including intermediate-width organization recovery, explicit stale-field
+  reconciliation, pending provider/tenant resume and separate source review.
+  This is synthetic real-SPA validation, not live Entra/Azure/eMASS acceptance.
+- Final full unit rerun passes **7254/7254**, no skips. Dashboard types and
+  production build pass; build warnings remain disclosed. Full Dashboard
+  regression is **2077 passed / six unchanged ApplicationShell mock failures**.
+  The six failures reproduce independently with ApplicationRoutes/Frame mocked;
+  no onboarding assertion or production authentication code was weakened.
+- Full integration serial run completed **1480 passed / 2 failed / 40 skipped**.
+  The failures were coupled legacy fixtures: a system/context used different
+  tenants, and resumed onboarding supplied no persisted administrator. Both
+  fixtures were corrected with the original assertions preserved and no
+  production permission relaxation. Final affected rerun passes **84/84**,
+  including both corrected fixtures, all new onboarding/source reviews and
+  actual document outputs. Full serial lane was not rerun after these fixture
+  corrections; broad RLS/Nessus skips remain a release limitation.
+
+Checked implementation tasks above refer to the supported local increment:
+mission source intake retains XLSX/PDF originals and explicitly reviews supported
+identity fields, not complete automatic SSP/eMASS ingestion. Monitoring setup
+reports actual configuration and honest unknown/unsupported collection/scope
+facts, with deferred work; it does not implement or close the independent
+executable-rule and full source-attribution audit workstreams. Actual exported
+DOCX identity, mission purpose and reviewed source hashes were tested; no live
+eMASS acceptance or cATO decision is claimed.
+
+Coverage is reported, not silently upgraded: shared frame/home/readers are 100%
+across measured categories; organization/tenant scope reports 99.86% lines and
+90.19% branches. Whole-feature 100% modified-path coverage and user acceptance
+remain release gates. Detailed domain measurements and local manual instructions
+are in [the guide](../../docs/guides/onboarding-consolidation.md).
+
+No full-plan completion is claimed. External issue writes, pushes and closure
+require their separate repository approvals.
+
+## PR 1049 integration CI repair (September 29, 2026)
+
+CI run `36590187292`, integration job `109483043725`, built successfully but
+reported 14 failed tests (1434 passed; 20 unexecuted cases in the TRX inventory).
+The failed job log and uploaded TRX were read before inspecting implementation.
+
+- [x] CI1049-1 Fix incomplete global-reference cache publication: the CSP
+  bootstrap read is legitimately pre-tenant, but the interceptor treats a
+  partially populated dictionary as initialized. Publish a complete per-model
+  cache atomically; keep unknown/tenant tables denied without ambient context.
+- [x] CI1049-2 Reconcile relational HTTP fixture identities/role grants and GUID
+  materialization with the current persisted authorization contract; preserve
+  negative access and revocation assertions.
+- [x] CI1049-3 Verify why package lifecycle snapshots differ on
+  `AnalysisProfileVersion` during resume/review and fix the actual retention or
+  stale-fixture cause without weakening immutable-source assertions.
+- [x] CI1049-4 Preserve idempotent no-cookie support exit with the correct
+  authenticated identity contract and isolation between shared fixture tests.
+- [ ] CI1049-5 Run targeted failures, the CI-equivalent integration lane and
+  applicable compile/hygiene checks; publish only after push approval and verify
+  the replacement CI result.
+
+This repair targets `feature/1002-workspace-delivery-1037` in its existing
+checkout. PR 1050's worktree and the ongoing assessment-separation plan are not
+part of the repair. Unrelated design files remain untouched.
+
+Local failing-first evidence: two model-specific global-reference tests reproduce
+false rejection and cross-model exemption leakage. A separate HTTP regression
+reproduces leftover workspace/person/impersonation state in the shared legacy
+contract fixture. Package lifecycle investigation confirms PATCH retained raw
+payloads without checkpoint provenance, while GET recovered `AnalysisProfileVersion`.
+
+Targeted validation after repair: **7 tenant-query-guard unit tests and 67
+integration tests passed**, including all four CI failure classes. Existing
+tenant/unknown-table denial and role/reviewer/revocation checks are preserved.
+The new opaque-system-ID regression verifies tenant isolation without forcing
+string system identifiers through `Guid.Parse`.
+
+Local reproduction commands (run from the PR 1049 checkout):
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Unit --no-restore \
+  --filter 'FullyQualifiedName~TenantScopedQueryGuardGlobalReferenceTests'
+dotnet test tests/Ato.Copilot.Tests.Integration --no-restore \
+  --filter 'FullyQualifiedName~OrganizationCreationFlowTests|FullyQualifiedName~TenantScopedEndpointHttpPipelineTests|FullyQualifiedName~TenantsEndpointsContractTests|FullyQualifiedName~CspPackageLifecycleHttpTests'
+```
+
+No application authorization policy is broadened. No real organization, package,
+credential, role assignment or remote service is used by these synthetic tests.
+
+Release verification:
+
+- `dotnet build Ato.Copilot.sln -c Release --no-restore -nologo`: passed,
+  with existing repository warnings.
+- `dotnet test tests/Ato.Copilot.Tests.Unit/Ato.Copilot.Tests.Unit.csproj -c Release --no-build`:
+  **7231 passed, 0 failed, 0 skipped**.
+- Full integration lane with CI's `ATO_REQUIRE_DOCKER_TESTS=1`: **1406 passed,
+  45 failed** (1471 discovered; 20 pre-existing unexecuted cases). All 45 failures
+  report Docker/SQL Server fixture initialization unavailable; none are the
+  original 14 assertion/retention/context failures.
+- A bounded request to the active Docker Desktop socket also timed out. The
+  shared daemon was not restarted and required Docker tests were not disabled.
+  Required Linux Docker/RLS validation remains a remote CI gate, not a claimed
+  local success.
+
+Repair commits and verification are local pending explicit push approval.
+No untracked ConMon design assets or PR 1050 changes are included.
 
 ## System-level Security Capabilities (#1037)
 

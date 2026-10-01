@@ -37,15 +37,30 @@ export interface TenantOnboardingProgress {
   completedSteps: TenantWizardStep[];
   onboardingState: TenantOnboardingState;
   firstOrganizationId: string | null;
+  submittedValues?: TenantDraftValues;
+  draft?: { schemaVersion: number; revision: number; currentStep: TenantWizardStep; values: Partial<TenantDraftValues>; savedAt: string } | null;
+  draftRevision?: number;
+  missingRequiredFields?: string[];
 }
 
-export interface LegalEntityRequest {
+export interface TenantDraftValues {
+  legalEntity: LegalEntityRequest;
+  hqAddress: HqAddressRequest;
+  classification: ClassificationRequest;
+  ao: AoRequest;
+  primaryPoc: PrimaryPocRequest;
+  orgProfile: OrgProfileRequest;
+}
+
+interface RevisionRequest { expectedRevision?: number }
+
+export interface LegalEntityRequest extends RevisionRequest {
   legalEntityName: string;
   doDComponent?: string | null;
   timeZone?: string | null;
 }
 
-export interface HqAddressRequest {
+export interface HqAddressRequest extends RevisionRequest {
   hqAddressLine1: string;
   hqAddressLine2?: string | null;
   hqCity: string;
@@ -56,24 +71,25 @@ export interface HqAddressRequest {
 
 export type ClassificationLevel = 'Unclassified' | 'CUI' | 'Secret';
 
-export interface ClassificationRequest {
+export interface ClassificationRequest extends RevisionRequest {
   defaultClassificationLevel: ClassificationLevel;
 }
 
-export interface AoRequest {
+export interface AoRequest extends RevisionRequest {
   authorizingOfficialName: string;
   authorizingOfficialEmail: string;
 }
 
-export interface PrimaryPocRequest {
+export interface PrimaryPocRequest extends RevisionRequest {
   primaryPocName: string;
   primaryPocEmail: string;
   primaryPocPhone?: string | null;
 }
 
-export interface OrgProfileRequest {
+export interface OrgProfileRequest extends RevisionRequest {
   name: string;
   description?: string | null;
+  firstOrganizationId?: string | null;
 }
 
 interface Envelope<T> {
@@ -94,7 +110,7 @@ async function unwrap<T>(promise: Promise<{ data: Envelope<T> }>): Promise<T> {
 }
 
 export const tenantWizard = {
-  getState: () => unwrap<TenantOnboardingProgress>(tenantApi.get('/state')),
+  getState: (signal?: AbortSignal) => unwrap<TenantOnboardingProgress>(tenantApi.get('/state', { signal })),
   submitLegalEntity: (req: LegalEntityRequest) =>
     unwrap<TenantOnboardingProgress>(tenantApi.post('/legal-entity', req)),
   submitHqAddress: (req: HqAddressRequest) =>
@@ -106,5 +122,10 @@ export const tenantWizard = {
     unwrap<TenantOnboardingProgress>(tenantApi.post('/primary-poc', req)),
   submitOrgProfile: (req: OrgProfileRequest) =>
     unwrap<TenantOnboardingProgress>(tenantApi.post('/org-profile', req)),
-  submitFinal: () => unwrap<TenantOnboardingProgress>(tenantApi.post('/submit', {})),
+  saveDraft: (req: { schemaVersion: 1; expectedRevision: number; currentStep: TenantWizardStep; values: TenantDraftValues }) =>
+    unwrap<TenantOnboardingProgress>(tenantApi.put('/draft', req)),
+  discardDraft: (expectedRevision: number) =>
+    unwrap<TenantOnboardingProgress>(tenantApi.post('/draft/discard', { expectedRevision })),
+  submitFinal: (expectedRevision?: number) => unwrap<TenantOnboardingProgress>(tenantApi.post('/submit',
+    expectedRevision === undefined ? {} : { expectedRevision, confirmed: true })),
 };
