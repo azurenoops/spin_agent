@@ -75,7 +75,7 @@ function formatTimestamp(ts: string): string {
   });
 }
 
-export default function AuditLogPage() {
+export default function AuditLogPage({ embedded = false }: { embedded?: boolean }) {
   const [page, setPage] = useState(1);
   const [actionFilter, setActionFilter] = useState('');
   const [tenantFilter, setTenantFilter] = useState('');
@@ -114,7 +114,7 @@ export default function AuditLogPage() {
   const totalPages = Math.max(1, Math.ceil((data?.totalCount ?? 0) / PAGE_SIZE));
 
   return (
-    <PageLayout title="Audit Log">
+    <PageLayout title="Audit Log" embedded={embedded}>
       <PageHero
         eyebrow="Administration"
         title="Platform Audit Log"

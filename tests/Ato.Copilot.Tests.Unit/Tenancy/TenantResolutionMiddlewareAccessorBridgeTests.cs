@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Onboarding;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp.Configuration;
@@ -47,6 +49,7 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
     private static readonly Guid TenantA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid TenantB = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid EntraTidA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid UserOid = Guid.Parse("00000000-0000-0000-0000-000000000099");
 
     private SqliteConnection _connection = null!;
     private ServiceProvider _sp = null!;
@@ -66,6 +69,9 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         services.AddSingleton(BuildCspProfileStub());
         services.AddSingleton<IOptions<RoleClaimMappingsOptions>>(Options.Create(new RoleClaimMappingsOptions()));
         services.AddScoped<IWorkspaceService, WorkspaceService>();
+        var rememberedTenantCookie = new Mock<IRememberedTenantCookieService>();
+        rememberedTenantCookie.Setup(service => service.Validate(It.IsAny<string>())).Returns(TenantB);
+        services.AddSingleton(rememberedTenantCookie.Object);
         _sp = services.BuildServiceProvider();
 
         await using var scope = _sp.CreateAsyncScope();
@@ -113,7 +119,9 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         });
         var person = new Ato.Copilot.Core.Models.Onboarding.Person
         {
-            TenantId = TenantA, DisplayName = "Explicit test member", Email = "member@example.invalid"
+            TenantId = TenantA,
+            DisplayName = "Explicit test member",
+            Email = "member@example.invalid",
         };
         db.Persons.Add(person);
         db.OrganizationMemberships.Add(new()
@@ -125,6 +133,22 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         db.OrganizationRoleAssignments.Add(new()
         {
             TenantId = TenantA, PersonId = person.Id, Role = Ato.Copilot.Core.Models.Onboarding.OrganizationRole.MissionOwner
+        });
+        var tenantBPerson = new Person
+        {
+            Id = Guid.NewGuid(),
+            TenantId = TenantB,
+            DisplayName = "Tenant B Administrator",
+            Email = "tenant-b-admin@example.mil",
+            EntraObjectId = UserOid,
+            IsLinkedToDirectory = true,
+        };
+        db.Persons.Add(tenantBPerson);
+        db.OrganizationRoleAssignments.Add(new OrganizationRoleAssignment
+        {
+            TenantId = TenantB,
+            PersonId = tenantBPerson.Id,
+            Role = OrganizationRole.Administrator,
         });
         await db.SaveChangesAsync();
     }
@@ -296,6 +320,101 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
             "FR-026: CSP-Admin without impersonation bypasses the tenant filter");
     }
 
+    [Fact]
+    public async Task Middleware_VerifiedRememberedTenant_SelectsAssignedTenant()
+    {
+        // Arrange
+        var accessor = _sp.GetRequiredService<ITenantContextAccessor>();
+        List<RegisteredSystem> seenInsideNext = [];
+        var middleware = new TenantResolutionMiddleware(
+            next: async ctx =>
+            {
+                accessor.Current!.SelectedTenantId.Should().Be(TenantB);
+                accessor.Current.EffectiveTenantId.Should().Be(TenantB);
+                ctx.User.FindFirstValue("ato:effective_tenant_id").Should().Be(TenantB.ToString("D"));
+                var db = ctx.RequestServices.GetRequiredService<AtoCopilotContext>();
+                seenInsideNext = await db.RegisteredSystems.ToListAsync();
+            },
+            logger: NullLogger<TenantResolutionMiddleware>.Instance);
+        var (http, scope) = BuildHttpContextForTenant(EntraTidA);
+        http.Request.Headers.Cookie = "ato-remembered-tenant=signed-value";
+
+        try
+        {
+            // Act
+            await middleware.InvokeAsync(
+                http,
+                http.RequestServices.GetRequiredService<ITenantContext>(),
+                accessor,
+                BuildImpersonationStub(),
+                Options.Create(new DeploymentOptions { Mode = DeploymentMode.MultiTenant }),
+                Options.Create(new RoleClaimMappingsOptions()),
+                http.RequestServices.GetRequiredService<IMemoryCache>(),
+                http.RequestServices.GetRequiredService<AtoCopilotContext>(),
+                BuildConfiguration(),
+                BuildCspProfileStub());
+        }
+        finally
+        {
+            await scope.DisposeAsync();
+        }
+
+        // Assert
+        seenInsideNext.Should().BeEmpty(
+            "organization administration selects Tenant B without granting customer-system access");
+    }
+
+    [Fact]
+    public async Task Middleware_RememberedTenant_IgnoresRevokedAssignment()
+    {
+        // Arrange
+        await using (var revokeScope = _sp.CreateAsyncScope())
+        {
+            var db = revokeScope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var assignment = await db.OrganizationRoleAssignments
+                .IgnoreQueryFilters()
+                .SingleAsync(value => value.TenantId == TenantB);
+            assignment.RemovedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
+        var accessor = _sp.GetRequiredService<ITenantContextAccessor>();
+        var middleware = new TenantResolutionMiddleware(
+            next: ctx =>
+            {
+                accessor.Current!.SelectedTenantId.Should().BeNull();
+                accessor.Current.EffectiveTenantId.Should().Be(TenantA);
+                ctx.User.FindFirstValue("ato:effective_tenant_id").Should().Be(TenantA.ToString("D"));
+                return Task.CompletedTask;
+            },
+            logger: NullLogger<TenantResolutionMiddleware>.Instance);
+        var (http, scope) = BuildHttpContextForTenant(EntraTidA);
+        http.Request.Headers.Cookie = "ato-remembered-tenant=signed-value";
+
+        try
+        {
+            // Act
+            await middleware.InvokeAsync(
+                http,
+                http.RequestServices.GetRequiredService<ITenantContext>(),
+                accessor,
+                BuildImpersonationStub(),
+                Options.Create(new DeploymentOptions { Mode = DeploymentMode.MultiTenant }),
+                Options.Create(new RoleClaimMappingsOptions()),
+                http.RequestServices.GetRequiredService<IMemoryCache>(),
+                http.RequestServices.GetRequiredService<AtoCopilotContext>(),
+                BuildConfiguration(),
+                BuildCspProfileStub());
+        }
+        finally
+        {
+            await scope.DisposeAsync();
+        }
+
+        // Assert
+        http.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+    }
+
     private (DefaultHttpContext http, AsyncServiceScope scope) BuildHttpContextForTenant(
         Guid entraTid,
         bool isCspAdmin = false)
@@ -312,8 +431,8 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         var claims = new List<Claim>
         {
             new("tid", entraTid.ToString()),
-            new("oid", "00000000-0000-0000-0000-000000000099"),
-            new(ClaimTypes.NameIdentifier, "00000000-0000-0000-0000-000000000099"),
+            new(ClaimTypes.NameIdentifier, UserOid.ToString()),
+            new("oid", UserOid.ToString()),
         };
         if (isCspAdmin)
         {

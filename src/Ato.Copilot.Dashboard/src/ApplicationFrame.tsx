@@ -13,12 +13,13 @@ import { useIdleTimer } from './features/auth/useIdleTimer';
 import { useLoginConfig } from './features/auth/LoginConfigContext';
 import { useMe } from './features/auth/useMe';
 import { useWorkspaceSession } from './features/workspaces/WorkspaceBoundary';
+import { EffectiveAccessProvider } from './features/admin/access';
 
 export default function ApplicationFrame({ children }: { children: ReactNode }) {
   const session = useWorkspaceSession();
-  const content = <ChatPanelProvider><OrganizationContextProvider>
+  const content = <EffectiveAccessProvider><ChatPanelProvider><OrganizationContextProvider>
     <SystemDataProvider><FrameContent>{children}</FrameContent></SystemDataProvider>
-  </OrganizationContextProvider></ChatPanelProvider>;
+  </OrganizationContextProvider></ChatPanelProvider></EffectiveAccessProvider>;
   // The legacy probes are retained only for genuinely unscoped servers.
   // An ordinary organization route must never probe provider onboarding.
   if (!session) return <CspOnboardingGuard><TenantOnboardingGuard>{content}</TenantOnboardingGuard></CspOnboardingGuard>;

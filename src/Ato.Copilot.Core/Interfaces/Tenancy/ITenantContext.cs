@@ -41,8 +41,14 @@ public interface ITenantContext
     Guid? ImpersonatedTenantId { get; }
 
     /// <summary>
+    /// Authorized tenant selected by a non-impersonating user. Selection is
+    /// accepted only when backed by a verified assignment.
+    /// </summary>
+    Guid? SelectedTenantId => null;
+
+    /// <summary>
     /// The value used by query filters and stamping:
-    /// <c>ImpersonatedTenantId ?? TenantId</c>.
+    /// <c>ImpersonatedTenantId ?? SelectedTenantId ?? TenantId</c>.
     /// </summary>
     Guid EffectiveTenantId { get; }
 

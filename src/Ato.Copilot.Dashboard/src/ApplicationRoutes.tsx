@@ -56,6 +56,10 @@ import CspSystemsPage from './features/csp-dashboard/CspSystemsPage';
 import { useWorkspaceSession } from './features/workspaces/WorkspaceBoundary';
 import SetupHomeRoute from './features/onboarding/shared/SetupHomeRoute';
 import SystemSetupRoute from './pages/SystemSetupRoute';
+import AdminAccessGate from './features/admin/AdminAccessGate';
+import AdminShell from './features/admin/AdminShell';
+import AdminOverviewPage from './features/admin/AdminOverviewPage';
+import AccessRequiredPage from './features/admin/AccessRequiredPage';
 
 export default function ApplicationRoutes() {
   return (
@@ -150,6 +154,18 @@ export default function ApplicationRoutes() {
           {/* UF-CSP-01: Org-user capability library (spec-070) */}
           <Route path="capability-library" element={<RequireAuth><OrgCapabilityLibraryPage /></RequireAuth>} />
           <Route path="capability-library/:capabilityId" element={<RequireAuth><OrgCapabilityDetailPage /></RequireAuth>} />
+          <Route path="administration" element={<RequireAuth><AdminAccessGate><AdminShell /></AdminAccessGate></RequireAuth>}>
+            <Route index element={<AdminOverviewPage />} />
+            <Route path="organization/profile" element={<AdminAccessGate action="organization.profile.view"><OrgSettingsPage /></AdminAccessGate>} />
+            <Route path="organization/setup" element={<AdminAccessGate action="organization.setup.manage"><TenantWizard /></AdminAccessGate>} />
+            <Route path="organization/subscriptions" element={<AdminAccessGate action="organization.subscriptions.manage"><AzureSettingsPage /></AdminAccessGate>} />
+            <Route path="organization/imports" element={<AdminAccessGate action="organization.imports.manage"><ImportedDocumentsView /></AdminAccessGate>} />
+            <Route path="organization/templates" element={<AdminAccessGate action="organization.templates.manage"><TemplatesAdminPage /></AdminAccessGate>} />
+            <Route path="organization/audit" element={<AdminAccessGate action="organization.audit.view"><AuditLogPage embedded /></AdminAccessGate>} />
+            <Route path="provider/setup" element={<AdminAccessGate action="provider.profile.view"><CspWizard /></AdminAccessGate>} />
+            <Route path="platform/migration" element={<AdminAccessGate action="platform.migration.preview"><AdminMigrationPage embedded /></AdminAccessGate>} />
+          </Route>
+          <Route path="access-required" element={<RequireAuth><AccessRequiredPage /></RequireAuth>} />
           <Route path="admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
           <Route path="admin/templates" element={<RequireAuth><TemplatesAdminPage /></RequireAuth>} />
           {/* Wave 6 GAP-007: retired /csp-dashboard redirect */}

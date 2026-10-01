@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Security.Claims;
+using Ato.Copilot.Core.Authorization;
+using Ato.Copilot.Core.Configuration;
 using Ato.Copilot.Core.Configuration.Auth;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
@@ -63,13 +66,21 @@ public static class AdminMigrationEndpoints
     private static async Task<IResult> PreviewAsync(
         HttpContext http,
         ITenantContext tenant,
+        IEffectiveAccessService effectiveAccess,
+        IOptions<PlatformOperationsOptions> platformOptions,
         MultiTenantMigrationService service,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        if (!tenant.IsCspAdmin)
+        if (!await HasPlatformActionAsync(
+                http,
+                tenant,
+                effectiveAccess,
+                platformOptions.Value,
+                AdminPortalActions.PlatformMigrationPreview,
+                ct))
         {
-            return ForbiddenNotCspAdmin(sw);
+            return ForbiddenNotPlatformOperator(sw);
         }
 
         var preview = await service.PreviewAsync(overrides: null, ct);
@@ -79,15 +90,23 @@ public static class AdminMigrationEndpoints
     private static async Task<IResult> ExecuteAsync(
         HttpContext http,
         ITenantContext tenant,
+        IEffectiveAccessService effectiveAccess,
+        IOptions<PlatformOperationsOptions> platformOptions,
         MultiTenantMigrationService service,
         [FromBody] MigrateRequest? body,
         IOptions<AuthOptions> authOptions,
         CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
-        if (!tenant.IsCspAdmin)
+        if (!await HasPlatformActionAsync(
+                http,
+                tenant,
+                effectiveAccess,
+                platformOptions.Value,
+                AdminPortalActions.PlatformMigrationExecute,
+                ct))
         {
-            return ForbiddenNotCspAdmin(sw);
+            return ForbiddenNotPlatformOperator(sw);
         }
         if (body is null || body.DefaultTenantId == Guid.Empty)
         {
@@ -154,9 +173,40 @@ public static class AdminMigrationEndpoints
     private static IResult Success(Stopwatch sw, object data) =>
         Results.Json(BuildEnvelope(sw, data), statusCode: StatusCodes.Status200OK);
 
-    private static IResult ForbiddenNotCspAdmin(Stopwatch sw) =>
-        Error(sw, StatusCodes.Status403Forbidden, "FORBIDDEN_NOT_CSP_ADMIN",
-            "Operation requires CSP.Admin role.");
+    private static async Task<bool> HasPlatformActionAsync(
+        HttpContext http,
+        ITenantContext tenant,
+        IEffectiveAccessService effectiveAccess,
+        PlatformOperationsOptions platformOptions,
+        string action,
+        CancellationToken ct)
+    {
+        if (tenant.IsCspAdmin
+            && platformOptions.AllowLegacyCspAdminMigration
+            && platformOptions.LegacyCspAdminMigrationExpiresAt > DateTimeOffset.UtcNow)
+        {
+            return true;
+        }
+
+        var oidValue = http.User.FindFirstValue("oid")
+            ?? http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(oidValue, out var oid)) return false;
+
+        var result = await effectiveAccess.ResolveAsync(
+            new EffectiveAccessSubject(
+                oid,
+                http.User.Identity?.Name ?? "Platform operator",
+                tenant.EffectiveTenantId,
+                tenant.IsCspAdmin),
+            ct);
+        return result.Destinations.Any(destination =>
+            destination.ScopeKind == AccessScopeKind.Platform
+            && destination.Actions.Contains(action, StringComparer.Ordinal));
+    }
+
+    private static IResult ForbiddenNotPlatformOperator(Stopwatch sw) =>
+        Error(sw, StatusCodes.Status403Forbidden, "FORBIDDEN_NOT_PLATFORM_OPERATOR",
+            "Operation requires an explicitly configured platform-operation permission.");
 
     private static IResult Error(Stopwatch sw, int statusCode, string code, string message,
         string? suggestion = null) =>
@@ -184,4 +234,3 @@ public static class AdminMigrationEndpoints
         },
     };
 }
-

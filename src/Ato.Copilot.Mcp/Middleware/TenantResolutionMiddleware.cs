@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.Auth;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.Tenancy;
@@ -249,8 +250,50 @@ public sealed class TenantResolutionMiddleware
             }
         }
 
+        var rememberedTenantCookie =
+            context.RequestServices.GetService<IRememberedTenantCookieService>();
+        if (ctx.ImpersonatedTenantId is null
+            && rememberedTenantCookie is not null
+            && context.Request.Cookies.TryGetValue("ato-remembered-tenant", out var rememberedValue)
+            && rememberedTenantCookie.Validate(rememberedValue) is { } selectedTenantId
+            && selectedTenantId != ctx.TenantId)
+        {
+            var oidValue = context.User.FindFirstValue("oid")
+                ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (Guid.TryParse(oidValue, out var oid))
+            {
+                var personIds = await db.Persons
+                    .IgnoreQueryFilters()
+                    .Where(person => person.EntraObjectId == oid
+                        && person.IsLinkedToDirectory
+                        && person.TenantId == selectedTenantId)
+                    .Select(person => person.Id)
+                    .ToListAsync(context.RequestAborted);
+                var hasAssignment = personIds.Count > 0
+                    && await db.OrganizationRoleAssignments
+                        .IgnoreQueryFilters()
+                        .AnyAsync(assignment => assignment.TenantId == selectedTenantId
+                            && personIds.Contains(assignment.PersonId)
+                            && assignment.RemovedAt == null,
+                            context.RequestAborted);
+                if (hasAssignment)
+                {
+                    ctx.SelectedTenantId = selectedTenantId;
+                }
+            }
+        }
+
         // Stage D — evaluate tenant lifecycle status (cache 30 s per FR-058).
         var effectiveId = ctx.EffectiveTenantId;
+        if (context.User.Identity is ClaimsIdentity claimsIdentity)
+        {
+            var existingEffectiveTenant = claimsIdentity.FindFirst("ato:effective_tenant_id");
+            if (existingEffectiveTenant is not null)
+            {
+                claimsIdentity.RemoveClaim(existingEffectiveTenant);
+            }
+            claimsIdentity.AddClaim(new Claim("ato:effective_tenant_id", effectiveId.ToString("D")));
+        }
         var status = ctx.IsWorkspaceRequest ? ctx.Status
             : await GetTenantStatusAsync(effectiveId, db, cache, context.RequestAborted);
         ctx.Status = status;
