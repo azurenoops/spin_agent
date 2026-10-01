@@ -360,7 +360,8 @@ public class TenantResolutionMiddlewareAccessorBridgeTests : IAsyncLifetime
         }
 
         // Assert
-        seenInsideNext.Should().ContainSingle().Which.TenantId.Should().Be(TenantB);
+        seenInsideNext.Should().BeEmpty(
+            "organization administration selects Tenant B without granting customer-system access");
     }
 
     [Fact]
