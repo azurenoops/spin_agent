@@ -5,6 +5,31 @@
 
 ## Summary
 
+### Responsibility-confirmation audit storage correction (2026-10-01)
+
+The local failing responsibility PUT reached `CapabilityResponsibilityService.ApplyAsync`
+and SQL Server rejected its save with error 2628. Live schema inspection confirmed
+`InheritanceAuditEntries.ChangeSource` is `nvarchar(20)` while the existing
+`SubscriptionReconcile` enum name written by reconciliation is 21 characters.
+The EF model also specifies 20. This is not a form-length or refresh problem.
+
+Widen the model and existing SQL Server column to 32 characters without changing
+enum names, truncating data, dropping audit history, or relaxing permissions.
+Use the existing capability-responsibility schema initializer for an idempotent
+upgrade; preserve nullability and never shrink an already wider column. Tests
+must cover fresh model storage, existing 20-character schema upgrade, repeated
+startup, existing audit preservation and every defined enum value.
+The serving worktree has unrelated pending changes; mirror only this narrow
+model/schema correction there. No commit, push or issue write is part of the fix.
+
+Verification: failing-first tests reproduced the exact SQL 2628 error against
+the `ChangeSource` column. After correction, the serving worktree passed one
+model test and 78 responsibility/authorization/SQL integration tests, with
+required Docker tests enabled and no skips. The local database column was
+widened transactionally to 32 characters; its audit row count was preserved.
+No responsibility or authorization was confirmed by the repair. Reload the
+preview and perform the original confirmation manually to review the UI result.
+
 Build a dashboard UI and REST API layer for managing control inheritance designations, CSP responsibility profiles, and CRM generation. The backend service layer (`IBaselineService`) already provides `SetInheritanceAsync`, `GenerateCrmAsync`, `GetBaselineAsync`, and `TailorBaselineAsync`. This feature exposes those services via new REST endpoints in `DashboardEndpoints.cs`, adds an `InheritanceAuditEntry` model for immutable change tracking, introduces a CSP profile loading system (JSON config files), CRM export (CSV/Excel via ClosedXML), CRM import with column mapping, a new "Control Inheritance" React dashboard page, and a combined "Categorization & Baseline" management page under the "Compliance Posture" nav group.
 
 ### Post-Implementation Enhancements

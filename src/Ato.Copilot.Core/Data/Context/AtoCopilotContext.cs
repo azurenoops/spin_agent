@@ -1577,7 +1577,7 @@ public class AtoCopilotContext : DbContext
             entity.Property(e => e.NewProvider).HasMaxLength(200);
             entity.Property(e => e.PreviousCustomerResponsibility).HasMaxLength(2000);
             entity.Property(e => e.NewCustomerResponsibility).HasMaxLength(2000);
-            entity.Property(e => e.ChangeSource).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.ChangeSource).HasConversion<string>().HasMaxLength(32);
 
             // Indexes for audit queries
             entity.HasIndex(e => e.ControlInheritanceId)

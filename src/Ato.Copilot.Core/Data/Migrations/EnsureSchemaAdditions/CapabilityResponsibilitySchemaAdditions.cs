@@ -197,6 +197,16 @@ public static class CapabilityResponsibilitySchemaAdditions
         """;
 
     private const string SqlServerScript = """
+        -- SubscriptionReconcile needs 21 characters; COL_LENGTH reports nvarchar capacity in bytes.
+        IF COL_LENGTH(N'dbo.InheritanceAuditEntries', N'ChangeSource') BETWEEN 1 AND 63
+          AND EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.InheritanceAuditEntries')
+            AND name=N'ChangeSource' AND TYPE_NAME(user_type_id)=N'nvarchar')
+        BEGIN
+          IF COLUMNPROPERTY(OBJECT_ID(N'dbo.InheritanceAuditEntries'), N'ChangeSource', 'AllowsNull') = 1
+            ALTER TABLE dbo.InheritanceAuditEntries ALTER COLUMN ChangeSource NVARCHAR(32) NULL;
+          ELSE
+            ALTER TABLE dbo.InheritanceAuditEntries ALTER COLUMN ChangeSource NVARCHAR(32) NOT NULL;
+        END;
         IF OBJECT_ID(N'dbo.CapabilitySubscriptions', N'U') IS NULL
         BEGIN
           CREATE TABLE dbo.CapabilitySubscriptions (
