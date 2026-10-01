@@ -1,5 +1,19 @@
 # Applied capability review: local acceptance walkthrough
 
+## October 7 local PR #1064 conflict resolution
+
+The PR branch is being rebased onto `origin/main` at `f0e46d45`.
+The inherited capability-review changes overlap upstream's canonical
+responsibility draft APIs and independently reviewed component service-use scope.
+Retain upstream's draft fixtures, scope decisions, component drawer and deployment
+configuration instead of restoring older session-specific endpoints or treating
+raw placement as reviewed service use. Preserve the later Mission, Overview and
+system-definition improvements while adapting them to the current contracts.
+This is a local integration only: no containers are replaced, no package is
+submitted and no remote branch is updated. Historical test totals below are not
+verification of this rebase; fresh targeted validation and manual acceptance are
+still required.
+
 ## Current deployment after the main rebase
 
 The session branch now descends from `origin/main` at `69b7e407` (merged #1062).
