@@ -197,7 +197,8 @@ public static class AdminMigrationEndpoints
                 oid,
                 http.User.Identity?.Name ?? "Platform operator",
                 tenant.EffectiveTenantId,
-                tenant.IsCspAdmin),
+                tenant.IsCspAdmin,
+                Guid.TryParse(http.User.FindFirstValue("tid"), out var directoryId) ? directoryId : null),
             ct);
         return result.Destinations.Any(destination =>
             destination.ScopeKind == AccessScopeKind.Platform

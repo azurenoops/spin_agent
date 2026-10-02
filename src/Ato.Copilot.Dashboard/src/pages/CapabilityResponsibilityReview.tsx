@@ -256,6 +256,7 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
     {selected && data && (selectedItem || !selected.subscriptionId) && <ResponsibilityReviewPanel key={`${selected.subscriptionId}:${selected.controlId}`}
       item={selectedItem || null} controlId={selected.controlId} firstPass={data.supportsResponsibilityDrafts === true}
       onDraftConfirmed={() => { setNotice('Responsibility confirmed through authorized review. Check effective matrix and document contributions.'); void load(); }}
+      onDraftPrepared={() => { void load(); }}
       baselineId={data.baselineId} canConfirm={data.canConfirm} busy={busy || loading}
       eligible={(!selectedItem || editableStates.has(selectedItem.state)) && !inconsistentSubscription}
       stateExplanation={selectedItem ? states[selectedItem.state]?.explanation ?? 'Unknown review state. Refresh before confirming.'

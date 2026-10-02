@@ -71,6 +71,126 @@ review, no new agent/tool, no external writes. Scope-use entries are necessary
 because provider-service consumption and infrastructure containment are different
 facts; reusing immediate boundary mutation would violate baseline preservation.
 No new feature/issue hierarchy is created without the user's approved GitHub write.
+### Mission System record form
+
+The attached reference groups identity/organization fields into a two-column
+System record card with full-width mission statement and business purpose.
+Verified current Mission form exposes only two primary narrative fields and
+operating-status controls, while canonical registration already owns Name,
+Acronym, DitprId and EmassId. SystemOwner is already sourced from unified team
+roles. Keep those sources read-only in this profile instead of duplicating
+identity or team assignments in Mission JSON. Expose existing identifiers through
+the authorized system-detail DTO, add version/release, responsible organization
+and program office to the governed Mission draft, and preserve extra mission
+details and operational status through disclosure. Existing retained approved
+profile snapshots render all scalar fields into SSP output; validate that path
+and that later draft edits do not leak. No schema changes or fabricated working
+revision numbers are required. Use TDD, preserve save/review permissions, and
+deploy both images on 5173 with existing data and simulation.
+
+### Control Responsibility simple-review mock fidelity
+
+October 2 comparison of the loaded AU-11 drawer and
+`responsibility-review-simple.html` verified that the full first-pass provenance,
+conflicts and questions precede the provider summary and allocation choices,
+pushing the actual edit task below the viewport. Match this specific drawer's
+mock: named header, one current-responsibility status, compact provider card,
+four allocation cards, relevant editable fields, What happens next and fixed
+review/save footer. Put source versions, AI details and history within progressive
+provider-source disclosure, with visible source-review/staleness indicators and
+explicit request failure cards. Keep automatic environment resolution and all
+existing save, comparison, role, concurrency and confirmation semantics.
+Use current source records, never mock statements, and preserve prior changes.
+Validate loading/failure/readonly/review, actual light/dark narrow screenshots and
+the existing approval tests before updating the dashboard image on 5173.
+
+### System Overview readiness mock correction
+
+Compared the actual demo Overview with `/tmp/spin-readiness-mock.html`: the app
+uses a thin lavender validation strip, a large boxed next-actions section, and
+three left-border support blocks instead of the mock's white readiness hero,
+compact Your work cards, system-wide gap cards and documentation sidebar.
+Retain the existing system shell, role-owned next-actions API, initial-submission
+validation API and monitoring API. Add an overview-specific presentation, not a
+global task-page redesign. Show team findings only after a real successful check;
+never assign them to the current actor or invent owners/document completion.
+Drive document summaries from returned findings and keep unknown results explicit.
+Preserve task refresh, context checks, retries, package purpose, keyboard tabs,
+real monitoring states and separation from authorization/submission.
+Use failing layout/state tests, actual mock comparison and narrow/dark browser
+verification before rebuilding the development dashboard on 5173.
+
+### Environment-driven automatic responsibility first pass
+
+The user clarified that environment/provider scope is already recorded and must
+not be selected again in responsibility review. Inspection verified that the
+first-pass hook starts with null scope, the panel exposes a scope picker and
+Prepare button, while SystemEnvironmentService already returns authorized
+active assigned scopes and their published capability/control mappings.
+Resolve the scope server-side from those recorded mappings (and the applied
+provider capability where available), never list order or provider-name guessing.
+If several recorded contributions apply, prepare a system/environment first
+pass without arbitrarily choosing a provider. Provider-reliant allocation still
+uses the existing source-specific review; an explicit Customer decision retains
+the existing system-only review path. When no scope is recorded, use system sources.
+Automatically prepare a missing draft for authorized reviewers on opening;
+show source-backed values while AI runs, preserve edits and existing drafts,
+and surface generation failures. Refresh/comparison/acceptance remain explicit.
+Apply the behavior to both responsibility-review surfaces using the shared hook.
+Test environment resolution, ambiguity, removed scopes, permissions, automatic
+preparation, cached edits, retained saved/accepted drafts and failures before
+implementation; then rebuild both images on 5173 without changing demo volumes.
+
+Live verification also exposed that the whole-control matrix entry can have
+several valid provider contributions, while its provider-qualified entry already
+identifies the capability. Forward that capability when resolving the matrix
+panel. For a whole-control entry with several contributions, prepare from all
+recorded environment/system sources without choosing an arbitrary provider.
+Keep allocation unconfirmed where a unique provider context is absent, retain
+the overlap notice, and use existing source-specific reviews for confirmation.
+Do not require users to repair valid multi-provider Environment records merely
+to obtain an editable first pass.
+
+### Applied capability mock fidelity correction
+
+October 1 comparison of the actual deployed Audit collection panel and the HTML
+reference verified duplicate generic/capability headers, missing overview task
+rows and tab count chips, an indigo rather than lavender task card, and a long
+first-pass plus nine-field form stack. Functional browser checks had not verified
+visual fidelity. Match the reference hierarchy with a single system/capability
+header, compact task card, summary task rows, fixed footer, two prominent duty
+fields and progressive source/allocation/history disclosure. Keep actual saved
+draft counts distinct from controls needing preparation and refresh them after
+persisted changes. Preserve canonical first-pass, comparison and acceptance
+semantics; do not copy synthetic reference content or fake review completion.
+Validate the real demo drawer alongside the reference, including narrow screens,
+dark/light themes, keyboard access and explicit request failures. Rebuild the
+development dashboard on port 5173, retaining SQL data and simulation.
+
+### Portfolio 403 after the admin-access merge
+
+Verified production logs show authorized Dev ISSM workspace identity and successful
+`auth/me`/workspace reads, but portfolio/coverage requests receive 403. SQL shows
+active demo ISSM organization and system assignments on an intentionally unlinked
+Person. `WorkspaceService` resolves that Person through exact active
+`OrganizationMembership` directory/object binding, while `EffectiveAccessService`
+only reads `EntraObjectId`/`IsLinkedToDirectory`. The latter therefore drops the
+existing assigned access.
+
+Align effective access with the canonical membership index using the authenticated
+directory tenant claim and object ID. Do not mark demo users directory-linked,
+invent roles, grant Administrator, or bypass the dashboard middleware. Preserve
+its rule that a system-only assignment cannot read an unfiltered tenant aggregate.
+Test active membership, revoked membership, directory/object collision, inactive
+tenant and cross-tenant isolation before the production change. Person has no
+active/disabled property; do not invent one or reinterpret directory promotion.
+
+After restoring actual portfolio access, the same demo view exposed coverage 500:
+SQL Server cannot translate `NistControl.Baselines.Contains(level)` because the
+baseline list is value-converted JSON, not a mapped relational collection.
+Count projected baseline lists after materialization, using one shared helper for
+organization and per-system counts. Preserve the exact catalog denominator and
+test both paths against SQLite relational storage before changing the query.
 
 ### October 1 upstream alignment after #1062
 

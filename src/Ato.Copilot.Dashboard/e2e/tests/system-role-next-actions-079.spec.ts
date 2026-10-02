@@ -69,9 +69,10 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('heading', { name: 'Review submitted mission profile', exact: true })).toHaveCount(0);
     await expect(page.getByRole('region', { name: 'Waiting on other roles' })).toContainText('ISSM: 1 pending');
     await page.getByRole('button', { name: 'Check readiness', exact: true }).click();
-    await expect(page.getByText('Initial submission · 1 blocking requirement remains', { exact: true })).toBeVisible();
+    await expect(page.getByText('1 blocking requirement remains', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Continue preparation', exact: true })).toHaveAttribute('href', `${root}/profile/DataTypes`);
-    await expect(page.getByRole('heading', { name: 'ISSM approval is still required.', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Next actions for your system roles' }).getByRole('heading', { name: 'ISSM approval is still required.', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Team readiness findings' }).getByRole('heading', { name: 'ISSM approval is still required.', exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath(`mission-owner-next-actions-${width}.png`) });
     // Act: load the reviewer's effective server role.
     role = 'Issm'; await page.reload();
@@ -83,7 +84,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('Section approved.', { exact: true })).toBeVisible();
     await page.goBack();
     // Assert: approved work disappears from the ISSM queue too.
-    await expect(page.getByText('No actions currently require your system roles.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No actions assigned to you', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Review submitted mission profile', exact: true })).toHaveCount(0);
     expect(writes).toEqual(['submit', 'approve']);
   });

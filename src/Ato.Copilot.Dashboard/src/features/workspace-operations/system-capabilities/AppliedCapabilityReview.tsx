@@ -1,5 +1,5 @@
 import { Link } from '../../workspaces/workspaceNavigation';
-import { buttonClass, moveTabFocus, secondaryButtonClass } from '../workspaceUi';
+import { moveTabFocus, secondaryButtonClass } from '../workspaceUi';
 import type { SystemCapabilityDetail, SystemCapabilityPlacement, SystemCapabilitySource } from './systemCapabilityTypes';
 import { responsibilityLabel, responsibilityNeedsReview } from './responsibilityPresentation';
 import ResponsibilityDraftEditor, { type ResponsibilityDraftEdits } from './ResponsibilityDraftEditor';
@@ -28,12 +28,8 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
   const pending = data.controls.filter(control => responsibilityNeedsReview(control.reviewState)).length;
   const draftContexts = useRemote(async signal => {
     const eligible = data.controls.filter(control => !['MissingBaseline', 'OutsideBaseline', 'Inactive'].includes(control.reviewState));
-    const contexts = await Promise.all(eligible.map(async control => {
-      const initial = await getResponsibilityDraft(systemId, control.controlId, null, signal);
-      return [initial, ...await Promise.all(initial.scopes.map(scope =>
-        getResponsibilityDraft(systemId, control.controlId, scope.id, signal)))];
-    }));
-    return contexts.flat();
+    return Promise.all(eligible.map(control => getResponsibilityDraft(systemId, control.controlId, null, signal,
+      { useEnvironment: true, capabilityId: item.source === 'provider' ? item.recordId : undefined })));
   }, [tenantId, systemId, item.source, item.recordId, item.sourceRevision, data.controls.map(control => control.controlId).join(',')]);
   const drafts = draftContexts.data?.flatMap(context => context.draft ? [{ ...context.draft, controlId: context.controlId }] : []) ?? [];
   const draftReviews = drafts.filter(draft => draft.status !== 'Accepted' || draft.isStale).length;
@@ -46,35 +42,36 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
     { id: 'responsibilities', label: 'Responsibilities' },
   ];
   return <div className="min-w-0 space-y-5 break-words">
-    <header className="space-y-2">
-      <h2 className="text-xl font-semibold">{item.name}</h2>
-      <p className="text-sm text-gray-600 dark:text-gray-300">Provided by {item.sourceName} · {item.source === 'provider' ? 'Provider source' : 'Organization source'}</p>
-    </header>
-    <section aria-label="Next step" className="space-y-3 rounded-lg bg-indigo-50 p-4 text-sm dark:bg-indigo-950">
-      <h3 className="font-semibold">{gaps ? 'Your next step: assign system locations'
-        : pending ? 'Your next step: review responsibilities' : 'Review evidence and system applicability'}</h3>
-      <p>{gaps} scope {gaps === 1 ? 'gap' : 'gaps'} · {pending} {pending === 1 ? 'responsibility needs' : 'responsibilities need'} review</p>
+    <section aria-label="Next step" className="review-next">
+      <h3>{pending || draftReviews ? 'Your next step: review responsibilities'
+        : gaps ? 'Your next step: assign system locations' : 'Review evidence and system applicability'}</h3>
+      <p className="review-muted">{pending} {pending === 1 ? 'responsibility needs' : 'responsibilities need'} review. Check source-backed duties and correct the system&apos;s first pass.</p>
       {draftContexts.loading ? <p role="status">Checking saved responsibility drafts…</p> : draftContexts.error
         ? <p role="alert">Draft counts are unavailable: {draftContexts.error} <button type="button" className="underline" onClick={draftContexts.retry}>Refresh draft counts</button></p>
-        : <p>{draftReviews} saved {draftReviews === 1 ? 'draft needs' : 'drafts need'} review · {controlsWithoutDraft} controls without saved drafts</p>}
-      <button type="button" className={buttonClass} onClick={() => setSection(gaps ? 'scope' : 'responsibilities')}>
-        {gaps ? 'Assign locations' : pending ? 'Review first responsibility' : 'Inspect responsibilities'}
+        : <p className="text-xs review-muted">{draftReviews} saved {draftReviews === 1 ? 'draft needs' : 'drafts need'} review · {controlsWithoutDraft} {controlsWithoutDraft === 1 ? 'control without a saved draft' : 'controls without saved drafts'}</p>}
+      <button type="button" className="review-primary" onClick={() => setSection(pending || draftReviews ? 'responsibilities' : gaps ? 'scope' : 'responsibilities')}>
+        {pending || draftReviews ? 'Review first responsibility →' : gaps ? 'Assign locations' : 'Inspect responsibilities'}
       </button>
+      {gaps > 0 && <p className="text-xs review-muted">Also needed: {gaps} scope {gaps === 1 ? 'gap' : 'gaps'}. Assign component locations in this system.</p>}
     </section>
-    <div role="tablist" aria-label="Capability review sections" onKeyDown={moveTabFocus} className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700">
+    <div role="tablist" aria-label="Capability review sections" onKeyDown={moveTabFocus} className="review-tabs">
       {sections.map(tab => <button key={tab.id} type="button" role="tab" id={`applied-review-tab-${tab.id}`}
         aria-controls={`applied-review-panel-${tab.id}`} aria-selected={section === tab.id} tabIndex={section === tab.id ? 0 : -1}
-        onClick={() => setSection(tab.id)} className={`border-b-2 px-2 py-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 ${section === tab.id ? 'border-indigo-600 font-semibold text-indigo-700 dark:text-indigo-300' : 'border-transparent'}`}>
+        aria-label={tab.label} onClick={() => setSection(tab.id)}>
         {tab.label}
+        {tab.id === 'scope' && <span className="review-count" aria-hidden="true">{gaps} gaps</span>}
+        {tab.id === 'responsibilities' && <span className="review-count" aria-hidden="true">
+          {draftContexts.loading ? 'Checking…' : draftContexts.error ? 'Unavailable' : `${draftReviews} ${draftReviews === 1 ? 'draft' : 'drafts'}`}
+        </span>}
       </button>)}
     </div>
     <div role="tabpanel" id={`applied-review-panel-${section}`} aria-labelledby={`applied-review-tab-${section}`} tabIndex={0}>
       {section === 'overview' && <section className={sectionClass}>
-        <h3 className="font-semibold">What it provides</h3>
+        <h3 className="font-semibold">What this capability provides</h3>
         <p className="whitespace-pre-wrap">{item.description
           ? item.description.length > 240 ? `${item.description.slice(0, 237)}...` : item.description
           : 'No source description is recorded. Ask the source owner to supply one.'}</p>
-        <p>Responsibility confirmation is separate from narrative approval, control satisfaction and authorization.</p>
+        <p className="text-xs review-muted">{item.source === 'provider' ? 'Provider source' : 'Organization source'} · {item.sourceName}</p>
         <details><summary className="cursor-pointer font-medium text-indigo-700 dark:text-indigo-300">Source statement, version, evidence and limitations</summary>
           <div className="mt-3 space-y-3">
             <p className="whitespace-pre-wrap">{item.description || 'No source statement recorded.'}</p>
@@ -86,6 +83,15 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
             <Link className="text-indigo-700 underline dark:text-indigo-300" to={`${base}?tab=evidence${context}`}>Inspect source evidence and narratives</Link>
           </div>
         </details>
+        <div className="review-task-row">
+          <div><p className="font-medium">Where it applies</p><p>{item.components.length} components · {gaps} scope links need attention</p></div>
+          <button type="button" className="review-secondary" onClick={() => setSection('scope')}>Review scope</button>
+        </div>
+        <div className="review-task-row">
+          <div><p className="font-medium">Who does what</p><p>{data.controls.length} mapped controls · {draftContexts.loading ? 'Checking saved drafts' : draftContexts.error ? 'Draft counts unavailable' : `${draftReviews} saved ${draftReviews === 1 ? 'draft needs' : 'drafts need'} review`}</p></div>
+          <button type="button" className="review-secondary" onClick={() => setSection('responsibilities')}>Review duties</button>
+        </div>
+        <p className="review-warning-strip">A provider mapping is not an accepted allocation. Verify the responsibility split and system scope before relying on inheritance.</p>
       </section>}
       {section === 'scope' && <section className={sectionClass}>
         <h3 className="font-semibold">Contributing components and recorded locations</h3>
@@ -114,23 +120,25 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
         </ul> : <p>No contributing components are recorded. Link components through the authorized capability setup workflow.</p>}
       </section>}
       {section === 'responsibilities' && <section className={sectionClass}>
-        <h3 className="font-semibold">Review a mapped control</h3>
-        <div className="flex flex-wrap gap-2" aria-label="Mapped controls">{data.controls.map(control =>
+        <h3 className="font-semibold">Review prepared responsibility drafts</h3>
+        <p className="text-xs review-muted">Choose a mapped control. Draft preparation and saved allocation are separate.</p>
+        <div className="review-controls" aria-label="Mapped controls">{data.controls.map(control =>
           <button type="button" key={control.controlId} aria-label={control.controlId} aria-pressed={controlId === control.controlId}
-            className={controlId === control.controlId ? buttonClass : secondaryButtonClass} onClick={() => setControlId(control.controlId)}>
+            className="review-secondary" onClick={() => setControlId(control.controlId)}>
             {control.controlId}
             <span className="block text-xs font-normal">{responsibilityLabel(control.reviewState)}</span>
           </button>)}</div>
         {selected ? <>
-          <p className="font-medium">{responsibilityLabel(selected.reviewState)}</p>
           <ResponsibilityDraftEditor tenantId={tenantId} systemId={systemId} source={item.source}
-            capabilityId={item.recordId} controlId={controlId} edits={edits} onChanged={onChanged} />
-          <dl className="space-y-2">
+            capabilityId={item.recordId} controlId={controlId} edits={edits} onChanged={() => { draftContexts.retry(); onChanged(); }} />
+          <details><summary>Recorded mapping and duties</summary><dl className="mt-3 space-y-2">
             <div><dt className="font-medium">Provider source information</dt><dd className="whitespace-pre-wrap">{selected.providerCoverage || 'No control-specific provider information is recorded.'}</dd></div>
             <div><dt className="font-medium">Recorded customer responsibility</dt><dd className="whitespace-pre-wrap">{selected.organizationDuty || 'Customer duties are not recorded. Review the source and system records before confirming.'}</dd></div>
-          </dl>
-          <Link className={buttonClass} to={`${base}?tab=coverage${context}`}>Review {controlId} responsibility</Link>
-          <Link className={`${secondaryButtonClass} ml-0 sm:ml-2`} to={`${base}?tab=evidence${context}`}>Review evidence and narratives</Link>
+          </dl></details>
+          <div className="flex flex-wrap gap-2">
+            <Link className="review-secondary" to={`${base}?tab=coverage${context}`}>Review {controlId} responsibility</Link>
+            <Link className="review-secondary" to={`${base}?tab=evidence${context}`}>Review evidence and narratives</Link>
+          </div>
           <details><summary className="cursor-pointer text-indigo-700 dark:text-indigo-300">Source and technical details</summary>
             <dl className="mt-3 space-y-2 text-xs">
               <div><dt>Available source version</dt><dd className="break-all">{selected.availableSourceRevision}</dd></div>
@@ -141,9 +149,11 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
         </> : <p>No mapped controls are recorded. Select a baseline and verify source mappings in the full capability review.</p>}
       </section>}
     </div>
-    <footer className="space-y-3 border-t border-gray-200 pt-4 text-xs dark:border-gray-700">
+    <details className="text-xs"><summary className="cursor-pointer">Source ownership and full capability review</summary>
+      <div className="mt-3 space-y-3">
       {item.source === 'provider' && <p>Provider-authored source content remains read-only. Authorized changes affect only this system&apos;s application and responsibility records.</p>}
       <Link className="text-indigo-700 underline dark:text-indigo-300" to={base}>Open full capability review</Link>
-    </footer>
+      </div>
+    </details>
   </div>;
 }

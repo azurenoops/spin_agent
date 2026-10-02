@@ -57,7 +57,10 @@ public sealed record ResponsibilityDraftResponse(Guid Id, long Revision, string 
 public sealed record ResponsibilityDraftContext(string SystemId, string ControlId, string BaselineId,
     Guid? ScopeId, bool CanPrepare, string SourceHash, IReadOnlyList<ResponsibilityDraftScope> Scopes,
     IReadOnlyList<ResponsibilityDraftSource> Sources, Dictionary<string, ResponsibilityDraftValue> SourceValues,
-    IReadOnlyList<string> Questions, IReadOnlyList<string> Conflicts, ResponsibilityDraftResponse? Draft);
+    IReadOnlyList<string> Questions, IReadOnlyList<string> Conflicts, ResponsibilityDraftResponse? Draft)
+{
+    public string? EnvironmentScopeIssue { get; init; }
+}
 public sealed record PrepareResponsibilityDraftRequest(Guid? ScopeId, long ExpectedRevision, bool Generate = true);
 public sealed record SaveResponsibilityDraftRequest(long ExpectedRevision, Dictionary<string, string> Values,
     bool ApplySuggestion = false);

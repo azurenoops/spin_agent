@@ -65,6 +65,9 @@ function FieldGroup({ label, children, className, preparation, contextDialog }: 
 
 const sectionFields: Record<ProfileSectionType, FieldDef[]> = {
   MissionAndPurpose: [
+    { key: 'systemVersion', label: 'System version / release', type: 'text', maxLength: 200 },
+    { key: 'responsibleOrganization', label: 'Responsible organization', type: 'text', maxLength: 200 },
+    { key: 'programOffice', label: 'Program office / division', type: 'text', maxLength: 200 },
     { key: 'missionStatement', label: 'Mission Statement', type: 'textarea', maxLength: 4000, required: true, rows: 4, placeholder: 'Describe the system\'s mission...' },
     { key: 'businessPurpose', label: 'Business Purpose', type: 'textarea', maxLength: 4000, required: true, rows: 4, placeholder: 'Describe the business purpose...' },
     { key: 'operationalJustification', label: 'Operational Justification', type: 'textarea', maxLength: 2000, rows: 3, placeholder: 'Justify operational need...' },
@@ -272,6 +275,7 @@ export interface SystemContextForPrefill {
 }
 
 interface ProfileSectionFormProps {
+  missionIdentityFields?: { name: ReactNode; owner: ReactNode; acronym: ReactNode; emass: ReactNode; ditpr: ReactNode };
   systemDisplayName?: string;
   hideChildItems?: boolean;
   onHostingStatusChange?: (status: string) => void;
@@ -350,6 +354,7 @@ function readSavedContent(content: string | null): { values: Record<string, stri
 }
 
 export default function ProfileSectionForm({
+  missionIdentityFields,
   systemDisplayName,
   hideChildItems = false,
   onHostingStatusChange,
@@ -464,7 +469,7 @@ export default function ProfileSectionForm({
     { label: 'Network zones & deployment locations', keys: ['networkZones', 'geographicLocations'] },
     { label: 'Recovery, availability & operating details', keys: ['availabilityTier', 'disasterRecoveryPosture', 'rtoRpo', 'maintenanceWindows', 'operatingSystem'] },
   ] : sectionType === 'MissionAndPurpose' ? [
-    { keys: ['missionStatement', 'businessPurpose'] },
+    { keys: ['systemVersion', 'responsibleOrganization', 'programOffice', 'missionStatement', 'businessPurpose'] },
     { label: 'Additional mission details', keys: ['operationalJustification', 'businessFunctions'] },
   ] : [{ keys: fields.map(field => field.key) }];
   const fieldRecorded = (key: string) => fields.find(field => field.key === key)?.type === 'multiselect'
@@ -536,10 +541,20 @@ export default function ProfileSectionForm({
             ? 'Document the trust zones and deployment locations that support the SSP boundary and environment description. Record the actual system design, including provider-managed dependencies.'
             : 'Document availability, recovery strategy, recovery time/data-loss targets (RTO/RPO), maintenance windows and operating platforms. These support contingency planning and operating procedures.',
         } : undefined}
-        className={sectionType === 'EnvironmentAndDeployment' && !group.label ? 'grid min-w-0 gap-[18px] rounded-[10px] border border-slate-200 bg-white p-4 sm:grid-cols-2 min-[651px]:p-[22px] dark:border-slate-700 dark:bg-slate-900' : undefined}>
+        className={sectionType === 'MissionAndPurpose' && !group.label ? 'mission-record-fields'
+          : sectionType === 'EnvironmentAndDeployment' && !group.label ? 'grid min-w-0 gap-[18px] rounded-[10px] border border-slate-200 bg-white p-4 sm:grid-cols-2 min-[651px]:p-[22px] dark:border-slate-700 dark:bg-slate-900' : undefined}>
+        {sectionType === 'MissionAndPurpose' && !group.label && missionIdentityFields && <>
+          <div className="mission-name">{missionIdentityFields.name}</div>
+          <div className="mission-owner">{missionIdentityFields.owner}</div>
+          <div className="mission-acronym">{missionIdentityFields.acronym}</div>
+          <div className="mission-emass">{missionIdentityFields.emass}</div>
+          <div className="mission-ditpr">{missionIdentityFields.ditpr}</div>
+        </>}
         {sectionType === 'EnvironmentAndDeployment' && !group.label && <h2 className="text-lg font-semibold sm:col-span-2">Deployment description</h2>}
         {group.keys.flatMap(key => fields.filter(field => field.key === key)).map((field) => (
-          <div key={field.key} className={sectionType === 'EnvironmentAndDeployment' && field.key === 'additionalDetails' ? 'min-w-0 sm:col-span-2' : 'min-w-0'}>
+          <div key={field.key} data-mission-record-fields={sectionType === 'MissionAndPurpose' && !group.label ? true : undefined}
+            className={sectionType === 'MissionAndPurpose' && !group.label ? `min-w-0 mission-${field.key}`
+              : sectionType === 'EnvironmentAndDeployment' && field.key === 'additionalDetails' ? 'min-w-0 sm:col-span-2' : 'min-w-0'}>
             <label htmlFor={field.type === 'multiselect' ? undefined : `profile-${field.key}`} className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">
               {field.label}
               {field.required && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}

@@ -53,7 +53,8 @@ public sealed record EffectiveAccessSubject(
     Guid ObjectId,
     string DisplayName,
     Guid TenantId,
-    bool IsCspAdmin);
+    bool IsCspAdmin,
+    Guid? DirectoryTenantId = null);
 
 public sealed record AccessBadge(string Label, string Source);
 

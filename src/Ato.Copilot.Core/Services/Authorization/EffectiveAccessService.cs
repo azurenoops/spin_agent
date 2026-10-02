@@ -61,10 +61,22 @@ public sealed class EffectiveAccessService : IEffectiveAccessService
             .AsNoTracking()
             .SingleOrDefaultAsync(t => t.Id == subject.TenantId, cancellationToken);
 
-        var linkedPeople = await db.Persons
+        var peopleQuery = db.Persons
             .IgnoreQueryFilters()
-            .AsNoTracking()
-            .Where(p => p.EntraObjectId == subject.ObjectId && p.IsLinkedToDirectory)
+            .AsNoTracking();
+        if (subject.DirectoryTenantId is { } directoryId)
+        {
+            peopleQuery = peopleQuery.Where(p => db.OrganizationMemberships.Any(m =>
+                m.DirectoryTenantId == directoryId && m.ObjectId == subject.ObjectId
+                && m.PersonId == p.Id && m.TenantId == p.TenantId && m.RevokedAt == null
+                && db.Tenants.IgnoreQueryFilters().Any(t => t.Id == m.TenantId
+                    && t.Status == Ato.Copilot.Core.Models.Tenancy.TenantStatus.Active)));
+        }
+        else
+        {
+            peopleQuery = peopleQuery.Where(p => p.EntraObjectId == subject.ObjectId && p.IsLinkedToDirectory);
+        }
+        var linkedPeople = await peopleQuery
             .Select(p => new { p.Id, p.TenantId })
             .ToListAsync(cancellationToken);
         var person = linkedPeople.SingleOrDefault(p => p.TenantId == subject.TenantId);

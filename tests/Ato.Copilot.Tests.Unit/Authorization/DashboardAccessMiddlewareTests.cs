@@ -15,6 +15,27 @@ namespace Ato.Copilot.Tests.Unit.Authorization;
 public class DashboardAccessMiddlewareTests
 {
     [Fact]
+    public async Task Dashboard_access_forwards_authenticated_directory_identity_to_membership_resolution()
+    {
+        // Arrange
+        var directoryId = Guid.NewGuid();
+        var nextCalled = false;
+        var middleware = CreateMiddleware(() => nextCalled = true);
+        var context = CreateContext(HttpMethods.Get, "/api/dashboard/portfolio");
+        ((ClaimsIdentity)context.User.Identity!).AddClaim(new Claim("tid", directoryId.ToString()));
+        var service = new Mock<IEffectiveAccessService>();
+        service.Setup(x => x.ResolveAsync(It.Is<EffectiveAccessSubject>(subject => subject.DirectoryTenantId == directoryId),
+            It.IsAny<CancellationToken>())).ReturnsAsync((EffectiveAccessSubject subject, CancellationToken _) =>
+                new EffectiveAccessResult("1", DateTimeOffset.UtcNow, subject, null,
+                    [SystemDestination("system-a", [AdminPortalActions.SystemView], "OrganizationRoleAssignment")]));
+        // Act
+        await middleware.InvokeAsync(context, CreateTenantContext(), service.Object);
+        // Assert
+        nextCalled.Should().BeTrue();
+        service.VerifyAll();
+    }
+
+    [Fact]
     public async Task Admin_only_user_cannot_read_dashboard_system_data()
     {
         // Arrange

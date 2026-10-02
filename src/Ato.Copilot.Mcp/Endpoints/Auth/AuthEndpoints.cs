@@ -95,7 +95,8 @@ public static class AuthEndpoints
                 objectId,
                 displayName,
                 tenantContext.EffectiveTenantId,
-                tenantContext.IsCspAdmin),
+                tenantContext.IsCspAdmin,
+                Guid.TryParse(http.User.FindFirst("tid")?.Value, out var directoryId) ? directoryId : null),
             ct);
 
         http.Response.Headers.CacheControl = "no-store";

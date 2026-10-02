@@ -28,7 +28,8 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
   }),
 }));
 vi.mock('../../features/workspace-operations/system-capabilities/ResponsibilityDraftEditor', () => ({
-  default: ({ controlId }: { controlId: string }) => <section aria-label={`Prepared draft for ${controlId}`} />,
+  default: ({ controlId, onChanged }: { controlId: string; onChanged: () => void }) =>
+    <section aria-label={`Prepared draft for ${controlId}`}><button type="button" onClick={onChanged}>Simulate persisted draft change</button></section>,
 }));
 vi.mock('../../api/responsibilityDrafts', () => ({ getResponsibilityDraft: vi.fn() }));
 const permissions = {
@@ -106,6 +107,74 @@ beforeEach(() => {
 });
 
 describe('applied system security capability views', () => {
+  it('counts only the environment-resolved draft shown for this applied provider capability', async () => {
+    // Arrange
+    const source = appliedResponsibilityContext('system-a', 'AU-2');
+    const draft = {
+      id: 'draft-a', revision: 1, status: 'Proposed', sourceHash: source.sourceHash, isStale: false,
+      generationState: 'Prepared', generationError: null, preparedAt: '2026-10-01',
+      generatedAt: null, preparedBy: 'reviewer', reviewedBy: null, reviewedAt: null,
+      values: source.sourceValues, suggestion: { values: source.sourceValues, questions: [], conflicts: [] },
+      sources: [], history: [],
+    };
+    vi.mocked(getResponsibilityDraft).mockImplementation(async (_system, _control, scopeId, _signal, environment) => ({
+      ...source, scopeId: environment?.capabilityId === 'cap-a' ? 'relevant' : scopeId,
+      scopes: [{ id: 'relevant', name: 'Recorded scope', provider: 'Provider', reviewRequired: false },
+        { id: 'other', name: 'Other provider scope', provider: 'Other', reviewRequired: false }],
+      draft,
+    }));
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Audit monitoring' }));
+    // Assert
+    const drawer = await screen.findByRole('dialog', { name: 'Review applied capability' });
+    const nextStep = within(drawer).getByRole('region', { name: 'Next step' });
+    expect(await within(nextStep).findByText(/1 saved draft needs review/)).toBeVisible();
+    expect(within(nextStep).queryByText(/3 saved drafts/)).not.toBeInTheDocument();
+  });
+
+  it('refreshes persisted draft counts after a successful editor mutation', async () => {
+    // Arrange
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Audit monitoring' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Review applied capability' });
+    const nextStep = within(drawer).getByRole('region', { name: 'Next step' });
+    await within(nextStep).findByText(/0 saved drafts need review/);
+    vi.mocked(getResponsibilityDraft).mockImplementation(async (system, control) => {
+      const value = appliedResponsibilityContext(system, control);
+      return { ...value, draft: {
+        id: 'draft-a', revision: 1, status: 'Proposed', sourceHash: value.sourceHash, isStale: false,
+        generationState: 'NotRequested', generationError: null, preparedAt: '2026-10-01',
+        generatedAt: null, preparedBy: 'reviewer', reviewedBy: null, reviewedAt: null,
+        values: value.sourceValues, suggestion: { values: value.sourceValues, questions: [], conflicts: [] },
+        sources: [], history: [],
+      } };
+    });
+    // Act
+    fireEvent.click(within(drawer).getByRole('tab', { name: 'Responsibilities' }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Simulate persisted draft change' }));
+    // Assert
+    await waitFor(() => expect(within(within(drawer).getByRole('region', { name: 'Next step' })).getByText(/1 saved draft needs review/)).toBeVisible());
+    expect(api.getSystemCapability).toHaveBeenCalledTimes(2);
+  });
+
+  it('presents the mock task hierarchy without duplicating the dialog heading or inventing prepared drafts', async () => {
+    // Arrange
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Audit monitoring' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Review applied capability' });
+    // Assert
+    expect(await within(drawer).findByRole('heading', { name: 'What this capability provides' })).toBeVisible();
+    expect(within(drawer).getByRole('heading', { name: 'Review applied capability' })).toHaveClass('sr-only');
+    expect(within(drawer).getByText('Mission Alpha · Applied capability')).toBeVisible();
+    expect(within(drawer).getByRole('button', { name: 'Review scope' })).toBeVisible();
+    expect(within(drawer).getByRole('button', { name: 'Review duties' })).toBeVisible();
+    expect(within(drawer).getByRole('button', { name: 'Back to summary' })).toBeVisible();
+    await waitFor(() => expect(within(drawer).getAllByText(/0 saved drafts need review/)[0]).toBeVisible());
+    expect(within(drawer).getByText(/1 control without a saved draft/)).toBeVisible();
+  });
+
   it('lists applied records, actual contributor placements and accurate server totals', async () => {
     // Arrange / Act
     mount();
@@ -144,6 +213,7 @@ describe('applied system security capability views', () => {
     expect(within(drawer).getByText(/1 responsibility needs review/)).toBeVisible();
     expect(within(drawer).getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true');
     fireEvent.click(within(drawer).getByRole('tab', { name: /Responsibilities/ }));
+    fireEvent.click(within(drawer).getByText('Recorded mapping and duties'));
     expect(within(drawer).getByText('Collect audit records')).toBeVisible();
     expect(within(drawer).getByText('Review audit records')).toBeVisible();
     expect(within(drawer).getAllByText('Review responsibility')[0]).toBeVisible();
@@ -229,7 +299,7 @@ describe('applied system security capability views', () => {
     const summary = await within(drawer).findByText('Source statement, version, evidence and limitations');
     fireEvent.click(summary);
     // Assert
-    expect(await within(drawer).findByText(/1 saved draft needs review/)).toBeVisible();
+    expect(await within(within(drawer).getByRole('region', { name: 'Next step' })).findByText(/1 saved draft needs review/)).toBeVisible();
     expect(within(drawer).getByText(/Choosing no provider scope uses system records/)).toBeVisible();
   });
 

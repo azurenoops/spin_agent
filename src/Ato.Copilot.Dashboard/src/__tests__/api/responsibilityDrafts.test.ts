@@ -71,6 +71,25 @@ it('reads exact system/control/scope context with no generation side effect', as
   expect(apiClient.post).not.toHaveBeenCalled();
 });
 
+it('requests recorded environment resolution while retaining system and control identity checks', async () => {
+  // Arrange
+  vi.mocked(apiClient.get).mockResolvedValue({ data: { ...response(), scopeId: 'recorded-environment-scope' } });
+  // Act
+  const result = await getResponsibilityDraft('system-a', 'AU-11', null, undefined,
+    { useEnvironment: true, capabilityId: 'capability-a' });
+  // Assert
+  expect(result.scopeId).toBe('recorded-environment-scope');
+  expect(apiClient.get).toHaveBeenCalledWith(expect.any(String),
+    expect.objectContaining({ params: { scopeId: null, useEnvironment: true, capabilityId: 'capability-a' } }));
+});
+
+it('rejects preparation that returns no persisted draft instead of reporting it ready', async () => {
+  // Arrange
+  vi.mocked(apiClient.post).mockResolvedValue({ data: response() });
+  // Act / Assert
+  await expect(prepareResponsibilityDraft('system-a', 'AU-11', null, 0)).rejects.toThrow(/did not return a saved/);
+});
+
 it.each([
   { systemId: 'foreign-system' }, { controlId: 'AC-1' }, { scopeId: 'foreign-scope' },
   { canPrepare: 'true' }, { sourceValues: {} }, { sources: [{ id: 'forged' }] },

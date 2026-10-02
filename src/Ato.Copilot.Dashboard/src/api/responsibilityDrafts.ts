@@ -22,6 +22,7 @@ export interface ResponsibilityDraftContext {
   scopes: { id: string; name: string; provider: string | null; reviewRequired: boolean }[];
   sources: DraftSource[]; sourceValues: Record<ResponsibilityField, ResponsibilityValue>;
   questions: string[]; conflicts: string[]; draft: ResponsibilityDraft | null;
+  environmentScopeIssue?: string | null;
 }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const texts = (value: unknown): value is string[] => Array.isArray(value) && value.every(x => typeof x === 'string');
@@ -62,10 +63,11 @@ function isContext(value: unknown): value is ResponsibilityDraftContext {
     && Array.isArray(value.scopes) && value.scopes.every(x => object(x) && typeof x.id === 'string'
       && typeof x.name === 'string' && (x.provider === null || typeof x.provider === 'string') && typeof x.reviewRequired === 'boolean')
     && sources(value.sources) && values(value.sourceValues) && texts(value.questions) && texts(value.conflicts)
+    && (value.environmentScopeIssue === undefined || value.environmentScopeIssue === null || typeof value.environmentScopeIssue === 'string')
     && (value.draft === null || isDraft(value.draft));
 }
-function context(value: unknown, systemId: string, controlId: string, scopeId: string | null): ResponsibilityDraftContext {
-  if (!isContext(value) || value.systemId !== systemId || value.controlId !== controlId || value.scopeId !== scopeId)
+function context(value: unknown, systemId: string, controlId: string, scopeId: string | null | undefined): ResponsibilityDraftContext {
+  if (!isContext(value) || value.systemId !== systemId || value.controlId !== controlId || scopeId !== undefined && value.scopeId !== scopeId)
     throw new Error('The responsibility source context does not match this system, control and scope.');
   return value;
 }
@@ -85,12 +87,18 @@ async function request<T>(run: () => Promise<T>, checkContext?: (body: unknown) 
   }
 }
 const root = (systemId: string) => `/systems/${encodeURIComponent(systemId)}/capability-subscriptions/drafts`;
-export const getResponsibilityDraft = (systemId: string, controlId: string, scopeId: string | null, signal?: AbortSignal) =>
-  request(async () => context((await apiClient.get(`${root(systemId)}/${encodeURIComponent(controlId)}`, { params: { scopeId }, signal })).data, systemId, controlId, scopeId));
+export const getResponsibilityDraft = (systemId: string, controlId: string, scopeId: string | null, signal?: AbortSignal,
+  environment?: { useEnvironment: true; capabilityId?: string }) =>
+  request(async () => context((await apiClient.get(`${root(systemId)}/${encodeURIComponent(controlId)}`,
+    { params: { scopeId, ...environment }, signal })).data, systemId, controlId, environment ? undefined : scopeId));
 export const prepareResponsibilityDraft = (systemId: string, controlId: string, scopeId: string | null, expectedRevision: number,
-  generate = true, signal?: AbortSignal) => request(async () => context((await apiClient.post(
-    `${root(systemId)}/${encodeURIComponent(controlId)}/prepare`, { scopeId, expectedRevision, generate }, { signal })).data,
-  systemId, controlId, scopeId), data => context(data, systemId, controlId, scopeId));
+  generate = true, signal?: AbortSignal) => request(async () => {
+    const prepared = context((await apiClient.post(
+      `${root(systemId)}/${encodeURIComponent(controlId)}/prepare`, { scopeId, expectedRevision, generate }, { signal })).data,
+    systemId, controlId, scopeId);
+    if (!prepared.draft) throw new Error('Preparation did not return a saved responsibility draft. Reload and verify the saved state.');
+    return prepared;
+  }, data => context(data, systemId, controlId, scopeId));
 export const saveResponsibilityDraft = (systemId: string, id: string, expectedRevision: number, edited: ResponsibilityValues,
   applySuggestion = false, signal?: AbortSignal) => request(async () => draft((await apiClient.put(`${root(systemId)}/record/${encodeURIComponent(id)}`,
   { expectedRevision, values: edited, applySuggestion }, { signal })).data));

@@ -23,6 +23,22 @@ function editUser() {
 }
 
 describe('profile draft editing', () => {
+  it('groups Mission system-record fields and saves their SSP metadata without dropping existing content', () => {
+    // Arrange
+    const input = props();
+    render(<ProfileSectionForm {...input} />);
+    // Act
+    fireEvent.change(screen.getByLabelText('System version / release'), { target: { value: 'Reviewed release 4.2' } });
+    fireEvent.change(screen.getByLabelText('Responsible organization'), { target: { value: 'Recorded mission organization' } });
+    fireEvent.change(screen.getByLabelText('Program office / division'), { target: { value: 'Recorded program office' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    // Assert
+    expect(JSON.parse(vi.mocked(input.onSave).mock.calls[0]![0])).toEqual({
+      ...original, systemVersion: 'Reviewed release 4.2', responsibleOrganization: 'Recorded mission organization',
+      programOffice: 'Recorded program office',
+    });
+    expect(screen.getByLabelText('System version / release').closest('[data-mission-record-fields]')).not.toBeNull();
+  });
   it('edits communication context without another interface table and preserves all saved PPS rows', () => {
     // Arrange
     const pps = { id: 'pps-a', portOrRange: '443', protocol: 'TCP', serviceName: 'HTTPS',

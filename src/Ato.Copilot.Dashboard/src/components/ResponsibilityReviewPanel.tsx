@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { CircleAlert } from 'lucide-react';
 import {
   isResponsibilityType, readProviderSnapshot, readReviewedProviderSnapshot,
   type CapabilityResponsibilityItem, type ConfirmCapabilityResponsibilitiesRequest,
@@ -10,12 +11,14 @@ import { Link } from '../features/workspaces/workspaceNavigation';
 import ResponsibilityFirstPass from './ResponsibilityFirstPass';
 import { useResponsibilityFirstPass } from './useResponsibilityFirstPass';
 import { responsibilityFields, type ResponsibilityField, type ResponsibilityValue, type ResponsibilityValues } from '../api/responsibilityDrafts';
+import './responsibilityReviewPanel.css';
 
 interface Props {
   item?: CapabilityResponsibilityItem | null;
   controlId?: string;
   firstPass?: boolean;
   onDraftConfirmed?: () => void;
+  onDraftPrepared?: () => void;
   baselineId: string | null;
   canConfirm: boolean;
   eligible: boolean;
@@ -37,7 +40,7 @@ const choices = [
 ] as const;
 
 export default function ResponsibilityReviewPanel({
-  item, controlId: requestedControl, firstPass = false, onDraftConfirmed, baselineId, canConfirm, eligible, stateExplanation, busy, blocked, generation,
+  item, controlId: requestedControl, firstPass = false, onDraftConfirmed, onDraftPrepared, baselineId, canConfirm, eligible, stateExplanation, busy, blocked, generation,
   systemId, actionError, onRefresh, onClose, onConfirm,
 }: Props) {
   const id = useId();
@@ -63,7 +66,7 @@ export default function ResponsibilityReviewPanel({
       if (value.userEdited) edited.current.add(key); else edited.current.delete(key);
     }
     setAcknowledged(false);
-  });
+  }, { automatic: true, capabilityId: item?.capabilityId, onPersisted: onDraftPrepared });
   const summary = useRef<HTMLHeadingElement>(null);
   const reviewButton = useRef<HTMLButtonElement>(null);
   const previousGeneration = useRef(generation);
@@ -113,8 +116,8 @@ export default function ResponsibilityReviewPanel({
       : `${origins[key]!.origin}${edited.current.has(key) ? ' · your correction' : ''}`}
     {origins[key]!.sourceIds.length > 0 && ` · ${origins[key]!.sourceIds.join(', ')}`}
   </span>;
-  const textField = (key: keyof typeof fields, label: string, hint?: string) =>
-    <label className="grid gap-1 text-sm" key={key}>{label}
+  const textField = (key: keyof typeof fields, label: string, hint?: string, displayLabel = label) =>
+    <label className="rr-field" key={key}><span>{displayLabel}</span>
       <textarea aria-label={label} aria-describedby={hint ? `${id}-${key}-hint` : undefined}
         className={inputClass} rows={3} maxLength={key === 'customer' ? 2000 : 1200} value={fields[key]}
         onChange={event => change(key, event.target.value)} />
@@ -138,8 +141,12 @@ export default function ResponsibilityReviewPanel({
     });
     if (succeeded) onClose();
   }
-  const footer = <div className="space-y-2">
-    {actionError && <p role="alert" className={`${errorClass} text-sm`}>{actionError}</p>}
+  const failure = actionError || snapshotError || prepared.error
+    || (prepared.saved?.generationState === 'Failed' ? prepared.saved.generationError : null);
+  const savedAllocation = item?.allocation?.inheritanceType
+    ?? (prepared.context?.sourceValues.allocation.sourceIds.includes('responsibility') ? prepared.context.sourceValues.allocation.value : 'Not confirmed');
+  const draftDetails = firstPass && <ResponsibilityFirstPass state={prepared} compact hideFailure />;
+  const footer = <div className="rr-footer">
     <p className="text-xs text-gray-500 dark:text-gray-400">
       {blocked ? 'Saved state needs verification. Your draft is preserved.'
         : firstPass && prepared.saved && prepared.matchesSaved
@@ -157,7 +164,8 @@ export default function ResponsibilityReviewPanel({
           disabled={busy || blocked || !canConfirm || !sourceReady || !valid || !acknowledged || firstPass && !prepared.canConfirm}
           onClick={() => { void confirm(); }}>Confirm responsibility</button>}
       </> : <button type="button" ref={reviewButton} className={buttonClass}
-        disabled={busy || !canConfirm || !valid || (allocation !== '' && (!sourceReady || blocked))}
+        disabled={busy || !canConfirm || !valid || firstPass && (prepared.loading || prepared.busy || !prepared.context)
+          || (allocation !== '' && (!sourceReady || blocked))}
         onClick={() => { setReviewing(true); setAcknowledged(false); }}>
         {allocation === '' ? 'Review information gap' : 'Review allocation'}
       </button>}
@@ -167,13 +175,40 @@ export default function ResponsibilityReviewPanel({
         disabled={prepared.busy || !prepared.context?.canPrepare}
         onClick={() => { void prepared.save(); }}>Save proposed draft</button>}
     </div>
-    {firstPass && !prepared.matchesSaved && <p className="text-xs">Save your proposed draft before confirming. AI acceptance is not required.</p>}
   </div>;
   return <SetupDialog title={`Review responsibility ${controlId}`}
-    description="Decide what the provider covers and what your team must do."
-    placement="right" expanded busy={busy} onClose={onClose} footer={footer}>
-    <div className="space-y-5">
-      <section aria-label="Saved responsibility" className="space-y-1 text-sm">
+    description="Review saved state, editable duties and supporting sources for this control."
+    placement="right" expanded busy={busy} onClose={onClose} footer={footer}
+    className="control-responsibility-dialog"
+    headerContent={<div className="rr-header">
+      <p className="rr-eyebrow">{prepared.context?.sources.find(source => source.id === 'system')?.title ?? 'System'} · Control responsibilities</p>
+      <h2>Review responsibility <span>{controlId}</span></h2>
+      <p>Decide what the provider covers and what your team must do.</p>
+    </div>}>
+    <div className="rr-content">
+      <p className="rr-current-state">Current responsibility · {savedAllocation}</p>
+      {failure && <section className="rr-error" role="alert">
+        <CircleAlert size={18} aria-hidden="true" />
+        <div><strong>{blocked || !prepared.context && firstPass ? 'We couldn’t verify the saved responsibility.' : 'The responsibility request could not finish.'}</strong>
+          <p>Your entered work is preserved. {firstPass && !prepared.context ? 'Saving is unavailable until saved state can be verified.' : 'Verify the saved state before continuing.'}</p>
+          <details><summary>Failure details</summary><p>{failure}</p></details>
+          <button type="button" className={`${secondaryButtonClass} mt-3`} disabled={busy || prepared.loading || prepared.busy}
+            onClick={firstPass ? prepared.reload : onRefresh}>Reload saved responsibility</button>
+        </div>
+      </section>}
+      {prepared.saved?.isStale && <p className="rr-caution mb-4">Draft sources changed. Refresh and compare before confirmation.</p>}
+      {item && <ProviderSource item={item} current={current} historical={historical} systemId={systemId}
+        revealDraft={prepared.saved?.status === 'ComparisonRequired'}>
+        {synthetic && <p className="rr-caution">Source text describes synthetic or demonstration content. It cannot establish real provider coverage.</p>}
+        {draftDetails}
+      </ProviderSource>}
+      {!item && <section className="rr-provider" aria-label="System source records">
+        <h3 className="font-semibold">System records</h3>
+        <p>No provider contribution is selected. The prepared draft uses recorded system and environment information without inventing a provider.</p>
+        <details open={prepared.saved?.status === 'ComparisonRequired' || undefined}><summary>Review system sources &amp; evidence</summary>{draftDetails}</details>
+      </section>}
+      <details className="rr-saved-details"><summary>Saved responsibility and review history</summary>
+      <section aria-label="Saved responsibility" className="mt-3 space-y-1 text-sm">
         <p className="font-medium">Last verified saved allocation: {item?.allocation?.inheritanceType ??
           (prepared.context?.sourceValues.allocation.sourceIds.includes('responsibility') ? prepared.context.sourceValues.allocation.value : 'Not confirmed')}</p>
         <p>Effective in baseline: {item?.effectiveInheritanceType ??
@@ -187,19 +222,15 @@ export default function ResponsibilityReviewPanel({
           <p className="whitespace-pre-wrap">{item.reviewNotes ?? 'No review notes were recorded.'}</p>
         </details>}
       </section>
+      </details>
       {!canConfirm && <p className={warningClass}>Read-only: an effective assigned ISSM or ISSO is required to confirm responsibility.</p>}
       {!baselineId && <p className={warningClass}>Select a system baseline before confirmation.</p>}
-      {snapshotError && <p role="alert" className={errorClass}>{snapshotError}</p>}
       {item && !item.sourceAvailable && <p className={warningClass}>Provider source unavailable. Historical review remains visible; confirm only against verified current sources.</p>}
       {current && !mapped && <p className={warningClass}>{controlId} is no longer mapped by this source; confirmation is disabled.</p>}
       {item?.reviewedSourceRevision && item.reviewedSourceRevision !== item.sourceRevision &&
         <p className={warningClass}>The provider source has changed since the saved review. Recheck coverage before confirming.</p>}
-      {synthetic && <p className={warningClass}>Source text describes synthetic or demonstration content. It cannot establish real provider coverage.</p>}
-      {firstPass && <ResponsibilityFirstPass state={prepared} />}
-      {firstPass && item && <p className="text-sm text-gray-600 dark:text-gray-300">
-        Matrix contribution: {item.providerName ?? 'Provider name unavailable'} · {current?.Name ?? 'Capability unavailable'} · {current?.Component.Name ?? 'Component unavailable'}
-      </p>}
-      {item && !firstPass && <ProviderSource item={item} current={current} historical={historical} systemId={systemId} />}
+      {prepared.context?.environmentScopeIssue && <p className="rr-caution">{prepared.context.environmentScopeIssue}</p>}
+      {firstPass && (prepared.loading || prepared.busy) && <p role="status" className="text-sm">Preparing or verifying the responsibility draft… Your corrections are preserved.</p>}
       {reviewing ? <section aria-label="Draft review" className="space-y-3 text-sm">
         <h3 tabIndex={-1} ref={summary} className="font-semibold">Review before confirming</h3>
         {allocation === '' ? <>
@@ -226,53 +257,70 @@ export default function ResponsibilityReviewPanel({
       </section> : <fieldset disabled={!canConfirm || busy || prepared.context?.canPrepare === false} className="min-w-0 space-y-4">
         <legend className="mb-3 font-semibold">Who does what for this control?</legend>
         <div className="space-y-2">{choices.map(choice => <label key={choice.value}
-          className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${allocation === choice.value
-            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
+          className="rr-option">
           <input type="radio" name={`${id}-allocation`} value={choice.value} checked={allocation === choice.value}
             onChange={() => { setAllocation(choice.value); edited.current.add('allocation'); setAcknowledged(false); }} />
           <span className="min-w-0 flex-1"><strong>{choice.title}</strong><span className="block text-xs text-gray-600 dark:text-gray-300">{choice.detail}</span></span>
-          {choice.value && <span className="text-xs">{choice.value}</span>}
+          {choice.value && <span className="rr-term">{choice.value}</span>}
         </label>)}</div>
         {firstPass && provenance('allocation')}
-        {allocation === '' ? textField('information', 'Information needed', 'Describe the missing scope, evidence or ownership decision. This is not saved to the server.') : <>
-          {providerAllocation && <label className="grid gap-1 text-sm">Provider for {controlId}
+        {allocation === '' ? <>
+          {firstPass && <>
+            {textField('providerDuties', 'Provider duties', 'Prepared contributions do not establish a confirmed provider allocation.')}
+            {textField('customer', 'Customer duties', 'Correct the supported local duties while allocation remains unconfirmed.')}
+          </>}
+          {textField('information', 'Information needed', firstPass
+            ? 'Record unresolved applicability or ownership questions with the proposed draft.'
+            : 'Describe the missing scope, evidence or ownership decision. This is not saved to the server.')}
+        </> : <>
+          {providerAllocation && <details><summary>Provider designation in this draft</summary><label className="rr-field mt-3">Provider for {controlId}
             <input aria-label={`Provider for ${controlId}`} className={inputClass} maxLength={200} value={fields.provider} onChange={event => change('provider', event.target.value)} />
             {firstPass && provenance('provider')}
-          </label>}
-          {providerAllocation && textField('providerDuties', 'Provider duties', 'Describe verified coverage, not unrelated capabilities.')}
+          </label></details>}
+          {providerAllocation && textField('providerDuties', 'Provider duties', 'Describe verified coverage, not unrelated capabilities.',
+            `What will ${fields.provider.trim() || 'the provider'} provide?`)}
           {allocation === 'Inherited' && <>
             {textField('scope', 'Applicable scope', 'Identify the system resources covered by the provider.')}
             {textField('exclusions', 'Exclusions', 'Record exclusions, or explicitly state none after review.')}
             {textField('source', 'Supporting source', 'Name the evidence record and version you actually reviewed.')}
           </>}
           {textField('customer', allocation === 'Inherited' ? 'Local operational duties (optional)' : 'Customer duties',
-            'Retain local configuration, uncovered resources, owners and evidence tasks.')}
-          {textField('basis', 'Basis for this allocation', 'Explain the reviewed scope, evidence and any limitations.')}
+            'Retain local configuration, uncovered resources, owners and evidence tasks.', 'What must your team do?')}
+          {textField('basis', 'Basis for this allocation', 'Explain the reviewed scope, evidence and any limitations.', 'Why is this allocation appropriate?')}
           <p className="text-xs text-gray-500 dark:text-gray-400">Review context: {notes.length}/2000 characters.</p>
           {notes.length > 2000 && <p role="alert" className={errorClass}>Shorten the review context to 2000 characters before confirming.</p>}
         </>}
       </fieldset>}
-      <p className="text-xs text-gray-600 dark:text-gray-300">
+      <section className="rr-outcome"><h3>What happens next</h3>
+        <p>{allocation === '' ? 'Record the information gap. Responsibility stays unconfirmed.'
+          : firstPass ? 'Save your proposed duties, review the saved draft and confirm through the required approval lifecycle.'
+            : 'Review both the provider coverage and your team’s duties before confirming this responsibility.'}</p>
+      <p className="mt-3 text-xs text-gray-600 dark:text-gray-300">
         This work supports the responsibility matrix, CRM and SSP preparation. A local draft is not accepted inheritance.
         Confirmation does not satisfy a control, approve a narrative, submit to eMASS or authorize a system.
       </p>
+      </section>
     </div>
   </SetupDialog>;
 }
 
-function ProviderSource({ item, current, historical, systemId }: {
+function ProviderSource({ item, current, historical, systemId, children, revealDraft }: {
   item: CapabilityResponsibilityItem; current: ProviderReviewSnapshot | null;
-  historical: ProviderReviewSnapshot | null; systemId: string;
+  historical: ProviderReviewSnapshot | null; systemId: string; children?: ReactNode; revealDraft?: boolean;
 }) {
   const snapshot = current ?? historical;
-  return <section aria-label="Provider contribution" className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
-    <h3 className="font-semibold">Provider contribution</h3>
+  return <section aria-label="Provider contribution" className="rr-provider">
+    <div className="rr-section-head"><h3 className="font-semibold">Provider contribution</h3>
+      <span className="rr-chip">{!current ? 'Source unavailable' : 'Source needs review'}</span></div>
     <p className="font-medium">{item.providerName ?? 'Provider name unavailable'} · {snapshot?.Name ?? 'Capability unavailable'}</p>
     <p>{snapshot?.Component.Name ?? 'Component unavailable'}{!current && historical ? ' (historical)' : ''}</p>
-    <p className="text-amber-800 dark:text-amber-200">System scope and evidence sufficiency are not verified by a mapping.
-      {snapshot?.Component.SourceArtifactReference ? ' The original evidence is redacted in this preview.' : ' No supporting artifact reference is supplied.'}</p>
-    <details>
+    <p className="rr-source-summary">{snapshot?.Description
+      ? snapshot.Description.length > 240 ? `${snapshot.Description.slice(0, 237)}...` : snapshot.Description
+      : 'No current provider statement is available.'}</p>
+    <details open={revealDraft || undefined}>
       <summary className="cursor-pointer font-medium text-indigo-700 dark:text-indigo-300">Review provider scope & evidence</summary>
+    <p className="rr-caution mt-3">System scope and evidence sufficiency are not verified by a mapping.
+      {snapshot?.Component.SourceArtifactReference ? ' The original evidence is redacted in this preview.' : ' No supporting artifact reference is supplied.'}</p>
       <div className="mt-3 space-y-3">
         <p className="whitespace-pre-wrap">{snapshot?.Description ?? 'No current source description is available.'}</p>
         {snapshot?.Component.Description !== snapshot?.Description && <p className="whitespace-pre-wrap">{snapshot?.Component.Description}</p>}
@@ -290,6 +338,7 @@ function ProviderSource({ item, current, historical, systemId }: {
             <p>Previously reviewed redacted snapshot</p><pre className="whitespace-pre-wrap">{JSON.stringify(historical, null, 2)}</pre>
           </div>
         </details>
+        {children}
       </div>
     </details>
   </section>;

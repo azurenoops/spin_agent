@@ -2,11 +2,13 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export default function SetupDialog({ children, busy, onClose, organizationName, expanded = false, title = 'Add a security capability', description, placement = 'center', footer }: {
+export default function SetupDialog({ children, busy, onClose, organizationName, expanded = false, title = 'Add a security capability', description, placement = 'center', footer, headerContent, className = '' }: {
   children: ReactNode; busy: boolean; onClose: () => void; organizationName?: string; expanded?: boolean;
   title?: string; description?: string;
   placement?: 'center' | 'right';
   footer?: ReactNode;
+  headerContent?: ReactNode;
+  className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const labelId = useId();
@@ -25,7 +27,7 @@ export default function SetupDialog({ children, busy, onClose, organizationName,
   }, []);
   return createPortal(<dialog ref={dialog} tabIndex={-1} aria-labelledby={labelId} aria-describedby={descriptionId}
     aria-busy={busy}
-    className={`overflow-hidden border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 ${
+    className={`${className} overflow-hidden border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 ${
       placement === 'right' ? `m-0 ml-auto h-dvh max-h-dvh w-full ${expanded ? 'max-w-3xl' : 'max-w-lg'}`
         : `m-auto max-h-[90dvh] w-[calc(100%-2rem)] ${organizationName !== undefined ? `${expanded ? 'max-w-3xl' : 'max-w-xl'} rounded-lg` : 'max-w-3xl rounded-2xl'}`}`}
     onCancel={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); if (!busy) onClose(); }}
@@ -52,9 +54,10 @@ export default function SetupDialog({ children, busy, onClose, organizationName,
     }}>
     <div className={`flex flex-col ${placement === 'right' ? 'h-dvh max-h-dvh' : 'max-h-[90dvh]'}`}>
       <header className={`flex shrink-0 items-start justify-between gap-3 px-5 pt-4 ${organizationName !== undefined ? 'pb-2' : 'border-b border-slate-200 pb-4 dark:border-gray-700'}`}>
-        <div><h2 id={labelId} className={`${organizationName !== undefined ? 'text-base' : 'text-lg'} font-semibold`}>{title}</h2>
-          <p id={descriptionId} className={`mt-1 ${organizationName !== undefined ? 'text-xs' : 'text-sm'} text-slate-500 dark:text-gray-400`}>
-            {description ?? (organizationName !== undefined ? `Organization: ${organizationName}` : 'Choose a capability, connect its components, and review the changes.')}</p></div>
+        <div className="min-w-0"><h2 id={labelId} className={headerContent ? 'sr-only' : `${organizationName !== undefined ? 'text-base' : 'text-lg'} font-semibold`}>{title}</h2>
+          <p id={descriptionId} className={headerContent ? 'sr-only' : `mt-1 ${organizationName !== undefined ? 'text-xs' : 'text-sm'} text-slate-500 dark:text-gray-400`}>
+            {description ?? (organizationName !== undefined ? `Organization: ${organizationName}` : 'Choose a capability, connect its components, and review the changes.')}</p>
+          {headerContent}</div>
         <button type="button" aria-label="Close dialog" disabled={busy} onClick={onClose}
           className="rounded p-2 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-gray-800"><X size={20} aria-hidden="true" /></button>
       </header>

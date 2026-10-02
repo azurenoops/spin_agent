@@ -227,6 +227,8 @@ async function chooseShared(page: Page) {
   if (!await page.getByRole('dialog').count())
     await page.getByRole('button', { name: 'Open AC-1 responsibility' }).click();
   await page.getByRole('radio', { name: /Provider and my team/ }).check();
+  if (!await page.getByRole('textbox', { name: 'Provider for AC-1' }).isVisible())
+    await page.getByText('Provider designation in this draft', { exact: true }).click();
   await page.getByRole('textbox', { name: 'Provider for AC-1' }).fill('Synthetic reviewed provider');
   await page.getByRole('textbox', { name: 'Customer duties' }).fill('Customer reviews access.');
   await page.getByRole('textbox', { name: 'Provider duties' }).fill('Operate scoped access service.');
@@ -244,14 +246,17 @@ for (const width of [1440, 390]) {
     await page.getByLabel('Review any baseline control, including without a provider').selectOption('AU-11');
     await page.getByRole('button', { name: 'Review system control' }).click();
     const panel = page.getByRole('dialog', { name: 'Review responsibility AU-11' });
-    // Act
-    await panel.getByRole('button', { name: 'Prepare first pass', exact: true }).click();
     // Assert
     await expect(panel.getByRole('textbox', { name: 'Customer duties', exact: true })).toHaveValue('AI proposed local duty.');
+    await expect(panel.getByRole('button', { name: 'Prepare first pass', exact: true })).toHaveCount(0);
+    await expect(panel.getByRole('combobox', { name: 'Provider scope' })).toHaveCount(0);
+    await expect(page.getByText(/Responsibility confirmed through authorized review/)).toHaveCount(0);
     expect(writes.some(write => write.path.endsWith('/confirm'))).toBe(false);
     // Act
     await panel.getByRole('textbox', { name: 'Customer duties', exact: true }).fill('Human corrected local duty.');
     await panel.getByRole('button', { name: 'Save proposed draft' }).click();
+    await panel.getByText('Review system sources & evidence', { exact: true }).click();
+    await panel.getByText('Environment context and sources', { exact: true }).click();
     await expect(panel.getByText(/draft revision 2/)).toBeVisible();
     await panel.getByRole('button', { name: 'Refresh suggestion' }).click();
     await expect(panel.getByRole('region', { name: 'Compare refreshed suggestion' })).toBeVisible();
@@ -277,8 +282,6 @@ for (const width of [1440, 390]) {
     await page.getByLabel('Review any baseline control, including without a provider').selectOption('AU-11');
     await page.getByRole('button', { name: 'Review system control' }).click();
     const panel = page.getByRole('dialog');
-    // Act
-    await panel.getByRole('button', { name: 'Prepare first pass', exact: true }).click();
     // Assert
     await expect(panel.getByRole('alert')).toHaveCount(1);
     await expect(panel.getByRole('alert')).toContainText('Synthetic generation unavailable');
@@ -354,7 +357,7 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: 'Refresh saved state' }).click();
     // Assert
     await expect(page.getByRole('textbox', { name: 'Customer duties' })).toHaveValue('Customer reviews access.');
-    await expect(page.getByText('Last verified saved allocation: Not confirmed')).toBeVisible();
+    await expect(page.getByText('Current responsibility · Not confirmed')).toBeVisible();
     expect(writes).toHaveLength(1);
   });
 

@@ -12,6 +12,7 @@ import type { ComponentScopeUse } from '../../../api/systemDesign';
 import { buttonClass, inputClass, moveTabFocus, Pager, secondaryButtonClass, Status, surfaceClass, useQueryState, useRemote } from '../workspaceUi';
 import * as api from './systemCapabilityApi';
 import type { SystemCapabilityItem, SystemCapabilityPlacement, SystemCapabilityQuery, SystemCapabilitySource } from './systemCapabilityTypes';
+import './appliedCapabilityReview.css';
 
 const linkClass = 'font-medium text-indigo-700 underline-offset-2 hover:underline dark:text-indigo-300';
 const cellClass = 'px-4 py-4 align-top';
@@ -41,9 +42,10 @@ function ComponentIcon({ type }: { type: string | null }) {
   return <Icon size={18} aria-hidden className="mt-0.5 shrink-0 text-indigo-600 dark:text-indigo-300" />;
 }
 
-function AppliedCapabilityDrawer({ tenantId, systemId, source, recordId, onClose, onManageComponent, edits }: {
+function AppliedCapabilityDrawer({ tenantId, systemId, systemName, source, recordId, onClose, onManageComponent, edits }: {
   tenantId: string;
   systemId: string;
+  systemName: string;
   source: SystemCapabilitySource;
   recordId: string;
   onClose: () => void;
@@ -64,6 +66,19 @@ function AppliedCapabilityDrawer({ tenantId, systemId, source, recordId, onClose
     title="Review applied capability"
     description="Review the applied source, system placements, controls, and outstanding responsibilities."
     placement="right"
+    className="applied-capability-dialog"
+    headerContent={item && <div className="applied-capability-heading">
+      <p className="review-eyebrow">{systemName} · Applied capability</p>
+      <h2>{item.name}</h2>
+      <p className="review-muted">Provided by <strong>{item.sourceName}</strong></p>
+      <span className={item.reviewRequiredCount ? 'review-badge review-warning' : 'review-badge'}>
+        {item.reviewRequiredCount ? 'Review needed' : 'Inspect applicability'}
+      </span>
+    </div>}
+    footer={<div className="review-footer">
+      <p>Draft preparation only · acceptance is separate</p>
+      <button type="button" className="review-secondary" onClick={onClose}>Back to summary</button>
+    </div>}
     busy={false}
     onClose={onClose}
   >
@@ -284,6 +299,7 @@ function CapabilityList({ tenantId, systemId, systemName }: {
     </div>
     {selectedCapability && selectedCapabilitySource && <AppliedCapabilityDrawer
       edits={draftEdits.current}
+      systemName={systemName}
       key={`${metadataScope}:${selectedCapabilitySource}:${selectedCapability}`}
       tenantId={tenantId}
       systemId={systemId}

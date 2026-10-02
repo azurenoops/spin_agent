@@ -59,29 +59,29 @@ function Editor({ tenantId, systemId, source, capabilityId, controlId, edits, on
       else edited.current.delete(field);
     }
     cache(next); setOrigins(nextOrigins); setCoverage(false); setDuties(false); setReviewing(false);
-  });
+  }, { automatic: true, capabilityId: source === 'provider' ? capabilityId : undefined, onPersisted: onChanged });
   useEffect(() => {
-    if (initial.current?.scopeId) prepared.setScopeId(initial.current.scopeId);
-    // Restore only this identity-keyed editor's recorded selection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const setScopeId: typeof prepared.setScopeId = value => {
-    const next = typeof value === 'function' ? value(scope.current) : value;
-    scope.current = next; cache(current.current); prepared.setScopeId(next);
-    setCoverage(false); setDuties(false); setReviewing(false); setNotice('');
-  };
-  const state = { ...prepared, setScopeId };
+    if (!prepared.context) return;
+    if (initial.current && initial.current.scopeId !== prepared.scopeId)
+      setNotice('The recorded environment scope changed. Your corrections are preserved; recheck their applicability.');
+    scope.current = prepared.scopeId;
+    edits.set(key, { values: current.current, edited: edited.current, scopeId: scope.current });
+  }, [prepared.scopeId, prepared.context?.sourceHash, edits, key]);
   const change = (field: ResponsibilityField, value: string) => {
     edited.current.add(field); cache({ ...current.current, [field]: value });
     setCoverage(false); setDuties(false); setReviewing(false); setNotice('');
   };
-  const field = (name: ResponsibilityField, label: string, limit = 1200) => <label className="grid gap-1 text-sm">
-    {label}
-    {origins[name] && <span className="text-xs text-indigo-700 dark:text-indigo-300">
+  const field = (name: ResponsibilityField, label: string, limit = 1200, displayLabel = label) => <label className="review-duty grid gap-2 text-sm">
+    <span className="font-medium">{displayLabel}</span>
+    {origins[name] && values[name].trim() && <span className="review-origin">
       {origins[name]!.origin}{edited.current.has(name) ? ' · your correction' : ''}
     </span>}
     <textarea aria-label={label} className={`${inputClass} w-full min-w-0`} maxLength={limit}
       value={values[name]} onChange={event => change(name, event.target.value)} />
+    {!values[name].trim() && (name === 'customer' || name === 'providerDuties') &&
+      <span className="text-xs text-amber-800 dark:text-amber-200">
+        No {name === 'customer' ? 'team' : 'provider'} duty is recorded in this draft. Check applicability and source gaps, or add a supported duty.
+      </span>}
   </label>;
   const providerAllocation = values.allocation === 'Shared' || values.allocation === 'Inherited';
   const valid = isResponsibilityType(values.allocation) && !!values.basis.trim()
@@ -102,12 +102,14 @@ function Editor({ tenantId, systemId, source, capabilityId, controlId, edits, on
     }
   }
   return <section aria-label={`Prepared draft for ${controlId}`} className="min-w-0 space-y-3 text-sm">
-    <h3 className="font-semibold">Prepared responsibility · {controlId}</h3>
-    <p>Saving a draft does not accept inheritance, satisfy a control, approve narratives, submit eMASS or authorize the system.</p>
+    <h3 className="sr-only">Prepared responsibility · {controlId}</h3>
     {notice && <p role="status">{notice}</p>}
-    <ResponsibilityFirstPass state={state} />
-    <fieldset disabled={!canSave} className="min-w-0 space-y-3">
-      <legend className="font-semibold">Correct the prepared responsibility</legend>
+    <fieldset disabled={!prepared.context?.canPrepare || prepared.loading} className="min-w-0 space-y-3">
+      <legend className="sr-only">Correct the prepared responsibility</legend>
+      {field('providerDuties', 'Provider responsibility draft', 1200, 'Provider contribution')}
+      {field('customer', 'Customer responsibility draft', 2000, 'Your team’s duties')}
+      <details><summary className="cursor-pointer font-medium">Allocation, basis and supporting details</summary>
+        <div className="mt-3 space-y-3">
       <label className="grid gap-1">Responsibility split draft
         <select className={inputClass} value={values.allocation} onChange={event => change('allocation', event.target.value)}>
           <option value="NeedsConfirmation">Responsibility not confirmed</option>
@@ -116,19 +118,18 @@ function Editor({ tenantId, systemId, source, capabilityId, controlId, edits, on
         </select>
       </label>
       {field('provider', 'Provider / source')}
-      {field('providerDuties', 'Provider responsibility draft')}
-      {field('customer', 'Customer responsibility draft', 2000)}
       {field('basis', 'Basis for this allocation')}
-      <details><summary className="cursor-pointer font-medium">Scope, exclusions, supporting source and missing information</summary>
-        <div className="mt-3 space-y-3">{field('scope', 'Applicable scope')}{field('exclusions', 'Exclusions')}
+          {field('scope', 'Applicable scope')}{field('exclusions', 'Exclusions')}
           {field('source', 'Supporting source')}{field('information', 'Missing information')}</div>
       </details>
     </fieldset>
+    <ResponsibilityFirstPass state={prepared} compact />
     <div className="flex flex-wrap gap-2">
       <button type="button" className={buttonClass} disabled={!canSave} onClick={() => { void save(); }}>Save draft</button>
       <button type="button" className={secondaryButtonClass} disabled={!prepared.canConfirm || !valid}
         onClick={() => { setReviewing(true); setCoverage(false); setDuties(false); }}>Review saved responsibility</button>
     </div>
+    <p className="text-xs review-muted">Saving a draft does not accept inheritance, satisfy a control, approve narratives, submit eMASS or authorize the system.</p>
     {reviewing && <section aria-label="Confirm reviewed responsibility" className="space-y-3 rounded border p-3">
       <p>Check the saved fields and exact source versions. This uses the upstream responsibility approval lifecycle.</p>
       <label className="flex gap-2"><input type="checkbox" checked={coverage} onChange={event => setCoverage(event.target.checked)} />Provider coverage or system applicability verified</label>

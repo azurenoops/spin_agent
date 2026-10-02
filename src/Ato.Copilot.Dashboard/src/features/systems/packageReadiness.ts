@@ -5,6 +5,8 @@ const profileLabels: Record<string, string> = {
 };
 
 export function getCategoryRoute(category: string, artifactType?: string | null, description?: string): { path: string; label: string } | null {
+  if (description?.startsWith('DESIGN_APPROVAL_REQUIRED:'))
+    return { path: 'profile/SystemDesign', label: 'System design' };
   switch (category.toLowerCase()) {
     case 'authorization-decision': return { path: 'authorize', label: 'Recorded decisions' };
     case 'provider-authorization': return { path: 'profile/EnvironmentAndDeployment/hosting', label: 'Provider hosting' };

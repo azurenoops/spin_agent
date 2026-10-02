@@ -15,6 +15,7 @@ import { rolesApi } from '../api/roles';
 import SystemConnections from '../features/systems/SystemConnections';
 import SystemOperationalStatus from '../features/systems/SystemOperationalStatus';
 import '../features/systems/systemRecordPages.css';
+import '../features/systems/missionRecordForm.css';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
@@ -255,6 +256,13 @@ function SystemProfileSection() {
   if (!task) return <p role="alert">This system profile section is not available.</p>;
 
   const profileForm = <ProfileSectionForm
+    missionIdentityFields={sectionType === 'MissionAndPurpose' ? {
+      name: <MissionIdentity label="System name" value={detail.name} />,
+      owner: <SystemOwner systemId={systemId} />,
+      acronym: <MissionIdentity label="System acronym" value={detail.acronym} />,
+      emass: <MissionIdentity label="eMASS system ID" value={detail.emassId} hint="Required before package reconciliation" />,
+      ditpr: <MissionIdentity label="DITPR identifier" value={detail.ditprId} />,
+    } : undefined}
     systemDisplayName={detail.name}
     hideChildItems={isPorts}
     onHostingStatusChange={sectionType === 'EnvironmentAndDeployment' ? setHostingStatus : undefined}
@@ -325,7 +333,7 @@ function SystemProfileSection() {
               : sectionType === 'DataTypes' ? 'Context and information types are reviewed together · Recording sensitivity does not approve categorization'
               : 'Mission Owner authors / ISSM reviews · Saving does not approve'}</span>
           </div>
-          <SystemTaskColumns stretch={isPorts} support={isPorts ? <PortsDocumentation systemId={systemId} busy={saving}
+          <SystemTaskColumns stretch={isPorts} support={sectionType === 'MissionAndPurpose' ? undefined : isPorts ? <PortsDocumentation systemId={systemId} busy={saving}
             onContext={() => { setError(null); setContextDialogOpen(true); }} /> : <ProfileDocumentation environment={sectionType === 'EnvironmentAndDeployment'}>
             <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Used in your package</p>
@@ -378,15 +386,13 @@ function SystemProfileSection() {
             profileError={error} saving={saving} addOpen={addingProfileEntry}
             onAddClose={() => setAddingProfileEntry(false)} onCanAddChange={setCanAddConnection}
             onSaveProfile={handleSave} /> : <div className={sectionType === 'EnvironmentAndDeployment' ? 'min-w-0' : systemPanel}>
-            {!['UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
-            {sectionType === 'MissionAndPurpose' && <div className="mb-5 grid gap-[18px] sm:grid-cols-2">
-              <label className="text-xs text-slate-600">System name<input readOnly value={detail.name ?? systemId}
-                className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
-              <SystemOwner systemId={systemId} />
-              <SystemOperationalStatus key={systemId} systemId={systemId} />
-              <p className="text-xs text-slate-500 sm:col-span-2">Identity comes from the system registration. Manage owner assignments in System team; profile saving does not change either.</p>
-            </div>}
+            {!['UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mission-record-title mb-5 text-lg font-semibold">{task.record}</h2>}
             {profileForm}
+            {sectionType === 'MissionAndPurpose' && <details className="mt-5"><summary className="cursor-pointer text-sm text-indigo-700 dark:text-indigo-300">Operating status and canonical source records</summary>
+              <div className="mt-4"><SystemOperationalStatus key={systemId} systemId={systemId} /></div>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Identity and identifiers come from system registration; the owner comes from System team. Profile saving does not change those records.</p>
+              <Link className="mt-3 inline-block text-sm underline" to={`/systems/${systemId}/roles`}>Manage System team assignments</Link>
+            </details>}
             {sectionType !== 'EnvironmentAndDeployment' && <p className="mt-4 rounded-lg bg-[#f4f5f9] p-4 text-xs leading-relaxed text-slate-700 dark:bg-slate-800 dark:text-slate-200">{task.guidance}</p>}
           </div>}
           </SystemTaskColumns>
@@ -488,7 +494,14 @@ function SystemOwner({ systemId }: { systemId: string }) {
   return <div>
     <label className="text-xs text-slate-600">System owner<input readOnly value={error ? 'Unavailable' : name ?? 'Loading owner...'}
       className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
+    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sourced from the System team role assignment</p>
     {error && <div className="mt-2 text-xs text-amber-800"><p role="alert">{error}</p>
       <button type="button" className="underline" onClick={() => setAttempt(value => value + 1)}>Retry system owner</button></div>}
   </div>;
+}
+
+function MissionIdentity({ label, value, hint }: { label: string; value?: string | null; hint?: string }) {
+  return <label className="mission-identity-label">{label}<input readOnly value={value ?? ''} placeholder="Not recorded" />
+    {hint && <span>{hint}</span>}
+  </label>;
 }

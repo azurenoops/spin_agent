@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SystemReadinessOverview from '../../features/systems/SystemReadinessOverview';
@@ -22,6 +22,40 @@ describe('Role-aware system readiness overview', () => {
     vi.mocked(getSystemNextActions).mockResolvedValue(ownTasks);
     vi.mocked(getConMonOverview).mockRejectedValue(new Error('Monitoring fixture unavailable'));
   });
+  it('matches the unchecked mock hierarchy without sample results or a false package completion', async () => {
+    // Arrange
+    vi.mocked(getSystemNextActions).mockResolvedValue({ ...ownTasks, effectiveRoles: ['Issm'], items: [], waitingOnOtherRoles: [] });
+    // Act
+    render(<MemoryRouter><SystemReadinessOverview systemId="a" systemName="Mission Alpha" /></MemoryRouter>);
+    // Assert
+    expect(screen.getByRole('heading', { name: 'Find out what your package needs' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Your work' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'No actions assigned to you' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Documentation at a glance' })).toBeVisible();
+    expect(screen.getByText('Check readiness to see which documents need attention.')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'What the team needs to finish' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Continue preparation' })).not.toBeInTheDocument();
+    expect(validatePackage).not.toHaveBeenCalled();
+  });
+  it('shows returned team findings separately from personal work and uses real document gaps', async () => {
+    // Arrange
+    vi.mocked(getSystemNextActions).mockResolvedValue({ ...ownTasks, items: [] });
+    vi.mocked(validatePackage).mockResolvedValue({ purpose: 'InitialSubmission', isValid: false,
+      errorCount: 1, warningCount: 0, validatedAt: 'now', findings: [{ severity: 'error',
+        category: 'boundary', artifactType: 'ssp', description: 'Review the recorded boundary.',
+        remediation: 'Resolve the recorded component decisions.' }] });
+    render(<MemoryRouter><SystemReadinessOverview systemId="a" systemName="Mission Alpha" /></MemoryRouter>);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Check readiness' }));
+    // Assert
+    const gaps = await screen.findByRole('region', { name: 'Team readiness findings' });
+    expect(within(gaps).getByRole('heading', { name: 'Review the recorded boundary.' })).toBeVisible();
+    expect(within(gaps).getByText('Owner not provided by the readiness check')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'What the team needs to finish' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Documentation at a glance' })).toHaveTextContent('System Security Plan');
+    expect(screen.getByRole('region', { name: 'Documentation at a glance' })).toHaveTextContent('Gaps');
+  });
   it('loads the actor task queue automatically without conflating it with overall package validation', async () => {
     // Arrange / Act
     render(<MemoryRouter><SystemReadinessOverview systemId="a" systemName="Mission Alpha" /></MemoryRouter>);
@@ -29,7 +63,7 @@ describe('Role-aware system readiness overview', () => {
     expect(await screen.findByRole('heading', { name: 'Complete data profile' })).toBeVisible();
     expect(validatePackage).not.toHaveBeenCalled();
     expect(getSystemNextActions).toHaveBeenCalledWith('a', expect.any(AbortSignal));
-    expect(screen.getByText('Initial submission · Not checked')).toBeVisible();
+    expect(screen.getByText('Readiness not checked')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Continue preparation' })).toHaveAttribute('href', '/systems/a/profile/DataTypes');
     expect(screen.queryByRole('heading', { name: 'Confirm system boundary' })).not.toBeInTheDocument();
   });
@@ -43,17 +77,17 @@ describe('Role-aware system readiness overview', () => {
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Check readiness' }));
     // Assert
-    expect(await screen.findByText('Initial submission · 1 blocking requirement remains')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'ISSM must approve the submitted profile.' })).not.toBeInTheDocument();
+    expect(await screen.findByText('1 blocking requirement remains')).toBeVisible();
+    expect(within(screen.getByRole('region', { name: 'Next actions for your system roles' })).queryByRole('heading', { name: 'ISSM must approve the submitted profile.' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue preparation' })).toHaveAttribute('href', '/systems/a/profile/DataTypes');
     expect(screen.getByText(/ISSM: 1/)).toBeVisible();
     // Act
     vi.mocked(getSystemNextActions).mockResolvedValue({ ...ownTasks, items: [] });
     fireEvent.click(screen.getByRole('button', { name: 'Refresh my tasks' }));
     // Assert
-    expect(await screen.findByText('No actions currently require your system roles.')).toBeVisible();
-    expect(screen.getByText('Initial submission · 1 blocking requirement remains')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Continue preparation' })).toHaveAttribute('href', '/systems/a/documents?purpose=InitialSubmission');
+    expect(await screen.findByRole('heading', { name: 'No actions assigned to you' })).toBeVisible();
+    expect(screen.getByText('1 blocking requirement remains')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'View package readiness' })).toHaveAttribute('href', '/systems/a/documents?purpose=InitialSubmission');
   });
   it('keeps task-service failure separate from a passed package check', async () => {
     // Arrange
@@ -64,7 +98,7 @@ describe('Role-aware system readiness overview', () => {
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Check readiness' }));
     // Assert
-    expect(await screen.findByText('Initial submission · No blocking requirements returned')).toBeVisible();
+    expect(await screen.findByText('No blocking requirements returned')).toBeVisible();
     expect(screen.getByRole('alert')).toHaveTextContent('Tasks unavailable');
     expect(screen.queryByText('No actions currently require your system roles.')).not.toBeInTheDocument();
   });
@@ -110,4 +144,10 @@ describe('Role-aware system readiness overview', () => {
       // Assert
       expect(route?.path).toBe(`profile/${section}`);
     });
+  it('routes the verified design-approval finding to System design rather than narratives', () => {
+    // Arrange / Act
+    const route = getCategoryRoute('ssp', 'ssp', 'DESIGN_APPROVAL_REQUIRED: Review and approve the System design before final SSP generation.');
+    // Assert
+    expect(route).toEqual({ path: 'profile/SystemDesign', label: 'System design' });
+  });
 });

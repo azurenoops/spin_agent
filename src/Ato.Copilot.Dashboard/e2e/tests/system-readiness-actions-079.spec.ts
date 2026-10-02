@@ -28,6 +28,19 @@ for (const width of [1440, 390]) {
         findings: [{ severity: 'error', category: 'boundary', artifactType: null,
           description: 'Confirm the recorded boundary.', remediation: 'Review the included mission resources.' }] } });
     });
+    await context.route('**/api/dashboard/systems/system-a/package-readiness**', route => {
+      const purpose = new URL(route.request().url()).searchParams.get('purpose');
+      return route.fulfill({ json: {
+        systemId: 'system-a', purpose, retainedContext: null, selectionHash: 'b'.repeat(64),
+        source: { state: 'Available', hash: 'a'.repeat(64), ruleVersion: 'v1', reason: null }, latestRun: null,
+        permissions: { canValidate: true, validateReason: null, canGenerate: false, generateReason: 'Validate current records first.' },
+        rmf: { phase: 'Prepare', transitions: [], totalCount: 0 }, documents: [],
+        progress: ['prepare', 'validate', 'export', 'emass', 'decision'].map(id => ({
+          id, state: 'NotChecked', description: 'No stage completion is established.', totalCount: 0, records: [],
+          action: { canView: true, canEdit: false, path: 'documents', label: 'Open', reason: 'Inspect current records.' },
+        })),
+      } });
+    });
     await context.route('**/api/dashboard/systems/system-a/next-actions', route => route.fulfill({ json: {
       systemId: 'system-a', checkedAt: '2026-09-28T18:00:00Z', effectiveRoles: ['MissionOwner'],
       items: [{ id: 'boundary', title: 'Confirm the recorded boundary.', description: 'Review the included mission resources.',
@@ -54,18 +67,23 @@ for (const width of [1440, 390]) {
     const tabs = page.getByRole('tablist', { name: 'System overview tasks' });
     const status = page.getByRole('region', { name: 'Initial submission readiness status' });
     await expect(page.getByRole('navigation', { name: 'System task views' })).toHaveCount(0);
-    await expect(status).toContainText('Initial submission · Not checked');
+    await expect(status).toContainText('Readiness not checked');
+    await expect(status.getByRole('heading', { name: 'Find out what your package needs' })).toBeVisible();
+    expect((await status.boundingBox())!.height).toBeGreaterThanOrEqual(150);
+    await expect(page.getByRole('heading', { name: 'Your work', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Documentation at a glance' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Team readiness findings' })).toHaveCount(0);
     const headerBox = await header.boundingBox(), tabsBox = await tabs.boundingBox(), statusBox = await status.boundingBox();
     expect(headerBox!.y).toBeLessThan(tabsBox!.y);
     expect(tabsBox!.y).toBeLessThan(statusBox!.y);
     expect(checks).toEqual([]);
-    await expect(page.getByRole('link', { name: 'Preview contribution' })).toHaveAttribute('href', `${root}/documents/preview`);
+    await expect(page.getByRole('link', { name: 'Preview documentation ↗' })).toHaveAttribute('href', `${root}/documents/preview`);
     await page.screenshot({ path: info.outputPath(`readiness-initial-${width}.png`), fullPage: true });
-    await page.getByRole('link', { name: 'Preview contribution' }).click();
+    await page.getByRole('link', { name: 'Preview documentation ↗' }).click();
     await expect(page).toHaveURL(`${baseURL}${root}/documents/preview`);
     await expect(page.getByRole('heading', { name: 'Preview the generated documents' })).toBeVisible();
     await page.goBack();
-    await expect(status).toContainText('Initial submission · Not checked');
+    await expect(status).toContainText('Readiness not checked');
     await page.getByRole('button', { name: 'Check readiness' }).click();
     await expect(status).toContainText('1 blocking requirement remains');
     await expect(page.getByRole('link', { name: 'Continue preparation' })).toHaveAttribute('href', `${root}/boundaries`);
@@ -78,12 +96,12 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('link', { name: 'Review monitoring' })).toHaveAttribute('href', `${root}/conmon`);
     await expect(page.getByRole('button', { name: 'Check readiness' })).toHaveCount(0);
     await page.goBack();
-    await expect(status).toContainText('Initial submission · Not checked');
+    await expect(status).toContainText('Readiness not checked');
     await expect(page.getByRole('link', { name: 'Continue preparation' })).toHaveAttribute('href', `${root}/boundaries`);
     await page.getByRole('link', { name: 'View package readiness' }).click();
     await expect(page).toHaveURL(`${baseURL}${root}/documents?purpose=InitialSubmission`);
-    await expect(page.getByRole('combobox', { name: 'Package purpose' })).toHaveValue('InitialSubmission');
-    await page.getByRole('link', { name: 'Generate & export a package', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Selected package purpose' })).toContainText('Initial ATO submission');
+    await page.getByRole('navigation', { name: 'System task views' }).getByRole('link', { name: 'Export packages', exact: true }).click();
     await expect(page).toHaveURL(`${baseURL}${root}/documents?tab=exports&purpose=InitialSubmission`);
     await page.getByRole('button', { name: 'Generate Package', exact: true }).click();
     await expect(page.getByRole('dialog').getByRole('combobox', { name: 'Package purpose' })).toHaveValue('InitialSubmission');
@@ -157,11 +175,11 @@ for (const width of [1440, 390]) {
     // Assert
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Complete data profile.', exact: true })).toHaveCount(0);
-    await expect(page.getByText('No actions currently require your system roles.', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'No actions assigned to you', exact: true })).toHaveCount(0);
     // Act / Assert: the successful, empty server result advances to the checklist, not an ATO claim.
     unavailable = false; stage = 4;
     await page.getByRole('button', { name: 'Refresh my tasks', exact: true }).click();
-    await expect(page.getByText('No actions currently require your system roles.', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Continue preparation', exact: true })).toHaveAttribute('href', `${root}/documents?purpose=InitialSubmission`);
+    await expect(page.getByRole('heading', { name: 'No actions assigned to you', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'View package readiness', exact: true })).toHaveAttribute('href', `${root}/documents?purpose=InitialSubmission`);
   });
 }

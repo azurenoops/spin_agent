@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,6 +34,9 @@ public sealed partial class ResponsibilityDraftService
         })));
     private static string Control(string value) => string.IsNullOrWhiteSpace(value) || value.Length > 20
         ? throw new ArgumentException("A control identifier of 1-20 characters is required.") : value.Trim().ToUpperInvariant();
+    private static bool MapsControl(ProviderScopeCapabilityDuties capability, string controlId) =>
+        capability.ProviderControlIds.Concat(capability.SharedControlIds).Concat(capability.CustomerControlIds)
+            .Contains(controlId, StringComparer.OrdinalIgnoreCase);
 
     private async Task<Captured> CaptureAsync(string systemId, string controlId, Guid? scopeId, CancellationToken ct)
     {
@@ -51,6 +55,8 @@ public sealed partial class ResponsibilityDraftService
         var selected = scopeId.HasValue ? environmentsForSystem.ProviderScopes.SingleOrDefault(x =>
             x.AssignmentId == scopeId && x.State != "Removed")
                 ?? throw new KeyNotFoundException("Provider scope is not selected for this system.") : null;
+        var recordedProviderMapping = environmentsForSystem.ProviderScopes.Any(scope => scope.State != "Removed"
+            && scope.PublishedDuties.Capabilities.Any(capability => MapsControl(capability, controlId)));
         var sources = new List<ResponsibilityDraftSource>();
         void Add(string id, string title, string origin, object content, string? href = null)
         {
@@ -60,6 +66,11 @@ public sealed partial class ResponsibilityDraftService
         Add("system", system.Name, "From system records",
             new { system.Id, system.Name, system.Description, system.HostingEnvironment, BaselineId = baseline.Id,
                 baseline.BaselineLevel, baseline.ControlIds }, $"/systems/{systemId}/profile/MissionAndPurpose");
+        Add("environment", "Recorded environment and provider assignments", "From system records",
+            environmentsForSystem.ProviderScopes.Where(x => x.State != "Removed").OrderBy(x => x.AssignmentId)
+                .Select(x => new { x.AssignmentId, x.AssignmentVersion, x.ProviderId, x.OfferingId,
+                    x.HostingScopeRevisionId, x.SelectionVersion, x.State, x.ReviewRequired, x.PublishedDuties }),
+            $"/systems/{systemId}/profile/EnvironmentAndDeployment");
         var boundaries = await db.AuthorizationBoundaryDefinitions.AsNoTracking().Where(x =>
             x.TenantId == owner && x.RegisteredSystemId == systemId).OrderBy(x => x.Id)
             .Select(x => new { x.Id, x.Name, x.Description, x.BoundaryType }).ToListAsync(ct);
@@ -139,7 +150,9 @@ public sealed partial class ResponsibilityDraftService
             }
             if (selected.ReviewRequired) questions.Add("Verify this provider scope's applicability to the system.");
         }
-        else questions.Add("No provider scope selected. Absence of a provider does not establish customer ownership.");
+        else questions.Add(recordedProviderMapping
+            ? "No provider scope selected for this draft. Recorded contributions require source-specific allocation review; do not assume customer ownership."
+            : "No provider scope selected. Absence of a provider does not establish customer ownership.");
         if (string.IsNullOrWhiteSpace(values["customer"].Value)) questions.Add("Customer and local operational duties need review.");
         questions.Add("Reference claims and evidence metadata do not establish control satisfaction.");
         var ordered = sources.OrderBy(x => x.Id, StringComparer.Ordinal).ToArray();
@@ -152,7 +165,7 @@ public sealed partial class ResponsibilityDraftService
                     doc.RootElement.TryGetProperty(key, out var list) && list.ValueKind == JsonValueKind.Array && list.GetArrayLength() > 0);
             });
         return new(owner, baseline.Id, Hash(Serialize(ordered)), scopes, ordered, values, questions, conflicts,
-            hasControlEvidence, selected is null || selected.PublishedDuties.State == "Available");
+            hasControlEvidence, selected is null ? !recordedProviderMapping : selected.PublishedDuties.State == "Available");
     }
 
     private static ResponsibilityDraftSuggestion EnforceSources(Captured captured, ResponsibilityDraftSuggestion generated)

@@ -148,8 +148,17 @@ for (const width of [1440, 390, 320]) {
         },
       },
     }));
-    await page.route('**/api/dashboard/systems/system-a/capability-subscriptions/drafts/**',
-      route => route.fulfill({ json: appliedResponsibilityContext('system-a', 'AU-2') }));
+    let preparedDraft: ReturnType<typeof appliedResponsibilityContext>['draft'] = null;
+    await page.route('**/api/dashboard/systems/system-a/capability-subscriptions/drafts/**', route => {
+      const context = appliedResponsibilityContext('system-a', 'AU-2');
+      if (route.request().method() === 'POST') preparedDraft = {
+        id: 'prepared-a', revision: 1, status: 'Proposed', sourceHash: context.sourceHash, isStale: false,
+        generationState: 'Prepared', generationError: null, preparedAt: '2026-10-01', generatedAt: '2026-10-01',
+        preparedBy: 'Fixture reviewer', reviewedBy: null, reviewedAt: null, values: context.sourceValues,
+        suggestion: { values: context.sourceValues, questions: [], conflicts: [] }, sources: [], history: [],
+      };
+      return route.fulfill({ json: { ...context, draft: preparedDraft } });
+    });
     await page.route('**/security-capabilities/setups/prepare', async route => {
       const request = route.request();
       const body = request.postDataJSON() as { idempotencyKey: string; selections: unknown[] };
@@ -228,12 +237,23 @@ for (const width of [1440, 390, 320]) {
     await page.getByRole('button', { name: 'Open Audit logging' }).click();
     const reviewDrawer = page.getByRole('dialog', { name: 'Review applied capability' });
     await expect(reviewDrawer).toBeVisible();
+    await expect(reviewDrawer.getByRole('heading', { name: 'What this capability provides' })).toBeVisible();
+    await expect(reviewDrawer.getByRole('button', { name: 'Review scope' })).toBeVisible();
+    await expect(reviewDrawer.getByRole('button', { name: 'Review duties' })).toBeVisible();
+    const panelBounds = await reviewDrawer.boundingBox();
+    expect(panelBounds?.width).toBeGreaterThanOrEqual(Math.min(width, 640) - 2);
+    expect(panelBounds?.width).toBeLessThanOrEqual(640);
+    const footerBounds = await reviewDrawer.getByRole('button', { name: 'Back to summary' }).boundingBox();
+    expect(footerBounds!.y + footerBounds!.height).toBeLessThanOrEqual(1000);
     const overview = reviewDrawer.getByRole('tab', { name: 'Overview' });
     await overview.focus();
     await page.keyboard.press('End');
     await expect(reviewDrawer.getByRole('tab', { name: 'Responsibilities' })).toBeFocused();
     await expect(reviewDrawer.getByRole('heading', { name: 'Prepared responsibility · AU-2' })).toBeVisible();
     await reviewDrawer.getByRole('textbox', { name: 'Customer responsibility draft' }).fill('Reviewer correction');
+    await expect(reviewDrawer.getByRole('textbox', { name: 'Provider responsibility draft' })).toBeVisible();
+    await expect(reviewDrawer.getByText('Allocation, basis and supporting details').locator('..')).not.toHaveAttribute('open');
+    await reviewDrawer.getByText('Recorded mapping and duties').click();
     await expect(reviewDrawer.getByText('Collect audit records')).toBeVisible();
     expect(await reviewDrawer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page.addScriptTag({ content: axe.source });

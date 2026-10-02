@@ -44,6 +44,48 @@ monitoring connectivity and authorization. Final documentation uses the retained
 reviewed design; working previews identify draft scope. External issue creation
 and user acceptance remain pending approval.
 
+### Mission system record and responsibility presentation
+
+Mission presents the referenced System record layout: canonical system name,
+acronym, eMASS and DITPR identifiers; a team-sourced read-only System Owner;
+editable version/release, responsible organization and program office; and
+full-width mission statement and business purpose. Identity and role records
+must not be duplicated or changed by profile saving. Governed mission fields
+feed reviewed SSP snapshots and retain existing save/submit/review behavior.
+Unrecorded values and unavailable sources remain explicit; do not copy example
+values or invent a working revision.
+
+The Control Responsibility drawer follows the simple-review reference, distinct
+from the Applied Capability drawer: compact source card, readable allocation
+choices and duty fields precede advanced first-pass/history details. Source
+questions stay inspectable and staleness/failures remain explicit. Automatic
+preparation, user edits and the existing authorized approval lifecycle are
+unchanged; provider-source content is read-only.
+
+### Guided Overview readiness presentation
+
+System Overview follows the guided readiness reference: a white readiness hero
+with one check action, role-owned Your work cards, separate team-wide findings
+after validation, and a documentation-at-a-glance sidebar with workflow links.
+Personal task absence does not mean package readiness. Findings and document
+states must come from actual saved-record validation; do not copy sample gaps,
+owners or completion from the mock. Keep Monitoring & follow-up distinct,
+showing actual recorded health/changes and explicit missing coverage or records.
+
+### Prepared duties without repeated environment selection
+
+Opening Control Responsibility review must use the system's recorded environment
+to resolve provider scope and present an editable first pass automatically.
+Do not require users to select provider scope or initiate first preparation.
+Authorized preparation must not replace saved corrections, accepted records
+or source-defined allocations. Show preparation progress and failures honestly.
+No provider environment means system-record grounding without assumed inheritance.
+Several provider contributions still permit an editable system/environment first
+pass without an arbitrary provider selection. Preserve their authoritative
+allocations and require the existing source-specific allocation review before
+confirmation. Users retain edit/save/refresh and existing explicit
+responsibility confirmation, with provenance and review history.
+
 ### October 1 merged responsibility review integration
 
 The task-oriented applied-capability panel uses the responsibility first-pass
@@ -54,6 +96,17 @@ edits, save drafts and explicitly confirm through the existing authorized
 upstream lifecycle. Source references, versions and history remain canonical.
 Scope/component association does not imply provider coverage, deployed
 configuration, monitoring connectivity, control satisfaction or authorization.
+
+The review panel follows the applied-capability HTML reference's compact
+hierarchy: one named system/capability header, a lavender next-task card,
+count chips, overview scope/duty task rows, and a persistent summary footer.
+Provider contribution and the team's duties are the primary editable fields;
+allocation, basis, scope, source versions and history remain available through
+progressive disclosure. Synthetic reference statements must never populate
+application records. Saved draft counts are derived from canonical persisted
+contexts, refreshed after successful mutations, and distinguished from controls
+that still need preparation. Visual fidelity must be checked in the deployed
+app, not inferred from functional test success.
 
 ### September 30: governed System design
 
