@@ -301,6 +301,23 @@ export default function SystemDesign({ systemId }: { systemId: string }) {
       }</li>)}</ul>
       <button className="sd-text-button" onClick={() => void openPanel('compare')}>Review all baseline changes</button>
     </details>}
+    {!!graph.componentScopes?.length && <section className="sd-panel" aria-label="Component service-use scope">
+      <h2>Component service-use scope</h2>
+      <p className="sd-muted">These service-use decisions are part of this design revision and its independent review. They do not move provider infrastructure into the boundary or accept responsibilities.</p>
+      <ul className="space-y-4">{graph.componentScopes.map(scope => <li key={`${scope.source}:${scope.componentId}`} className="space-y-2 border-b pb-3">
+        <h3>{scope.name} · {statusLabel(scope.decision)}</h3>
+        <p>System area supported: {scope.boundaryName || 'Not recorded'}</p>
+        <p className="whitespace-pre-wrap">{scope.usage || 'Usage description not recorded.'}</p>
+        <details><summary className="cursor-pointer">Scope source version</summary><p className="break-all">{scope.source}/{scope.componentId} · {scope.sourceRevision}</p></details>
+        {scope.wordingBasis && <details><summary className="cursor-pointer">Prepared wording and user corrections</summary>
+          <p>{scope.wordingBasis.origin}{scope.wordingBasis.userEdited ? ' · user corrected' : ''}</p>
+          <p className="whitespace-pre-wrap">Original proposal: {scope.wordingBasis.originalWording}</p>
+          <p className="break-all">Proposal {scope.wordingBasis.draftId} · revision {scope.wordingBasis.revision} · source hash {scope.wordingBasis.sourceHash}</p>
+          <p>Source references: {scope.wordingBasis.sourceIds.join(', ')}</p>
+        </details>}
+        <Link className="sd-button" to={`/systems/${encodeURIComponent(systemId)}/security-capabilities?view=component`}>Review component scope</Link>
+      </li>)}</ul>
+    </section>}
     <section className="sd-panel" aria-label="System definition contributions">
       <div className="sd-section-heading"><div><h2>System definition contributions</h2><p className="sd-muted">Source records supply descriptions and source-backed relationships without becoming architecture boxes.</p></div>
         {graph.actions.canReconcile && <button className="sd-button sd-primary" disabled={savedOnly} onClick={() => openAction('build')}>Build from recorded information</button>}

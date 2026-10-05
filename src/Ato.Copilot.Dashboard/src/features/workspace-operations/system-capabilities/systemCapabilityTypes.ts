@@ -1,3 +1,5 @@
+import type { ComponentScopeUse } from '../../../api/systemDesign';
+
 export type SystemCapabilitySource = 'local' | 'provider';
 
 export interface SystemCapabilityRecordKey {
@@ -19,7 +21,7 @@ export interface SystemCapabilityPlacement {
   id: string;
   boundaryId: string | null;
   boundaryName: string | null;
-  state: 'InScope' | 'Excluded' | 'SystemWide' | 'Unassigned';
+  state: 'InScope' | 'Excluded' | 'SystemWide' | 'Unassigned' | 'ServiceUse';
   revision: string;
 }
 
@@ -48,6 +50,8 @@ export interface SystemCapabilityRecordReference extends SystemCapabilityRecordK
 }
 
 export interface SystemCapabilityComponent extends SystemCapabilityRecordKey {
+  scopeDecision?: 'Included' | 'Excluded' | 'NeedsConfirmation' | null;
+  reviewedScope?: ComponentScopeUse | null;
   name: string;
   description: string;
   componentType: string;
@@ -60,6 +64,8 @@ export interface SystemCapabilityComponent extends SystemCapabilityRecordKey {
 }
 
 export interface SystemCapabilityItem extends SystemCapabilityRecordKey {
+  scopeDecision?: 'Included' | 'Excluded' | 'NeedsConfirmation' | null;
+  reviewedScope?: ComponentScopeUse | null;
   name: string;
   description: string;
   sourceName: string;

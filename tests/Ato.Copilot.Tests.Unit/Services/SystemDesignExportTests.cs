@@ -20,6 +20,26 @@ namespace Ato.Copilot.Tests.Unit.Services;
 public sealed class SystemDesignExportTests
 {
     [Fact]
+    public void ComponentUse_DocumentationSeparatesDraftUseFromInfrastructureAndRecoveryResults()
+    {
+        // Arrange
+        var graph = new SystemDesignGraph { SystemId = "system", GovernanceStatus = "Draft",
+            ComponentScopes = [new("provider", "backup", "Azure Backup", "source-1", "Included",
+                "area", "Mission API", "Protects recorded data; restore results unavailable.")] };
+        var characteristics = new Dictionary<string, object>();
+        var implementation = new Dictionary<string, object>();
+        var backMatter = new Dictionary<string, object>();
+        // Act
+        SystemDesignDocumentData.AppendWorkingOscal(graph, characteristics, implementation, backMatter, true);
+        var output = JsonSerializer.Serialize(new { characteristics, implementation });
+        // Assert
+        output.Should().Contain("Azure Backup").And.Contain("Mission API").And.Contain("source-1")
+            .And.Contain("restore results unavailable").And.Contain("Included");
+        output.Should().NotContain("InBoundary");
+        output.Should().Contain("Service use does not establish infrastructure containment, accepted inheritance, verified recovery or authorization.");
+    }
+
+    [Fact]
     public void WorkingContribution_SourceRoleAndKnownSourceKindsRemainHidden_WithoutDiscardingSourceData()
     {
         // Arrange

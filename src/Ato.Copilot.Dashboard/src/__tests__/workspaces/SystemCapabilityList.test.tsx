@@ -8,12 +8,16 @@ import type { SystemCapabilityDetail, SystemCapabilityItem, SystemCapabilityOper
 import { systemSetupOperationFixture } from '../fixtures/systemCapabilityDetailSetup';
 import { appliedResponsibilityContext } from '../helpers/appliedResponsibilityContext';
 import { getResponsibilityDraft } from '../../api/responsibilityDrafts';
+import { getSystemDesign, getApprovedSystemDesign } from '../../api/systemDesign';
+import { componentDesignFixture } from '../fixtures/componentReview';
 
 vi.mock('../../features/workspace-operations/system-capabilities/systemCapabilityApi', () => ({
   listSystemCapabilities: vi.fn(), getSystemCapability: vi.fn(),
   prepareSystemCapabilitySetup: vi.fn(), getSystemCapabilityOperation: vi.fn(),
   completeSystemCapabilityOperation: vi.fn(),
+  getSystemComponentPlacements: vi.fn(),
 }));
+vi.mock('../../api/systemDesign', () => ({ getSystemDesign: vi.fn(), getApprovedSystemDesign: vi.fn() }));
 vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { systemId: 'system-a', name: 'Mission Alpha' } }),
 }));
@@ -92,6 +96,13 @@ beforeEach(() => {
   vi.mocked(api.getSystemCapability).mockImplementation(async (_tenantId, _systemId, key) =>
     key.recordType === 'component' ? componentDetail : capabilityDetail);
   vi.mocked(getResponsibilityDraft).mockImplementation(async (system, control) => appliedResponsibilityContext(system, control));
+  vi.mocked(getSystemDesign).mockResolvedValue(componentDesignFixture('org-a', 'system-a'));
+  vi.mocked(getApprovedSystemDesign).mockResolvedValue(null);
+  vi.mocked(api.getSystemComponentPlacements).mockResolvedValue({
+    source: 'provider', recordId: 'component-a', sourceRevision: 'r1', relationshipRevision: 'rel',
+    canAssignBoundary: true, assignBlockedReason: null, boundaries: [],
+    placements: contributor.placements.map(placement => ({ ...placement, canUnassign: true, unassignBlockedReason: null })),
+  });
 });
 
 describe('applied system security capability views', () => {
@@ -326,8 +337,13 @@ describe('applied system security capability views', () => {
     expect(api.getSystemCapability).toHaveBeenCalledWith('org-a', 'system-a', {
       source: 'provider', recordType: 'component', recordId: 'component-a',
     }, expect.any(AbortSignal));
-    expect(within(drawer).getByText(/source is managed by the provider/i)).toBeVisible();
+    expect(within(drawer).getByText('Managed by Cloud provider')).toBeVisible();
     expect(within(drawer).getByText('Team')).toBeVisible();
+    fireEvent.click(within(drawer).getByText('Provider source and technical details'));
+    expect(within(drawer).getByText(/Source is read-only here/i)).toBeVisible();
+    fireEvent.click(within(drawer).getByRole('tab', { name: 'System scope' }));
+    fireEvent.click(within(drawer).getByText('Existing infrastructure placements'));
+    await within(drawer).findByText('Operations');
     expect(within(drawer).getByText('Operations')).toBeVisible();
     expect(within(drawer).getByText(/Development.*Excluded/)).toBeVisible();
     expect(within(drawer).queryByRole('button', { name: /edit source/i })).not.toBeInTheDocument();

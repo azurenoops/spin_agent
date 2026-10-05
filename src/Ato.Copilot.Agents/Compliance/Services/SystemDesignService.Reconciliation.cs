@@ -26,7 +26,8 @@ public sealed partial class SystemDesignService
         Editable(graph);
         var proposals = graph.Proposals.ToList();
         var observed = await ObservationsAsync(db, systemId, ct);
-        var candidate = canonical with { Nodes = canonical.Nodes.Concat(observed).GroupBy(x => x.Id).Select(x => x.First()).ToArray() };
+        var candidate = canonical with { Nodes = canonical.Nodes.Concat(observed).GroupBy(x => x.Id).Select(x => x.First()).ToArray(),
+            ComponentScopes = graph.ComponentScopes };
         if (build)
             graph = AssembleAdditions(graph, canonical, row is null);
         foreach (var change in Compare(graph with { Groups = [] }, candidate with { Groups = [] }))

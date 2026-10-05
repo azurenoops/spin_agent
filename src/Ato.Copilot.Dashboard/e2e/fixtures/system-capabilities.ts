@@ -5,6 +5,8 @@ import type {
   SystemCapabilityDetail, SystemCapabilityItem, SystemCapabilityOperation, SystemCapabilitySelection,
 } from '../../src/features/workspace-operations/system-capabilities/systemCapabilityTypes';
 import type { NarrativeProposal } from '../../src/api/narrativeLibrary';
+import { componentDesignFixture } from '../../src/__tests__/fixtures/componentReview';
+import type { ComponentScopeUse, SaveComponentScopeRequest } from '../../src/api/systemDesign';
 
 export const systemCapabilityRoot = '/workspaces/organizations/org-a/systems/system-a/security-capabilities';
 export const providerCapabilityId = '11111111-1111-1111-1111-111111111111';
@@ -17,7 +19,7 @@ const permissions = {
   canRead: true, canManage: true, canReviewResponsibilities: true,
   canManageEvidence: true, canAuthorNarratives: false, canReviewNarratives: true,
 };
-const providerComponent = {
+const providerComponentSeed = {
   source: 'provider' as const, recordType: 'component' as const, recordId: providerComponentId,
   name: 'Microsoft Sentinel', description: 'Provider-operated monitoring service.', componentType: 'Thing',
   subType: 'Service', sourceName: 'Synthetic provider', mutationAuthority: 'Provider', sourceRevision,
@@ -28,7 +30,7 @@ const providerComponent = {
   capabilities: [{ source: 'provider' as const, recordType: 'capability' as const, recordId: providerCapabilityId, name: 'Security monitoring' }],
 };
 const localComponent = {
-  ...providerComponent, source: 'local' as const, recordId: 'local-team', name: 'SOC analyst team',
+  ...providerComponentSeed, source: 'local' as const, recordId: 'local-team', name: 'SOC analyst team',
   componentType: 'Person', subType: 'Team', sourceName: 'Organization A', mutationAuthority: 'Organization',
   placements: [{ id: 'placement-local', boundaryId: 'boundary-b', boundaryName: 'Organization operations', state: 'InScope' as const, revision: 'placement-revision-local' }],
 };
@@ -36,7 +38,7 @@ const providerCapability: SystemCapabilityItem = {
   source: 'provider', recordType: 'capability', recordId: providerCapabilityId, name: 'Security monitoring',
   description: 'Detect and investigate security events.', sourceName: 'Synthetic provider',
   mutationAuthority: 'Provider', sourceRevision, isApplied: true, isAvailable: true, status: 'Review required',
-  componentType: null, subType: null, components: [providerComponent, localComponent], capabilities: [],
+  componentType: null, subType: null, components: [providerComponentSeed, localComponent], capabilities: [],
   placements: [], controlIds: ['AU-2'], reviewRequiredCount: 1,
 };
 const localCapability: SystemCapabilityItem = {
@@ -45,7 +47,7 @@ const localCapability: SystemCapabilityItem = {
 };
 const availableProvider: SystemCapabilityItem = {
   ...providerCapability, recordId: '55555555-5555-5555-5555-555555555555', name: 'Boundary logging', isApplied: false, status: 'Available',
-  components: [providerComponent], reviewRequiredCount: 0,
+  components: [providerComponentSeed], reviewRequiredCount: 0,
 };
 const snapshot = JSON.stringify({
   Id: providerCapabilityId, Name: 'Security monitoring', Description: 'Collect and analyze audit records.',
@@ -68,8 +70,11 @@ export async function installSystemCapabilityFixture(context: BrowserContext, ba
   denied?: boolean; partial?: boolean; staleRemoval?: boolean; unavailable?: boolean; organizationOnly?: boolean;
   paginatedLibrary?: boolean;
   proposals?: boolean; narrativeReviewDenied?: boolean;
+  component?: { name: string; description: string; sourceName: string };
+  scopeSaveFailure?: boolean;
 } = {}) {
   await installWorkspaceFixture(context, baseURL);
+  const providerComponent = { ...providerComponentSeed, ...options.component };
   await context.route('**/api/dashboard/systems/system-a/capability-subscriptions/drafts/**', route =>
     route.fulfill({ json: appliedResponsibilityContext('system-a', 'AU-2', !options.denied) }));
   await context.route('**/api/dashboard/systems/system-a/operational-status', route => route.fulfill({ json: {
@@ -108,6 +113,23 @@ export async function installSystemCapabilityFixture(context: BrowserContext, ba
     { id: 'boundary-a', name: 'Azure workload' }, { id: 'boundary-b', name: 'Organization operations' },
     { id: 'boundary-c', name: 'Mission workload' },
   ];
+  let scopeGraph = componentDesignFixture('org-a', 'system-a');
+  await context.route('**/api/dashboard/systems/system-a/design{,/**}', async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/approved')) return route.fulfill({ json: null });
+    if (path.endsWith('/component-scope')) {
+      const body = route.request().postDataJSON() as SaveComponentScopeRequest;
+      writes.push({ path, body });
+      if (options.scopeSaveFailure || options.denied)
+        return route.fulfill({ status: 403, json: { error: 'Scope save rejected. Your permission is read-only.' } });
+      expect(body.expectedRevision).toBe(scopeGraph.revision);
+      const use: ComponentScopeUse = { source: body.source, componentId: body.componentId, name: providerComponent.name,
+        sourceRevision: body.sourceRevision, decision: body.decision, boundaryId: body.boundaryId,
+        boundaryName: placementBoundaries.find(area => area.id === body.boundaryId)?.name ?? null, usage: body.usage.trim() };
+      scopeGraph = { ...scopeGraph, revision: scopeGraph.revision + 1, componentScopes: [use] };
+    }
+    return route.fulfill({ json: { ...scopeGraph, actions: { ...scopeGraph.actions, canEdit: !options.denied } } });
+  });
   let proposalAccepted = false;
   const proposal: NarrativeProposal = {
     id: 'proposal-a', controlId: 'AU-2', narrativeType: 'Policy', baseVersion: 3,
@@ -286,6 +308,8 @@ export async function installSystemCapabilityFixture(context: BrowserContext, ba
   });
   await context.route('**/api/dashboard/systems/system-a/capability-subscriptions/**', async route => {
     const request = route.request();
+    if (new URL(request.url()).pathname.includes('/drafts/'))
+      return route.fulfill({ json: appliedResponsibilityContext('system-a', 'AU-2', !options.denied) });
     if (request.method() === 'PUT') {
       writes.push({ path: new URL(request.url()).pathname, body: request.postDataJSON() });
       confirmed = true;

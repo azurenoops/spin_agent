@@ -163,10 +163,12 @@ function Contributor({ component, systemId, providerCapability }: { component: S
       <p className="text-xs text-slate-500 dark:text-gray-400">{component.componentType}{component.subType ? ` · ${component.subType}` : ''}</p></div></div>
     <StateBadge tone={component.source === 'provider' ? 'indigo' : 'neutral'}>{component.source === 'provider' ? 'Provider contributor · Read-only' : providerCapability ? 'Organization supporting contributor' : 'Organization contributor'}</StateBadge>
     <p className="text-sm">{component.sourceName}</p>{component.description && <p className="text-sm text-slate-500 dark:text-gray-400">{component.description}</p>}
-    <ul className="space-y-2 text-sm">{component.placements.length ? component.placements.map(placement => <li key={placement.id || `${placement.boundaryId}:${placement.state}`}>
+    {component.scopeDecision === 'Excluded' ? <p className="text-sm">Reviewed service-use exclusion: not counted toward in-scope coverage.</p>
+      : component.reviewedScope?.decision === 'Included' ? <p className="text-sm">{component.reviewedScope.boundaryName} · reviewed service use, not infrastructure containment.</p>
+      : <ul className="space-y-2 text-sm">{component.placements.length ? component.placements.map(placement => <li key={placement.id || `${placement.boundaryId}:${placement.state}`}>
       {placement.boundaryId ? <Link className="text-indigo-700 underline dark:text-indigo-300" to={`/systems/${encodeURIComponent(systemId)}/boundaries?boundaryId=${encodeURIComponent(placement.boundaryId)}`}>{placement.boundaryName ?? placement.boundaryId}</Link> : placement.state === 'SystemWide' ? 'System-wide' : 'Unassigned'}
       {placement.state === 'Excluded' && <span> · Excluded from scope</span>}
-    </li>) : <li>Unassigned</li>}</ul>
+    </li>) : <li>Unassigned</li>}</ul>}
     {providerCapability && component.source === 'local' && <p className="text-xs text-slate-500 dark:text-gray-400">Local support remains separate from provider authorship.</p>}
     {!!component.capabilities.length && <details className="text-xs"><summary className="cursor-pointer">Delivered capability relationships</summary>
       <ul className="mt-2 space-y-1">{component.capabilities.map(capability => <li key={`${capability.source}:${capability.recordId}`}>{capability.name} · {capability.source}</li>)}</ul></details>}

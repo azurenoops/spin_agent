@@ -6,6 +6,72 @@
 
 ## Summary
 
+### October 4 proposed cross-artifact package completeness
+
+The [eMASS package completeness implementation plan](../../docs/design/emass-package-completeness-implementation-plan.md)
+coordinates Feature 041 readiness/assembly with this feature's reviewed sources,
+assessment workspaces, responsibilities and manual exchange. Reuse the current
+component/service-use draft and independent review; do not create replacement
+stores or weaken its source authority.
+
+The proposed next milestone is semantic completeness across requirement,
+procedure/CCI, evidence, finding, risk response and package outputs. Supporting
+plans and target-instance handoff requirements need explicit applicability and
+source/version references. Live Azure collection is a separately verified
+follow-on, not a prerequisite to honest manual documentation preparation.
+This plan does not authorize implementation or external writes and does not
+change the component redesign's still-open local acceptance.
+
+### October 2 Component details implementation
+
+Local verification (October 2; user acceptance remains open):
+- 116 focused dashboard tests passed; TypeScript and production Vite build passed.
+- 117 focused backend unit tests and 5 authenticated HTTP tests passed.
+- 8 Chromium checks passed, including keyboard return focus, 390px layouts,
+  light/dark themes, accessibility scans, saved drafts and rejected saves.
+- New panel line/statement/function coverage is 100%; branch coverage is 95.28%.
+  The governed scope service has 76/76 executable lines covered.
+- Backend build passed with zero warnings/errors on the final incremental build.
+  Vite reported dependency annotation, bundle-size and mixed-import warnings.
+- The complete 100% modified-path coverage gate is not established by these
+  targeted measurements. ESLint could not run because no repository configuration
+  was found by the available ESLint. These formal verification gaps remain open;
+  no threshold, ignore rule or tooling configuration was changed to hide them.
+- Real model output, retained-data PDF/DOCX/eMASS packages and submission remain
+  unverified. Source-backed working/approved SSP text and OSCAL structures are
+  covered by the focused generator tests. No external GitHub writes or pushes.
+
+1. Reuse shared drawer, tab keyboard handling, workspace controls and server
+   source-qualified catalog/evidence projection. Extract the component panel
+   from the list; preserve the existing placement editor as a disclosed advanced
+   workflow, not a draft-save shortcut.
+2. Add additive component-use entries to SystemDesignGraph JSON, not tables or a
+   competing approval lifecycle. Save a single entry through a version-fenced
+   System design service endpoint. Validate component visibility/current source,
+   selected-system area and permissions server-side. Generic design saves retain
+   these entries. Derive/withdraw/submit/review remain existing governed actions.
+   Draft authority is the existing System design editor permission; immediate
+   infrastructure placement retains its separate system-management permission.
+   Unavailable sources cannot be newly included. Historical exclusions/questions
+   remain recordable without inventing current source availability.
+3. Project immutable reviewed exclusion into system coverage, preserving raw
+   boundary assignments. Source changes block scope review and final output;
+   accepted records remain retained. Render scope entries in working and approved
+   design documentation with decisions, usage, area and exact source revisions.
+4. Reuse responsibility first-pass context/preparation for source-pinned AI wording
+   and published facts. Keep proposals separate from user notes; show questions,
+   full source and versions. No automatic source, placement or evidence mutation.
+5. TDD: targeted drawer/AI tests, service lifecycle/isolation/concurrency tests and
+   document-content tests first; then dashboard type/build and affected .NET tests.
+   Browser acceptance covers keyboard focus and 390px layouts with synthetic
+   fixtures. Provide local acceptance steps before declaring user acceptance.
+
+Constitution gate: additive JSON contract, existing authorization and independent
+review, no new agent/tool, no external writes. Scope-use entries are necessary
+because provider-service consumption and infrastructure containment are different
+facts; reusing immediate boundary mutation would violate baseline preservation.
+No new feature/issue hierarchy is created without the user's approved GitHub write.
+
 ### October 1 upstream alignment after #1062
 
 The applied capability session is rebased onto `origin/main` at `69b7e407`.

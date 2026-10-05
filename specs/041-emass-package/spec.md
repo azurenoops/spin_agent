@@ -13,6 +13,27 @@
 **Status**: Draft
 **Input**: User description: "Complete eMASS authorization package export — generate all required documents (OSCAL SSP, OSCAL POA&M, SAR, SAP, Assessment Results) in eMASS-importable formats, plus evidence packaging. Fills gaps in existing export capabilities to produce a full authorization package ready for eMASS import."
 
+### Proposed October 4 completeness acceptance addendum
+
+The [implementation plan](../../docs/design/emass-package-completeness-implementation-plan.md)
+proposes a purpose-specific definition of complete documentation, not merely
+schema-valid output or Approved document status. Required source-qualified
+assessment procedures must have reviewed results or an authorized applicable
+disposition; outstanding weaknesses must reconcile with SAR and documented
+risk response/POA&M; required supporting artifacts and their actual approvals
+must be included and current under the selected policy.
+
+Preparation, export, recorded import/submission and AO decision remain distinct.
+Manual eMASS handoff is a valid initial delivery when its mappings and outputs
+are verified. Do not truncate essential narrative content, invent control
+designation, turn provider targets into measured results, or overwrite retained
+approved sources/packages. Initial submission does not require an existing AO
+decision; a clean assessment can legitimately have no POA&M items.
+
+Historical artifact/format assumptions below require reconciliation with the
+receiving instance. This addendum is proposed: no product implementation,
+external feature/story issue creation or remote acceptance is claimed.
+
 ## Clarifications
 
 ### Session 2026-03-19

@@ -831,7 +831,8 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<Ato.Copilot.Core.Data.Context.AtoCopilotContext>>(),
             sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContextAccessor>().Current
                 ?? sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ITenantContext>(),
-            sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService>()));
+            sp.GetRequiredService<Ato.Copilot.Core.Interfaces.Tenancy.ISystemWorkspaceAccessService>(),
+            sp.GetService<Ato.Copilot.Core.Interfaces.Workspaces.IWorkspaceOperationsService>()));
         services.AddSingleton<IProfileNotificationService, ProfileNotificationService>();
         services.AddSingleton<IEmailSender, StubEmailSender>();
 

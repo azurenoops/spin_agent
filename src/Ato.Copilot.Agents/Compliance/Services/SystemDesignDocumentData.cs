@@ -83,7 +83,22 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
         text.AppendLine($"Design version: {approved.Revision}; reviewer: {approved.ApprovedBy}; approved: {approved.ApprovedAt:O}");
         text.AppendLine($"Retained source SHA-256: {approved.SnapshotHash}");
         AppendGraphText(text, nodes, edges, approved.Revision, dataFlowsOnly);
+        if (!dataFlowsOnly) AppendComponentUse(text, approved.Graph);
         return text.ToString();
+    }
+
+    private static void AppendComponentUse(StringBuilder text, SystemDesignGraph graph)
+    {
+        foreach (var scope in graph.ComponentScopes.OrderBy(x => x.Source).ThenBy(x => x.ComponentId))
+        {
+            text.AppendLine();
+            text.AppendLine($"Component service use: {scope.Name}; decision: {scope.Decision}; system area: {scope.BoundaryName ?? "Not recorded"}.");
+            text.AppendLine($"Usage: {scope.Usage}");
+            text.AppendLine($"Source: {scope.Source}/{scope.ComponentId}; version: {scope.SourceRevision}.");
+            if (scope.WordingBasis is { } wording)
+                text.AppendLine($"Wording: {wording.Origin}; user corrected: {wording.UserEdited}; responsibility proposal {wording.DraftId}, revision {wording.Revision}, source hash {wording.SourceHash}; sources: {string.Join(", ", wording.SourceIds)}.");
+            text.AppendLine("Service use does not establish infrastructure containment, accepted inheritance, verified recovery or authorization.");
+        }
     }
 
     private static void AppendGraphText(StringBuilder text, IEnumerable<DesignNode> nodes, IEnumerable<DesignEdge> edges,
@@ -162,6 +177,7 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
             var text = new StringBuilder($"### Working {title}, revision {graph.Revision} ({graph.GovernanceStatus})\n");
             text.AppendLine("DRAFT / UNAPPROVED. Review-only current design; no approval or authorization is implied.");
             AppendGraphText(text, nodes, edges, graph.Revision, dataFlowsOnly);
+            if (!dataFlowsOnly) AppendComponentUse(text, graph);
             return text.ToString();
         }
         characteristics["description"] = Contribution("system context", graph.Nodes, graph.Edges);
@@ -266,6 +282,9 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
         foreach (var edge in graph.Edges)
             props.Add(new() { ["name"] = approved ? "approved-design-relationship" : "working-design-relationship",
                 ["ns"] = Namespace, ["value"] = JsonSerializer.Serialize(edge) });
+        foreach (var scope in graph.ComponentScopes)
+            props.Add(new() { ["name"] = approved ? "approved-component-service-use" : "working-component-service-use",
+                ["ns"] = Namespace, ["value"] = JsonSerializer.Serialize(scope) });
         if (props.Count > 0) implementation["props"] = props;
     }
 

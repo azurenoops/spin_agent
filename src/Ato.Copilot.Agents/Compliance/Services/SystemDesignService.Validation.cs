@@ -190,16 +190,18 @@ public sealed partial class SystemDesignService
     private static int Completeness(SystemDesignGraph graph, IReadOnlyList<DesignGap> gaps)
     {
         var available = graph.Contributions.Count(x => x.State == "Available");
-        var denominator = Math.Max(1, graph.Nodes.Count + graph.Edges.Count + 6);
+        var denominator = Math.Max(1, graph.Nodes.Count + graph.Edges.Count + graph.ComponentScopes.Count + 6);
         var blocked = gaps.Where(x => x.Severity == "Error").Select(x => x.RecordId).Distinct().Count();
         return Math.Clamp((denominator - blocked - (6 - available)) * 100 / denominator, 0, 100);
     }
     private static IReadOnlyList<DesignChange> Compare(SystemDesignGraph before, SystemDesignGraph after)
     {
         var old = before.Nodes.Select(x => (x.Id, Value: Json(x))).Concat(before.Edges.Select(x => (x.Id, Value: Json(x))))
-            .Concat(before.Groups.Select(x => (x.Id, Value: Json(x)))).ToDictionary(x => x.Id, x => x.Value);
+            .Concat(before.Groups.Select(x => (x.Id, Value: Json(x))))
+            .Concat(before.ComponentScopes.Select(x => (Id: $"component-use:{x.Source}:{x.ComponentId}", Value: Json(x)))).ToDictionary(x => x.Id, x => x.Value);
         var current = after.Nodes.Select(x => (x.Id, Value: Json(x))).Concat(after.Edges.Select(x => (x.Id, Value: Json(x))))
-            .Concat(after.Groups.Select(x => (x.Id, Value: Json(x)))).ToDictionary(x => x.Id, x => x.Value);
+            .Concat(after.Groups.Select(x => (x.Id, Value: Json(x))))
+            .Concat(after.ComponentScopes.Select(x => (Id: $"component-use:{x.Source}:{x.ComponentId}", Value: Json(x)))).ToDictionary(x => x.Id, x => x.Value);
         return old.Keys.Union(current.Keys).OrderBy(x => x).Where(id => old.GetValueOrDefault(id) != current.GetValueOrDefault(id))
             .Select(id => new DesignChange(!old.ContainsKey(id) ? "Added" : !current.ContainsKey(id) ? "Removed" : "Modified",
                 id, old.GetValueOrDefault(id), current.GetValueOrDefault(id))).ToArray();

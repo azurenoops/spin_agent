@@ -34,7 +34,10 @@ export default function SystemComponentPlacements({ tenantId, systemId, source, 
     pending.current = controller; setBusy(true); onBusyChange(true); setError(null);
     try {
       await boundedRequest(action, controller.signal);
-      if (active.current) onChanged(notice);
+      if (active.current) {
+        setBoundaryId(''); setRemovingId(null); setAcknowledged(false);
+        onChanged(notice); remote.retry();
+      }
     } catch (reason) {
       if (active.current) { setError(message(reason)); setInvalidated(true); setAcknowledged(false); }
     } finally {

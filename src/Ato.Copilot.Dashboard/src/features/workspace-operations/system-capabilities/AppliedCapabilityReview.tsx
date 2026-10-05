@@ -23,7 +23,8 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
   const setControlId = (value: string) => onNavigate({ ...navigation, controlId: value });
   const item = data.item;
   const selected = data.controls.find(control => control.controlId === controlId);
-  const gaps = item.components.filter(component => !inScope(component.placements)).length;
+  const gaps = item.components.filter(component => !component.scopeDecision && !inScope(component.placements)
+    || component.scopeDecision === 'NeedsConfirmation').length;
   const pending = data.controls.filter(control => responsibilityNeedsReview(control.reviewState)).length;
   const draftContexts = useRemote(async signal => {
     const eligible = data.controls.filter(control => !['MissingBaseline', 'OutsideBaseline', 'Inactive'].includes(control.reviewState));
@@ -91,7 +92,8 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
         <p>A location places a component in system scope. It does not verify deployment, monitoring access or provider coverage.</p>
         {item.components.length ? <ul className="divide-y divide-gray-200 dark:divide-gray-700">
           {item.components.map(component => {
-            const assigned = inScope(component.placements);
+            const excluded = component.scopeDecision === 'Excluded';
+            const assigned = component.scopeDecision === 'Included' || !excluded && inScope(component.placements);
             return <li key={`${component.source}:${component.recordId}`} className="space-y-2 py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <p className="min-w-0 font-medium">{component.name}</p>
@@ -100,11 +102,13 @@ export default function AppliedCapabilityReview({ data, tenantId, systemId, onMa
                     onClick={() => onManageComponent(component.recordId, component.source)}>{assigned ? 'Change' : 'Assign location'}</button>
                   : <span className="text-xs text-gray-500">Read-only</span>}
               </div>
-              <ul className="space-y-1">{component.placements.map((placement, index) => <li key={placement.id || index}>
+              {excluded ? <p>Reviewed service-use exclusion: not counted toward in-scope coverage.</p>
+                : component.reviewedScope?.decision === 'Included' ? <p>{component.reviewedScope.boundaryName} · reviewed service use, not infrastructure containment.</p>
+                : <ul className="space-y-1">{component.placements.map((placement, index) => <li key={placement.id || index}>
                 {placement.state === 'SystemWide' ? 'System-wide' : placement.state === 'Unassigned' ? 'No location assigned'
                   : `${placement.boundaryName ?? 'Unnamed boundary'}${placement.state === 'Excluded' ? ' (Excluded)' : ''}`}
-              </li>)}</ul>
-              {!assigned && <p className="text-amber-800 dark:text-amber-200">No in-scope system location is recorded. Assign an existing system boundary or ask an authorized system manager.</p>}
+              </li>)}</ul>}
+              {!assigned && !excluded && <p className="text-amber-800 dark:text-amber-200">No in-scope system location is recorded. Assign an existing system boundary or ask an authorized system manager.</p>}
             </li>;
           })}
         </ul> : <p>No contributing components are recorded. Link components through the authorized capability setup workflow.</p>}

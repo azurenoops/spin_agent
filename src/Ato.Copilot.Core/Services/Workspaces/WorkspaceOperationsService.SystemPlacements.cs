@@ -148,6 +148,6 @@ public sealed partial class WorkspaceOperationsService
                     : "System-wide and legacy assignments must be changed through their component assignment workflow.");
                 return new SystemComponentPlacementOption(p.Id, p.BoundaryId, p.BoundaryName, p.State,
                     p.Revision, reason is null, reason);
-            }).ToArray());
+            }).ToArray()) { ComponentName = item.Name, SourceAvailable = item.IsAvailable };
     }
 }

@@ -4,10 +4,11 @@ import { Link } from '../../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../../workspaces/WorkspaceBoundary';
 import { SystemTaskHeading } from '../../systems/SystemTaskPresentation';
 import SetupDialog from '../SetupDialog';
-import SystemComponentPlacements from './SystemComponentPlacements';
+import SystemComponentReview from './SystemComponentReview';
 import SystemCapabilitySetup from './SystemCapabilitySetup';
 import AppliedCapabilityReview, { type AppliedReviewNavigation } from './AppliedCapabilityReview';
 import type { ResponsibilityDraftEdits } from './ResponsibilityDraftEditor';
+import type { ComponentScopeUse } from '../../../api/systemDesign';
 import { buttonClass, inputClass, moveTabFocus, Pager, secondaryButtonClass, Status, surfaceClass, useQueryState, useRemote } from '../workspaceUi';
 import * as api from './systemCapabilityApi';
 import type { SystemCapabilityItem, SystemCapabilityPlacement, SystemCapabilityQuery, SystemCapabilitySource } from './systemCapabilityTypes';
@@ -17,11 +18,15 @@ const cellClass = 'px-4 py-4 align-top';
 const types = ['Person', 'Place', 'Thing', 'Policy'] as const;
 const sorts = ['name', 'source', 'status', 'componentType'] as const;
 
-export function SystemCapabilityPlacements({ placements }: { placements: SystemCapabilityPlacement[] }) {
+export function SystemCapabilityPlacements({ placements, scopeDecision, reviewedScope }: {
+  placements: SystemCapabilityPlacement[]; scopeDecision?: string | null; reviewedScope?: ComponentScopeUse | null;
+}) {
+  if (scopeDecision === 'Excluded') return <span>Excluded from system scope (reviewed)</span>;
+  if (reviewedScope?.decision === 'Included') return <span>{reviewedScope.boundaryName} (reviewed service use)</span>;
   if (!placements.length) return <span className="text-gray-500 dark:text-gray-400">Unassigned</span>;
   return <ul className="space-y-1">{placements.map(placement => <li key={placement.id || `${placement.state}:${placement.boundaryId}`}>
     {placement.state === 'SystemWide' ? 'System-wide' : placement.state === 'Unassigned' ? 'Unassigned'
-      : <>{placement.boundaryName ?? 'Unnamed boundary'}{placement.state === 'Excluded' ? ' (Excluded)' : ''}</>}
+      : <>{placement.boundaryName ?? 'Unnamed boundary'}{placement.state === 'Excluded' ? ' (Excluded)' : placement.state === 'ServiceUse' ? ' (service use)' : ''}</>}
   </li>)}</ul>;
 }
 
@@ -72,55 +77,15 @@ function AppliedCapabilityDrawer({ tenantId, systemId, source, recordId, onClose
 export function SystemComponentDrawer({ tenantId, systemId, source, componentId, onClose, onChanged }: {
   tenantId: string; systemId: string; source: SystemCapabilitySource; componentId: string; onClose: () => void; onChanged?: () => void;
 }) {
-  const [editingPlacement, setEditingPlacement] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const remote = useRemote(signal => api.getSystemCapability(tenantId, systemId,
     { source, recordType: 'component', recordId: componentId }, signal), [tenantId, systemId, source, componentId]);
-  const item = remote.data?.item;
   return <SetupDialog title="Component details" placement="right" busy={busy} onClose={onClose}
-    description="Source ownership and placement in this system are separate.">
+    description="Review service use, source facts and the evidence your system needs.">
     <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
-    {notice && <p role="status" className="mb-4 rounded bg-green-50 p-3 text-sm text-green-900 dark:bg-green-950 dark:text-green-200">{notice}</p>}
-    {item && remote.data && <div className="space-y-6">
-      <header className="space-y-3">
-        <h2 className="text-xl font-semibold">{item.name}</h2>
-        <SystemCapabilitySourceBadge source={item.source} />
-        <p className="text-sm text-gray-600 dark:text-gray-300">{item.description || 'No source description recorded.'}</p>
-      </header>
-      <dl className="grid grid-cols-2 gap-3 text-sm">
-        <dt className="text-gray-500 dark:text-gray-400">Component type</dt><dd>{item.componentType || 'Not recorded'}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Subtype</dt><dd>{item.subType || 'Not recorded'}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Source</dt><dd>{item.sourceName}</dd>
-      </dl>
-      {source === 'provider' && <p className={`${surfaceClass} p-3 text-sm`}>
-        This source is managed by the provider and is read-only here. Changing a system placement does not change provider authorship.
-      </p>}
-      <section className="space-y-2">
-        <h3 className="font-semibold">Delivered capabilities</h3>
-        {item.capabilities.length ? <ul className="space-y-2">{item.capabilities.map(capability =>
-          <li key={`${capability.source}:${capability.recordId}`}><Link className={linkClass}
-            to={`/systems/${encodeURIComponent(systemId)}/security-capabilities/${capability.source}/${encodeURIComponent(capability.recordId)}`}>
-            {capability.name}
-          </Link></li>)}</ul> : <p className="text-sm">Direct system assignment. No applied capability links this component.</p>}
-      </section>
-      <section className="space-y-3">
-        <h3 className="font-semibold">System placements</h3>
-        {!editingPlacement && <SystemCapabilityPlacements placements={item.placements} />}
-        {remote.data.permissions.canManage && item.isApplied
-          ? editingPlacement ? <SystemComponentPlacements tenantId={tenantId} systemId={systemId} source={source} componentId={componentId}
-            onBusyChange={setBusy} onChanged={text => { setNotice(text); remote.retry(); onChanged?.(); }} />
-            : <button type="button" className={secondaryButtonClass} onClick={() => setEditingPlacement(true)}>Manage system placement</button>
-          : <p className="text-sm text-gray-600 dark:text-gray-300">System-management permission and an applied component are required to change placement.</p>}
-        <Link className={`${linkClass} inline-block text-sm`} to={`/systems/${encodeURIComponent(systemId)}/boundaries`}>Open system boundaries</Link>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Placements apply only to this system. Excluded assignments are not in-scope coverage.</p>
-      </section>
-      <Link className={`${linkClass} inline-block text-sm`}
-        to={`/security-capabilities/${source}/${encodeURIComponent(componentId)}?recordType=component`}>Open source in library</Link>
-      <details className="text-sm"><summary className="cursor-pointer">Technical details</summary>
-        <dl className="mt-2 space-y-2 break-all"><dt>Source revision</dt><dd>{item.sourceRevision}</dd><dt>Component identifier</dt><dd>{item.recordId}</dd></dl>
-      </details>
-    </div>}
+    {remote.data && <SystemComponentReview key={`${tenantId}:${systemId}:${source}:${componentId}`}
+      data={remote.data} tenantId={tenantId} systemId={systemId} onBusyChange={setBusy}
+      onChanged={() => onChanged?.()} />}
   </SetupDialog>;
 }
 
@@ -166,6 +131,14 @@ function CapabilityList({ tenantId, systemId, systemName }: {
     : params.get('capabilitySource') === 'local' ? 'local' : null;
   const selectedComponent = params.get('componentId');
   const selectedComponentSource = params.get('componentSource') === 'provider' ? 'provider' : 'local';
+  const returnComponentFocus = useRef<{ id: string; source: SystemCapabilitySource } | null>(null);
+  useEffect(() => {
+    const target = returnComponentFocus.current;
+    if (!target || selectedComponent || !remote.data) return;
+    const button = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-component-id]'))
+      .find(element => element.dataset.componentId === target.id && element.dataset.componentSource === target.source);
+    if (button) { button.focus(); returnComponentFocus.current = null; }
+  }, [selectedComponent, remote.data]);
   const openCapability = (recordId: string, capabilitySource: SystemCapabilitySource) =>
     set({ capabilityId: recordId, capabilitySource });
   const openComponent = (recordId: string, componentSource: SystemCapabilitySource) => set({ componentId: recordId, componentSource });
@@ -208,8 +181,9 @@ function CapabilityList({ tenantId, systemId, systemName }: {
       <td className={cellClass}>{item.source === 'provider' ? `Provider · ${item.sourceName}` : 'Organization'}</td>
       <td className={cellClass}>{item.components.length ? <ul className="space-y-2">{item.components.map(component =>
         <li key={`${component.source}:${component.recordId}`}><button className={`${linkClass} text-left`}
+          data-component-id={component.recordId} data-component-source={component.source}
           onClick={() => openComponent(component.recordId, component.source)}>{component.name}</button>
-          <div className="mt-1 text-xs text-gray-600 dark:text-gray-300"><SystemCapabilityPlacements placements={component.placements} /></div>
+          <div className="mt-1 text-xs text-gray-600 dark:text-gray-300"><SystemCapabilityPlacements placements={component.placements} scopeDecision={component.scopeDecision} reviewedScope={component.reviewedScope} /></div>
         </li>)}</ul> : <span className="text-gray-500 dark:text-gray-400">{item.sourceName}</span>}</td>
       <td className={cellClass}>{item.reviewRequiredCount > 0
         ? <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">Responsibilities pending ({item.reviewRequiredCount})</span>
@@ -225,14 +199,15 @@ function CapabilityList({ tenantId, systemId, systemName }: {
   function componentRow(item: SystemCapabilityItem) {
     return <tr key={`${item.source}:${item.recordType}:${item.recordId}`} className="border-t border-gray-100 dark:border-gray-800">
       <td className={cellClass}><span className="flex gap-2"><ComponentIcon type={item.componentType} />
-        <button className={`${linkClass} text-left`} onClick={() => openComponent(item.recordId, item.source)}>{item.name}</button></span></td>
+        <button className={`${linkClass} text-left`} data-component-id={item.recordId} data-component-source={item.source}
+          onClick={() => openComponent(item.recordId, item.source)}>{item.name}</button></span></td>
       <td className={cellClass}>{item.componentType || 'Not recorded'}{item.subType && <span className="block text-xs text-gray-500 dark:text-gray-400">{item.subType}</span>}</td>
       <td className={cellClass}><SystemCapabilitySourceBadge source={item.source} /><p className="mt-1 text-xs">{item.sourceName}</p></td>
       <td className={cellClass}>{item.capabilities.length ? <ul className="space-y-2">{item.capabilities.map(capability =>
         <li key={`${capability.source}:${capability.recordId}`}><Link className={linkClass}
           to={`${base}/${capability.source}/${encodeURIComponent(capability.recordId)}`}>{capability.name}</Link></li>)}</ul>
         : <span className="text-xs text-gray-500 dark:text-gray-400">Direct system assignment</span>}</td>
-      <td className={cellClass}><SystemCapabilityPlacements placements={item.placements} /></td>
+      <td className={cellClass}><SystemCapabilityPlacements placements={item.placements} scopeDecision={item.scopeDecision} reviewedScope={item.reviewedScope} /></td>
       <td className={cellClass}><button className={`${linkClass} whitespace-nowrap`}
         onClick={() => openComponent(item.recordId, item.source)}>View details<span className="sr-only"> for {item.name}</span></button></td>
     </tr>;
@@ -338,6 +313,9 @@ function CapabilityList({ tenantId, systemId, systemName }: {
     {selectedComponent && <SystemComponentDrawer key={`${metadataScope}:${selectedComponentSource}:${selectedComponent}`}
       tenantId={tenantId} systemId={systemId} source={selectedComponentSource} componentId={selectedComponent}
       onChanged={remote.retry}
-      onClose={() => set({ componentId: null, componentSource: null })} />}
+      onClose={() => {
+        returnComponentFocus.current = { id: selectedComponent, source: selectedComponentSource };
+        set({ componentId: null, componentSource: null });
+      }} />}
   </div>;
 }

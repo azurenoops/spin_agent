@@ -71,7 +71,9 @@ for (const width of [1440, 390]) {
       const drawer = page.getByRole('dialog', { name: 'Component details' });
       // Assert
       await expect(drawer.getByRole('heading', { name: 'Microsoft Sentinel' })).toBeVisible();
-      await expect(drawer).toContainText('source is managed by the provider');
+      await expect(drawer).toContainText('Managed by Synthetic provider');
+      await drawer.getByRole('tab', { name: 'System scope' }).click();
+      await drawer.getByText('Existing infrastructure placements', { exact: true }).click();
       await expect(drawer).toContainText('Azure workload');
       await expect(drawer).toContainText('Organization operations (Excluded)');
       await checkLayout(page, testInfo, '03-component-drawer');
@@ -307,13 +309,14 @@ test('provider drawer changes only the reviewed system boundary placement', asyn
   // Act
   await page.getByRole('button', { name: 'Microsoft Sentinel', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Component details' });
-  await dialog.getByRole('button', { name: 'Manage system placement' }).click();
+  await dialog.getByRole('tab', { name: 'System scope' }).click();
+  await dialog.getByText('Existing infrastructure placements', { exact: true }).click();
   await dialog.getByRole('combobox', { name: 'Boundary for this component' }).selectOption('boundary-c');
   await dialog.getByRole('button', { name: 'Assign to boundary', exact: true }).click();
   // Assert
   await expect(dialog.getByRole('status').filter({ hasText: 'Assigned to Mission workload.' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Remove from Mission workload', exact: true })).toBeVisible();
-  await expect(dialog.getByText(/source is managed by the provider and is read-only/)).toBeVisible();
+  await expect(dialog.getByText('Managed by Synthetic provider')).toBeVisible();
   await checkLayout(page, testInfo, 'component-placement-assigned');
   // Act
   await dialog.getByRole('button', { name: 'Remove from Mission workload', exact: true }).click();

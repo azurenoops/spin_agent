@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Workspaces;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Dtos.SystemDesign;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ato.Copilot.Core.Services.Workspaces;
@@ -43,8 +44,10 @@ public sealed partial class WorkspaceOperationsService
             rows = rows.Where(x => x.ComponentType == query.ComponentType
                 || x.Components.Any(c => c.ComponentType == query.ComponentType));
         if (query.BoundaryId is { } boundary)
-            rows = rows.Where(x => x.Placements.Any(p => boundary == "system-wide" ? p.State == "SystemWide"
-                : boundary == "unassigned" ? p.State == "Unassigned" : p.BoundaryId == boundary && p.State == "InScope"));
+            rows = rows.Where(x => x.ScopeDecision != "Excluded" && (x.ReviewedScope is { Decision: "Included" } reviewed
+                ? reviewed.BoundaryId == boundary
+                : x.Placements.Any(p => boundary == "system-wide" ? p.State == "SystemWide"
+                    : boundary == "unassigned" ? p.State == "Unassigned" : p.BoundaryId == boundary && p.State is "InScope" or "ServiceUse")));
         var total = rows.Count();
         Func<SystemSecurityCapabilityItem, string> sort = query.Sort switch
         {
@@ -214,6 +217,7 @@ public sealed partial class WorkspaceOperationsService
             .Where(x => x.Status == CspInheritedComponentStatus.Published
                 || parentComponentIds.Contains(x.Id) || placedProviderIds.Contains(x.Id) || contributorIds.Contains(x.Id)).ToListAsync(ct);
         var profiles = await db.CspProfiles.AsNoTracking().ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+        var reviewedUse = await ReviewedComponentUseAsync(db, tenantId, systemId, ct);
         var entries = await db.OrganizationCatalogEntries.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.RecordType == "capability").ToListAsync(ct);
         var baseline = await db.ControlBaselines.IgnoreQueryFilters().AsNoTracking()
@@ -260,8 +264,14 @@ public sealed partial class WorkspaceOperationsService
                 ComponentPlacements("provider", c.Id.ToString("D"), null), []));
         var capabilities = new List<SystemSecurityCapabilityItem>();
         SystemCapabilityComponent[] Resolve(IEnumerable<(string Source, string Id)> keys) =>
-            keys.Distinct().Where(components.ContainsKey).Select(x => components[x])
+            keys.Distinct().Where(components.ContainsKey).Select(x => components[x] with
+            { ScopeDecision = reviewedUse.GetValueOrDefault(x)?.Decision, ReviewedScope = reviewedUse.GetValueOrDefault(x) })
                 .OrderBy(x => x.Name).ThenBy(x => x.Source).ThenBy(x => x.RecordId).ToArray();
+        static IEnumerable<SystemCapabilityPlacement> ScopePlacements(SystemCapabilityComponent component) =>
+            component.ReviewedScope is { Decision: "Included" } scope
+                ? [new($"service-use:{scope.Source}:{scope.ComponentId}", scope.BoundaryId,
+                    scope.BoundaryName, "ServiceUse", scope.SourceRevision)]
+                : component.ScopeDecision == "Excluded" ? [] : component.Placements;
         foreach (var local in locals)
         {
             var entry = entries.SingleOrDefault(x => x.Source == "local" && x.RecordId == local.Id);
@@ -277,7 +287,7 @@ public sealed partial class WorkspaceOperationsService
             capabilities.Add(new("local", "capability", local.Id, local.Name, local.Description, "Organization",
                 "organization", revision, links.Any(x => x.SecurityCapabilityId == local.Id),
                 local.ImplementationStatus != CapabilityStatus.Deprecated, local.ImplementationStatus.ToString(),
-                null, null, contributors, [], contributors.SelectMany(x => x.Placements).Distinct().ToArray(), controls,
+                null, null, contributors, [], contributors.SelectMany(ScopePlacements).Distinct().ToArray(), controls,
                 controls.Count(x => baseline is null || !baseline.ControlIds.Contains(x)
                     || !baseline.Inheritances.Any(i => i.TenantId == tenantId && i.ControlId == x))));
         }
@@ -306,7 +316,7 @@ public sealed partial class WorkspaceOperationsService
                 provider.Status == CspInheritedCapabilityStatus.Mapped && provider.CspInheritedComponent.Status == CspInheritedComponentStatus.Published,
                 provider.Status.ToString(), null, null, contributors,
                 support.Select(x => new SystemCapabilityRecordReference(x.Source, x.RecordType, x.RecordId, x.Name)).ToArray(),
-                contributors.SelectMany(x => x.Placements).Distinct().ToArray(), controls,
+                contributors.SelectMany(ScopePlacements).Distinct().ToArray(), controls,
                 relevant.Count(x => x.State is not ("Applied" or "Ready" or "PreservedOverride" or "Inactive"))));
         }
         var componentRows = components.Values.Select(component =>
@@ -320,7 +330,9 @@ public sealed partial class WorkspaceOperationsService
                     : providerComponents.Single(x => x.Id.ToString("D") == component.RecordId).Status == CspInheritedComponentStatus.Published,
                 applied ? "Applied" : "Available", component.ComponentType, component.SubType,
                 [], references, component.Placements, delivered.SelectMany(x => x.ControlIds).Distinct().Order().ToArray(),
-                delivered.Sum(x => x.ReviewRequiredCount));
+                delivered.Sum(x => x.ReviewRequiredCount))
+                { ScopeDecision = reviewedUse.GetValueOrDefault((component.Source, component.RecordId))?.Decision,
+                    ReviewedScope = reviewedUse.GetValueOrDefault((component.Source, component.RecordId)) };
         }).ToArray();
         capabilities = capabilities.Select(item => item with
         {
@@ -346,6 +358,23 @@ public sealed partial class WorkspaceOperationsService
         return new(capabilities, componentRows, boundaries.Select(x => new SystemCapabilityBoundary(x.Id, x.Name)).ToArray(),
             baselineRevision, relationshipRevision, baseline, responsibilities,
             releases.ToDictionary(x => x.Key.ToString("D"), x => x.Value.SnapshotJson));
+    }
+
+    private static async Task<Dictionary<(string Source, string Id), ComponentScopeUse>> ReviewedComponentUseAsync(
+        AtoCopilotContext db, Guid tenantId, string systemId, CancellationToken ct)
+    {
+        var revision = await db.Set<SystemDesignWorkspace>().IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.SystemId == systemId).Select(x => x.ApprovedRevision).SingleOrDefaultAsync(ct);
+        if (revision is null) return [];
+        var retained = await db.Set<SystemDesignRevision>().IgnoreQueryFilters().AsNoTracking().SingleAsync(x =>
+            x.TenantId == tenantId && x.SystemId == systemId && x.Revision == revision, ct);
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(retained.GraphJson)));
+        if (retained.Action != "approve" || retained.SnapshotHash != hash)
+            throw new InvalidOperationException("Reviewed component use integrity could not be verified.");
+        var graph = JsonSerializer.Deserialize<SystemDesignGraph>(retained.GraphJson, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        if (graph is null || graph.TenantId != tenantId || graph.SystemId != systemId || graph.GovernanceStatus != "Approved")
+            throw new InvalidOperationException("Reviewed component use does not match this system.");
+        return graph.ComponentScopes.ToDictionary(x => (x.Source, x.ComponentId));
     }
 
     private static string[] ReadSupportIds(SystemCapabilityLink link) =>
