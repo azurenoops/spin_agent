@@ -17,7 +17,8 @@ import './systemDesign.css';
 
 const views: { value: DesignView; label: string }[] = [
   { value: 'Context', label: 'System context' }, { value: 'Boundary', label: 'Authorization boundary' },
-  { value: 'Network', label: 'Network architecture' }, { value: 'DataFlows', label: 'Data flows' },
+  { value: 'Logical', label: 'Logical architecture' }, { value: 'DataFlows', label: 'Data flows' },
+  { value: 'Network', label: 'Network architecture' }, { value: 'AzureDeployment', label: 'Azure deployment' },
 ];
 type Action = 'save' | 'build' | 'reconcile' | DesignReviewRequest['action'];
 const actionLabels: Record<Action, string> = {
@@ -183,7 +184,7 @@ export default function SystemDesign({ systemId }: { systemId: string }) {
   const startConnection = (sourceId = '', targetId = '') => {
     if (!graph?.actions.canEdit || busy) return;
     setEditing({ id: `flow:${crypto.randomUUID()}`, sourceNodeId: sourceId, targetNodeId: targetId,
-      relationshipType: 'DataFlow', origin: 'UserAuthored', direction: 'Outbound',
+      relationshipType: view === 'Logical' ? 'Supports' : 'DataFlow', origin: 'UserAuthored', direction: 'Outbound',
       boundaryCrossing: 'Unknown', reviewState: 'Draft', projectionStatus: 'Working' });
   };
   const proposeElement = (category: string) => {
@@ -351,6 +352,55 @@ export default function SystemDesign({ systemId }: { systemId: string }) {
     </div></div>
     <div className="sd-main-grid"><section className="sd-panel sd-diagram"><div className="sd-section-heading"><h2>{views.find(item => item.value === view)?.label}</h2>
       {graph.actions.canEdit && <div className="sd-actions" aria-label="Design canvas actions">
+        {view === 'AzureDeployment' && <>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `saca:${crypto.randomUUID()}`, label: '', kind: 'DesignComponent', sacaRole: 'Undetermined', sacaZone: 'Undetermined',
+            boundaryDisposition: 'Undetermined', reviewState: 'Draft', projectionStatus: 'Working', sspImpact: 'SACA deployment architecture', properties: {},
+          })}>Add deployment component</button>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `tccm:${crypto.randomUUID()}`, label: '', kind: 'DesignComponent', sacaRole: 'TCCM',
+            boundaryDisposition: 'Undetermined', reviewState: 'Draft', projectionStatus: 'Working',
+            sspImpact: 'Credential-management responsibility; appointment unverified', properties: { contextEntityClass: 'Performer' },
+          })}>Add TCCM performer reference</button>
+        </>}
+        {view === 'Network' && <>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `network:${crypto.randomUUID()}`, label: '', kind: 'DesignComponent', networkRole: 'Undetermined',
+            boundaryDisposition: 'Undetermined', reviewState: 'Draft', projectionStatus: 'Working',
+            sspImpact: 'Network architecture and inventory alignment', properties: {},
+          })}>Add network component</button>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => startConnection()}>Add network interface</button>
+        </>}
+        {view === 'DataFlows' && <>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `dfd:${crypto.randomUUID()}`, label: '', kind: 'DataFlowElement', dataFlowRole: 'Function',
+            boundaryDisposition: 'Undetermined', reviewState: 'Draft', projectionStatus: 'Working',
+            sspImpact: 'System functions and data lifecycle', properties: {},
+          })}>Add function / data store</button>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => startConnection()}>Add data exchange</button>
+        </>}
+        {view === 'Logical' && <>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `logical:${crypto.randomUUID()}`, label: '', kind: 'LogicalConstruct', boundaryDisposition: 'Undetermined',
+            reviewState: 'Draft', projectionStatus: 'Working', sspImpact: 'Logical architecture',
+            properties: { logicalType: 'Goal', logicalLayer: 'Capability' },
+          })}>Add logical construct</button>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `predicate:${crypto.randomUUID()}`, sourceNodeId: '', targetNodeId: '', relationshipType: 'Supports',
+            direction: 'Outbound', boundaryCrossing: 'Unknown', reviewState: 'Draft', projectionStatus: 'Working',
+            origin: 'UserAuthored',
+          })}>Add logical relationship</button>
+        </>}
+        {view === 'Context' && <>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `context:${crypto.randomUUID()}`, label: '', kind: 'ExternalSystem', boundaryDisposition: 'Undetermined',
+            reviewState: 'Draft', projectionStatus: 'Working', sspImpact: 'System context', properties: {},
+          })}>Add context entity</button>
+          <button type="button" className="sd-button" disabled={busy} onClick={() => setEditing({
+            id: `constraint:${crypto.randomUUID()}`, label: '', kind: 'ContextConstraint', boundaryDisposition: 'Undetermined',
+            reviewState: 'Draft', projectionStatus: 'Working', sspImpact: 'System context constraints', properties: {},
+          })}>Add constraint reference</button>
+        </>}
         <button type="button" className="sd-button" disabled={busy} onClick={() => setPaletteOpen(true)}>Add element</button>
         <button type="button" className="sd-button" disabled={busy || architectureNodes.length < 1}
           onClick={() => startConnection(active && isNode(active) && isArchitectureNode(active) ? active.id : '')}>{active && isNode(active) && isArchitectureNode(active) ? 'Connect selected element' : 'Connect elements'}</button>
@@ -390,7 +440,11 @@ export default function SystemDesign({ systemId }: { systemId: string }) {
             Built from an explicit source record, not an inferred network flow. Correct its facts in the source workflow; design review does not grant access or coverage.
           </p>}
           <dl className="sd-inspector-facts">{(isNode(active)
-            ? [['Environment', active.environment], ['Network zone', active.networkZone], ['Provider', active.provider], ['SSP contribution', active.sspImpact]]
+            ? [['Environment', active.environment], ['Network zone', active.networkZone], ['Provider', active.provider],
+              ['Named boundary', graph.nodes.find(node => node.kind === 'BoundaryDefinition' && node.source?.id === active.boundaryDefinitionId)?.label],
+              ['Security responsibility', active.securityResponsibility], ['Scope rationale', active.boundaryRationale],
+              ['Ownership relationship', active.boundaryRelationship], ['External authorization/source reference', active.externalAuthorizationReference],
+              ['SSP contribution', active.sspImpact]]
             : [['From', nodeLabel(active.sourceNodeId)], ['To', nodeLabel(active.targetNodeId)], ['Purpose', active.purpose],
               ['Protection', active.protection], ['PPS', [active.port, active.protocol, active.service].filter(Boolean).join(' / ')]])
             .filter(([, value]) => typeof value === 'string' && value.trim())
@@ -492,7 +546,7 @@ export default function SystemDesign({ systemId }: { systemId: string }) {
     </SetupDialog>}
     {paletteOpen && <SetupDialog title="Add design element" busy={busy} onClose={() => setPaletteOpen(false)}
       description="Choose a proposed architectural element or an existing canonical record. New design elements are unreviewed and do not create Azure resources or establish boundary inclusion.">
-      <div className="sd-palette">{['Application', 'API', 'Service', 'Database', 'Storage', 'Network device', 'Identity provider', 'Actor group', 'External system'].map(category =>
+      <div className="sd-palette">{['Application', 'API', 'Service', 'Database', 'Storage', 'Network device', 'Network segment', 'Identity provider', 'Actor group', 'External system'].map(category =>
         <button type="button" className="sd-button" key={category} onClick={() => proposeElement(category)}>{category}</button>)}</div>
       <button type="button" className="sd-button" onClick={() => { setPaletteOpen(false); setAdding('element'); setSourceSearch(''); setSourcePage(0); }}>Choose canonical record</button>
     </SetupDialog>}

@@ -148,7 +148,7 @@ for (const width of [1440, 390]) {
       if (path === 'profile/PortsProtocolsAndServices') await expect(page.getByRole('button', { name: 'Add connection', exact: true })).toBeVisible();
       else if (path.startsWith('profile/')) await expect(page.getByRole('button', { name: 'Save Draft', exact: true })).toBeVisible();
       if (path === 'profile/MissionAndPurpose') {
-        await page.getByLabel('Mission Statement', { exact: false }).fill('Updated mission support purpose.');
+        await page.getByLabel('Mission statement', { exact: false }).fill('Updated mission support purpose.');
         const saved = page.waitForRequest(request => request.method() === 'PUT'
           && request.url().endsWith('/api/dashboard/systems/system-a/profile/MissionAndPurpose'));
         await page.getByRole('button', { name: 'Save Draft', exact: true }).click();

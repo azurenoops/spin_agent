@@ -46,6 +46,26 @@ describe('governed System design workspace', () => {
     expect(within(scope).getByRole('link', { name: 'Review component scope' })).toHaveAttribute('href', '/systems/system-a/security-capabilities?view=component');
   });
 
+  it('exposes six source-backed views with independent layouts and no content writes on navigation', async () => {
+    // Arrange
+    mount();
+    const selector = await screen.findByRole('group', { name: 'Diagram view' });
+    const views = [
+      ['System context', 'Context'], ['Authorization boundary', 'Boundary'], ['Logical architecture', 'Logical'],
+      ['Data flows', 'DataFlows'], ['Network architecture', 'Network'], ['Azure deployment', 'AzureDeployment'],
+    ];
+    // Act
+    for (const [label, view] of views) {
+      fireEvent.click(within(selector).getByRole('button', { name: label }));
+      await waitFor(() => expect(api.getDesignLayout).toHaveBeenLastCalledWith('system-a', view));
+      // Assert
+      expect(within(selector).getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');
+    }
+    expect(within(selector).getAllByRole('button')).toHaveLength(6);
+    expect(api.saveSystemDesign).not.toHaveBeenCalled();
+    expect(api.saveDesignLayout).not.toHaveBeenCalled();
+    expect(api.reviewSystemDesign).not.toHaveBeenCalled();
+  });
   it('builds recorded relationships on the server without synthesizing or approving connections in the browser', async () => {
     // Arrange
     const built = designFixture();

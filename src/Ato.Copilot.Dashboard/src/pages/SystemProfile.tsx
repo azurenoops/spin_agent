@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, useId, lazy, Suspense, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useParams } from '../features/workspaces/workspaceNavigation';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { useSettings } from '../hooks/useSettings';
@@ -333,7 +333,7 @@ function SystemProfileSection() {
               : sectionType === 'DataTypes' ? 'Context and information types are reviewed together · Recording sensitivity does not approve categorization'
               : 'Mission Owner authors / ISSM reviews · Saving does not approve'}</span>
           </div>
-          <SystemTaskColumns stretch={isPorts} support={sectionType === 'MissionAndPurpose' ? undefined : isPorts ? <PortsDocumentation systemId={systemId} busy={saving}
+          <SystemTaskColumns stretch={isPorts} support={isPorts ? <PortsDocumentation systemId={systemId} busy={saving}
             onContext={() => { setError(null); setContextDialogOpen(true); }} /> : <ProfileDocumentation environment={sectionType === 'EnvironmentAndDeployment'}>
             <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Used in your package</p>
@@ -385,8 +385,8 @@ function SystemProfileSection() {
           {isPorts && section ? <SystemConnections systemId={systemId} profile={section} profileReadOnly={isReadOnly}
             profileError={error} saving={saving} addOpen={addingProfileEntry}
             onAddClose={() => setAddingProfileEntry(false)} onCanAddChange={setCanAddConnection}
-            onSaveProfile={handleSave} /> : <div className={sectionType === 'EnvironmentAndDeployment' ? 'min-w-0' : systemPanel}>
-            {!['UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mission-record-title mb-5 text-lg font-semibold">{task.record}</h2>}
+            onSaveProfile={handleSave} /> : <div className={sectionType === 'EnvironmentAndDeployment' || sectionType === 'MissionAndPurpose' ? 'min-w-0' : systemPanel}>
+            {!['MissionAndPurpose', 'UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
             {profileForm}
             {sectionType === 'MissionAndPurpose' && <details className="mt-5"><summary className="cursor-pointer text-sm text-indigo-700 dark:text-indigo-300">Operating status and canonical source records</summary>
               <div className="mt-4"><SystemOperationalStatus key={systemId} systemId={systemId} /></div>
@@ -476,6 +476,7 @@ function ProfileDocumentation({ environment, children }: { environment: boolean;
 }
 
 function SystemOwner({ systemId }: { systemId: string }) {
+  const id = useId();
   const [name, setName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -492,16 +493,21 @@ function SystemOwner({ systemId }: { systemId: string }) {
     return () => { current = false; };
   }, [systemId, attempt]);
   return <div>
-    <label className="text-xs text-slate-600">System owner<input readOnly value={error ? 'Unavailable' : name ?? 'Loading owner...'}
-      className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
-    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sourced from the System team role assignment</p>
+    <div className="mission-identity-label">
+      <label htmlFor={id}>System owner</label>
+      <input id={id} readOnly value={error ? 'Unavailable' : name ?? 'Loading owner...'} aria-describedby={`${id}-source`} />
+      <span id={`${id}-source`}>Sourced from the System team role assignment</span>
+    </div>
     {error && <div className="mt-2 text-xs text-amber-800"><p role="alert">{error}</p>
       <button type="button" className="underline" onClick={() => setAttempt(value => value + 1)}>Retry system owner</button></div>}
   </div>;
 }
 
 function MissionIdentity({ label, value, hint }: { label: string; value?: string | null; hint?: string }) {
-  return <label className="mission-identity-label">{label}<input readOnly value={value ?? ''} placeholder="Not recorded" />
-    {hint && <span>{hint}</span>}
-  </label>;
+  const id = useId();
+  return <div className="mission-identity-label">
+    <label htmlFor={id}>{label}</label>
+    <input id={id} readOnly value={value ?? ''} placeholder="Not recorded" aria-describedby={hint ? `${id}-hint` : undefined} />
+    {hint && <span id={`${id}-hint`}>{hint}</span>}
+  </div>;
 }

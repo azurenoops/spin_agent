@@ -16,12 +16,20 @@ export interface DesignNode {
   id: string; label: string; kind: string; source?: DesignSource | null;
   diagramRole?: 'Architecture' | 'SourceRecord';
   boundaryDisposition: string; environment?: string | null; networkZone?: string | null; provider?: string | null;
+  boundaryDefinitionId?: string | null; boundaryRationale?: string | null; securityResponsibility?: string | null;
+  boundaryRelationship?: string | null; externalAuthorizationReference?: string | null;
+  dataFlowRole?: string | null; functionDescription?: string | null; dataRetention?: string | null; disposalMethod?: string | null;
+  networkRole?: string | null; networkSegment?: string | null; networkAddress?: string | null; hostingImpactLevel?: string | null;
+  sacaZone?: string | null; sacaRole?: string | null; deploymentScopeNodeId?: string | null;
+  deploymentOwner?: string | null; deploymentEvidenceReference?: string | null; deploymentSecurityFunctions?: string | null;
   projectionStatus: string; reviewState: string; sspImpact: string; properties: Record<string, string | null>;
 }
 export interface DesignEdge {
   id: string; sourceNodeId: string; targetNodeId: string; relationshipType: string; direction: string;
   origin?: 'VerifiedCanonical' | 'UserAuthored' | 'AzureObserved' | 'Imported' | 'AiSuggested' | 'Undetermined';
   purpose?: string | null; informationType?: string | null; classification?: string | null;
+  informationTypeId?: string | null; lifecycleStage?: string | null;
+  protocolStack?: string | null; standardsReference?: string | null; connectionMedium?: string | null; securityControlReferences?: string | null;
   port?: string | null; protocol?: string | null; service?: string | null; protection?: string | null;
   ppsEntryId?: string | null;
   encryptionState?: string | null; boundaryCrossing: string; interconnectionId?: string | null;

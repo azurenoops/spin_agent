@@ -6,6 +6,250 @@
 
 Tests are mandatory, despite the older template's optional-test wording.
 
+PR review follow-up: Context must use effective boundary disposition when
+collapsing membership; SharedService/SeparatelyAuthorized ownership remains
+external even when raw disposition is Undetermined. Boundary SVG authorization
+references/legend must render outside the Context-only guard, retaining decision
+currency/date/source metadata without asserting component coverage. Add failing
+browser-adapter/backend/artifact regressions before these two corrections.
+Recipe 11 identifies the corrected Context/Boundary artifact behavior; existing
+approved graph revisions and retained package bytes remain unchanged.
+
+PR preparation, October 5: expanded System task walkthrough found pre-existing
+stale readiness assertions in both viewport cases (the same assertions are
+present at HEAD before this session). Actual page/source uses a separate
+readiness-status region, not the joined text expected by this legacy test.
+Following that path exposed further old policy/evidence workflow fixture drift.
+Do not mask this as a successful full walkthrough or expand this commit into
+unrelated UI/test-contract fixes. Independent Mission/design browser tests pass;
+record the legacy walkthrough failure in the PR verification notes.
+
+### SACA/SCCA-aware Azure deployment delivery
+
+- [x] AZ01 — Read official SACA definitions; document actual-instance zones/
+  roles/scope and TCCM-business-role distinction before implementation.
+- [x] AZ02 — TDD nullable capture, role/zone/evidence/scope validation and
+  source-owned environment resolution without foreign scope or name inference.
+- [x] AZ03 — Show actual zones, resource/cloud/ownership and nontraffic links
+  in browser/recipe-10 SVG/SSP/native outputs, with explicit applicability gaps.
+- [x] AZ04 — Verify source isolation, annotated save/reload, real native
+  outputs, coverage/browser/build and matching API-only rollout through 4196.
+
+AZ04 evidence: 143 backend tests, 41 authenticated API/native package tests,
+72 Dashboard tests and 30 desktop/mobile browser cases passed; solution/
+type-check/production/Docker builds passed (existing warnings remain).
+Deployment resolver/selector 100% executable lines, SVG 97.12%, document
+projection 96.19%, validation 92.82%; focused presentation 92.31% lines /
+82.36% branches. TCCM native export is a business user, not a component.
+
+API-only `ato-copilot-mcp:df6b085d-saca10-dev-20261005` is healthy with
+unchanged normalized runtime config/volumes/ports/user and peer container IDs.
+Real browser AzureDeployment view/gaps/TCCM dialog on 4196 passed without
+design/layout writes. Demo revision 2 remains unchanged, with six nodes/five
+source associations, no attached environment scope, five missing SACA role
+gaps and 16 source candidates. Actual Government scope/compliance/appointment
+is not verified; manual acceptance instructions are in the guide.
+
+### Disconnected Network follow-up (October 5)
+
+- [x] NC01 — Reproduce live revision 2: six source associations, zero technical
+  flows, six displayed nodes and zero edges; document actual cause.
+- [x] NC02 — TDD exact nontraffic source overlay, recorded access participants,
+  default-on switch/no content writes and technical-interface absence notice.
+- [x] NC03 — Verify browser/native output distinction and no fabricated PPS,
+  deploy matching API and prove real six links without demo graph/layout writes.
+
+NC03 evidence: 132 backend tests, 41 authenticated API/native package tests,
+69 Dashboard tests and all 28 desktop/mobile browser cases passed. Builds and
+type-check passed with existing warnings. Network projection 100% executable
+line coverage, SVG 96.97%, focused presentation 92.71% lines / 85.09% branches.
+Matching source-overlay API is healthy. Real 4196 demo now shows seven nodes
+and six exact dashed associations, no traffic arrowheads; switch off/on changes
+displayed links from six to zero to six without design/layout writes. Revision
+2 is unchanged. Runtime environment/user/ports/mount contents and other
+container identities are preserved; Compose reordered the mount list only.
+
+### SV-1/SV-2-aligned network delivery
+
+- [x] NW01 — Document scope/inventory/standard/DISN/IL distinctions and exact
+  CSP/non-CSP behavior before implementation.
+- [x] NW02 — TDD nullable component/interface capture, address/reference/type
+  validation and a pure network projection with explicit mapping gaps.
+- [x] NW03 — Group named scope/environment/zone/segment; draw only technical
+  interfaces with network details and legend; retain source/approval parity
+  in recipe-8 SVG and SSP/native outputs.
+- [x] NW04 — Run backend/HTTP/native package/coverage/browser and build checks;
+  deploy matching API-only image with preserved configuration/volumes and
+  verify real read-only behavior through 4196 plus manual acceptance.
+
+NW04 evidence: 130 backend tests, 41 authenticated API/native document/package
+tests, 67 Dashboard design tests and all 26 desktop/mobile browser cases passed.
+Solution/type-check/production bundle and Docker API publish passed (existing
+warnings remain). Network selector coverage 100%, validation 92.03%, SVG
+96.95%; focused UI 92.72% lines / 82.18% branches.
+
+API-only image `ato-copilot-mcp:df6b085d-network-dev-20261004` is healthy with
+unchanged runtime fingerprint and unchanged SQL/Redis/Chat/Docker frontend IDs.
+Real browser Network sign-in/reads/rendering on 4196 succeeded with no page
+errors or design writes. Demo revision 2 and approvals remain unchanged; 16
+canonical candidates and stale sources require user reconciliation/review.
+Manual acceptance instructions are available in the guide; no actual eMASS
+submission or formal standards/authorization verification is asserted.
+
+### SV-4-aligned DFD delivery
+
+- [x] DF01 — Document explicit functional model, CSP/non-CSP source limits,
+  original endpoint direction, lifecycle/handling and conformance distinctions.
+- [x] DF02 — TDD nullable role/handling/data-reference/lifecycle capture, pure
+  selection and tenant/system/type/transport validation.
+- [x] DF03 — Wire scope frames, role notation, labels/legend and recipe-7
+  browser/SSP/OSCAL/native artifact semantics, preserving source ownership.
+- [ ] DF04 — Complete builds/tests/coverage, browser capture and native package
+  acceptance; API-only rollout/live manual testing depends on host health.
+
+DF04 local verification: 121 design/DFD backend tests, 41 authenticated API/
+native package tests, 65 Dashboard design unit tests and all 24 desktop/mobile
+browser cases passed. Solution build, Dashboard type-check and production
+bundle passed with existing warnings. Measured executable-line coverage:
+DFD selector 100%, SVG renderer 96.70%, validation 88.85%; focused UI coverage
+92.52% lines / 82.55% branches. Real SSP/OSCAL/DOCX/PDF assertions verify
+retention/disposal and lifecycle content, not just save or artifact existence.
+
+Live rollout/manual acceptance remains blocked: Docker returned HTTP 500 and
+its Unix-socket version request later timed out. No matching DFD API image was
+deployed and no demo record/layout/approval was changed. Browser tests used the
+built bundle on isolated validation port 4197 with synthetic API fixtures,
+not a healthy deployed API on 4196. Retain the existing API/volumes and restore
+host runtime health before deployment and real manual acceptance.
+
+### DM2-aligned logical architecture delivery
+
+- [x] LA01 — Document actual-instance interpretation and source/traffic/
+  inheritance/conformance limits in the existing contract/spec/plan.
+- [x] LA02 — TDD source-only classification, scoped Mission/capability/
+  subscription/adoption/project projection and exact source-version ownership.
+- [x] LA03 — Capture governed type/layer/description/conditions/effects/
+  reference; validate directed predicates and reject technical/canonical
+  relabeling or incompatible endpoints.
+- [x] LA04 — Cluster actual constructs in browser and recipe-6 SVG; retain
+  semantic purpose, source identity and review in SSP/native document outputs.
+- [ ] LA05 — Verify type-check/build/coverage, desktop/mobile capture/reload,
+  authenticated API/native package tests and API-only rollout/manual acceptance.
+
+LA05 local evidence: 113 design backend tests and 41 authenticated API/native
+document/package tests passed. Dashboard type-check, production build and all
+63 design unit tests passed. New desktop/mobile logical construct/predicate
+save/reload cases passed. Logical source projection executable-line coverage is
+98.77%, pure classification 97.06%, SVG renderer 96.61%, validation 90.59%;
+focused browser-adapter/editor/canvas coverage is 93.44% lines / 84.44% branches.
+Solution build succeeded with existing warnings.
+
+LA05 remains blocked on live acceptance/API-only rollout: Docker's backend
+cannot route to its guest daemon and returns HTTP 500; the local frontend
+process exited with a bus error. Full browser reruns were interrupted by
+filesystem/runtime failures. Do not claim a logical API deployment, healthy
+4196, manual acceptance, or a completely green full browser rerun. No demo
+design/layout/approval was changed. See the guide's October 4 runtime note.
+
+### DoD authorization boundary delivery
+
+- [x] AB01 — Document scope/authority distinction, CSP/non-CSP behavior, named
+  groups, responsibility, external ownership and component-coverage/cATO gaps.
+- [x] AB02 — Project system-scoped definitions/assignments and decision currency
+  with provenance, preserving unknown inclusion and inactive/future/denied states.
+- [x] AB03 — Capture nullable scope/responsibility annotations with round-trip,
+  foreign-scope/unsafe-reference/shared/separate inclusion validation.
+- [x] AB04 — Implement named ABD grouping, non-component segregation, technical
+  crossing labels, legend and matching recipe-5 SSP/OSCAL/artifact semantics.
+- [x] AB05 — Complete final tests/build/coverage/live API checks, API-only
+  deployment for 4196, and manual acceptance steps without demo design writes.
+
+ABD verification: 104 backend tests, 41 authenticated API/document/package
+tests, 170 Dashboard tests and 20 desktop/mobile browser cases passed.
+Type-check, production bundle, solution build and Docker API publish succeeded;
+existing compile/Vite/data-protection warnings remain. Focused presentation
+coverage measured 95.20% lines / 86.13% branches. Both new ABD grouping and
+boundary/decision source files measured 100% executable-line coverage in the
+focused unit collection; this does not assert complete repository coverage.
+
+`df6b085d-abd-dev-20261003` is healthy and live through 4196, with the exact
+runtime environment/mount/port/user fingerprint unchanged. SQL/Redis/Chat and
+the port-5173 Dashboard retained their container IDs. Real authenticated graph
+read and ABD/legend rendering passed without mocks or design/layout writes.
+The shared demo remains revision 2 with changed sources and two available named
+boundary candidates; no decision candidate was present. Reconciliation/layout
+acceptance and actual component-to-AO-decision/cATO evidence remain human gates.
+
+### ATO context delivery
+
+- [x] CX01 — Document centered context, external entities, CSP/non-CSP equality,
+  governance/transport separation, constraint references and conformance limits.
+- [x] CX02 — Reuse unified team roles and retained direct/indirect policy sources,
+  preserving attribution, isolation, retired/foreign-role exclusion and review gaps.
+- [x] CX03 — Implement centered Context-only abstraction, original-interface
+  traceability, scope framing, source-only constraints and matching recipe-4 output.
+- [x] CX04 — Capture entity class/category/role/organization/activities/citation,
+  constraint references and explicit service/resource/governance relationships;
+  reject unsafe references and relabeling existing traffic to evade checks.
+- [x] CX05 — Complete builds, targeted automated/runtime checks, coverage, API
+  deployment for port 4196, and manual instructions without writing demo designs.
+
+ATO context local verification: 97 focused backend tests, 52 authenticated
+policy/design/document/package tests, 168 related Dashboard tests and 18
+desktop/mobile Chromium cases passed. Dashboard type-check, production build,
+solution build and local Docker API publish succeeded. Existing compiler/Vite/
+data-protection warnings remain; a zero-warning clean build is not claimed.
+Focused presentation coverage measured 95.62% lines / 86.37% branches. New
+context abstraction and retained-source helper executable lines were 100%
+covered; context source projection was 97.10% covered. This is not a claim of
+full-repository or formal architecture conformance coverage.
+
+The API image `df6b085d-ato-context-dev-20261003` is healthy with unchanged
+environment/volume/port/user configuration. Real browser sign-in and read-only
+SQL Server-backed Context rendering passed through 4196 without mocks or
+design/layout writes. The saved demo remains revision 2 and reports changed
+sources, including six governance contact candidates; these were not silently
+inserted into or approved for the saved design. Human source reconciliation,
+layout acceptance and final DoDAF/eMASS review remain explicit follow-up gates.
+
+### October 3 detailed System design follow-up
+
+- [x] SD601 — Document six source-backed views and data/approval boundaries before
+  production edits; retain red evidence for projection, view labels, SVG fields,
+  missing group labels and isolated data-flow elements.
+- [x] SD602 — Preserve all Mission fields, eMASS/DITPR identifiers and readable
+  exact ARM scope; keep source-only records and unknown mapping gaps explicit.
+- [x] SD603 — Add Logical and AzureDeployment with independent layout keys;
+  show recorded platform/access/sensitivity/PPS/protection detail and labelled
+  boundary frames; preserve manual presentation, source review and graph budgets.
+- [x] SD604 — Generate six self-contained recipe-3 SVGs; align view selection
+  with the browser and carry logical/Azure links into native OSCAL back-matter
+  and all existing document/package consumers.
+- [x] SD605 — Complete final unit, authenticated integration/package, browser
+  and build gates; document limits and provide local manual acceptance steps.
+
+Local October 3 acceptance: 89 design unit tests, 41 authenticated integration/
+document/package tests, 164 related Dashboard tests and 16 Chromium cases passed.
+Dashboard strict type-check, production bundle and the solution build passed.
+The focused frontend report measured 93.50% lines / 81.84% branches across the
+three changed design presentation modules; backend design-file executable-line
+coverage ranged from 91.84% to 99.56% in the unit collection. This is not a claim
+of exhaustive whole-repository coverage. Test compilation and Vite report
+existing warnings; the final incremental solution build reported no warnings.
+One intermediate browser run timed out on a blank page; the focused inspector
+rerun and complete final 16-case rerun passed, with no timeout suppression or
+automatic retry added. Its transient cause was not verified.
+
+Manual acceptance and Docker Dashboard deployment remain pending. The updated
+API was deployed October 3; real six-view read/render verification and the
+empty-view busy-state correction are recorded in the
+[local walkthrough](../../docs/guides/system-design.md#october-3-api-deployment).
+Both the updated API
+and Dashboard are required for the new layout view keys; the frontend preview
+alone does not update the existing Docker API. Live Azure discovery, populated
+SQL Server deployment and actual eMASS submission are not established by these
+synthetic browser and SQLite/package tests.
+
 ### October 1 applied capability review checkpoint
 
 - [x] ACR01 — Verify repository identity and prerequisite revision; inspect

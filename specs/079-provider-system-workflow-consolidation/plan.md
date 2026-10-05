@@ -71,6 +71,174 @@ review, no new agent/tool, no external writes. Scope-use entries are necessary
 because provider-service consumption and infrastructure containment are different
 facts; reusing immediate boundary mutation would violate baseline preservation.
 No new feature/issue hierarchy is created without the user's approved GitHub write.
+### SACA/SCCA-aware Azure deployment delivery
+
+Use a pure selector and scoped environment resolver over existing canonical
+attachments, selected ARM resources and provider references, plus explicit
+SACA annotations. Add nullable zone/role/scope/owner/evidence/security-function
+fields in the existing versioned graph JSON; no migration or dependency.
+Resolve cloud identity only through an explicit scoped environment or exactly
+one source-owned containment link. Validate selected environment IDs against
+current tenant/system and matching ARM subscription; ambiguous/absent cloud
+identity is a gap, not name-based inference.
+
+Official Microsoft guidance identifies TCCM as a business role, so validate it
+against actual performers and keep AO appointment unverified. Other stack
+roles cannot be assigned to people. Expose explicit draft component/performer
+capture, three zone groups, exact subscription/group/directory/region context,
+responsibility/evidence and applicability gaps. Preserve unknown placement,
+source-only nontraffic links and technical PPS/agreement checks.
+
+Use equivalent recipe-10 SVG and approved/working SSP/native package semantics;
+retain source versions, human review and existing presentation/approval bytes.
+Constitution check: tests failed before implementation, existing authorization/
+tenant/source invariants retained, strict TS/build/export tests required, no
+new agent/tool/storage/dependency or complexity exception. API-only local
+rollout preserves current runtime configuration/volumes/peer services.
+
+October 5 correction: technical-only Network projection hid all six associations
+in the actual saved demo. Restore source-owned network-relevant associations
+as a default-on switchable nontraffic overlay, with dashed no-arrow labels,
+separate technical counts and a prominent missing-interface notice. No source/
+flow mutation, invented routes or new dependency/storage. Native projection/
+recipe 9 retains the distinction; technical validation and DFD remain unchanged.
+
+### SV-1/SV-2-aligned network architecture delivery
+
+Use a pure Network selector over existing scoped components/inventory/provider
+records. Keep isolated computing assets visible; retain technical user endpoints
+in a non-inventory group, and move hosting-only context to a referenced panel/
+narrative. Only technical interfaces are arrows. Canonical associations and
+abstract DFD/logical records remain in their owning views; missing network
+mapping is explicit rather than automatic endpoint rewriting.
+
+Reuse named boundary ownership/scope and existing environment/zone metadata.
+Add bounded nullable role/segment/IP-CIDR/claimed-hosting-IL annotations and
+stack/standards-URL/media/control-reference interface annotations. Validate
+supported values, address syntax, safe references and actual technical
+relationship type; preserve all existing tenant/source/PPS/agreement/revision
+checks. No duplicate inventory, new tables/migrations or dependency changes.
+
+Browser, recipe-8 SVG and approved/working SSP/native document/package semantics
+share scope separation and source IDs/versions. Claims about accreditation,
+controls, standards compliance or DISN authority remain unverified unless
+their owning source/evidence workflow establishes them. Saved layouts and old
+approval/package bytes remain immutable. TDD preceded implementation; existing
+authentication/scope and TS/build gates remain mandatory. No complexity
+exception or new tool/agent is required.
+
+### SV-4-aligned DFD delivery
+
+Add nullable JSON-compatible node role/function/retention/disposal annotations
+and flow information-reference/lifecycle fields. Reuse the existing authorized
+graph/editor and scoped information/PPS/interconnection sources; no migrations
+or dependency changes. DataFlowElement is a governed functional abstraction,
+kept outside computing-resource views. An explicitly annotated logical Activity
+may participate as a function; source documents/goals cannot be flow endpoints.
+
+Use a pure DFD selector for technical exchanges plus explicit isolated
+functions/stores/external participants. Preserve unknown legacy endpoints.
+Cluster by named system scope and external producer/consumer role; use distinct
+function/open-store/external notation and a legend. Preserve manual layouts.
+Canonical interconnection endpoints remain fixed; unknown function mapping is
+a review gap, not a silent remapping. Information references are tenant/system
+validated, and nontechnical relationships cannot acquire lifecycle/data pins.
+
+Carry identical functional/handling/lifecycle semantics and source traceability
+into recipe-7 SVG and approved/working SSP/OSCAL/native document/package paths.
+Constitution gate: TDD selector/contract tests, bounded annotations, existing
+authorization/revision/source checks and local TS/build parity. No additional
+complexity exception, agent/tool or external GitHub write is introduced.
+
+### DM2-aligned logical architecture delivery
+
+Add pure logical classification/predicate semantics and scoped logical source
+projection to the existing design service. Reuse the graph JSON property bag
+for LogicalConstruct type/layer/description/conditions/desiredEffect/reference;
+no new storage or dependency. Source-only constructs stay outside physical
+views, but appear with actual performers, services and scope references in
+Logical. Mission prose is retained intact, never split into inferred activities.
+
+Project exact tenant/system security links and roadmaps and active system CSP
+subscriptions. Read only an explicitly selected matching tenant/system adoption
+and its exact release for retained provider name/detail. Missing or foreign
+selection is a visible gap; never substitute newer catalog content.
+
+Add typed directed predicates with canonical/traffic relabel guards and separate
+readiness checks. Group the browser and recipe-6 SVG by construct category;
+carry type/layer and semantic relationships into SSP/OSCAL/DOCX/PDF/package.
+Preserve canonical source immutability, optimistic revision checks, existing
+approvals/package bytes and explicit presentation ownership.
+
+Constitution check: failing tests preceded implementation; existing scope
+authorization and tenant filters remain mandatory; API/domain graph shape
+remains JSON-compatible; no new agent/tool, table, package or complexity
+exception. Run Dashboard `tsc --noEmit`, targeted tests and native export
+acceptance. Existing warning baseline and unapproved GitHub issue writes
+remain separate constraints, not silently waived.
+
+### DoD authorization boundary delivery
+
+Project scoped boundary definitions and source-only authorization decision
+references. Enrich existing tenant/CSP component assignments with named boundary
+provenance, keeping their recorded scope distinct from reviewed design choices.
+Nullable JSON-compatible design annotations carry selected scope, rationale,
+responsibility, ownership relationship and external authorization/source URL;
+no new tables or migrations are required.
+
+Use shared boundary grouping semantics in the interactive view and static
+artifact inputs. Separate computing resources, external/shared/separately
+authorized dependencies, unknown scope, people and hosting references. Add an
+explicit ABD legend and actual interconnection/data annotations. Source URLs
+and boundary IDs are validated, and conflicting inclusion is rejected.
+
+Expose decision currency/terms/source references while marking component
+coverage as unverified: current system decision records do not directly pin
+each component or named scope. Do not infer ATO/cATO from design approval.
+Recipe 5 and SSP/OSCAL boundary descriptions carry the same limitations and
+technical interfaces. Preserve approvals/packages and explicit layout ownership.
+
+### ATO context delivery
+
+Use a pure system-context projection over the same governed graph in the browser,
+static renderer and SSP narrative. Collapse internal membership without mutating
+original source endpoints; retain CSP/non-CSP services and scope-undetermined
+external candidates. Add deterministic centered automatic layout while retaining
+saved manual positions. Add attribution/readiness notes rather than guessed
+connections or formal DoDAF compliance claims.
+
+Reuse UnifiedRoleReader for team actors and extract the existing retained policy
+snapshot reader for both the policy workspace and design projection. Keep linked
+policy constraints source-only, including retained names/rationale/version;
+never replace them with changed library content. Add governed context metadata,
+constraint drafts and explicit non-technical relationship types, guarded against
+relabeling old technical traffic or bypassing transport checks. Artifact recipe
+4 changes context meaning while retaining historical approved/package bytes.
+
+No new tables, migrations, role grants, cloud discovery or AI inference are
+needed. New metadata uses the existing bounded property bag and graph history.
+The shared projection/read helper are justified by actual browser, artifact and
+policy consumers, not hypothetical abstraction.
+
+### October 3 detailed System design extension
+
+Reuse the existing governed graph, scoped API and per-view layout store. Add
+Logical and AzureDeployment without schema changes (their keys fit the existing
+16-character layout column). Enrich Mission/identity and exact selected-resource
+metadata in the canonical projection; preserve source precedence and conflict
+review. Extend the browser adapter with recorded card/connector detail, explicit
+boundary group labels, compact two-column boundary placement and a legible
+starting zoom. Extend static SVG recipe 3 to six views, preserving source hashes
+and applying equivalent view selection. Existing SSP/OSCAL, DOCX/PDF and package
+builders consume the additive artifact list. No new AI, discovery, provisioned
+resource or compliance approval is introduced.
+
+Validation uses failing projection/view/artifact tests first, authenticated
+SQLite API/package acceptance, and synthetic desktop/mobile browser fixtures.
+Docker deployment and live Azure acceptance remain separate. No complexity
+exception or dependency change is required; all behavior stays behind the
+existing projection and renderer adapters.
+
 ### Mission System record form
 
 The attached reference groups identity/organization fields into a two-column

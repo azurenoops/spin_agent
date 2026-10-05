@@ -45,7 +45,7 @@ public sealed partial class DocumentPreviewHttpTests
         graphJson.RootElement.GetProperty("Nodes").GetArrayLength().Should().BeGreaterThan(0);
         var diagrams = ssp.GetProperty("back-matter").GetProperty("resources").EnumerateArray()
             .Where(r => r.TryGetProperty("base64", out var b) && b.GetProperty("media-type").GetString() == "image/svg+xml").ToArray();
-        diagrams.Should().HaveCount(4);
+        diagrams.Should().HaveCount(6);
         foreach (var diagram in diagrams)
             Encoding.UTF8.GetString(Convert.FromBase64String(diagram.GetProperty("base64").GetProperty("value").GetString()!))
                 .Should().Contain("DRAFT / UNAPPROVED").And.Contain("NotStarted");

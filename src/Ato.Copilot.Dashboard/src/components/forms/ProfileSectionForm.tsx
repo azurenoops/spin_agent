@@ -25,8 +25,9 @@ interface FieldDef {
   rows?: number;
 }
 
-function FieldGroup({ label, children, className, preparation, contextDialog }: {
+function FieldGroup({ label, children, className, preparation, contextDialog, recordTitle }: {
   label?: string; children: ReactNode; className?: string;
+  recordTitle?: string;
   preparation?: { recorded: number; total: number; guidance: string };
   contextDialog?: { open: boolean; busy: boolean; readOnly: boolean; error: string | null; onClose: () => void; onSave: () => void };
 }) {
@@ -46,6 +47,10 @@ function FieldGroup({ label, children, className, preparation, contextDialog }: 
       </div>
     </form>
   </SetupDialog> : null;
+  if (recordTitle) return <section aria-label={recordTitle} className="mission-record-card">
+    <h2 className="mission-record-title">{recordTitle}</h2>
+    <div className={className}>{children}</div>
+  </section>;
   return label
     ? <details open={preparation ? true : undefined} className={`rounded-lg border border-gray-200 p-4 dark:border-gray-700${preparation ? ' bg-white dark:bg-slate-900' : ''}`}>
         <summary className="cursor-pointer font-medium">
@@ -68,8 +73,8 @@ const sectionFields: Record<ProfileSectionType, FieldDef[]> = {
     { key: 'systemVersion', label: 'System version / release', type: 'text', maxLength: 200 },
     { key: 'responsibleOrganization', label: 'Responsible organization', type: 'text', maxLength: 200 },
     { key: 'programOffice', label: 'Program office / division', type: 'text', maxLength: 200 },
-    { key: 'missionStatement', label: 'Mission Statement', type: 'textarea', maxLength: 4000, required: true, rows: 4, placeholder: 'Describe the system\'s mission...' },
-    { key: 'businessPurpose', label: 'Business Purpose', type: 'textarea', maxLength: 4000, required: true, rows: 4, placeholder: 'Describe the business purpose...' },
+    { key: 'missionStatement', label: 'Mission statement', type: 'textarea', maxLength: 4000, required: true, rows: 3, placeholder: 'Describe the system\'s mission...' },
+    { key: 'businessPurpose', label: 'Business purpose', type: 'textarea', maxLength: 4000, required: true, rows: 3, placeholder: 'Describe the business purpose...' },
     { key: 'operationalJustification', label: 'Operational Justification', type: 'textarea', maxLength: 2000, rows: 3, placeholder: 'Justify operational need...' },
     { key: 'businessFunctions', label: 'Business Functions', type: 'textarea', maxLength: 2000, rows: 3, placeholder: 'List key business functions...' },
   ],
@@ -469,9 +474,12 @@ export default function ProfileSectionForm({
     { label: 'Network zones & deployment locations', keys: ['networkZones', 'geographicLocations'] },
     { label: 'Recovery, availability & operating details', keys: ['availabilityTier', 'disasterRecoveryPosture', 'rtoRpo', 'maintenanceWindows', 'operatingSystem'] },
   ] : sectionType === 'MissionAndPurpose' ? [
-    { keys: ['systemVersion', 'responsibleOrganization', 'programOffice', 'missionStatement', 'businessPurpose'] },
+    { keys: [...(missionIdentityFields ? ['name', 'owner', 'acronym'] : []), 'systemVersion',
+      ...(missionIdentityFields ? ['emass', 'ditpr'] : []),
+      'responsibleOrganization', 'programOffice', 'missionStatement', 'businessPurpose'] },
     { label: 'Additional mission details', keys: ['operationalJustification', 'businessFunctions'] },
   ] : [{ keys: fields.map(field => field.key) }];
+  const identityFields: Record<string, ReactNode> = missionIdentityFields ? { ...missionIdentityFields } : {};
   const fieldRecorded = (key: string) => fields.find(field => field.key === key)?.type === 'multiselect'
     ? readSelection(values[key]).some(value => value.trim().length > 0)
     : !!values[key]?.trim();
@@ -531,6 +539,7 @@ export default function ProfileSectionForm({
 
       {/* Scalar fields */}
       {groups.map(group => <Fragment key={group.label ?? 'primary'}><FieldGroup label={individualReviews || hideChildItems ? undefined : group.label ?? childTask?.context}
+        recordTitle={sectionType === 'MissionAndPurpose' && !group.label ? 'System record' : undefined}
         contextDialog={sectionType === 'DataTypes' ? {
           open: contextDialogOpen, busy: isSubmitting, readOnly: isReadOnly,
           error: error ?? contentError, onClose: closeContextDialog, onSave: handleSave,
@@ -543,21 +552,20 @@ export default function ProfileSectionForm({
         } : undefined}
         className={sectionType === 'MissionAndPurpose' && !group.label ? 'mission-record-fields'
           : sectionType === 'EnvironmentAndDeployment' && !group.label ? 'grid min-w-0 gap-[18px] rounded-[10px] border border-slate-200 bg-white p-4 sm:grid-cols-2 min-[651px]:p-[22px] dark:border-slate-700 dark:bg-slate-900' : undefined}>
-        {sectionType === 'MissionAndPurpose' && !group.label && missionIdentityFields && <>
-          <div className="mission-name">{missionIdentityFields.name}</div>
-          <div className="mission-owner">{missionIdentityFields.owner}</div>
-          <div className="mission-acronym">{missionIdentityFields.acronym}</div>
-          <div className="mission-emass">{missionIdentityFields.emass}</div>
-          <div className="mission-ditpr">{missionIdentityFields.ditpr}</div>
-        </>}
         {sectionType === 'EnvironmentAndDeployment' && !group.label && <h2 className="text-lg font-semibold sm:col-span-2">Deployment description</h2>}
-        {group.keys.flatMap(key => fields.filter(field => field.key === key)).map((field) => (
+        {group.keys.map(key => {
+          if (sectionType === 'MissionAndPurpose' && !group.label && identityFields[key]) {
+            return <div key={key} className={`min-w-0 mission-${key}`}>{identityFields[key]}</div>;
+          }
+          const field = fields.find(item => item.key === key);
+          if (!field) throw new Error(`Unknown profile field: ${key}`);
+          return (
           <div key={field.key} data-mission-record-fields={sectionType === 'MissionAndPurpose' && !group.label ? true : undefined}
             className={sectionType === 'MissionAndPurpose' && !group.label ? `min-w-0 mission-${field.key}`
               : sectionType === 'EnvironmentAndDeployment' && field.key === 'additionalDetails' ? 'min-w-0 sm:col-span-2' : 'min-w-0'}>
             <label htmlFor={field.type === 'multiselect' ? undefined : `profile-${field.key}`} className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">
               {field.label}
-              {field.required && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}
+              {field.required && sectionType !== 'MissionAndPurpose' && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}
               {sectionType === 'EnvironmentAndDeployment' && group.label && !fieldRecorded(field.key) &&
                 <span aria-hidden="true" className="ml-2 text-xs font-normal text-amber-700 dark:text-amber-300">Not recorded</span>}
             </label>
@@ -573,7 +581,7 @@ export default function ProfileSectionForm({
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:disabled:bg-gray-900"
                   placeholder={field.placeholder}
                 />
-                {field.maxLength && (
+                {field.maxLength && !(sectionType === 'MissionAndPurpose' && !group.label) && (
                   <div className="text-xs text-gray-400 text-right mt-0.5">
                     {(values[field.key] ?? '').length.toLocaleString()} / {field.maxLength.toLocaleString()}
                   </div>
@@ -616,7 +624,7 @@ export default function ProfileSectionForm({
               />
             )}
           </div>
-        ))}
+        ); })}
       </FieldGroup>
         {!group.label && sectionType === 'EnvironmentAndDeployment' && systemId &&
           <ConnectedSystemEnvironments systemId={systemId} systemName={systemDisplayName} busy={isSubmitting} onStatusChange={onHostingStatusChange} />}

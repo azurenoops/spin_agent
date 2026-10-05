@@ -46,6 +46,65 @@ and user acceptance remain pending approval.
 
 ### Mission system record and responsibility presentation
 
+SACA Azure deployment follow-up: show actual On-premises/DISN, Secure cloud
+access and recorded Azure cloud zones, with explicit BCAP/VDSS/VDMS/CNAP roles,
+workloads and shared services. TCCM is an AO-appointed business performer,
+not a vault/appliance. Capture missing zone, role, exact scope, ownership,
+security-function descriptions and source evidence. Reuse CSP and non-CSP
+records equally; unknown cloud placement remains explicit and reference roles
+do not become implemented assets or prove compliance/inheritance/authorization.
+
+October 5 Network usability correction: display existing source-recorded
+relationships as an explicitly nontraffic dashed overlay, default-on and
+switchable without content/layout writes. State when technical interfaces
+are absent. Do not fabricate missing flows merely to connect a sparse view.
+
+Network follow-up: show recorded computing assets and actual interfaces grouped
+by named design boundary, environment, zone and segment. External/shared/
+separately authorized dependencies remain outside; do not equate inclusion
+with verified AO component coverage. Capture device roles, IP/CIDR, claimed
+hosting IL, protocol stacks, standards citations, connection medium and
+security-control references where missing. CSP and non-CSP sources use the
+same scope rules; hosting and governance associations are not packet flows.
+Support SSP/native artifact traceability without a formal DoDAF/StdV-1 claim.
+
+DFD follow-up: show explicit system functions, stores and external information
+producers/consumers, using recorded direction, named data and security scope.
+Capture missing functional roles, transformations, retention/disposal,
+information-type references and lifecycle stages in governed design records.
+Reuse CSP-linked and non-CSP sources without inventing flows from hosting,
+names or association. Preserve original canonical interface endpoints and
+approved outputs; this is SV-4-aligned, not formal conformance certification.
+
+Logical architecture follow-up: show actual system-specific DM2-aligned
+constructs and supporting scope references in named clusters, with abstraction
+layers and explicit directed predicates. Reuse mission facts, team/users,
+information types, retained rules, linked security measures, selected-system
+CSP subscriptions/adoption releases and compliance improvement projects.
+Capture missing constructs and conditions/effects in governed drafts. Never
+infer traffic, inheritance, mission capabilities, project intent or formal
+DoDAF/PES conformance. See the [logical contract](contracts/system-design.md).
+
+DoD ABD follow-up: Boundary must separate named system scopes, included technical
+assets, outside/shared/separately authorized dependencies, undetermined scope
+and non-component actors. Capture scope rationale/responsibility and external
+authorization references. Reuse recorded assignments/decisions for CSP and
+non-CSP systems while explicitly stating that component authorization coverage
+and cATO cannot be established from design inclusion or association alone.
+
+ATO context follow-up: Context must center the recorded system and connect its
+external performers, operational systems, information endpoints and support
+services, whether CSP-linked or not. Reuse actual team contacts and retained
+policy references; capture missing context entities/interactions explicitly.
+Keep detailed component topology, governance associations and applicable
+constraints distinguishable. See the [context contract](contracts/system-design.md).
+
+October 3 design follow-up: generate six source-backed diagram views (System
+context, Authorization boundary, Logical architecture, Data flow, Network and
+Azure deployment) from recorded definition, inventory, hosting and connection
+data. Retain newer Mission metadata and show recorded technical details without
+inventing traffic or authorization. See the updated [design contract](contracts/system-design.md).
+
 Mission presents the referenced System record layout: canonical system name,
 acronym, eMASS and DITPR identifiers; a team-sourced read-only System Owner;
 editable version/release, responsible organization and program office; and
@@ -166,14 +225,15 @@ or the approved baseline, and required missing contributions remain gaps.
 Expose a labelled proposed-element palette (application/API/service/database/
 storage/network/identity/actor/external) in addition to canonical source choices.
 These are unreviewed design components, not fabricated Azure or canonical records.
-Reuse shared System definition tab styling. Working SSP previews render all four
+Reuse shared System definition tab styling. Working SSP previews render all six
 current graph diagrams with explicit draft/unapproved metadata; final exports
 continue to require immutable approved design.
 
 System definition gains a seventh, directly addressable **System design** tab.
 The existing labels remain exactly Mission, Users, Environment & hosting, Data,
 Inventory & boundary, and Ports & interconnections. The new capability assembles
-canonical records server-side into Context, Boundary, Network and Data flows;
+canonical records server-side into Context, Boundary, Logical, Data flows,
+Network and Azure deployment;
 it does not split the six tabs or introduce a top-level design workspace.
 
 The domain graph owns design meaning: stable source references/versions,
@@ -198,7 +258,7 @@ Conflicts remain visible. Azure/monitoring contributions are observed proposals
 and require existing authorized resource scope; unsupported collectors are not
 presented as healthy or connected.
 
-All four views share an equivalent structured editor, inspectable sources,
+All six views share an equivalent structured editor, inspectable sources,
 filter/search, stable layout, keyboard navigation and design gaps. Completeness
 uses evaluated required design checks rather than diagram appearance. Missing
 endpoints, purpose/classification/protection/PPS, boundary decisions,

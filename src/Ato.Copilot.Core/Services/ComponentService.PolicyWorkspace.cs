@@ -256,7 +256,7 @@ public partial class ComponentService
     }
 
     private static PolicySourceDto? RetainedPolicySource(ComponentSystemAssignment? assignment) =>
-        assignment?.PolicySourceSnapshotJson is { } json ? JsonSerializer.Deserialize<PolicySourceDto>(json) : null;
+        global::Ato.Copilot.Core.Services.RetainedPolicySource.Read(assignment);
 
     private static PolicyReferenceDto ProjectPolicyReference(ComponentSystemAssignment assignment, PolicySourceDto current, bool canManage)
     {

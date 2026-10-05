@@ -14,6 +14,41 @@ namespace Ato.Copilot.Tests.Integration.Tenancy;
 [Collection("Tenancy")]
 public sealed class SystemDesignHttpTests(MultiTenantWebApplicationFactory<McpProgram> factory)
 {
+    [Theory]
+    [InlineData("Logical")]
+    [InlineData("AzureDeployment")]
+    public async Task DetailedViewLayout_IsIndependentlyVersionedAndAuthorized(string view)
+    {
+        // Arrange
+        var id = await SeedAsync(OrganizationRole.SystemOwner);
+        using var client = factory.CreateClient();
+        var path = $"/api/dashboard/systems/{id}/design";
+        var graph = await client.GetFromJsonAsync<SystemDesignGraph>(path)
+            ?? throw new InvalidOperationException("Design graph was not returned.");
+        var layout = await client.GetFromJsonAsync<DesignLayout>(path + "/layout/" + view)
+            ?? throw new InvalidOperationException("Design layout was not returned.");
+        var request = new SaveDesignLayoutRequest(0, layout with
+            { Positions = new() { [graph.Nodes[0].Id] = new(25, 70) } });
+        // Act
+        var save = await client.PutAsJsonAsync(path + "/layout", request);
+        var reload = await client.GetFromJsonAsync<DesignLayout>(path + "/layout/" + view);
+        var sibling = await client.GetFromJsonAsync<DesignLayout>(path + "/layout/Context");
+        var stale = await client.PutAsJsonAsync(path + "/layout", request);
+        // Assert
+        save.StatusCode.Should().Be(HttpStatusCode.OK, await save.Content.ReadAsStringAsync());
+        reload!.View.Should().Be(view);
+        reload.Version.Should().Be(1);
+        reload.Positions[graph.Nodes[0].Id].Should().Be(new DesignPosition(25, 70));
+        sibling!.Version.Should().Be(0);
+        (await client.GetFromJsonAsync<SystemDesignGraph>(path))!.Revision.Should().Be(0);
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var assessorId = await SeedAsync(OrganizationRole.Assessor);
+        var denied = await client.PutAsJsonAsync($"/api/dashboard/systems/{assessorId}/design/layout", request);
+        denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        factory.GetActiveContext().TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+        (await client.GetAsync(path + "/layout/" + view)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
     [Fact]
     public async Task ComponentServiceUse_DraftEndpointRetainsProviderSourceAndEnforcesAreaVersionAndTenant()
     {

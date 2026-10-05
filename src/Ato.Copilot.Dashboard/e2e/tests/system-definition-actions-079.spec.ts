@@ -82,11 +82,11 @@ for (const width of [1440, 390]) {
     await expect(page.getByLabel('System owner', { exact: true })).toHaveValue('Recorded Owner');
     await expect(page.getByRole('link', { name: 'Preview contribution', exact: true })).toHaveAttribute('href', `${root}/documents/preview?contribution=MissionAndPurpose`);
     await expect(page.getByRole('link', { name: 'View package readiness', exact: true })).toHaveAttribute('href', `${root}/documents?purpose=InitialSubmission`);
-    await page.getByLabel('Mission Statement', { exact: false }).fill('Updated mission.');
+    await page.getByLabel('Mission statement', { exact: false }).fill('Updated mission.');
     await expect(page.getByRole('button', { name: 'Submit for Review', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
     await expect(page.getByText('Refresh permission before retrying.', { exact: true })).toBeVisible();
-    await expect(page.getByLabel('Mission Statement', { exact: false })).toHaveValue('Updated mission.');
+    await expect(page.getByLabel('Mission statement', { exact: false })).toHaveValue('Updated mission.');
     rejectSave = false;
     await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
     await expect(page.getByText('Section saved as Draft.', { exact: true })).toBeVisible();

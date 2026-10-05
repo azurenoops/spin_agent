@@ -69,8 +69,15 @@ public sealed class SystemDesignExportTests
         {
             var svg = XDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(
                 resource.GetProperty("base64").GetProperty("value").GetString()!)));
-            svg.Descendants().Where(e => e.Attribute("data-node-id") != null)
-                .Select(e => e.Attribute("data-node-id")!.Value).Should().BeEquivalentTo("visible", "legacy-node");
+            var displayed = svg.Descendants().Where(e => e.Attribute("data-node-id") != null)
+                .Select(e => e.Attribute("data-node-id")!.Value);
+            if (resource.GetProperty("base64").GetProperty("filename").GetString() is "system-design-azure-deployment.svg" or "system-design-data-flow.svg")
+            {
+                displayed.Should().BeEmpty();
+                svg.Root!.Value.Should().Contain(resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-data-flow.svg"
+                    ? "Data flows: not recorded" : "no attached environment or exact ARM resource identity recorded");
+            }
+            else displayed.Should().BeEquivalentTo("visible", "legacy-node");
         }
         JsonSerializer.Serialize(implementation).Should().Contain("Explicit source record").And.Contain("Legacy source-only row");
     }
@@ -124,11 +131,27 @@ public sealed class SystemDesignExportTests
         {
             var image = resource.GetProperty("base64");
             var svg = XDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(image.GetProperty("value").GetString()!)));
-            svg.Root!.Value.Should().Contain("DRAFT / UNAPPROVED").And.NotContain("SOURCE ONLY");
+            svg.Root!.Value.Should().Contain("DRAFT / UNAPPROVED");
+            if (image.GetProperty("filename").GetString() == "system-design-logical.svg")
+                svg.Root.Value.Should().Contain("SOURCE ONLY InformationType").And.Contain("DM2 type: InformationData")
+                    .And.NotContain("SOURCE ONLY PpsEntry").And.NotContain("SOURCE ONLY ProfileSection");
+            else svg.Root.Value.Should().NotContain("SOURCE ONLY");
             if (image.GetProperty("filename").GetString() == "system-design-data-flow.svg")
             {
                 svg.Root.Value.Should().Contain("Data flows: not recorded").And.NotContain("Recorded structural association");
                 svg.Descendants().Where(e => e.Name.LocalName == "line").Should().BeEmpty();
+            }
+            else if (image.GetProperty("filename").GetString() == "system-design-azure-deployment.svg")
+            {
+                svg.Root.Value.Should().Contain("no attached environment or exact ARM resource identity recorded");
+                svg.Descendants().Where(e => e.Name.LocalName == "line").Should().BeEmpty();
+            }
+            else if (image.GetProperty("filename").GetString() == "system-design-network.svg")
+            {
+                svg.Root.Value.Should().Contain("Recorded structural association");
+                svg.Descendants().Where(e => e.Name.LocalName == "line").Should().HaveCount(1);
+                svg.Descendants().Where(e => e.Name.LocalName == "polygon").Should().BeEmpty();
+                svg.Root.Value.Should().Contain("Synthetic application").And.Contain("Network role: Not recorded").And.Contain("not network traffic");
             }
             else
                 svg.Root.Value.Should().Contain(relationship).And.Contain("Recorded structural association")
@@ -202,34 +225,60 @@ public sealed class SystemDesignExportTests
         // Assert
         document.Content.Should().Contain("APPROVED DESIGN application")
             .And.Contain("APPROVED DESIGN exchange").And.NotContain("DRAFT DESIGN")
-            .And.NotContain("LEGACY DRAFT architecture").And.Contain("Origin: UserAuthored; PPS source:");
+            .And.NotContain("LEGACY DRAFT architecture").And.Contain("Origin: UserAuthored; PPS source:")
+            .And.Contain("APPROVED DESIGN mission goal").And.Contain("APPROVED DESIGN desired effect")
+            .And.Contain("APPROVED DFD transformation").And.Contain("APPROVED DFD disposal")
+            .And.Contain("APPROVED NETWORK segment").And.Contain("Protocol stack: HTTPS / TLS 1.3 / TCP / IPv4")
+            .And.Contain("APPROVED SACA security functions").And.Contain("SACA role: VDSS");
         string.Join("\n", sections).Should().Contain("APPROVED DESIGN application")
             .And.NotContain("LEGACY DRAFT architecture");
         using var parsed = JsonDocument.Parse(json.OscalJson);
         var ssp = parsed.RootElement.GetProperty("system-security-plan");
         var characteristics = ssp.GetProperty("system-characteristics");
+        characteristics.GetProperty("description").GetString().Should().Contain("APPROVED DESIGN mission goal")
+            .And.Contain("Realizes");
         characteristics.GetProperty("authorization-boundary").GetProperty("description").GetString()
             .Should().Contain("APPROVED DESIGN application");
         characteristics.GetProperty("network-architecture").GetProperty("description").GetString()
-            .Should().Contain("APPROVED DESIGN application");
+            .Should().Contain("APPROVED DESIGN application").And.Contain("https://example.invalid/network-standards")
+            .And.Contain("Security control references: SC-7").And.Contain("Deployment responsibility: APPROVED SACA owner")
+            .And.Contain("https://example.invalid/saca");
         characteristics.GetProperty("data-flow").GetProperty("description").GetString()
-            .Should().Contain("APPROVED DESIGN exchange");
+            .Should().Contain("APPROVED DESIGN exchange").And.Contain("APPROVED DFD retention")
+            .And.Contain("Data lifecycle: Distribute");
+        ssp.GetProperty("system-implementation").GetProperty("users").ToString().Should().Contain("APPROVED TCCM business contact");
         ssp.GetProperty("system-implementation").GetProperty("components").ToString()
-            .Should().Contain("APPROVED DESIGN application").And.NotContain("DRAFT DESIGN");
+            .Should().Contain("APPROVED DESIGN application").And.NotContain("DRAFT DESIGN").And.NotContain("APPROVED TCCM business contact");
         var resources = ssp.GetProperty("back-matter").GetProperty("resources").EnumerateArray()
             .Where(x => x.TryGetProperty("base64", out var content) &&
                 content.GetProperty("media-type").GetString() == "image/svg+xml").ToArray();
-        resources.Should().HaveCount(4);
+        resources.Should().HaveCount(6);
         foreach (var resource in resources)
+        {
+            if (resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-azure-deployment.svg")
+            {
+                Encoding.UTF8.GetString(Convert.FromBase64String(resource.GetProperty("base64").GetProperty("value").GetString()!))
+                    .Should().Contain("SACA role: VDSS").And.Contain("APPROVED SACA security functions").And.NotContain("DRAFT DESIGN");
+                continue;
+            }
+            if (resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-context.svg")
+            {
+                var contextText = Encoding.UTF8.GetString(Convert.FromBase64String(resource.GetProperty("base64").GetProperty("value").GetString()!));
+                contextText.Should().Contain("APPROVED DESIGN external").And.Contain("Original interface flow: application").And.NotContain("DRAFT DESIGN");
+                continue;
+            }
             Encoding.UTF8.GetString(Convert.FromBase64String(resource.GetProperty("base64").GetProperty("value").GetString()!))
                 .Should().Contain("APPROVED DESIGN application").And.NotContain("DRAFT DESIGN");
+        }
         using var zip = new ZipArchive(new MemoryStream(docx));
         using var reader = new StreamReader(zip.GetEntry("word/document.xml")!.Open());
         var documentXml = await reader.ReadToEndAsync();
         documentXml.Should().Contain("APPROVED DESIGN application")
-            .And.Contain("APPROVED DESIGN exchange").And.NotContain("DRAFT DESIGN");
+            .And.Contain("APPROVED DESIGN exchange").And.Contain("APPROVED DESIGN desired effect")
+            .And.Contain("APPROVED DFD disposal").And.Contain("APPROVED NETWORK segment")
+            .And.Contain("APPROVED SACA security functions").And.NotContain("DRAFT DESIGN");
         zip.Entries.Count(x => x.FullName.StartsWith("word/media/system-design-", StringComparison.Ordinal))
-            .Should().Be(4);
+            .Should().Be(6);
         var extent = XDocument.Parse(documentXml).Descendants()
             .First(x => x.Name.LocalName == "extent");
         using var contextSvg = new StreamReader(zip.GetEntry("word/media/system-design-context.svg")!.Open());
@@ -238,9 +287,11 @@ public sealed class SystemDesignExportTests
             .Should().BeApproximately((double)svg.Attribute("width")! / (double)svg.Attribute("height")!, 0.001);
         using var pdfDocument = UglyToad.PdfPig.PdfDocument.Open(pdf);
         string.Join("\n", pdfDocument.GetPages().Select(x => x.Text))
-            .Should().Contain("APPROVED DESIGN").And.NotContain("DRAFT DESIGN");
+            .Should().Contain("APPROVED DESIGN").And.Contain("APPROVED DESIGN mission goal")
+            .And.Contain("APPROVED DFD retention").And.Contain("APPROVED NETWORK segment")
+            .And.Contain("APPROVED SACA owner").And.NotContain("DRAFT DESIGN");
         pdfDocument.GetPages().Count(page => page.Paths.Count >= 5).Should().BeGreaterThanOrEqualTo(4,
-            "each of the four SVG diagrams must produce vector graphics beyond the document header separator");
+            "the nonempty SVG diagrams must produce vector graphics beyond the document header separator");
         var validator = new OscalSchemaValidationService(Mock.Of<IEmassExportService>(),
             Mock.Of<IOscalSapExportService>(), NullLogger<OscalSchemaValidationService>.Instance);
         var validation = await validator.ValidateAsync(json.OscalJson, "ssp");
@@ -279,7 +330,7 @@ public sealed class SystemDesignExportTests
     [InlineData("UnderReview")]
     [InlineData("NeedsRevision")]
     [InlineData("Approved")]
-    public async Task WorkingPreview_EmbedsFourStableDraftDiagrams_WithSchemaValidLinks(string state)
+    public async Task WorkingPreview_EmbedsSixStableDraftDiagrams_WithSchemaValidLinks(string state)
     {
         // Arrange
         using var fixture = new DesignFixture();
@@ -309,7 +360,7 @@ public sealed class SystemDesignExportTests
         var ssp = json.RootElement.GetProperty("system-security-plan");
         var resources = ssp.GetProperty("back-matter").GetProperty("resources").EnumerateArray()
             .Where(r => r.TryGetProperty("base64", out var b) && b.GetProperty("media-type").GetString() == "image/svg+xml").ToArray();
-        resources.Should().HaveCount(4);
+        resources.Should().HaveCount(6);
         ssp.GetProperty("back-matter").ToString().Should()
             .Be(again.RootElement.GetProperty("system-security-plan").GetProperty("back-matter").ToString());
         resources.Select(r => r.GetProperty("base64").GetProperty("filename").GetString())
@@ -320,14 +371,19 @@ public sealed class SystemDesignExportTests
             resource.GetProperty("description").GetString().Should().Contain(state).And.Contain("DRAFT / UNAPPROVED");
             var bytes = Convert.FromBase64String(resource.GetProperty("base64").GetProperty("value").GetString()!);
             var svg = XDocument.Parse(Encoding.UTF8.GetString(bytes));
-            svg.Root!.Value.Should().Contain("DRAFT DESIGN secret").And.Contain("DRAFT / UNAPPROVED")
+            svg.Root!.Value.Should().Contain("DRAFT / UNAPPROVED")
                 .And.Contain("DEMO <script>alert(1)</script> & system");
+            if (resource.GetProperty("base64").GetProperty("filename").GetString() is
+                "system-design-azure-deployment.svg" or "system-design-data-flow.svg")
+                svg.Root.Value.Should().NotContain("DRAFT DESIGN secret");
+            else
+                svg.Root.Value.Should().Contain("DRAFT DESIGN secret");
             svg.Descendants().Should().NotContain(e => e.Name.LocalName == "script");
             resource.GetProperty("props").EnumerateArray().Single(p => p.GetProperty("name").GetString() == "sha-256")
                 .GetProperty("value").GetString().Should().Be(Convert.ToHexString(SHA256.HashData(bytes)));
         }
         var characteristics = ssp.GetProperty("system-characteristics");
-        var links = new List<string?> { characteristics.GetProperty("links")[0].GetProperty("href").GetString() };
+        var links = characteristics.GetProperty("links").EnumerateArray().Select(link => link.GetProperty("href").GetString()).ToList();
         foreach (var section in new[] { "authorization-boundary", "network-architecture", "data-flow" })
         {
             var diagram = characteristics.GetProperty(section).GetProperty("diagrams")[0];
@@ -382,7 +438,7 @@ public sealed class SystemDesignExportTests
         using var last = JsonDocument.Parse(after.OscalJson);
         var originals = first.RootElement.GetProperty("system-security-plan").GetProperty("back-matter").GetProperty("resources");
         var changed = last.RootElement.GetProperty("system-security-plan").GetProperty("back-matter").GetProperty("resources");
-        foreach (var index in Enumerable.Range(0, 4))
+        foreach (var index in Enumerable.Range(0, 6))
             changed[index].GetProperty("props").ToString().Should().NotBe(originals[index].GetProperty("props").ToString());
     }
 
@@ -427,15 +483,30 @@ public sealed class SystemDesignExportTests
                     new() { Id = "system-node", Label = "DEMO Design System", Kind = "System", BoundaryDisposition = "InBoundary", ReviewState = "Approved" },
                     new() { Id = "application", Label = "APPROVED DESIGN application", Kind = "SystemComponent",
                         BoundaryDisposition = "InBoundary", Environment = "Synthetic laboratory", NetworkZone = "Application",
+                        DataFlowRole = "Function", FunctionDescription = "APPROVED DFD transformation",
+                        NetworkRole = "Application", NetworkSegment = "APPROVED NETWORK segment", NetworkAddress = "10.20.0.1",
+                        SacaRole = "VDSS", SacaZone = "AzureCloud", DeploymentOwner = "APPROVED SACA owner",
+                        DeploymentEvidenceReference = "https://example.invalid/saca", DeploymentSecurityFunctions = "APPROVED SACA security functions",
                         ReviewState = "Approved", Source = new("SystemComponent", "application", "3", "Canonical", "Approved", 1, "/components/application") },
                     new() { Id = "external", Label = "APPROVED DESIGN external", Kind = "ExternalSystem",
-                        BoundaryDisposition = "OutOfBoundary", ReviewState = "Approved" }
+                        BoundaryDisposition = "OutOfBoundary", ReviewState = "Approved" },
+                    new() { Id = "goal", Label = "APPROVED DESIGN mission goal", Kind = "LogicalConstruct",
+                        Properties = new() { ["logicalType"] = "Goal", ["logicalLayer"] = "Capability",
+                            ["desiredEffect"] = "APPROVED DESIGN desired effect" } },
+                    new() { Id = "store", Label = "APPROVED DFD store", Kind = "DataFlowElement", DataFlowRole = "DataStore",
+                        BoundaryDisposition = "InBoundary", DataRetention = "APPROVED DFD retention", DisposalMethod = "APPROVED DFD disposal" },
+                    new() { Id = "tccm", Label = "APPROVED TCCM business contact", Kind = "DesignComponent", SacaRole = "TCCM",
+                        Properties = new() { ["contextEntityClass"] = "Performer" } }
                 ],
                 Edges = [new() { Id = "flow", SourceNodeId = "application", TargetNodeId = "external",
                     Purpose = "APPROVED DESIGN exchange", InformationType = "Synthetic public data",
                     Classification = "Public", Port = "443", Protocol = "TCP", Service = "HTTPS",
                     Protection = "TLS", EncryptionState = "Encrypted", BoundaryCrossing = "Yes",
-                    InterconnectionId = "connection", AgreementStatus = "Active", ReviewState = "Approved" }]
+                    InterconnectionId = "connection", AgreementStatus = "Active", ReviewState = "Approved", LifecycleStage = "Distribute",
+                    ProtocolStack = "HTTPS / TLS 1.3 / TCP / IPv4", StandardsReference = "https://example.invalid/network-standards",
+                    ConnectionMedium = "Private", SecurityControlReferences = "SC-7" },
+                    new() { Id = "realization", SourceNodeId = "application", TargetNodeId = "goal",
+                        RelationshipType = "Realizes", Purpose = "APPROVED DESIGN realizes mission goal" }]
             };
             var service = new Mock<ISystemDesignService>();
             service.Setup(x => x.GetApprovedAsync("design-system", It.IsAny<CancellationToken>()))
