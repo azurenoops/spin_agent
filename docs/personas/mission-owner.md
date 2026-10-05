@@ -68,6 +68,23 @@ permission loading never enables editing.
 
 ## Dashboard Features
 
+- **System definition → Mission** presents a **System record** with a supporting
+  sidebar for **Used in your package**, **Review & ownership**, and **Related
+  work**. The sidebar includes contribution preview, review status, last-edit and
+  approved-snapshot information, team/history links, package readiness and next
+  tasks. It sits beside the form on desktop and below it on narrow screens.
+  The record includes:
+  system name, owner, acronym, version/release, eMASS system ID, DITPR identifier,
+  responsible organization, program office/division, mission statement and
+  business purpose. Identity and identifiers are read-only registration records;
+  the owner is read-only and sourced from **System team**. Save Draft updates the
+  profile fields, not registration or role assignments. **Additional mission
+  details** retains operational justification and business functions below the
+  main card. Save, submit for ISSM review, and approve before relying on profile
+  values in the SSP. SSP generation uses the retained approved profile snapshot;
+  later drafts do not replace it. Missing identifiers remain unrecorded, not
+  fabricated authorization metadata.
+
 - **Associate CSP hosting and capabilities** is a separate guided task:
   select an authorized existing system → choose one of that system's existing
   CSP hosting allocations → select applicable published security capabilities →

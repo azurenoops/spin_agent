@@ -7,6 +7,55 @@ This document defines the dashboard component changes, new components, TypeScrip
 
 ---
 
+## Mission System Record Layout (2026-10-02)
+
+The System definition Mission tab uses one System record card matching
+the supplied reference. Its desktop rows are system name / system owner,
+system acronym / system version or release, eMASS system ID / DITPR identifier,
+and responsible organization / program office or division. Mission statement
+and business purpose follow as full-width, compact textareas. Mobile stacks
+these fields in the same reading and keyboard order.
+
+Restore the shared right-hand sidebar alongside the Mission record on desktop,
+stacked below the form on narrow screens. Match the Users reference with Used in
+your package, Review & ownership, and Related work sections, using Mission's own
+SSP contribution, section status, edit timestamp, approved snapshot, team/history,
+package readiness and next-task links. Keep preview/readiness links only in the
+sidebar, not duplicated below the form. Do not include Users-specific access
+context management or category counts on Mission.
+
+Registration supplies read-only identity and identifiers; System team supplies
+the read-only owner. Profile saves retain version, organization, office, mission,
+purpose, additional mission details and unknown existing content keys. Additional
+mission details remain available in a collapsed section outside the main card.
+Save and governance actions remain outside the card, with unchanged permission,
+review-lock and approved-baseline behavior. Do not fabricate revision metadata
+that the profile API does not return.
+
+SSP identification uses registered identity/identifiers and assigned roles;
+reviewed profile scalar snapshots supply the remaining fields to SSP generation
+and existing document builders. Later draft edits must not replace those approved
+values. Verify field retention on save/reload and actual generated SSP content.
+
+Manual acceptance: open Mission with an authorized author, compare the main card
+at desktop and mobile widths, edit/save/reload the five profile fields, and verify
+the identity and owner remain read-only. Expand Additional mission details to
+check retained entries. Submit for ISSM review, approve, then generate the SSP;
+verify recorded identity, owner and all five approved values. Save a later draft
+and verify it does not replace the approved SSP contribution. Verify under-review
+and unauthorized views remain read-only.
+
+Local verification (2026-10-02): 130 focused dashboard tests, dashboard
+`tsc --noEmit` and production build passed. Four synthetic Chromium cases passed
+at 1440px and 390px, checking column/stack geometry, 72px textareas, no horizontal
+overflow, read-only source fields, all five editable values across save/reload,
+retained additional/source keys, rejected saves and review locks. Fifty-one
+focused .NET tests passed, including actual SSP Markdown and DOCX generation
+with approved Mission values retained after all seven scalar fields are edited
+in a later draft. Browser fixtures and EF InMemory tests do not establish
+deployed SQL Server acceptance or actual eMASS submission. Human manual
+acceptance remains pending; build tooling reports warnings.
+
 ## 1. Left Sidebar Navigation — 6 New Profile Section Nav Items (FR-034)
 
 **File**: `src/Ato.Copilot.Dashboard/src/components/layout/SystemLayout.tsx`  

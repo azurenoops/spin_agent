@@ -23,6 +23,45 @@ function editUser() {
 }
 
 describe('profile draft editing', () => {
+  it('keeps only the mock fields in the System record card in reading order', () => {
+    // Arrange
+    const identity = (label: string) => <label>{label}<input readOnly value={label} /></label>;
+    const input = props({ missionIdentityFields: {
+      name: identity('System name'), owner: identity('System owner'), acronym: identity('System acronym'),
+      emass: identity('eMASS system ID'), ditpr: identity('DITPR identifier'),
+    }, initialContent: JSON.stringify({ ...original, operationalJustification: 'Retained need', businessFunctions: 'Retained functions' }) });
+    // Act
+    render(<ProfileSectionForm {...input} />);
+    const card = screen.getByRole('region', { name: 'System record' });
+    // Assert
+    expect(Array.from(card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'), field => field.labels?.[0]?.textContent)).toEqual([
+      'System name', 'System owner', 'System acronym', 'System version / release', 'eMASS system ID',
+      'DITPR identifier', 'Responsible organization', 'Program office / division', 'Mission statement', 'Business purpose',
+    ]);
+    expect(within(card).getByLabelText('Mission statement')).toHaveAttribute('rows', '3');
+    expect(within(card).queryByText(/4,000/)).not.toBeInTheDocument();
+    expect(within(card).queryByLabelText('Operational Justification')).not.toBeInTheDocument();
+    expect(screen.getByText('Additional mission details').closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByLabelText('Operational Justification')).toHaveValue('Retained need');
+    expect(screen.getByLabelText('Business Functions')).toHaveValue('Retained functions');
+    expect(within(card).queryByRole('button')).not.toBeInTheDocument();
+  });
+  it('groups Mission system-record fields and saves their SSP metadata without dropping existing content', () => {
+    // Arrange
+    const input = props();
+    render(<ProfileSectionForm {...input} />);
+    // Act
+    fireEvent.change(screen.getByLabelText('System version / release'), { target: { value: 'Reviewed release 4.2' } });
+    fireEvent.change(screen.getByLabelText('Responsible organization'), { target: { value: 'Recorded mission organization' } });
+    fireEvent.change(screen.getByLabelText('Program office / division'), { target: { value: 'Recorded program office' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    // Assert
+    expect(JSON.parse(vi.mocked(input.onSave).mock.calls[0]![0])).toEqual({
+      ...original, systemVersion: 'Reviewed release 4.2', responsibleOrganization: 'Recorded mission organization',
+      programOffice: 'Recorded program office',
+    });
+    expect(screen.getByLabelText('System version / release').closest('[data-mission-record-fields]')).not.toBeNull();
+  });
   it('edits communication context without another interface table and preserves all saved PPS rows', () => {
     // Arrange
     const pps = { id: 'pps-a', portOrRange: '443', protocol: 'TCP', serviceName: 'HTTPS',
@@ -307,8 +346,8 @@ describe('profile draft editing', () => {
     fireEvent.click(screen.getByRole('button', { name: formId ? 'Header save' : 'Save Draft' }));
     // Assert
     expect(input.onSave).toHaveBeenCalledWith('{}', undefined);
-    expect(screen.getByRole('textbox', { name: 'Mission Statement' })).not.toBeRequired();
-    expect(screen.getByRole('textbox', { name: 'Business Purpose' })).not.toBeRequired();
+    expect(screen.getByRole('textbox', { name: 'Mission statement' })).not.toBeRequired();
+    expect(screen.getByRole('textbox', { name: 'Business purpose' })).not.toBeRequired();
   });
 
   it('supports an external submit button without a duplicate Save Draft action', () => {
@@ -317,7 +356,7 @@ describe('profile draft editing', () => {
     render(<><button type="submit" form="profile-editor">Header save</button>
       <ProfileSectionForm {...input} formId="profile-editor" /></>);
     // Act
-    fireEvent.change(screen.getByRole('textbox', { name: 'Mission Statement' }), { target: { value: 'Changed mission' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Mission statement' }), { target: { value: 'Changed mission' } });
     fireEvent.click(screen.getByRole('button', { name: 'Header save' }));
     // Assert
     expect(screen.queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
@@ -330,23 +369,23 @@ describe('profile draft editing', () => {
     const { rerender } = render(<ProfileSectionForm {...input} />);
     expect(screen.getByRole('button', { name: 'Submit for Review' })).toBeEnabled();
     // Act
-    fireEvent.change(screen.getByRole('textbox', { name: 'Mission Statement' }), { target: { value: 'Changed mission' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Mission statement' }), { target: { value: 'Changed mission' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
     rerender(<ProfileSectionForm {...input} isSubmitting />);
     // Assert
-    expect(screen.getByRole('textbox', { name: 'Mission Statement' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Mission statement' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Submit for Review' })).toBeDisabled();
     // Act
     rerender(<ProfileSectionForm {...input} error="Save failed" />);
     // Assert
-    expect(screen.getByRole('textbox', { name: 'Mission Statement' })).toHaveValue('Changed mission');
+    expect(screen.getByRole('textbox', { name: 'Mission statement' })).toHaveValue('Changed mission');
     expect(screen.getByText(/Save draft changes before submitting for review/)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Submit for Review' }));
     expect(input.onSubmit).not.toHaveBeenCalled();
     // Act
     rerender(<ProfileSectionForm {...input} initialContent={JSON.stringify({ ...original, missionStatement: 'Canonical mission' })} />);
     // Assert
-    expect(screen.getByRole('textbox', { name: 'Mission Statement' })).toHaveValue('Canonical mission');
+    expect(screen.getByRole('textbox', { name: 'Mission statement' })).toHaveValue('Canonical mission');
     expect(screen.getByRole('button', { name: 'Submit for Review' })).toBeEnabled();
   });
 
@@ -354,11 +393,11 @@ describe('profile draft editing', () => {
     // Arrange
     render(<ProfileSectionForm {...props()} />);
     // Act
-    fireEvent.change(screen.getByRole('textbox', { name: 'Business Purpose' }), { target: { value: 'New purpose' } });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Business Purpose' }), { target: { value: original.businessPurpose } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Business purpose' }), { target: { value: 'New purpose' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Business purpose' }), { target: { value: original.businessPurpose } });
     // Assert
     expect(screen.getByRole('button', { name: 'Submit for Review' })).toBeEnabled();
-    expect(screen.getByRole('textbox', { name: 'Business Purpose' })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Business purpose' })).toBeVisible();
     expect(screen.getByLabelText('Operational Justification')).not.toBeVisible();
     expect(screen.getByLabelText('Business Functions')).not.toBeVisible();
     expect(screen.getByText('Additional mission details')).toBeVisible();

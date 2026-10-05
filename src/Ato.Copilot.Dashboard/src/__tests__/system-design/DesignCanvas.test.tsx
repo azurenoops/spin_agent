@@ -5,8 +5,9 @@ import type { ReactFlowProps } from '@xyflow/react';
 import DesignCanvas from '../../features/system-design/DesignCanvas';
 import { designFixture, designLayoutFixture } from './fixtures';
 import type { DesignLayout } from '../../api/systemDesign';
+import type { DesignView } from '../../features/system-design/graphAdapter';
 
-const state = vi.hoisted(() => ({ props: null as ReactFlowProps | null, fit: vi.fn(), layout: vi.fn() }));
+const state = vi.hoisted(() => ({ props: null as ReactFlowProps | null, fit: vi.fn(), layout: vi.fn(), initialized: true }));
 vi.mock('@xyflow/react', async importOriginal => ({
   ...await importOriginal<typeof import('@xyflow/react')>(),
   ReactFlowProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -14,7 +15,7 @@ vi.mock('@xyflow/react', async importOriginal => ({
     {props.nodes?.map(node => <span key={node.id}>{String(node.data.label && node.type === 'group' ? node.data.label : node.id)}</span>)}
   </div>; },
   useReactFlow: () => ({ fitView: state.fit }),
-  useNodesInitialized: () => true,
+  useNodesInitialized: () => state.initialized,
   useUpdateNodeInternals: () => vi.fn(),
   Background: () => null, Controls: () => null, MarkerType: { ArrowClosed: 'arrowclosed' },
 }));
@@ -23,25 +24,74 @@ vi.mock('../../features/system-design/graphAdapter', async importOriginal => ({
 }));
 beforeEach(() => {
   vi.clearAllMocks(); document.documentElement.classList.remove('dark');
+  state.initialized = true;
   state.layout.mockImplementation(async (nodes: { id: string }[], _edges: unknown, _view: string, positions: DesignLayout['positions']) =>
     Object.fromEntries(nodes.map((node, index) => [node.id, positions[node.id] ?? { x: index * 300, y: 80 }])));
 });
-function setup(options: { view?: 'Context' | 'Boundary' | 'Network' | 'DataFlows'; layout?: DesignLayout; pristine?: boolean; large?: boolean } = {}) {
+function setup(options: { view?: DesignView; layout?: DesignLayout; pristine?: boolean; large?: boolean } = {}) {
   const graph = designFixture();
-  if (options.large) graph.nodes = Array.from({ length: 301 }, (_, index) => ({ ...graph.nodes[0]!, id: `node-${index}` }));
+  if (options.large) graph.nodes = Array.from({ length: 301 }, (_, index) => ({ ...graph.nodes[0]!, kind: 'ExternalSystem', id: `node-${index}` }));
   const onLayout = vi.fn(); const onSelect = vi.fn(); const onInitialPositions = vi.fn(); const onConnect = vi.fn(); const onRemove = vi.fn();
   const props = { graph, view: options.view ?? 'Context' as const, layout: options.layout ?? designLayoutFixture(),
     search: '', filter: '', selected: null, editable: true, pristine: options.pristine ?? true, onLayout, onSelect, onInitialPositions, onConnect, onRemove };
   return { ...render(<DesignCanvas {...props} />), props, onLayout, onSelect, onInitialPositions, onConnect, onRemove };
 }
 describe('System design renderer adapter', () => {
+  it('labels shared Context membership as external without changing the raw recorded disposition', async () => {
+    // Arrange
+    const graph = designFixture();
+    graph.nodes[1] = { ...graph.nodes[1]!, boundaryRelationship: 'SharedService', boundaryDisposition: 'Undetermined' };
+    graph.edges.push({ ...graph.edges[0]!, id: 'membership', sourceNodeId: 'storage', targetNodeId: 'system',
+      relationshipType: 'Membership', source: { ...graph.nodes[0]!.source!, type: 'RecordedRelationship' } });
+    const result = setup();
+    // Act
+    result.rerender(<DesignCanvas {...result.props} graph={graph} />);
+    // Assert
+    await waitFor(() => expect(state.props?.nodes?.find(n => n.id === 'storage')?.className).toContain('sd-boundary-outofboundary'));
+    expect(state.props!.nodes!.find(n => n.id === 'storage')!.ariaLabel).toContain('OutOfBoundary');
+    expect(graph.nodes[1]!.boundaryDisposition).toBe('Undetermined');
+  });
+  it('shows source-only network links and toggles the overlay without writing layout or adding technical arrows', async () => {
+    // Arrange
+    const graph = designFixture();
+    graph.edges = [{ ...graph.edges[0]!, relationshipType: 'UsesService', source: { ...graph.nodes[0]!.source!, type: 'RecordedRelationship' } }];
+    const result = setup({ view: 'Network' });
+    result.rerender(<DesignCanvas {...result.props} graph={graph} />);
+    await waitFor(() => expect(state.props?.edges).toHaveLength(1));
+    // Assert
+    expect(state.props!.edges![0]!.label).toContain('not network traffic');
+    expect(state.props!.edges![0]!.markerEnd).toBeUndefined();
+    expect(state.props!.edges![0]!.style?.strokeDasharray).toBe('10 2');
+    expect(screen.getByText(/No technical network interfaces are documented/)).toBeVisible();
+    // Act
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show recorded associations (not network traffic)' }));
+    // Assert
+    await waitFor(() => expect(state.props!.edges).toHaveLength(0));
+    expect(result.onLayout).not.toHaveBeenCalled();
+    expect(graph.edges).toHaveLength(1);
+    // Act
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show recorded associations (not network traffic)' }));
+    // Assert
+    await waitFor(() => expect(state.props!.edges).toHaveLength(1));
+  });
+  it('finishes an empty Azure view without waiting forever for nonexistent node measurements', async () => {
+    // Arrange
+    state.initialized = false;
+    // Act
+    setup({ view: 'AzureDeployment' });
+    // Assert
+    expect(screen.getByText(/No attached Azure environment or exact ARM resource identity is recorded/)).toBeVisible();
+    await waitFor(() => expect(screen.getByTestId('design-canvas')).toHaveAttribute('aria-busy', 'false'));
+    expect(state.props?.nodes).toEqual([]);
+    expect(state.props?.edges).toEqual([]);
+  });
   it('preserves positions for filtered or hidden nodes when a visible node is dragged', async () => {
     // Arrange
     const result = setup({ layout: { ...designLayoutFixture(), version: 2,
       positions: { system: { x: 15, y: 20 }, storage: { x: 701, y: 333 } }, visibility: { storage: false } } });
-    await waitFor(() => expect(state.props?.nodes?.length).toBe(1));
+    await waitFor(() => expect(state.props?.nodes?.filter(node => node.type !== 'group').length).toBe(1));
     // Act
-    act(() => state.props!.onNodeDragStop?.({} as never, { ...state.props!.nodes![0]!, position: { x: 44, y: 55 } }, []));
+    act(() => state.props!.onNodeDragStop?.({} as never, { ...state.props!.nodes!.find(node => node.id === 'system')!, position: { x: 44, y: 55 } }, []));
     // Assert
     expect(result.onLayout).toHaveBeenCalledWith(expect.objectContaining({
       positions: { system: { x: 44, y: 55 }, storage: { x: 701, y: 333 } },
@@ -50,7 +100,7 @@ describe('System design renderer adapter', () => {
   it('retains measured handle geometry when the layout is recalculated for existing nodes', async () => {
     // Arrange
     const result = setup();
-    await waitFor(() => expect(state.props?.nodes?.length).toBe(2));
+    await waitFor(() => expect(state.props?.nodes?.filter(node => node.type !== 'group').length).toBe(2));
     act(() => { state.props!.onNodesChange?.([{ type: 'dimensions', id: 'system', dimensions: { width: 210, height: 90 } }]); });
     expect(state.props!.nodes!.find(node => node.id === 'system')?.measured).toEqual({ width: 210, height: 90 });
     // Act
@@ -63,7 +113,7 @@ describe('System design renderer adapter', () => {
   it('opens draft connections from handles and refuses pointer mutation in read-only mode', async () => {
     // Arrange
     const result = setup();
-    await waitFor(() => expect(state.props?.nodes?.length).toBe(2));
+    await waitFor(() => expect(state.props?.nodes?.filter(node => node.type !== 'group').length).toBe(2));
     // Act
     act(() => { state.props?.onConnect?.({ source: 'system', target: 'storage', sourceHandle: null, targetHandle: null }); });
     // Assert
@@ -89,15 +139,15 @@ describe('System design renderer adapter', () => {
   it('supports fit, layout reset, node/edge selection, keyboard selection and manual presentation updates', async () => {
     // Arrange
     const result = setup();
-    await waitFor(() => expect(state.props?.nodes?.length).toBe(2));
+    await waitFor(() => expect(state.props?.nodes?.filter(node => node.type !== 'group').length).toBe(2));
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Fit to view' }));
     act(() => {
-      state.props!.onNodeClick?.({} as never, state.props!.nodes![0]!);
+      state.props!.onNodeClick?.({} as never, state.props!.nodes!.find(node => node.id === 'system')!);
       state.props!.onEdgeClick?.({} as never, state.props!.edges![0]!);
       state.props!.onNodesChange?.([{ type: 'select', id: 'system', selected: true }]);
       state.props!.onEdgesChange?.([{ type: 'select', id: 'flow', selected: true }]);
-      state.props!.onNodeDragStop?.({} as never, { ...state.props!.nodes![0]!, position: { x: 27, y: 42 } }, []);
+      state.props!.onNodeDragStop?.({} as never, { ...state.props!.nodes!.find(node => node.id === 'system')!, position: { x: 27, y: 42 } }, []);
       state.props!.onMoveEnd?.({} as never, { x: 10, y: 20, zoom: 1.4 });
     });
     // Assert
@@ -148,7 +198,7 @@ describe('System design renderer adapter', () => {
     result.rerender(<DesignCanvas {...result.props} graph={{ ...result.props.graph,
       nodes: [...result.props.graph.nodes, ...sources] }} />);
     // Assert
-    await waitFor(() => expect(state.props?.nodes?.length).toBe(2));
+    await waitFor(() => expect(state.props?.nodes?.filter(node => node.type !== 'group').length).toBe(2));
     expect(state.layout.mock.lastCall?.[0]).toHaveLength(2);
     expect(screen.queryByText(/Interactive rendering is limited/)).not.toBeInTheDocument();
   });
@@ -161,11 +211,11 @@ describe('System design renderer adapter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry layout' }));
     // Assert
     await waitFor(() => expect(result.onLayout).toHaveBeenCalled());
-    expect(state.props!.edges![0]!.label).toBe('Mission records · TLS · User-authored');
+    expect(state.props!.edges![0]!.label).toBe('Mission records · CUI · TLS · User-authored');
     act(() => document.documentElement.classList.add('dark'));
     await waitFor(() => expect(state.props!.colorMode).toBe('dark'));
     result.rerender(<DesignCanvas {...result.props} view="Network" />);
-    await waitFor(() => expect(state.props!.edges![0]!.label).toBe('443 / TCP / HTTPS · User-authored'));
+    await waitFor(() => expect(state.props!.edges![0]!.label).toBe('TCP / 443 · HTTPS · TLS · CUI · Stack not recorded · Crossing: Unknown · User-authored'));
   });
   it('keeps hidden records explicit, can restore visibility, and preserves edge routing', async () => {
     // Arrange

@@ -117,6 +117,24 @@ public sealed partial class SystemDesignServiceTests
     }
 
     [Fact]
+    public async Task AutomaticEnvironment_SelectedResourceCarriesReadableExactDeploymentMetadata()
+    {
+        // Arrange
+        await SeedEnvironmentRelationsAsync();
+        // Act
+        var graph = await Service().GetAsync(_system);
+        // Assert
+        var resource = graph.Nodes.Single(n => n.Kind == "AzureResource");
+        resource.Label.Should().Be("selected");
+        resource.Properties["resourceType"].Should().Be("Microsoft.Storage/storageAccounts");
+        resource.Properties["resourceGroup"].Should().Be("recorded");
+        resource.Properties["subscriptionId"].Should().Be(graph.Nodes.Single(n => n.Kind == "Environment").Properties["subscriptionId"]);
+        resource.Properties["resourceId"].Should().EndWith("/storageAccounts/selected");
+        resource.BoundaryDisposition.Should().Be("Undetermined");
+        graph.Edges.Where(e => e.SourceNodeId == resource.Id).Should().OnlyContain(e => e.RelationshipType == "Containment");
+    }
+
+    [Fact]
     public async Task AutomaticEnvironment_RetirementAndUnlinkChangeFingerprint_NotSavedGraphOrApprovedAuthority()
     {
         // Arrange

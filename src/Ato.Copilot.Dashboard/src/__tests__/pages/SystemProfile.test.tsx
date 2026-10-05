@@ -244,7 +244,26 @@ describe('server-authoritative profile editing (#968)',() => {
       expect(screen.getByRole('heading', { name: recordTitle })).toBeVisible();
       expect(screen.getAllByRole('button', { name: 'Save Draft' })).toHaveLength(1);
     }
-    expect(screen.getByRole('complementary', { name: 'Document contribution and next tasks' })).toBeVisible();
+    if (type === 'MissionAndPurpose') {
+      const sidebar = screen.getByRole('complementary', { name: 'Document contribution and next tasks' });
+      expect(sidebar).toBeVisible();
+      expect(within(sidebar).getByText('Used in your package')).toBeVisible();
+      expect(within(sidebar).getByText('Review & ownership')).toBeVisible();
+      expect(within(sidebar).getByText('Related work')).toBeVisible();
+      expect(within(sidebar).getByText('SSP · System description')).toBeVisible();
+      expect(within(sidebar).getByText('Last edited: Not recorded')).toBeVisible();
+      expect(within(sidebar).getByText('Approved snapshot: Not recorded')).toBeVisible();
+      expect(within(sidebar).getByRole('link', { name: 'Review System team' })).toHaveAttribute('href', '/systems/system-a/roles');
+      expect(within(sidebar).getByRole('link', { name: 'View activity history' })).toHaveAttribute('href', '/systems/system-a/history');
+      expect(within(sidebar).getByRole('link', { name: 'Users & access' })).toHaveAttribute('href', '/systems/system-a/profile/UsersAndAccess');
+      expect(screen.getAllByRole('link', { name: 'Preview contribution' })).toHaveLength(1);
+      expect(screen.getAllByRole('link', { name: 'View package readiness' })).toHaveLength(1);
+      expect(within(sidebar).queryByRole('button', { name: 'Manage access context' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Documentation & review' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('region', { name: 'System record' })).toHaveLength(1);
+    } else {
+      expect(screen.getByRole('complementary', { name: 'Document contribution and next tasks' })).toBeVisible();
+    }
   });
 
   it('adds and saves a real user-category row through the existing single editor', async () => {

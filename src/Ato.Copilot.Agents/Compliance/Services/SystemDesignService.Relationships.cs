@@ -13,7 +13,7 @@ public sealed partial class SystemDesignService
         SystemDesignSemantics.IsSourceRecordKind(kind);
 
     private static DesignNode ClassifyNode(DesignNode node) =>
-        node with { DiagramRole = SourceRecordKind(node.Kind) ? "SourceRecord" : node.DiagramRole ?? "Architecture" };
+        node with { DiagramRole = SystemDesignSemantics.IsSourceRecordNode(node) ? "SourceRecord" : node.DiagramRole ?? "Architecture" };
 
     private static bool RecordedRelationshipType(string type) =>
         SystemDesignSemantics.IsRecordedRelationshipType(type);
@@ -126,11 +126,15 @@ public sealed partial class SystemDesignService
             var resource = nodes.SingleOrDefault(x => x.Id == id);
             if (resource is null)
             {
-                resource = new() { Id = id, Label = resourceId, Kind = "AzureResource", ProjectionStatus = "RecordedScope",
+                var parts = resourceId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                resource = new() { Id = id, Label = parts[^1], Kind = "AzureResource", ProjectionStatus = "RecordedScope",
                     Source = Source("EnvironmentResourceSelection", resourceId,
                         new { resourceId }, Link(systemId, "environment"), "Unreviewed", 7,
                         "Exact selected resource identity; no inferred discovery, connectivity or boundary approval"),
-                    Properties = new() { ["resourceId"] = resourceId }, BoundaryDisposition = "Undetermined" };
+                    Environment = environment.Environment,
+                    Properties = new() { ["resourceId"] = resourceId, ["subscriptionId"] = parts[1],
+                        ["resourceGroup"] = parts[3], ["resourceType"] = $"{parts[5]}/{string.Join("/", parts.Where((_, index) => index >= 6 && index % 2 == 0))}" },
+                    BoundaryDisposition = "Undetermined" };
                 add("Environment", resource);
             }
             edges.Add(RecordedRelationship("Containment", resource, environment, "Exact recorded resource selection", resourceId));
@@ -141,19 +145,23 @@ public sealed partial class SystemDesignService
 internal static class SystemDesignSemantics
 {
     internal static bool IsSourceRecordKind(string kind) =>
-        kind is "ProfileSection" or "PpsEntry" or "InformationType" or "LeveragedAuthorization" or "MonitoringObservation";
+        kind is "ProfileSection" or "PpsEntry" or "InformationType" or "LeveragedAuthorization" or "MonitoringObservation"
+            or "PolicyReference" or "ContextConstraint" or "BoundaryDefinition" or "AuthorizationScope" or "LogicalConstruct" or "DataFlowElement";
 
-    internal static bool IsArchitectureNode(string kind, string? diagramRole) =>
-        !IsSourceRecordKind(kind) && diagramRole != "SourceRecord";
+    internal static bool IsSourceRecordNode(DesignNode node) => IsSourceRecordKind(node.Kind)
+        || node.Properties.GetValueOrDefault("ComponentType") == "Policy";
+
+    internal static bool IsArchitectureNode(string kind, string? diagramRole, IReadOnlyDictionary<string, string?>? properties = null) =>
+        !IsSourceRecordKind(kind) && diagramRole != "SourceRecord" && properties?.GetValueOrDefault("ComponentType") != "Policy";
 
     internal static bool IsArchitectureNode(DesignNode node) =>
-        IsArchitectureNode(node.Kind, node.DiagramRole);
+        IsArchitectureNode(node.Kind, node.DiagramRole, node.Properties);
 
     internal static bool IsRecordedRelationshipType(string type) =>
-        type is "Membership" or "UsesService" or "Attachment" or "Containment" or "HostingAssociation" or "Access";
+        type is "Membership" or "UsesService" or "Attachment" or "Containment" or "HostingAssociation" or "Access" or "GovernanceAssignment" or "LogicalAssociation";
 
     // Presentation of retained graphs only. Mutation and approval additionally verify exact canonical semantics.
     internal static bool IsFlow(DesignEdge edge) =>
-        edge.RelationshipType is "DataFlow" or "Interconnection" or "UserAuthored" or "NetworkConnection" or "Dependency"
+        edge.RelationshipType is "DataFlow" or "ServiceFlow" or "ResourceFlow" or "Interconnection" or "UserAuthored" or "NetworkConnection" or "Dependency"
         || edge.RelationshipType == "Access" && edge.Source?.Type != "RecordedRelationship";
 }

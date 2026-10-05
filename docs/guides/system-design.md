@@ -1,5 +1,423 @@
 # System design: local acceptance walkthrough
 
+## PR review corrections (October 5)
+
+Context now preserves shared/separately authorized components and their
+interfaces using effective external scope even when recorded disposition is
+Undetermined and Membership exists. Styling/accessibility matches this
+effective disposition without changing the recorded source. Boundary SVG
+renders its legend and actual authorization-reference currency/dates/issuer/
+source metadata outside the Context-only block; component coverage remains
+unverified. Regression tests cover both corrections.
+
+Recipe-11 API rollout uses `ato-copilot-mcp:df6b085d-design11-dev-20261005`
+with the same API-only Compose configuration. Retain the SACA image for rollback.
+Preserve runtime/volumes/peer services and demo revision/approvals; verify
+read-only Context/Boundary rendering through 4196.
+
+PR review corrections verified: 194 targeted backend unit tests, 41
+authenticated API/native package tests, 285 Dashboard tests and all 36 current
+Mission/design desktop/mobile browser cases passed. The broader legacy System
+task walkthrough remains failing on pre-existing stale readiness assertions;
+it is not counted as passing. Builds/type-check passed with existing warnings.
+The recipe-11 API is healthy with unchanged normalized runtime configuration;
+real Context/Boundary reads on 4196 produced no page errors or design/layout
+writes, and demo revision 2 is unchanged. The two review findings are covered
+by failing-then-passing regressions.
+
+## Azure Deployment: SACA/SCCA context
+
+Select **Azure deployment** for recorded On-premises/DISN, Secure cloud access
+and Azure cloud zones, with unknown placement separate. The diagram uses your
+actual attached scope, exact ARM resources, scoped provider records and explicit
+component annotations; it does not populate a reference design or discover/
+approve a deployment from a provider name. Organization-owned/non-CSP and CSP
+sources use the same rules.
+
+Use **Add deployment component**, or edit a source-backed element, to capture
+zone, BCAP/VDSS/VDMS/CNAP/Workload/SharedService role, exact environment scope,
+owner, evidence URL and actual security functions. Describe protection at rest/
+in transit, network isolation, IAM/RBAC and monitoring as applicable. Keep
+actual technical interfaces in the existing PPS/interconnection workflow;
+source associations remain dashed nontraffic links.
+
+Use **Add TCCM performer reference** for the responsible business role, not a
+vault. [Microsoft's official SACA guidance](https://learn.microsoft.com/en-us/azure/azure-government/compliance/secure-azure-computing-architecture)
+defines TCCM as an AO-appointed individual responsible for access policy, IAM
+and the credential management plan. Key Vault may support credential functions
+but is not automatically TCCM. A design annotation grants no application role
+and does not verify the AO appointment.
+
+Recorded cloud names are `AzureUSGovernment` (Government) and `AzureCloud`
+(commercial); ARM spelling and SACA labels alone do not identify Government.
+Scope can be explicitly selected or resolved from exactly one source-owned
+Containment link. Source directory/subscription/group/region and inherited
+network/IL annotations stay attributable. Missing/ambiguous scope, missing
+roles and absent owner/evidence are gaps; review applicability rather than
+adding assumed assets. CSP attachment does not prove accepted inheritance,
+healthy monitoring, SCCA compliance, IL accreditation or an ATO.
+
+Manual acceptance: synthetic CSP-linked and standalone/hybrid systems with
+recorded BCAP, VDSS/VDMS, TCCM performer and CNAP applicability. Save/reload
+annotations, compare exact cloud scope and technical vs. nontraffic lines,
+independently review and generate SSP/OSCAL/DOCX/PDF/package. Verify actual
+role/owner/security/evidence content and source versions; later drafts must
+not alter approval. Existing placement remains until Automatic layout and
+Save presentation. Do not rebuild/save/approve shared demo records merely to
+populate the figure.
+
+SACA API rollout targets `ato-copilot-mcp:df6b085d-saca10-dev-20261005`
+through the existing API-only Compose override. Retain the October 5 Network
+links image for rollback. Compare normalized runtime environment/user/ports/
+mount fingerprint before/after replacement and preserve peer containers.
+Verify configured sign-in and read-only AzureDeployment graph/layout/UI through
+4196; do not save/build/reconcile/approve the shared demo for validation.
+
+SACA rollout verified October 5: matching API is healthy with unchanged
+normalized runtime configuration and unchanged SQL/Redis/Chat/Docker frontend
+container identities. Real Chromium configured sign-in, AzureDeployment
+graph/layout/rendering, gap notices and TCCM performer dialog succeeded on
+4196 with zero page errors and zero design/layout writes. Demo revision 2
+is unchanged: six displayed source-context nodes, five recorded associations,
+zero attached environment scopes and five missing SACA reference-role gaps.
+Its 16 available source candidates/stale sources still require user review;
+this verification does not establish an actual Azure Government deployment.
+
+143 backend tests, 41 authenticated API/native package tests, 72 Dashboard
+tests and all 30 desktop/mobile browser cases passed. Solution/type-check/
+production/Docker builds passed with existing warnings. Executable-line
+coverage: deployment selector/resolver 100%, SVG 97.12%, native document data
+96.19%, validation 92.82%; focused presentation 92.31% lines / 82.36% branches.
+Real SSP/OSCAL/DOCX/PDF assertions verify role/owner/security/evidence content;
+TCCM is exported as a user/business reference, not a computing component.
+
+## Network architecture
+
+Select **Network architecture** for recorded computing assets and technical
+interfaces. Frames name authorization design scope, environment, trust zone
+and network segment. Outside/shared/separately authorized peers stay outside;
+unknown scope stays unknown. Included design scope is not verified AO component
+coverage. All scoped computing records remain visible even without traffic.
+User endpoints appear for recorded access or actual exchanges and are not computing assets.
+Hosting associations appear as source context, not devices or invented routes.
+
+Edit the source-backed record's **Network component role**, segment/enclave,
+IP/CIDR and claimed hosting IL as governed annotations. Canonical inventory
+addresses remain available; update incorrect inventory in its owning workflow.
+Use **Add network component** only for a missing proposed asset, then reconcile
+its canonical inventory. Do not create firewalls, VPN gateways, monitoring or
+DISN links because an example or provider name mentions them.
+
+Use **Add network interface** for actual exchanges. Capture protocol/port/
+service and protection, stack, standards-profile source URL, medium, data/
+classification, boundary crossing and applicable interconnection/agreement.
+PPS and agreements remain source-owned. Stack/reference/media/control IDs
+cannot be placed on a logical/governance/hosting association to claim traffic.
+DISN and claimed IL labels do not establish connection approval/accreditation;
+control references do not prove implementation or monitoring health.
+
+Manual acceptance: use synthetic CSP-linked and standalone/non-CSP systems
+with two named scopes, local LAN/DMZ/cloud segments, inventory-backed
+server/application/store/gateway/firewall records and outside peers. Verify
+unconnected assets, segment/scope separation and direction/stack/PPS/agreements.
+Save/reload annotations, independently review and compare actual SSP/OSCAL/
+DOCX/PDF/package output. Later drafts/source changes must not alter old output.
+Existing saved placement is retained; use Automatic layout and Save
+presentation explicitly to adopt grouping. No formal SV-1/SV-2/StdV-1
+conformance is certified by the diagram alone.
+
+### When Network appears disconnected
+
+The October 5 live investigation found six saved source associations but zero
+technical flows in demo revision 2. The technical-only filter hid all six.
+Network now shows exact recorded membership, service-use and access links as
+a dashed, no-arrow overlay labeled **not network traffic**, enabled by default.
+Use **Show recorded associations (not network traffic)** to switch the overlay
+off/on without saving design or layout. Governance/logical links are excluded.
+The view prominently reports when no technical interfaces are documented.
+
+These links make recorded relationships visible; they do not fill missing
+PPS/routes or establish a technical topology. Use **Add network interface**
+only for a known exchange, with source-backed endpoint/PPS/agreement details.
+The matching SSP/native diagram distinguishes associations from technical
+traffic. Existing demo content and approval remain unchanged.
+
+Source-overlay API rollout targets
+`ato-copilot-mcp:df6b085d-network-links-dev-20261005`; retain the October 4
+Network image for rollback. Replace only the API with unchanged runtime
+environment/user/ports/volumes, then verify real Network links/toggle on 4196
+without design or layout writes.
+
+Rollout verified October 5: Network on 4196 now displays seven nodes and all
+six exact recorded associations from unchanged demo revision 2. No technical
+interfaces or traffic arrowheads were fabricated. Turning the overlay off/on
+changes visible links six → zero → six, with no design/layout writes or page
+errors. API healthy; environment/user/ports/mount contents and peer services
+unchanged (Compose reordered mount-list serialization only).
+132 backend, 41 API/native package, 69 Dashboard and 28 desktop/mobile browser
+tests passed, along with build/type-check; existing warnings remain.
+Refresh Network to see the links. Document actual interfaces separately when
+their source-backed technical details are known.
+
+Network API rollout targets `ato-copilot-mcp:df6b085d-network-dev-20261004`,
+including preceding Logical/DFD backend changes. Reuse the existing API-only
+Compose override; verify effective environment, volumes, ports and non-root
+user against the current runtime before replacement. Retain
+`ato-copilot-mcp:df6b085d-abd-dev-20261003` for rollback. Do not recreate
+SQL/Redis/Chat/Docker frontend or rebuild/save/approve shared demo designs.
+Verify actual configured sign-in, read-only graph/layout and Network UI through
+4196 before declaring rollout successful.
+
+October 4 Network rollout verified: the new API image is healthy, the exact
+runtime configuration fingerprint is unchanged, and SQL/Redis/Chat/Docker
+frontend container identities were preserved. Real Chromium configured
+development sign-in and read-only Network graph/layout/UI succeeded through
+4196 with zero page errors and zero design writes. The demo remains revision
+2, with stale sources and 16 available canonical source candidates. Reconcile/
+build from recorded information and review these explicitly; then use
+Automatic layout and Save presentation. No approved baseline was replaced.
+This successful rollout supersedes the earlier Logical/DFD Docker blockage;
+their code is included in this image. The Docker frontend on 5173 stays older.
+
+Verification: 130 backend design/Network/DFD tests, 41 authenticated API/native
+document/package tests, 67 Dashboard design tests and all 26 desktop/mobile
+browser cases passed. Type-check, solution/production builds and Docker publish
+passed with existing warnings. Executable-line coverage: Network selector
+100%, validation 92.03%, SVG renderer 96.95%; focused UI 92.72% lines /
+82.18% branches. Native outputs verify actual segment/stack/standards/control
+content, not merely artifact presence. No formal conformance certification or
+actual eMASS submission was performed.
+
+## Data flow diagram
+
+Select **Data flows** for the SV-4-aligned functional/data lifecycle view.
+Recorded exchanges retain producer-to-consumer endpoint IDs and data labels;
+inbound/outbound is relative to the system, not an instruction to reverse the
+arrow. Bidirectional exchanges show both directions. Source membership,
+hosting, CSP subscriptions, governance and logical predicates are not traffic.
+
+Edit a canonical record's **DFD role** to explicitly map a Function, DataStore
+or ExternalEntity; this annotation does not change its source or grant
+authorization. Use **Add function / data store** when the system has no owning
+functional record, and **Add data exchange** to capture an actual exchange.
+Proposed functional records are not new computing assets in the ABD. A logical
+Activity can become a DFD function only through explicit annotation.
+
+Record function/transformation description, retention and disposal for stores,
+then select the exact recorded information type and lifecycle stage (Receive,
+Process, Store, Distribute or Destroy). PPS, protections and interconnection
+requirements remain in force. A recorded information source/name/classification
+change requires review; source/destination text is never matched into a flow.
+Canonical interconnection endpoints remain unchanged. If the source records
+only a system-level interface, its exact function is a gap to document, not an
+automatically generated endpoint or transferable agreement.
+
+Frames distinguish named included design scope, external participants and
+undetermined scope. [F] function boxes, [DS] open store rectangles and [E]
+external boxes have a legend; unmapped legacy endpoints remain explicit.
+Capture missing functional/handling facts rather than populating examples.
+CSP-linked and non-CSP records follow the same rules. No DoDAF/FedRAMP/CMMC
+conformance or ATO status is asserted from a diagram.
+
+Manual acceptance: in a synthetic CSP-linked and non-CSP system, capture a
+producer, function, store and consumer with named scope and lifecycle stages.
+Save/reload, check gaps, compare Boundary/Data flows, independently review and
+generate SSP/OSCAL/DOCX/PDF/package. Verify handling details and original
+interface/source versions; later drafts must not alter approval. Adopt grouping
+through Automatic layout and Save presentation, not automatic demo writes.
+
+DFD local verification passed 121 backend tests, 41 authenticated API/native
+package tests, 65 Dashboard design tests, all 24 desktop/mobile browser cases,
+solution build, type-check and production bundle (existing warnings remain).
+Real native outputs include recorded transformations, retention/disposal and
+lifecycle; later working changes remain outside approved output.
+
+DFD live acceptance is not complete: Docker returned server errors and its
+daemon socket later timed out. The API was not updated. Browser validation used
+the production bundle on isolated port 4197 with synthetic fixtures, not live
+API data. Restore the host runtime, deploy the matching API without altering
+other services/volumes, then follow the manual acceptance steps on 4196.
+
+## Logical architecture
+
+Select **Logical architecture** on System definition > System design. The
+diagram groups actual recorded Performers, Activities, Information and Data,
+Rules, Goals, Capabilities, Services and Projects, with supporting scope
+references. Labels state type, abstraction layer and source review; the legend
+uses application symbols, not a claim of standardized DoDAF notation.
+
+Use **Add logical construct** for a missing fact. Record its name, type,
+description, layer, conditions, desired effects and source reference as
+applicable. Use **Add logical relationship** for a directed predicate and
+purpose. `Realizes` records refinement/reification; other predicates document
+performs/provides/supports/governs/enables/produces/consumes. These are not
+transport flows. Add a separate technical flow for actual exchanges, with PPS
+and interconnection evidence as applicable.
+
+Linked organization security measures and compliance roadmaps retain their
+actual meanings. They are not inferred mission effects or upgrade projects.
+CSP subscription references do not prove inheritance or implementation. Only
+an explicit matching adoption supplies its exact retained release name/detail;
+no newer release is silently substituted. Missing categories/source/layer
+facts remain review gaps; review applicability rather than adding sample data.
+
+Manual test on 4196: use a synthetic non-CSP and CSP-linked system, build or
+reconcile recorded sources, add a goal/activity/capability/service/project,
+record valid predicates, save with rationale and reload. Compare Logical to
+Boundary/Data flows: abstract constructs must not become computing resources
+or packet flows. Review independently and compare SSP/OSCAL/DOCX/PDF/package
+logical artifacts and narrative. Later drafts must not alter approved outputs.
+Use Automatic layout and Save presentation explicitly for clustered placement;
+existing saved placement and demo approval are not overwritten automatically.
+
+October 4 runtime verification is blocked: Docker returns HTTP 500 for both
+current and older daemon API endpoints; its backend reports no route to the
+guest daemon and refused guest-service connections. The worktree Vite process
+also exited with `Bus error: 10` after initially serving 4196. The underlying
+host failure has not been verified. Do not interpret this as a design/API
+validation failure, restart unrelated services to mask it, or claim the
+logical API rollout/live acceptance succeeded. The ABD image remains the last
+verified deployed API; no logical image or demo design approval was deployed.
+
+Local code verification passed 113 design backend tests, 41 authenticated
+API/native document/package tests, 63 Dashboard design unit tests, type-check,
+production Dashboard build and solution build (existing warnings remain).
+The new logical desktop/mobile capture/save/reload cases passed; subsequent
+full browser reruns were interrupted by host filesystem/runtime failures.
+These results verify local implementation/export behavior, not live deployment.
+
+## DoD authorization boundary
+
+ABD API rollout uses `ato-copilot-mcp:df6b085d-abd-dev-20261003` on the existing
+API-only Compose override. Retain the previous ATO-context image for rollback;
+preserve runtime configuration/volumes and unrelated services. Verify read-only
+boundary definition/decision references and the Boundary UI through 4196.
+Do not rebuild/save/approve the shared demo merely to populate the diagram.
+
+ABD rollout verified: API healthy with unchanged runtime configuration, and the
+real Boundary UI/legend renders against SQL Server through 4196. The demo's
+revision 2 is unchanged; two named boundary definitions are available as new
+source candidates and no authorization decision reference was present. Use
+Build from recorded information/reconciliation to review source additions;
+select recorded scopes and capture rationale/responsibility on relevant
+resources. Then use Automatic layout and Save presentation for the named-box
+layout. Do not interpret design approval or a provider link as component
+authorization coverage. The Docker frontend on 5173 remains the prior image.
+
+Use **Authorization boundary** for detailed technical scope, not the high-level
+context overview. Named boxes identify recorded scope selections. Included
+resources, external/shared/separately authorized dependencies and undetermined
+scope are distinct. People and governance references are not computing assets.
+CSP-linked and organization-managed assets use the same scope rules.
+
+Record the boundary selection, inclusion/exclusion rationale, security
+responsibility and external ownership/source reference. Shared services and
+separately authorized systems cannot be labeled as included system resources.
+Document crossing interfaces in Ports & interconnections with their actual
+purpose, data category, protocol/protection and applicable agreement.
+
+The recorded system decision and its currency are shown separately from design
+review. Existing decision records do not establish individual component coverage;
+missing scope-to-decision evidence remains a gap. Do not call a proposed or
+reviewed design an authorized baseline, or claim cATO from a diagram/provider
+association. Multiple named scopes in one system do not imply separate ATOs.
+
+ATO context API rollout: deploy `ato-copilot-mcp:df6b085d-ato-context-dev-20261003`
+with the existing API-only Compose override and unchanged runtime fingerprint.
+Retain `df6b085d-system-design6-dev-20261003` for rollback. Verify read-only graph,
+available role/policy source candidates, layout reads and real Context rendering
+through 4196; do not save/rebuild/review the shared demo design for verification.
+
+Rollout verified: the image is healthy, the existing runtime fingerprint is
+unchanged, and the real Context/constraint view renders through 4196 using normal
+configured development sign-in. No demo design/layout was saved or approved.
+The saved demo's revision 2 remains unchanged; six recorded governance contacts
+are available as new source candidates and require reconciliation/review.
+Use Build from recorded information, inspect the source proposals, then
+Automatic layout and Save presentation when you explicitly accept the new
+working view. The port-5173 Dashboard image has not been rebuilt.
+
+## ATO system context
+
+**System context** is the high-level overview of the recorded system under ATO
+review. Internal implementation details belong in Logical architecture, Boundary,
+Network and Data flows; their recorded external interactions are shown against
+the central system without changing the original endpoint records.
+
+Record external operational systems, data sources/destinations, support services
+and performers explicitly, regardless of CSP linkage. Assigned System team
+contacts are governance participants, not inferred technical flows. Linked
+policies and standards are constraint references, not infrastructure boxes.
+Use the governed editor for genuinely missing context facts, and the canonical
+team/policy/provider/interconnection workflows for their owned records.
+
+The view is SV-1-aligned supporting architecture information, not a certification
+of DoDAF compliance or an authorization decision. Missing scope, contacts,
+relationships and applicable references remain visible review gaps. Reconcile
+new source facts before relying on reviewed output; never fabricate the example
+DISA/cloud/eMASS/operational connections.
+
+Use **Add context entity** for a genuinely missing participant. Record whether
+it is a Performer or System, its Operational/SecurityCompliance/DataSource/
+SupportService category, role, organization, supported activities and source
+reference. Provider text alone does not create a CSP linkage.
+Use **Add constraint reference** for a missing authority/citation/rationale;
+prefer the Policies workflow for existing library or capability-linked records.
+Add an explicit GovernanceInteraction or ConstraintReference only for
+non-technical context; record DataFlow, ServiceFlow or ResourceFlow separately
+when an actual technical exchange is known. Existing technical flows cannot be
+relabelled to discard protection/PPS requirements.
+
+For an existing saved design, save local edits, build/reconcile recorded sources
+and inspect proposed contacts/policy changes. Source changes require review.
+Use **Automatic layout** to center the updated high-level view and **Save
+presentation** only if you want to replace the old placement. Detailed graphs
+and approved baselines remain separate. Recipe-4 outputs preserve the original
+interfaces behind the central abstraction.
+
+## October 3 API deployment
+
+The user authorized updating the local API for the Dashboard on port 4196.
+Rebuild the API from this worktree as
+`ato-copilot-mcp:df6b085d-system-design6-dev-20261003`, then replace only the
+`ato-copilot` service on its existing port 3002 using its existing resolved
+Compose configuration. Preserve runtime environment, network aliases, data/log
+volumes and credential mount. Do not restart SQL, Redis, Chat or the port-5173
+Dashboard, change tenant/role assignments or write demo design records.
+
+Retain the prior image
+`ato-copilot-mcp:main69b7e407-automatic-responsibility5173-dev-20261001`
+and its Compose files for rollback. Verify startup logs, health, unchanged
+deployment settings and real read-only Context/Logical/AzureDeployment API
+requests through the port-4196 proxy before reporting the API updated. This
+update is separate from rebuilding the port-5173 Dashboard image.
+
+Live browser verification exposed an empty-view accessibility defect: when no
+Azure environment/resource is recorded, React Flow reports no initialized nodes,
+leaving the empty canvas permanently `aria-busy`. Empty views must finish loading
+and keep their explicit missing-scope notice; do not fabricate resource nodes.
+Verification uses normal configured development sign-in in a real browser.
+Command-line cookie jars do not send the sign-in's Secure cookies over plain
+HTTP, so their default-identity authorization failures do not verify the selected
+account's actual workspace access.
+
+Deployment verification completed October 3: the API container is healthy on
+port 3002 with the new image. Runtime environment/mount/port/user fingerprints
+match the prior container; SQL, Redis, Chat and the port-5173 Dashboard retained
+their original container IDs and remain healthy. SQL Server startup and design
+schema checks passed. Real browser-managed `dev-issm` sign-in returned HTTP 200
+for the existing system graph and all six layout reads through port 4196.
+Context, Boundary and Network retained layout versions 7, 1 and 1; the other
+views returned version 0. All six real UI views rendered without browser errors
+or design/layout writes after the empty-view busy-state fix. Fifty-six focused
+Dashboard tests, strict type-check and the production bundle passed.
+
+To manually test, open `http://127.0.0.1:4196/login`, select the configured
+development ISSM (or another already-authorized identity), and open the system's
+System definition -> System design tab. The new API is deployed; the port-5173
+Dashboard image is still the prior build. No design approval or actual eMASS
+submission was performed during this deployment verification.
+
 Status: local implementation with verified canonical-source output acceptance.
 Live deployment status and remaining external gates are recorded below.
 
@@ -7,6 +425,32 @@ System design is the seventh tab in System definition. The existing Mission,
 Users, Environment & hosting, Data, Inventory & boundary, and Ports &
 interconnections tabs remain unchanged. Source records, design decisions and
 diagram placement have different owners and approval meaning.
+
+## Detailed views (October 3 follow-up)
+
+System design uses recorded information across the six definition tabs and
+attached hosting/resource records. **System context**, **Authorization boundary**,
+**Logical architecture**, **Data flow**, **Network**, and **Azure deployment**
+are different presentations of the same governed graph. Logical architecture
+focuses on components and documented dependencies; Azure deployment focuses on
+attached environments and exact selected ARM resources, not assumed discovery.
+Source records remain available even where they are not diagram boxes.
+
+Element cards display recorded type/platform, access, sensitivity, environment
+and boundary context. Connections display recorded PPS, protection and data
+details, while structural associations retain their non-traffic labels.
+Missing facts are not replaced with the sample image's illustrative HTTPS,
+mTLS, Azure OpenAI or eMASS links. Mission identifiers, release, organization and
+program office are retained alongside the existing mission/purpose sources.
+Each view has its own saved layout. Six recipe-3 SVG artifacts extend document
+output without changing retained historical packages.
+
+Initial zoom favors readable detail. Pan around larger diagrams or use **Fit to
+view** to see their entire scope. Existing saved designs may report changed
+sources after metadata enrichment: save local edits first, then **Build from
+recorded information**, inspect proposals and source gaps, and review before
+generating approved output. Do not regenerate an approved baseline from the
+working graph.
 
 ## Preparing a safe test
 
@@ -50,7 +494,7 @@ inherited control, verified encryption or authorization.
 
 Profile sections, information types, PPS and authorization reference records
 are still available under **Source records** and in generated documentation.
-They are not rendered as architecture boxes. The four views share the same
+They are not rendered as architecture boxes. The six views share the same
 server graph; Data flows excludes structural associations and explicitly says
 when no documented data exchange is recorded.
 
@@ -127,7 +571,8 @@ design workspace's general link styling.
    tab, current organization/system context, directly addressable URL and refresh.
 2. Inspect contributions for each section. A missing/unavailable source must be
    named, not replaced by mock values or an assumed relationship.
-3. Switch through Context, Boundary, Network and Data flows. Inspect nodes and
+3. Switch through System context, Authorization boundary, Logical architecture,
+   Data flows, Network architecture and Azure deployment. Inspect nodes and
    edges in the structured table and graphical view; verify matching meaning.
 4. Add an existing component by its canonical identity. Add a documented external
    system or directed data flow with source/destination, purpose, information
@@ -150,7 +595,7 @@ design workspace's general link styling.
 
 ## Review, baseline and actual output
 
-Working SSP previews now include all four SVG diagrams even before a design
+Working SSP previews now include all six SVG diagrams even before a design
 baseline has been approved, including a newly projected NotStarted graph. They
 are prominently marked **DRAFT / UNAPPROVED** and remain review-only. Save graph
 edits before requesting/refreshing the preview; unsaved browser edits are not
@@ -166,7 +611,7 @@ substitute draft artifacts for an approved baseline.
    references and baseline comparison.
 5. Generate actual SSP and OSCAL artifacts. Inspect system description,
    authorization boundary, network architecture, data flow, components/inventory,
-   information types and related source references. Inspect all four approved
+   information types and related source references. Inspect all six approved
    diagram artifacts for names, version, timestamps, legend, marking/provenance.
 6. Introduce distinctive later draft text and generate approved output again.
    The draft text must be absent; the approved version and prior export bytes

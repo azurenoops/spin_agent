@@ -96,6 +96,7 @@ public sealed partial class RealInitialPackageAcceptanceTests
         foreach (var node in retained.Graph.Nodes)
             retainedNodes.Should().Contain(JsonSerializer.Serialize(node), "structured output retains source facts even when a row is not an architecture box");
         var structuralEdges = retained.Graph.Edges.Where(e => e.Id != "synthetic-loopback").ToArray();
+        var loopback = retained.Graph.Edges.Single(e => e.Id == "synthetic-loopback");
         structuralEdges.Should().NotBeEmpty("recorded canonical membership must be assembled without manual connectors");
         var flowDescription = json.RootElement.GetProperty("system-security-plan").GetProperty("system-characteristics")
             .GetProperty("data-flow").GetProperty("description").GetString()!;
@@ -106,20 +107,46 @@ public sealed partial class RealInitialPackageAcceptanceTests
         var resources = json.RootElement.GetProperty("system-security-plan").GetProperty("back-matter")
             .GetProperty("resources").EnumerateArray().Where(r => r.TryGetProperty("base64", out var b)
                 && b.GetProperty("media-type").GetString() == "image/svg+xml").ToArray();
-        resources.Should().HaveCount(4);
+        resources.Should().HaveCount(6);
         foreach (var resource in resources)
         {
             var content = Convert.FromBase64String(resource.GetProperty("base64").GetProperty("value").GetString()!);
-            Encoding.UTF8.GetString(content).Should().Contain("SYNTHETIC APPROVED DESIGN")
-                .And.NotContain("SYNTHETIC UNAPPROVED DESIGN");
             var svg = XDocument.Parse(Encoding.UTF8.GetString(content));
+            svg.Root!.Value.Should().NotContain("SYNTHETIC UNAPPROVED DESIGN");
+            if (resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-azure-deployment.svg")
+                svg.Root.Value.Should().Contain("no attached environment or exact ARM resource identity recorded");
+            else svg.Root.Value.Should().Contain("SYNTHETIC APPROVED DESIGN");
             var displayed = svg.Descendants().Where(e => e.Attribute("data-node-id") != null)
                 .Select(e => e.Attribute("data-node-id")!.Value).ToArray();
             foreach (var node in retained.Graph.Nodes)
             {
-                if (node.DiagramRole == "SourceRecord" || node.Kind is "ProfileSection" or "PpsEntry" or "InformationType" or "LeveragedAuthorization" or "MonitoringObservation")
+                if (resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-logical.svg")
+                {
+                    if (node.Kind is "LogicalConstruct" or "InformationType" or "PolicyReference" or "ContextConstraint"
+                        or "Environment" or "BoundaryDefinition" or "AuthorizationScope"
+                        || node.DiagramRole != "SourceRecord" && node.Kind is not ("ProfileSection" or "PpsEntry" or "LeveragedAuthorization" or "MonitoringObservation"))
+                        displayed.Should().Contain(node.Id);
+                    else displayed.Should().NotContain(node.Id);
+                }
+                else if (node.DiagramRole == "SourceRecord" || node.Kind is "ProfileSection" or "PpsEntry" or "InformationType" or "LeveragedAuthorization" or "MonitoringObservation")
                     displayed.Should().NotContain(node.Id);
-                else
+                else if (resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-context.svg"
+                    && node.Kind != "System" && node.Kind != "ActorGroup" && node.Kind != "ProviderReference" && node.Kind != "Environment"
+                    && node.Properties.GetValueOrDefault("ComponentType") != "Person" && node.BoundaryDisposition != "OutOfBoundary"
+                    && (node.BoundaryDisposition == "InBoundary" || structuralEdges.Any(edge =>
+                        edge.RelationshipType == "Membership" && edge.SourceNodeId == node.Id)))
+                    displayed.Should().NotContain(node.Id);
+                else if (resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-data-flow.svg"
+                    && node.Kind != "System" && !retained.Graph.Edges.Any(edge =>
+                        edge.Id == loopback.Id && (edge.SourceNodeId == node.Id || edge.TargetNodeId == node.Id)))
+                    displayed.Should().NotContain(node.Id);
+                else if (resource.GetProperty("base64").GetProperty("filename").GetString() == "system-design-network.svg"
+                    && (node.Kind == "Environment" || node.Kind == "ActorGroup" || node.Properties.GetValueOrDefault("ComponentType") == "Person")
+                    && !retained.Graph.Edges.Any(e => (e.Id == loopback.Id || e.Source?.Type == "RecordedRelationship"
+                        && e.RelationshipType == "Access") && (e.SourceNodeId == node.Id || e.TargetNodeId == node.Id)))
+                    displayed.Should().NotContain(node.Id);
+                else if (resource.GetProperty("base64").GetProperty("filename").GetString() is not
+                    ("system-design-logical.svg" or "system-design-azure-deployment.svg"))
                     displayed.Should().Contain(node.Id);
             }
             var image = resource.GetProperty("base64");
@@ -128,15 +155,15 @@ public sealed partial class RealInitialPackageAcceptanceTests
                 svg.Root!.Value.Should().Contain("Explicit synthetic loopback-only test endpoint");
                 svg.Descendants().Count(e => e.Name.LocalName == "line").Should().Be(1);
             }
-            else
-                foreach (var edge in structuralEdges)
+            else if (image.GetProperty("filename").GetString() is not ("system-design-context.svg" or "system-design-logical.svg" or "system-design-azure-deployment.svg" or "system-design-network.svg"))
+                foreach (var edge in structuralEdges.Where(e => displayed.Contains(e.SourceNodeId) && displayed.Contains(e.TargetNodeId)))
                     svg.Root!.Value.Should().Contain(edge.RelationshipType);
             resource.GetProperty("props").EnumerateArray().Single(p => p.GetProperty("name").GetString() == "sha-256")
                 .GetProperty("value").GetString().Should().Be(Convert.ToHexString(SHA256.HashData(content)));
-            svg.Root!.Value.Should().Contain(retained.ApprovedBy).And.Contain(retained.SnapshotHash).And.Contain("recipe: 2");
+            svg.Root!.Value.Should().Contain(retained.ApprovedBy).And.Contain(retained.SnapshotHash).And.Contain("recipe: 11");
         }
         using var zip = new ZipArchive(new MemoryStream(docx));
-        zip.Entries.Count(x => x.FullName.StartsWith("word/media/system-design-", StringComparison.Ordinal)).Should().Be(4);
+        zip.Entries.Count(x => x.FullName.StartsWith("word/media/system-design-", StringComparison.Ordinal)).Should().Be(6);
         foreach (var resource in resources)
         {
             var image = resource.GetProperty("base64");

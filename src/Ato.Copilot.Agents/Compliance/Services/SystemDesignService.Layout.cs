@@ -9,7 +9,7 @@ public sealed partial class SystemDesignService
 {
     private static void View(string view)
     {
-        if (view is not ("Context" or "Boundary" or "Network" or "DataFlows"))
+        if (view is not ("Context" or "Boundary" or "Logical" or "DataFlows" or "Network" or "AzureDeployment"))
             throw new ArgumentException("Unknown design view.");
     }
     private IQueryable<SystemDesignLayoutRecord> Layouts(AtoCopilotContext db, string id, string view) =>

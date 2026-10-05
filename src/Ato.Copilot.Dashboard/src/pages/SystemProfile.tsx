@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, useId, lazy, Suspense, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useParams } from '../features/workspaces/workspaceNavigation';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { useSettings } from '../hooks/useSettings';
@@ -13,8 +13,8 @@ import SystemTaskNavigation from '../features/systems/SystemTaskNavigation';
 import SetupDialog from '../features/workspace-operations/SetupDialog';
 import { rolesApi } from '../api/roles';
 import SystemConnections from '../features/systems/SystemConnections';
-import SystemOperationalStatus from '../features/systems/SystemOperationalStatus';
 import '../features/systems/systemRecordPages.css';
+import '../features/systems/missionRecordForm.css';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
@@ -255,6 +255,13 @@ function SystemProfileSection() {
   if (!task) return <p role="alert">This system profile section is not available.</p>;
 
   const profileForm = <ProfileSectionForm
+    missionIdentityFields={sectionType === 'MissionAndPurpose' ? {
+      name: <MissionIdentity label="System name" value={detail.name} />,
+      owner: <SystemOwner systemId={systemId} />,
+      acronym: <MissionIdentity label="System acronym" value={detail.acronym} />,
+      emass: <MissionIdentity label="eMASS system ID" value={detail.emassId} hint="Required before package reconciliation" />,
+      ditpr: <MissionIdentity label="DITPR identifier" value={detail.ditprId} />,
+    } : undefined}
     systemDisplayName={detail.name}
     hideChildItems={isPorts}
     onHostingStatusChange={sectionType === 'EnvironmentAndDeployment' ? setHostingStatus : undefined}
@@ -377,15 +384,8 @@ function SystemProfileSection() {
           {isPorts && section ? <SystemConnections systemId={systemId} profile={section} profileReadOnly={isReadOnly}
             profileError={error} saving={saving} addOpen={addingProfileEntry}
             onAddClose={() => setAddingProfileEntry(false)} onCanAddChange={setCanAddConnection}
-            onSaveProfile={handleSave} /> : <div className={sectionType === 'EnvironmentAndDeployment' ? 'min-w-0' : systemPanel}>
-            {!['UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
-            {sectionType === 'MissionAndPurpose' && <div className="mb-5 grid gap-[18px] sm:grid-cols-2">
-              <label className="text-xs text-slate-600">System name<input readOnly value={detail.name ?? systemId}
-                className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
-              <SystemOwner systemId={systemId} />
-              <SystemOperationalStatus key={systemId} systemId={systemId} />
-              <p className="text-xs text-slate-500 sm:col-span-2">Identity comes from the system registration. Manage owner assignments in System team; profile saving does not change either.</p>
-            </div>}
+            onSaveProfile={handleSave} /> : <div className={sectionType === 'EnvironmentAndDeployment' || sectionType === 'MissionAndPurpose' ? 'min-w-0' : systemPanel}>
+            {!['MissionAndPurpose', 'UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
             {profileForm}
             {sectionType !== 'EnvironmentAndDeployment' && <p className="mt-4 rounded-lg bg-[#f4f5f9] p-4 text-xs leading-relaxed text-slate-700 dark:bg-slate-800 dark:text-slate-200">{task.guidance}</p>}
           </div>}
@@ -470,6 +470,7 @@ function ProfileDocumentation({ environment, children }: { environment: boolean;
 }
 
 function SystemOwner({ systemId }: { systemId: string }) {
+  const id = useId();
   const [name, setName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -486,9 +487,21 @@ function SystemOwner({ systemId }: { systemId: string }) {
     return () => { current = false; };
   }, [systemId, attempt]);
   return <div>
-    <label className="text-xs text-slate-600">System owner<input readOnly value={error ? 'Unavailable' : name ?? 'Loading owner...'}
-      className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
+    <div className="mission-identity-label">
+      <label htmlFor={id}>System owner</label>
+      <input id={id} readOnly value={error ? 'Unavailable' : name ?? 'Loading owner...'} aria-describedby={`${id}-source`} />
+      <span id={`${id}-source`}>Sourced from the System team role assignment</span>
+    </div>
     {error && <div className="mt-2 text-xs text-amber-800"><p role="alert">{error}</p>
       <button type="button" className="underline" onClick={() => setAttempt(value => value + 1)}>Retry system owner</button></div>}
+  </div>;
+}
+
+function MissionIdentity({ label, value, hint }: { label: string; value?: string | null; hint?: string }) {
+  const id = useId();
+  return <div className="mission-identity-label">
+    <label htmlFor={id}>{label}</label>
+    <input id={id} readOnly value={value ?? ''} placeholder="Not recorded" aria-describedby={hint ? `${id}-hint` : undefined} />
+    {hint && <span id={`${id}-hint`}>{hint}</span>}
   </div>;
 }

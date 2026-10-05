@@ -16,6 +16,65 @@ namespace Ato.Copilot.Tests.Unit.Services;
 public sealed class ApprovedProfileDocumentTests
 {
     [Fact]
+    public async Task MissionRecordFields_FeedGeneratedSsp_WithoutBorrowingLaterDraftValues()
+    {
+        // Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        using var services = new ServiceCollection().AddDbContext<AtoCopilotContext>(
+            o => o.UseInMemoryDatabase(databaseName)).BuildServiceProvider();
+        var factory = services.GetRequiredService<IServiceScopeFactory>();
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        db.AddRange(new RegisteredSystem
+        {
+            Id = "mission-record", Name = "Synthetic Mission System", Acronym = "SYN-M",
+            EmassId = "EMASS-SYN", DitprId = "DITPR-SYN"
+        }, new RmfRoleAssignment
+        {
+            RegisteredSystemId = "mission-record", RmfRole = RmfRole.SystemOwner,
+            UserId = "synthetic-owner", UserDisplayName = "Synthetic System Owner", IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var profile = new SystemProfileService(factory, NullLogger<SystemProfileService>.Instance);
+        var approved = new Dictionary<string, string>
+        {
+            ["systemVersion"] = "Release 4.2",
+            ["responsibleOrganization"] = "Synthetic Mission Directorate",
+            ["programOffice"] = "Synthetic Operations Division",
+            ["missionStatement"] = "Approved mission statement",
+            ["businessPurpose"] = "Approved business purpose",
+            ["operationalJustification"] = "Retained operational need",
+            ["businessFunctions"] = "Retained business functions"
+        };
+        await profile.SaveDraftAsync("mission-record", ProfileSectionType.MissionAndPurpose,
+            JsonSerializer.Serialize(approved), "synthetic-owner", RmfRole.MissionOwner);
+        await profile.SubmitForReviewAsync("mission-record", [ProfileSectionType.MissionAndPurpose],
+            "synthetic-owner", RmfRole.MissionOwner);
+        await profile.ReviewSectionAsync("mission-record", ProfileSectionType.MissionAndPurpose,
+            ReviewDecision.Approve, "synthetic-reviewer", null, RmfRole.Issm);
+        await profile.SaveDraftAsync("mission-record", ProfileSectionType.MissionAndPurpose,
+            JsonSerializer.Serialize(approved.ToDictionary(x => x.Key, x => $"UNREVIEWED-{x.Key}")),
+            "synthetic-owner", RmfRole.MissionOwner);
+
+        // Act
+        var ssp = await new SspService(factory, NullLogger<SspService>.Instance).GenerateSspAsync("mission-record");
+        var docx = await new DocumentTemplateService(factory, NullLogger<DocumentTemplateService>.Instance)
+            .RenderDocxAsync("mission-record", "ssp");
+        using var zip = new ZipArchive(new MemoryStream(docx));
+        using var reader = new StreamReader(zip.GetEntry("word/document.xml")!.Open());
+        var documentXml = await reader.ReadToEndAsync();
+
+        // Assert
+        ssp.Content.Should().Contain("Synthetic Mission System").And.Contain("SYN-M")
+            .And.Contain("EMASS-SYN").And.Contain("DITPR-SYN").And.Contain("Synthetic System Owner");
+        foreach (var (key, value) in approved)
+        {
+            ssp.Content.Should().Contain($"{key}: {value}").And.NotContain($"UNREVIEWED-{key}");
+            documentXml.Should().Contain(value).And.NotContain($"UNREVIEWED-{key}");
+        }
+    }
+
+    [Fact]
     public async Task LegacyApprovedNarrative_IsRetainedWithoutBorrowingNewDraftHalves()
     {
         // Arrange
