@@ -23,6 +23,58 @@ function editUser() {
 }
 
 describe('profile draft editing', () => {
+  it('summarizes CUI CIA privacy and retention while preserving source details', () => {
+    // Arrange
+    const row = { id: 'data-a', dataTypeName: 'Recorded security data', description: 'Recorded security documentation',
+      sensitivityClassification: 'CUI', source: 'Collectors', destination: 'Archive', applicableRegulations: 'Recorded regulations', sortOrder: 0,
+      cuiCategory: '', confidentialityImpact: 'Moderate', integrityImpact: 'Moderate', availabilityImpact: 'Low',
+      privacyApplicability: 'ReviewRequired', retentionRule: '', disposalMethod: '', categorizationReference: '', categorizationRationale: '' };
+    const input = props({ sectionType: 'DataTypes', initialContent: '{}', initialChildItems: [row] });
+    render(<ProfileSectionForm {...input} />);
+    // Assert
+    const table = screen.getByRole('table', { name: 'Information types' });
+    expect(within(table).getAllByRole('columnheader').map(c => c.textContent)).toEqual([
+      'Information type', 'Classification / CUI', 'CIA', 'Privacy & retention', 'Review', 'Open',
+    ]);
+    expect(within(table).getByText('M / M / L · declared')).toBeVisible();
+    expect(screen.getByText(/Information handling documentation is incomplete/)).toBeVisible();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Open data type Recorded security data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit data type' }));
+    fireEvent.change(screen.getByLabelText('CUI category'), { target: { value: 'Recorded systems information' } });
+    fireEvent.change(screen.getByLabelText('Retention rule'), { target: { value: 'Retain for recorded six years' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    // Assert
+    expect(input.onSave).toHaveBeenCalledWith('{}', [expect.objectContaining({
+      cuiCategory: 'Recorded systems information', retentionRule: 'Retain for recorded six years',
+      source: 'Collectors', confidentialityImpact: 'Moderate',
+    })]);
+  });
+  it('summarizes Users identity authentication data and review while capturing missing SSP details', () => {
+    // Arrange
+    const row = { ...user, identityType: 'WorkloadIdentity', privilegeLevel: 'Privileged', affiliation: 'Internal',
+      authenticationMethod: 'Managed identity', responsibleOwner: '', userLocations: 'CONUS',
+      permittedEnvironments: '', authorizedDataTypes: 'Recorded inventory metadata', governanceStatus: 'Draft' as const };
+    const input = props({ sectionType: 'UsersAndAccess', initialContent: '{}', initialChildItems: [row] });
+    render(<ProfileSectionForm {...input} />);
+    // Assert
+    const table = screen.getByRole('table', { name: 'User categories' });
+    expect(within(table).getAllByRole('columnheader').map(c => c.textContent)).toEqual([
+      'Category', 'Identity / privilege', 'Access & authentication', 'Data access', 'Review', 'Open',
+    ]);
+    expect(within(table).getByText(/Workload identity/)).toBeVisible();
+    expect(screen.getByText(/has no recorded owner or permitted environment/)).toBeVisible();
+    // Act
+    editUser();
+    fireEvent.change(screen.getByLabelText('Responsible owner'), { target: { value: 'Recorded workload owner' } });
+    fireEvent.change(screen.getByLabelText('Permitted environments'), { target: { value: 'Recorded production scope' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+    // Assert
+    expect(input.onSave).toHaveBeenCalledWith('{}', [expect.objectContaining({ responsibleOwner: 'Recorded workload owner',
+      permittedEnvironments: 'Recorded production scope', authenticationMethod: 'Managed identity' })]);
+  });
   it('keeps only the mock fields in the System record card in reading order', () => {
     // Arrange
     const identity = (label: string) => <label>{label}<input readOnly value={label} /></label>;
@@ -421,7 +473,9 @@ describe('profile draft editing', () => {
     // Assert
     expect(input.onSave).not.toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open user category Legacy category' }));
     expect(screen.getByText('Updated description')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.getByText('Save draft changes before reviewing an individual user category.')).toBeVisible();
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
@@ -509,11 +563,14 @@ describe('profile draft editing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
     rerender(<ProfileSectionForm {...input} initialChildItems={[{ ...user }]} error="Save failed" />);
     // Assert
+    fireEvent.click(screen.getByRole('button', { name: 'Open user category Legacy category' }));
     expect(screen.getByText('Unsaved description')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.getByText('Save draft changes before reviewing an individual user category.')).toBeVisible();
     // Act
     rerender(<ProfileSectionForm {...input} initialChildItems={[{ ...user, description: 'Canonical description' }]} />);
     // Assert
+    fireEvent.click(screen.getByRole('button', { name: 'Open user category Legacy category' }));
     expect(screen.getByText('Canonical description')).toBeVisible();
     expect(screen.queryByText('Save draft changes before reviewing an individual user category.')).not.toBeInTheDocument();
   });

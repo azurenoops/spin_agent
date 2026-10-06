@@ -94,9 +94,10 @@ export interface ConMonOverviewResponse {
 
 export async function getConMonOverview(
   systemId: string,
+  signal?: AbortSignal,
 ): Promise<ConMonOverviewResponse> {
   const { data } = await apiClient.get<ConMonOverviewResponse>(
-    `/systems/${systemId}/conmon`,
+    `/systems/${encodeURIComponent(systemId)}/conmon`, { signal },
   );
   return data;
 }

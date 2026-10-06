@@ -6,6 +6,138 @@
 
 Tests are mandatory, despite the older template's optional-test wording.
 
+### Focused offering drawer follow-up
+
+- [x] FD01: Verify checkout/reference/contracts and preserve staged fingerprint;
+  document the focused presentation and additive missing-source contract.
+- [x] FD02: Red selector, initial disclosure, navigation, missing-duty count,
+  pagination and permission tests before production.
+- [x] FD03: Implement source-count projection and focused shared drawer using
+  current permissions/prerequisites, preserving all maintenance actions.
+- [x] FD04: Run focused frontend/backend tests, coverage, typecheck/build,
+  desktop/mobile/keyboard fixtures and read-only live checks at 4196.
+- [ ] FD05: User manual acceptance and downstream export verification. No live
+  feature writes are authorized.
+
+FD04 fresh evidence: 257 frontend tests in eleven combined suites, 20 Chromium
+fixture scenarios at 1440px/390px, 158 backend/downstream unit checks and 13 scoped
+HTTP authorization/tenant checks pass. Explicit TypeScript and production build
+pass. Seven-file frontend coverage is 97.67% statements/lines, 88.16% branches
+and 95.74% functions; each measured file is at least 80% in all four dimensions.
+Backend async projection coverage: ProviderScopes 95.93% lines/85% branches;
+PublishedDuties 97.47% lines/90.62% branches. These are scoped, not repository-wide
+coverage gates. The first backend collector excluded async state machines; only
+the corrected wildcard-inclusive measurement is used here.
+
+Red failures reproduced absent focused action/disclosures, missing selector and
+page collector, missing published capability count/exclusions, canceled editor
+text loss, canceled-navigation focus loss and contradictory scope-projection
+wording and blank missing-source inspection labels. The edit form now remains
+mounted against its original record; the
+existing inline navigation guard restores its invoker. Independent dirty profile
+navigation remains protected by its existing guard.
+
+Live native browser at 4196 verified both retained offerings: Connect offering
+with five capabilities, and Review applicability with eight, at both viewport
+sizes. Default disclosures, source inspection, optional empty subscription links,
+Tab/Shift+Tab, safe wrapping, canceled navigation/close and focus restoration pass.
+The association receiver verified the captured offering/assignment/release and
+showed only its one allocation; no capability was selected or saved. Zero feature
+writes and JavaScript page errors during the successful inspection. Two optional
+shell onboarding GETs still return 403; they were not bypassed.
+
+API-only image `ato-copilot-mcp:focused-offering-1312bde8-20261006` is healthy.
+Runtime env/binds/ports/user fingerprint remains
+`68afa63e8e0b2eabdd1388556c77e5d260db81f6f40d80ffd55cea90659e485f`;
+Dashboard/Chat/Redis/SQL container IDs are unchanged. Docker restore first failed
+with verified NuGet TLS/EOF NU1301; the retained package-only build context then
+succeeded without dependency changes or TLS bypass. Environment response differs
+from pre-rollout only by the documented read-only count/missing/exclusion fields;
+retained entity data and both profile responses are unchanged. Post-rollout
+Environment/profile response bytes remain identical after live checks; relationship
+entity data is identical while envelope timing metadata changes.
+
+All 41 staged files retain diff SHA-256
+`f66519ec3b0a5a9e94050a6c9fd4207977b4ea7a1464d5ca4e3fe0a4636c54d1`.
+No commit, push, external write, schema change, peer service stop or live export
+was performed. Complete operational duty text/private supporting sources are not
+available in this customer projection; the drawer reports that limitation rather
+than inferring missing content. Prior Data-suite failures and the earlier transient
+instrumented SystemProfile failure are not claimed resolved.
+
+### October 6 provider/subscription register cleanup
+
+- [x] PS01: Verify checkout/staged fingerprint, read reference and current
+  source/API/server review contracts; document before production changes.
+- [x] PS02: Red tests for four-column Review, truthful prerequisites, empty
+  subscriptions, five-column Manage and input retention.
+- [x] PS03: Implement focused panels and labeled responsive rows using existing
+  mutations, permission flags, guards and source projections. Depends on PS02.
+- [x] PS04: Run combined focused suites, environment browser fixtures, strict
+  typecheck/build and read-only live desktop/mobile/keyboard checks at 4196.
+  Depends on PS03.
+- [ ] PS05: User manual acceptance and downstream SSP/eMASS export checks.
+  No live writes are authorized for this cleanup verification.
+
+PS04 evidence, October 6: 153 tests passed across eight focused frontend suites;
+eight Environment browser scenarios passed with
+`PLAYWRIGHT_BASE_URL=http://127.0.0.1:4196`. Explicit `npx tsc --noEmit` and the
+production build passed. Scoped V8 coverage: 96.09% statements/lines, 82.88%
+branches and 84.12% functions overall; individual file branch/function coverage
+is not uniformly 80% (ConnectedSystemEnvironments: 75.12%/73.68%;
+SetupDialog branches: 78%). All seven measured files exceed 80% line coverage.
+No full-suite, whole-repository coverage or downstream export gate is asserted.
+
+Native Chromium 145.0.7632.6 live checks passed at 1440px/390px: two provider
+rows, no attached subscriptions, semantic desktop headers/mobile grid labels,
+single Review, independent duties/adoption, optional links, local input retention,
+repeated Escape, Tab/Shift+Tab and focus restoration. Development identity
+simulation returned 204. Zero feature writes and page errors. Environment and
+Profile GET bytes and provider-relationship entity data were unchanged; the
+relationship envelope timestamp/execution timing changed between reads.
+Shell GETs `/api/csp/onboarding/state` and `/api/onboarding/organization-context`
+returned 403 and were not bypassed.
+
+Red evidence includes old provider columns/empty subscription table, canceled
+close retention, closed-details focus, native Escape, stale register retention,
+unconfirmed detachment and blocked-impact confirmation.
+Long-text tests also failed before the dialog wrapping fix at both viewport
+sizes, then passed with no horizontal panel overflow.
+Existing provider
+add/review/link/unlink/removal and subscription scope/access paths remain tested.
+One earlier instrumented combined run failed the SystemProfile rejected-review
+alert assertion; identical reruns and final validation passed. Its root cause was
+not investigated here. Previously disclosed eight Data-suite failures were not
+rerun or attributed to this task.
+
+Warnings: stale Browserslist data, two SignalR PURE-comment annotations, mixed
+static/dynamic auth import and large production chunk. No backend/schema change,
+API rollout, shared-service stop, commit, push or external write was performed.
+All 41 staged files remained byte-identical by staged diff SHA-256
+`f66519ec3b0a5a9e94050a6c9fd4207977b4ea7a1464d5ca4e3fe0a4636c54d1`.
+
+### October 5 System Overview journey
+
+- [x] OV01 — Verify repository, supplied mock and overview/readiness/RMF/
+  assignment/document/monitoring contracts; update spec/plan/tasks before code.
+- [x] OV02 — Red tests for retained individual findings, grouping totals,
+  pagination, actual owner filters, tenant/action restrictions and phase metadata.
+- [x] OV03 — Implement additive finding context and authorized paged work,
+  lifecycle confirmation and actual document records. Depends on OV02.
+- [x] OV04 — Red frontend tests for recorded/browsed/suggested phases, counts,
+  return state, failed refresh, owner filters, documents and milestones.
+- [x] OV05 — Implement journey overview, scoped monitoring and read-only,
+  source-pinned AI help, preserving the shell and reviewed records.
+- [ ] OV06 — Verify destination build/tests and port 4196 with matching API,
+  preserve mission/diagram behavior and data; complete manual acceptance and
+  formal regression/lint/coverage gates. Depends on OV05.
+
+The overview changes were transferred from `agents/redesign-component-details-panel`
+to this branch. [Manual instructions](../../docs/guides/system-overview-journey.md)
+and the source-worktree verification limits remain available. Current assignment
+revalidation excludes revoked/replaced/ambiguous owners from personal work;
+role suggestions are not assignments. AI help never writes accepted records.
+
 PR review follow-up: Context must use effective boundary disposition when
 collapsing membership; SharedService/SeparatelyAuthorized ownership remains
 external even when raw disposition is Undetermined. Boundary SVG authorization

@@ -737,6 +737,14 @@ export interface UserCategoryItem {
   approximateCount: number | null;
   accessMethod: string | null;
   dataSensitivityLevel: string | null;
+  identityType?: string | null;
+  privilegeLevel?: string | null;
+  affiliation?: string | null;
+  authenticationMethod?: string | null;
+  responsibleOwner?: string | null;
+  userLocations?: string | null;
+  permittedEnvironments?: string | null;
+  authorizedDataTypes?: string | null;
   sortOrder: number;
   governanceStatus?: GovernanceStatus;
   revision?: number;
@@ -767,6 +775,15 @@ export interface DataTypeItem {
   destination: string | null;
   applicableRegulations: string | null;
   sortOrder: number;
+  cuiCategory?: string | null;
+  confidentialityImpact?: string | null;
+  integrityImpact?: string | null;
+  availabilityImpact?: string | null;
+  privacyApplicability?: string | null;
+  retentionRule?: string | null;
+  disposalMethod?: string | null;
+  categorizationRationale?: string | null;
+  categorizationReference?: string | null;
 }
 
 export interface PpsItem {

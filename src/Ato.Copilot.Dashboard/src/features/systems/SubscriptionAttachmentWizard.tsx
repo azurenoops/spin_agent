@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../../api/systemEnvironments';
 import { Link } from '../workspaces/workspaceNavigation';
-import SetupDialog from '../workspace-operations/SetupDialog';
+import EnvironmentReviewDialog from './EnvironmentReviewDialog';
 import EnvironmentResourceSelection, { type ResourceSelection } from './EnvironmentResourceSelection';
 import { systemPrimaryAction, systemSecondaryAction } from './SystemTaskPresentation';
 
@@ -94,8 +94,9 @@ export default function SubscriptionAttachmentWizard({ systemId, systemName, org
     finally { writing.current = false; if (mounted.current) setPending(false); }
   };
   const scopes = workspace?.providerScopes?.filter(scope => scope.state === 'Active' && scope.relationshipId) ?? [];
-  return <SetupDialog title="Attach subscriptions" expanded busy={pending} onClose={onClose}
+  return <EnvironmentReviewDialog title="Attach subscriptions" expanded busy={pending} onClose={onClose}
     description="Attach eligible subscriptions independently of provider services. This does not grant Azure access, enable monitoring, run assessments or save deployment documentation.">
+    {requestClose => <>
     <ol aria-label="Subscription attachment steps" className="mb-5 flex flex-wrap gap-4 text-sm">
       {['Select subscriptions', 'Select system resource scope', 'Review and attach'].map((label, index) =>
         <li key={label} aria-current={step === index + 1 ? 'step' : undefined} className={step === index + 1 ? 'font-semibold text-indigo-700' : 'text-slate-500'}>{index + 1}. {label}</li>)}
@@ -161,7 +162,7 @@ export default function SubscriptionAttachmentWizard({ systemId, systemName, org
       {attempted && error && <p>No successful result has been confirmed. Retry sends the same atomic batch and replay key; it does not create another set of attachments. For a stale-version or expired-discovery error, close this dialog, refresh subscriptions and review a new selection.</p>}
     </div>}
     <div className="mt-6 flex flex-wrap gap-3">
-      <button type="button" disabled={pending} className={systemSecondaryAction} onClick={onClose}>Cancel</button>
+      <button type="button" disabled={pending} className={systemSecondaryAction} onClick={requestClose}>Cancel</button>
       {step > 1 && !attempted && <button type="button" disabled={pending} className={systemSecondaryAction} onClick={() => { setStep(value => value - 1); setError(null); }}>Back</button>}
       {step === 1 && <button type="button" disabled={pending || !selections.length || !choices?.permissions.canManageEnvironments} className={systemPrimaryAction} onClick={() => void discover()}>
         {pending ? 'Discovering resources…' : 'Select system resource scope'}</button>}
@@ -170,5 +171,6 @@ export default function SubscriptionAttachmentWizard({ systemId, systemName, org
       {step === 3 && <button type="button" disabled={pending || !acknowledged} className={systemPrimaryAction} onClick={() => void attach()}>
         {pending ? 'Attaching…' : attempted ? 'Retry remaining attachments' : 'Attach selected subscriptions'}</button>}
     </div>
-  </SetupDialog>;
+    </>}
+  </EnvironmentReviewDialog>;
 }

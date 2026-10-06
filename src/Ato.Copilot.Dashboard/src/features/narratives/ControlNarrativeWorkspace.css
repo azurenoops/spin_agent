@@ -9,6 +9,22 @@
   background: linear-gradient(135deg, #f8faff 0%, #f3f5fb 100%);
 }
 
+.cnw-first-pass,
+.cnw-first-pass-suggestion {
+  border: 1px solid var(--cnw-border, #dfe4ee);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  background: var(--cnw-accent-soft, #f0edff);
+  overflow-wrap: anywhere;
+}
+.cnw-first-pass ul { list-style: disc; padding-left: 20px; margin: 8px 0; }
+.cnw-first-pass button { margin: 8px 8px 0 0; }
+.cnw-first-pass small { display: block; overflow-wrap: anywhere; }
+.cnw-first-pass-suggestion p { white-space: pre-wrap; }
+.dark .cnw-first-pass,
+.dark .cnw-first-pass-suggestion { background: #1e293b; border-color: #475569; }
+
 .cnw-page button,
 .cnw-page input,
 .cnw-page select { font: inherit; }

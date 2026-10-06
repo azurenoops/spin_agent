@@ -46,6 +46,89 @@ and user acceptance remain pending approval.
 
 ### Mission system record and responsibility presentation
 
+### October 6: focused offering review drawer
+
+Initial review shows the selected offering/provider/system, one overall outcome,
+distinct relationship, applicability/adoption and responsibility states, and one
+contextual action with its short reason. Actions derive only from complete current
+server records and explicit permissions. Missing/failed/stale reads require
+inspection or refresh, never inferred completion or a fixed prerequisite order.
+Known backend blocker codes are readable; repeated prerequisites are grouped
+with their affected capabilities, with raw diagnostics disclosed.
+
+Published capabilities, source revisions/provenance, relationship maintenance,
+optional subscription links and removal are collapsed. Capabilities are paged,
+with each description and duty/control allocation disclosed individually.
+Missing duty content remains explicit and does not reduce the source count.
+Published applicability is not system adoption; reviewed responsibility records
+are not an authorization decision. Current capability releases are compared with
+the drawer's captured releases, never substituted into the selected source.
+In-app navigation retains system/offering/assignment/hosting-release context and
+uses the existing unsaved navigation guard. Confirmation/version/audit/tenant
+contracts and all existing actions remain unchanged.
+
+### October 6: focused provider and subscription registers
+
+Change only the two registers outside the Environment draft form. Provider rows
+contain Offering, System relationship, Responsibility review and one Review
+action. Show offering/provider/pinned release names; keep identifiers, hashes and
+revision provenance in expandable details. The focused Review panel contains
+read-only published scope/duties, current applicability/adoption prerequisites,
+canonical relationship editing, responsibility-review navigation, optional
+subscription links and guarded removal. Published allocations are not accepted
+system responsibilities or inherited coverage. Preserve draft input on canceled
+close/navigation and rejected/stale writes.
+
+Empty subscriptions show no table headers and one primary Attach subscription.
+Provider scopes do not require subscriptions. Populated subscriptions show name
+and identifier, resource scope, assessment access, monitoring and one Manage
+action, retaining resource review, source checks, monitoring navigation and
+detachment inside the existing workflows. Attachment, reviewed scope, access
+and telemetry connectivity remain separate. Desktop headers and labeled mobile
+rows must remain accessible, with keyboard focus restoration and safe long text.
+Source-projected permissions, revisions, tenant isolation, approved baselines and
+audit behavior are unchanged. Local acceptance uses port 4196; live checks are
+read-only except the explicitly authorized development identity simulation.
+
+### October 5: RMF journey System Overview
+
+The System Overview follows the supplied `ato-overview-full-page.html` reference,
+retaining the existing shell/navigation. Seven browsable RMF phases remain visible
+in both Package preparation and Monitoring & follow-up. Browsing never mutates
+the recorded phase or implies earlier completion. A default enum without explicit
+phase provenance is Not confirmed. Authorized confirmation uses the existing
+audited RMF lifecycle/gate checks, never an AI suggestion or forced transition.
+
+Overview reads the canonical purpose-bound readiness workspace and preserved
+individual validation findings, not role-derived tasks or mock counts. Server-side
+grouping uses finding/category/control/record context and existing workflow actions.
+Every finding is retained exactly once; task/group counts and finding counts are
+distinct and reconcile. Paged groups and findings avoid thousands of cards.
+Assigned to me filters only explicit recorded Person assignments. Missing owners
+are visible. A rule-based recommendation identifies a supported prerequisite,
+separately from optional AI help.
+
+Summary shows actual blocking/warning/finding totals, purpose, successful-check
+time and current/stale/unchecked/loading/failed state. Failed refresh retains
+previous successful results with an explicit failure/age label. Existing document
+records, gaps, drafts and reviews are separate from preparation/export, recorded
+manual eMASS observations and AO decisions. No preview availability is fabricated.
+Monitoring surfaces actual scoped coverage/rules/evaluations/impacts and baseline
+follow-up; enabling rules is not healthy connectivity, cATO or authorization.
+
+Read-only overview explanations, suggested focus, requirement mappings and response
+wording use the existing model client without mutation tools. Actual catalog
+statements, binding/version, current/approved narratives, evidence and selected
+provider context are captured as sources. Missing/unbound requirements reject
+mapping/draft requests with explicit questions. No overview proposal is applied
+to source responses, responsibilities or phases; application remains in the
+existing reviewed workflows. User corrections and source versions remain distinct.
+Return navigation keeps ownership/phase/section filters and expanded groups in
+the URL. All reads/writes retain tenant/action authorization and accepted baselines.
+
+This journey supersedes the earlier Guided Overview readiness presentation below.
+Existing mission, diagram, source and responsibility workflows remain intact.
+
 SACA Azure deployment follow-up: show actual On-premises/DISN, Secure cloud
 access and recorded Azure cloud zones, with explicit BCAP/VDSS/VDMS/CNAP roles,
 workloads and shared services. TCCM is an AO-appointed business performer,
@@ -230,8 +313,9 @@ current graph diagrams with explicit draft/unapproved metadata; final exports
 continue to require immutable approved design.
 
 System definition gains a seventh, directly addressable **System design** tab.
-The existing labels remain exactly Mission, Users, Environment & hosting, Data,
-Inventory & boundary, and Ports & interconnections. The new capability assembles
+The existing labels remain Mission, Users, Environment & hosting, Data,
+Components & system scope (clarified October 6 from Inventory & boundary), and
+Ports & interconnections. The new capability assembles
 canonical records server-side into Context, Boundary, Logical, Data flows,
 Network and Azure deployment;
 it does not split the six tabs or introduce a top-level design workspace.

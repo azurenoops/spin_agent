@@ -4,6 +4,7 @@ import type {
   ApplicableCapabilitiesQuery, AssociatedRelationship, AssociateRelationshipInput,
   CapabilityAdoption, CapabilityAdoptionInput, RelationshipPreview, RelationshipPreviewInput,
   RelationshipReviewInput, SystemHostingAllocation, ProviderRelationship,
+  PagedResult,
 } from './types';
 import { capabilityPage, relationshipPage } from './validation';
 
@@ -86,23 +87,28 @@ export async function listAllSystemHostingAllocations(systemId: string, signal?:
 }
 
 export async function listAllProviderRelationships(systemId: string, signal?: AbortSignal) {
-  const first = await listProviderRelationships(systemId, 1, signal);
+  return collectProviderPages(page => listProviderRelationships(systemId, page, signal),
+    item => item.assignmentId, item => item.systemId.toLowerCase() === systemId.toLowerCase(), 'Hosting allocations', signal);
+}
+
+export async function collectProviderPages<T>(read: (page: number) => Promise<PagedResult<T>>,
+  key: (item: T) => string, valid: (item: T) => boolean, label: string, signal?: AbortSignal): Promise<T[]> {
+  const first = await read(1);
   if (first.page !== 1) {
-    throw new ProviderRelationshipError('Hosting allocations are incomplete or do not match this system. Refresh and review again.');
+    throw new ProviderRelationshipError(`${label} are incomplete or do not match this system. Refresh and review again.`);
   }
   const items = [...first.items];
   let page = 1;
   while (items.length < first.total) {
     signal?.throwIfAborted();
-    const next = await listProviderRelationships(systemId, ++page, signal);
+    const next = await read(++page);
     if (next.total !== first.total || next.page !== page || next.pageSize !== first.pageSize || next.items.length === 0) {
-      throw new ProviderRelationshipError('Hosting allocations changed while loading. Refresh and review again.');
+      throw new ProviderRelationshipError(`${label} changed while loading. Refresh and review again.`);
     }
     items.push(...next.items);
   }
-  if (items.length !== first.total || new Set(items.map(item => item.assignmentId)).size !== items.length
-    || items.some(item => item.systemId.toLowerCase() !== systemId.toLowerCase())) {
-    throw new ProviderRelationshipError('Hosting allocations are incomplete or do not match this system. Refresh and review again.');
+  if (items.length !== first.total || new Set(items.map(key)).size !== items.length || items.some(item => !valid(item))) {
+    throw new ProviderRelationshipError(`${label} are incomplete or do not match this system. Refresh and review again.`);
   }
   return items;
 }

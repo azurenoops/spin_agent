@@ -43,6 +43,9 @@ internal static class WorkingProfileDocumentData
                     id = c.Id, categoryName = c.CategoryName, description = c.Description,
                     approximateCount = c.ApproximateCount, accessMethod = c.AccessMethod,
                     dataSensitivityLevel = c.DataSensitivityLevel, sortOrder = c.SortOrder,
+                    identityType = c.IdentityType, privilegeLevel = c.PrivilegeLevel, affiliation = c.Affiliation,
+                    authenticationMethod = c.AuthenticationMethod, responsibleOwner = c.ResponsibleOwner,
+                    userLocations = c.UserLocations, permittedEnvironments = c.PermittedEnvironments, authorizedDataTypes = c.AuthorizedDataTypes,
                     governanceStatus = c.GovernanceStatus.ToString(), revision = c.Revision,
                     pendingDeletion = c.PendingDeletion, approvedSnapshotId = c.ApprovedSnapshotId,
                     submittedBy = c.SubmittedBy, submittedAt = Timestamp(c.SubmittedAt),
@@ -52,7 +55,11 @@ internal static class WorkingProfileDocumentData
                 {
                     id = c.Id, dataTypeName = c.DataTypeName, description = c.Description,
                     sensitivityClassification = c.SensitivityClassification, source = c.Source, destination = c.Destination,
-                    applicableRegulations = c.ApplicableRegulations, sortOrder = c.SortOrder
+                    applicableRegulations = c.ApplicableRegulations, sortOrder = c.SortOrder,
+                    cuiCategory = c.CuiCategory, confidentialityImpact = c.ConfidentialityImpact, integrityImpact = c.IntegrityImpact,
+                    availabilityImpact = c.AvailabilityImpact, privacyApplicability = c.PrivacyApplicability,
+                    retentionRule = c.RetentionRule, disposalMethod = c.DisposalMethod, categorizationRationale = c.CategorizationRationale,
+                    categorizationReference = c.CategorizationReference
                 }),
                 ppsEntries = section.PpsEntries.OrderBy(c => c.SortOrder).ThenBy(c => c.Id).Select(c => new
                 {

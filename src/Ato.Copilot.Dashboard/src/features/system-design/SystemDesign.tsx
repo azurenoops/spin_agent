@@ -40,7 +40,7 @@ function detailLabel(value: string) {
 }
 const contributionLabels: Record<string, string> = {
   Mission: 'Mission', Users: 'Users', Environment: 'Environment & hosting', Data: 'Data',
-  InventoryBoundary: 'Inventory & boundary', PPSinterconnections: 'Ports & interconnections',
+  InventoryBoundary: 'Components & system scope', PPSinterconnections: 'Ports & interconnections',
 };
 const contributionDescriptions: Record<string, string> = {
   Mission: 'Identity and purpose', Users: 'Actors and access', Environment: 'Hosting, zones and tiers',

@@ -25,11 +25,11 @@ test.describe('System Detail / Readiness', () => {
     // Arrange
     await gotoFirstSystem(page);
     // Act
-    await page.getByRole('tab', { name: 'Readiness', exact: true }).click();
+    await page.getByRole('tab', { name: 'Package preparation', exact: true }).click();
     // Assert
-    await expect(page.getByRole('link', { name: 'Continue preparation', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Next actions for this system', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'View package readiness', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open package workspace', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'What to work on next', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Inspect canonical checks and history', exact: true })).toBeVisible();
   });
 
   test('should retain monitoring follow-up navigation', async ({ page }) => {
@@ -38,7 +38,7 @@ test.describe('System Detail / Readiness', () => {
     // Act
     await page.getByRole('tab', { name: 'Monitoring & follow-up', exact: true }).click();
     // Assert
-    await expect(page.getByRole('heading', { name: 'Maintain the reviewed baseline', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Review monitoring', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Keep your documented system current', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Review monitoring coverage', exact: true })).toBeVisible();
   });
 });

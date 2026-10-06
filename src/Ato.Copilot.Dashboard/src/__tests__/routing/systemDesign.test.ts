@@ -9,7 +9,7 @@ describe('System design navigation contract', () => {
     const labels = definition.items.map(item => item.label);
     // Assert
     expect(labels).toEqual(['Mission', 'Users', 'Environment & hosting', 'Data',
-      'Inventory & boundary', 'Ports & interconnections', 'System design']);
+      'Components & system scope', 'Ports & interconnections', 'System design']);
     expect(definition.items[6]!.path).toBe('profile/SystemDesign');
     expect(isSystemScreenActive(definition.items[6]!.path, '/systems/a/profile/SystemDesign', '', '/systems/a')).toBe(true);
     expect(SYSTEM_SCREEN_GROUPS.some(group => group.label === 'System design')).toBe(false);

@@ -13,6 +13,93 @@ This is a local integration only: no containers are replaced, no package is
 submitted and no remote branch is updated. Historical test totals below are not
 verification of this rebase; fresh targeted validation and manual acceptance are
 still required.
+## Focused provider offering review contracts
+
+The Environment drawer reads canonical relationship permissions and complete
+paged applicability for the exact system/assignment/offering. Its pure typed
+presentation selector does not create an authorization policy, infer permissions
+from visible roles, or treat published applicability as adoption. Known source
+blockers are grouped with affected capabilities and translated; raw diagnostics
+are disclosed. Captured scope-projection review flags are technical diagnostics,
+not a replacement for the canonical relationship task state.
+
+The read-only published-duty DTO adds nullable `totalCapabilities` and
+`unavailableCapabilities` (capability ID, captured name if available, exact release
+ID/revision and reason). Counts deduplicate verified matching releases and include
+missing duty content; existing valid `capabilities` semantics are unchanged.
+System scope `exclusions` comes from its exact retained hosting snapshot.
+No private citations, new schema, accepted responsibility or approved baseline
+are introduced. Older servers show count unavailable for incomplete source,
+not an invented zero. Complete operational duty/private source content remains
+unavailable unless a separately authorized source workflow supplies it.
+
+Workflow origin query keys are `offeringId`, `assignmentId` and
+`hostingScopeRevisionId`; the system remains route-bound. The receiver rechecks
+the exact active scope and release and refuses changed/missing context.
+Association choices are constrained to its assignment and revision without
+preselecting capabilities. The responsibility matrix retains the complete system
+baseline rather than silently narrowing it to the origin offering.
+
+See the [manual drawer walkthrough](../guides/system-security-capabilities.md#focused-offering-review-at-port-4196).
+Recorded review, package preparation/export, actual eMASS submission and an AO
+decision remain distinct. This follow-up's native/SSP regression tests are
+synthetic; no live package was generated or submitted.
+
+## Requirement first passes from recorded system information
+
+The control-detail requirement panel should show named parameter values, not
+OSCAL `insert: param` tokens. Source text/IDs remain available separately for
+traceability. For authorized authors, an existing selected-control draft with
+missing requirement responses/parameters prepares a source-backed AI first pass.
+The AI uses scoped entered profile/data records, applicable narrative grounding,
+retained system policies and recorded values through the existing narrative
+generator. It must not infer legal authority from a standards name or claim
+observed enforcement from declared capability/evidence metadata.
+
+Review response/parameter suggestions, their basis and remaining questions.
+Use the explicit action to fill empty fields only; existing text is preserved.
+Save as an unreviewed draft and obtain the existing independent review. AI
+generation alone creates no approval, evidence attachment or baseline addition.
+Missing source values stay readable gaps; failure/AI unavailable is visible and
+manual drafting remains possible. Server-protected provenance and source
+freshness checks prevent stale/foreign suggestion application.
+
+Manual acceptance: use a synthetic control with parameterized prose and scoped
+Mission/Data/policy records. Verify first-pass preview, preserved edits, named
+values/placeholders, source disclosures, unsupported legal-authority questions,
+explicit save/reload, separate review and actual native output. Repeat as a
+viewer and another tenant/system; no unauthorized generation/save may occur.
+
+First-pass local API rollout overlays the currently running overview image
+with `ato-copilot-mcp:requirements-firstpass-1312bde8-20261005`, preserving its
+source/runtime configuration, volumes, peers and separately staged files.
+The Dockerfile's existing package-only build context was used for cached NuGet
+archives after a real NuGet TLS/EOF restore failure; TLS was not disabled and
+no dependency version changed. Retain the current overview image for rollback.
+Verify real drawer/API behavior on 4196 without saving or approving demo data.
+
+First-pass rollout verified October 5: API healthy and normalized environment/
+user/ports/mounts unchanged; SQL/Redis/Chat/Docker frontend identities preserved.
+Real browser configured sign-in and PT-2 auto-generation on 4196 returned 200
+with five scoped records, two response drafts, zero invented parameter values
+and five questions. Source gaps, particularly legal authority/processing values,
+remain for review. Narrative version 1 is unchanged; no draft save, approval
+or evidence/baseline mutation was performed.
+
+Refresh Narratives, select PT-2 and review **First pass from your system records**.
+Inspect suggested responses, their source basis and remaining questions. Use
+**Use first pass in empty fields**, edit as needed, then explicitly save and
+obtain independent review. Original OSCAL tokens stay in source disclosure,
+not the main requirement wording. No legal authority or control satisfaction
+is inferred from a draft.
+
+Validation: 113 backend/generator/native tests, 53 API/overview tests,
+31 Dashboard tests and 8 desktop/mobile narrative cases passed with builds/
+type-check (existing warnings remain). Snapshot/history/native output retains
+AI-assistance source metadata and separates it from human review. The other
+overview changes already staged/running in this worktree remain intact; this
+task made no commits or GitHub writes.
+
 ## Control Responsibility simple-review presentation: October 2
 
 The actual Control Responsibility drawer was compared with

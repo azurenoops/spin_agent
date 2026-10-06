@@ -67,4 +67,10 @@ public sealed record RequirementCoverageSnapshot(
     string BindingId, string CatalogHash, IReadOnlyList<RequirementResponse> Responses,
     IReadOnlyDictionary<string, string> Parameters, string NarrativeHash,
     Guid AuthorPersonId, string AuthoredBy, DateTime AuthoredAt,
-    Guid? ReviewerPersonId = null, string? ReviewedBy = null, DateTime? ReviewedAt = null);
+    Guid? ReviewerPersonId = null, string? ReviewedBy = null, DateTime? ReviewedAt = null)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public RequirementFirstPassProvenance? FirstPass { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<RequirementFirstPassProvenance>? FirstPasses { get; init; }
+}

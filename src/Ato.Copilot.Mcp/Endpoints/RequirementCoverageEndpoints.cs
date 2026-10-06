@@ -25,6 +25,18 @@ public static class RequirementCoverageEndpoints
             catch (KeyNotFoundException) { return Error(404, "NOT_FOUND", "System, catalog or record is not accessible."); }
             catch (ArgumentException error) { return Error(400, "INVALID_REQUEST", error.Message); }
             catch (DbUpdateConcurrencyException) { return Error(409, "CONCURRENCY_CONFLICT", "The record changed. Reload before saving."); }
+            catch (InvalidOperationException error) when (error.Message.StartsWith("AI_NOT_AVAILABLE:", StringComparison.Ordinal))
+            {
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("RequirementCoverage")
+                    .LogWarning("Requirement first-pass AI configuration is unavailable");
+                return Error(503, "AI_NOT_AVAILABLE", error.Message);
+            }
+            catch (InvalidOperationException error) when (error.Message.StartsWith("AI_FIRST_PASS_FAILED:", StringComparison.Ordinal))
+            {
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("RequirementCoverage")
+                    .LogWarning("Requirement first-pass output or service validation failed");
+                return Error(502, "AI_FIRST_PASS_FAILED", error.Message);
+            }
             catch (InvalidOperationException error)
             {
                 context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
@@ -48,6 +60,9 @@ public static class RequirementCoverageEndpoints
         });
         group.MapGet("/{controlId}", async (string systemId, string controlId, RequirementCoverageService service, CancellationToken ct) =>
             Results.Ok(await service.ReadAsync(systemId, controlId, ct)));
+        group.MapPost("/{controlId}/first-pass", async (string systemId, string controlId, RequirementFirstPassInput input,
+            RequirementCoverageService service, CancellationToken ct) =>
+            Results.Ok(await service.GenerateFirstPassAsync(systemId, controlId, input, ct)));
         group.MapPut("/{controlId}/responses", async (string systemId, string controlId, RequirementMappingInput input,
             HttpContext http, RequirementCoverageService service, CancellationToken ct) =>
         {

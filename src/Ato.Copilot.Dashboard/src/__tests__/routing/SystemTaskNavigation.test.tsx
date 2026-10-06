@@ -31,7 +31,7 @@ describe('Systems task navigation', () => {
     </MemoryRouter>);
     // Assert
     expect(screen.getByRole('link', { name: 'Mission' })).toHaveAttribute('aria-current', 'page');
-    for (const label of ['Users', 'Environment & hosting', 'Data', 'Inventory & boundary', 'Ports & interconnections']) {
+    for (const label of ['Users', 'Environment & hosting', 'Data', 'Components & system scope', 'Ports & interconnections']) {
       expect(screen.getByRole('link', { name: label })).toBeVisible();
     }
   });

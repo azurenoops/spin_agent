@@ -198,6 +198,12 @@ box sits below the mock's main panel. Keep mutation controls authorized and
 explicit and lock dismissal during pending writes. Opening a drawer acquires no
 edit lock. Verify the actual server on port 5197, not only the Docker dashboard.
 
+**Components & system scope clarification (2026-10-06)**: The task formerly
+called Inventory & boundary keeps `S/boundaries`. Raw scope decisions, named
+definitions with unverified purpose, recorded internal groups and external/shared
+service connections remain distinct. Draft saves use governed design revision
+fencing; source definition/placement writes are explicitly immediate.
+
 **Inventory & boundary refinement (2026-09-28)**: Follow the exact boundary
 mock with a selected mission-boundary panel and compact component/scope rows,
 Review boundary as a read-only primary action, and documentation/review/source
@@ -535,7 +541,7 @@ Each row inherits:
 | Users | MO/I | `S/profile/UsersAndAccess`; reuse | Reviewed user categories/structured rows; add/edit/review | SSP users/access | 1C,4A; V,C,L |
 | Environment & hosting | MO/I | `S/profile/EnvironmentAndDeployment` plus hosting child | Deployment/profile + association; review scope/save draft | SSP environment | 2B,4A; V,C,L |
 | Data | MO/I | `S/profile/DataTypes`; reuse | Approved data types and categorization/privacy inputs; edit/review | SSP information/privacy references | 1C,4A; V,C,L |
-| Inventory & boundary | I | `S/boundaries` + inventory tab using `security-capabilities/inventory` | Boundary resources/components/placements; review/add/remove | SSP boundary/inventory | 4A; V,C,L,H |
+| Components & system scope | MO/I | `S/boundaries` + source inventory using `security-capabilities/inventory` | Governed inclusion/operator/rationale draft and review; separately labeled immediate source placement changes | Reviewed SSP scope/inventory | 4A; V,C,L,H |
 | Ports & interconnections | MO/I | `S/profile/PortsProtocolsAndServices`; connect interconnections | Reviewed structured ports/agreement records; add/review | SSP network/interface register | 1C,4A; V,C,L |
 | Categorization & baseline | I | `S/baseline`; replace UI, keep rules | Information impact and selected control set; review/select | SSP/control applicability | 4A; V,C,L |
 | Applied capabilities | MO/I | `S/security-capabilities`; reuse selected-system service | Organization placements and provider adoptions; add/apply/remove safely | SSP implementation | 2B,4A; V,C,L,H |

@@ -11,6 +11,16 @@
 
 ## Background
 
+### Source-backed AI requirement first passes (October 5)
+
+Authors should not interpret OSCAL insert syntax or manually start every
+requirement response from an empty field. Show readable source parameter
+labels/recorded values and prepare an AI draft from selected-system entered
+Mission/profile/information/privacy records, applicable narrative context and
+retained policy references. Explicitly expose missing facts and source basis.
+Preserve edits and require explicit draft save and independent review; AI must
+not invent legal authority, evidence, control satisfaction or baseline changes.
+
 ### Hierarchical table correction (2026-10-01)
 
 The approved mock requires enhancements to appear directly below their parent

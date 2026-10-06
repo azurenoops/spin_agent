@@ -85,6 +85,72 @@ async function installFixture(page: Page, baseURL: string) {
   });
 }
 
+for (const width of [1440, 390]) {
+  test(`AI requirement first pass resolves readable values and saves only on acceptance at ${width}px`, async ({ page, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    await installFixture(page, baseURL!);
+    let saved = false;
+    const requests: string[] = [];
+    const statementText = 'Determine {{ insert: param, authority }} for recorded processing.';
+    await page.route('**/api/systems/system-a/requirement-coverage/AC-2{,/**}', async intercepted => {
+      const request = intercepted.request();
+      const path = new URL(request.url()).pathname;
+      if (path.endsWith('/first-pass')) {
+        requests.push('generate');
+        return intercepted.fulfill({ json: {
+          systemId: 'system-a', controlId: 'AC-2', kind: 'Policy', expectedVersion: 3, contextHash: 'synthetic-context',
+          token: 'synthetic-protected-proof', generatedAt: '2026-10-05T18:00:00Z',
+          sources: [{ id: 'policy:a', kind: 'RetainedPolicy', title: 'Recorded system policy', version: '1',
+            contentHash: 'synthetic-hash', reviewState: 'Retained reference; review needed' }],
+          responses: [{ statementId: 'requirement-a', response: 'First pass based on recorded system information.',
+            sourceIds: ['policy:a'], explanation: 'Uses the recorded system policy.' }],
+          parameters: [{ parameterId: 'authority', value: 'Synthetic recorded authority', sourceIds: ['policy:a'], explanation: 'Copied from the synthetic retained policy.' }],
+          questions: ['Confirm this recorded authority applies to the system.'], conflicts: [],
+        } });
+      }
+      if (request.method() === 'PUT') {
+        requests.push('save');
+        const input = request.postDataJSON();
+        expect(input.firstPassToken).toBe('synthetic-protected-proof');
+        expect(input.parameters.authority).toBe('Synthetic recorded authority');
+        expect(input.responses[0].evidence).toEqual([]);
+        saved = true;
+      }
+      return intercepted.fulfill({ json: {
+        systemId: 'system-a', controlId: 'AC-2', framework: 'SYNTHETIC', catalogVersion: '1', sourceUri: 'https://example.invalid/catalog',
+        baselineRevision: 1, narrativeVersion: saved ? 4 : 3, parent: null, enhancements: [],
+        requirements: [{ id: 'requirement-a', label: 'a', text: statementText,
+          responses: saved ? [{ statementId: 'requirement-a', kind: 'Policy', response: 'First pass based on recorded system information.', evidence: [] }] : [],
+          responseState: saved ? 'Draft' : 'Missing', reviewed: false, evidenceGap: true }],
+        parameters: [{ id: 'authority', definition: '{"label":"legal authority"}' }],
+        parameterValues: saved ? { authority: 'Synthetic recorded authority' } : {}, gaps: ['Supporting evidence is still needed.'],
+        proposals: [], canAuthor: true, canReview: false, canBind: false,
+      } });
+    });
+    // Act
+    await page.goto(`${route}?view=all&control=AC-2&statement=policy`);
+    const drawer = page.getByRole('dialog', { name: 'AC-2 Account Management' });
+    // Assert
+    await expect(drawer.getByText('Determine [Legal authority — not recorded] for recorded processing.')).toBeVisible();
+    await expect(drawer.getByText('First pass based on recorded system information.', { exact: true })).toBeVisible();
+    await expect(drawer.getByRole('textbox', { name: 'Policy response for a' })).toHaveValue('');
+    expect(requests).toEqual(['generate']);
+    // Act
+    await drawer.getByRole('button', { name: 'Use first pass in empty fields' }).click();
+    // Assert
+    await expect(drawer.getByText('Determine Synthetic recorded authority for recorded processing.')).toBeVisible();
+    await expect(drawer.getByRole('textbox', { name: 'Policy response for a' })).toHaveValue('First pass based on recorded system information.');
+    expect(saved).toBe(false);
+    // Act
+    await drawer.getByRole('button', { name: 'Save requirement responses' }).click();
+    // Assert
+    await expect(drawer.getByText('Draft response — review needed')).toBeVisible();
+    expect(requests).toEqual(['generate', 'save']);
+    expect(saved).toBe(true);
+  });
+}
+
 for (const author of [false, true]) {
   for (const width of [1440, 390]) {
     test(`requirement relationships and ${author ? 'author' : 'viewer'} coverage at ${width}px`, async ({ page, baseURL }) => {
@@ -114,6 +180,13 @@ for (const author of [false, true]) {
       await page.route('**/api/systems/system-a/requirement-coverage/**', async intercepted => {
         const request = intercepted.request();
         const path = decodeURIComponent(new URL(request.url()).pathname);
+        if (path.endsWith('/first-pass')) {
+          const input = request.postDataJSON();
+          return intercepted.fulfill({ json: { systemId: 'system-a', controlId: path.includes('AC-11(1)') ? 'AC-11(1)' : 'AC-11',
+            kind: input.kind, expectedVersion: input.expectedVersion, contextHash: 'synthetic-context', token: 'synthetic-generation-proof',
+            generatedAt: '2026-10-05T18:00:00Z', sources: [], responses: [], parameters: [],
+            questions: ['No additional first-pass source facts are present in this synthetic relationship fixture.'], conflicts: [] } });
+        }
         if (request.method() === 'PUT') {
           expect(author).toBe(true);
           expect(request.postDataJSON().expectedVersion).toBe(3);
@@ -121,6 +194,7 @@ for (const author of [false, true]) {
           expect(request.headers()['x-workspace-tenant-id']).toBe('org-a');
           saved = true;
         }
+
         const enhancement = path.includes('AC-11(1)');
         return intercepted.fulfill({ json: {
           systemId: 'system-a', controlId: enhancement ? 'AC-11(1)' : 'AC-11',

@@ -16,7 +16,7 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Unit.Services;
 
-public sealed class RequirementCoverageServiceTests : IAsyncLifetime
+public sealed partial class RequirementCoverageServiceTests : IAsyncLifetime
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly Mock<ITenantContext> _tenant = new();

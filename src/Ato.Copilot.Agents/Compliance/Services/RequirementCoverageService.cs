@@ -8,13 +8,15 @@ using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Ato.Copilot.Core.Interfaces.Compliance;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
 public sealed record EnhancementAdditionInput(string ParentControlId, string ControlId,
     int ExpectedBaselineRevision, string Rationale, string? PolicyDraft, string? TechnicalDraft);
 public sealed record RequirementMappingInput(int ExpectedVersion, IReadOnlyList<RequirementResponse> Responses,
-    IReadOnlyDictionary<string, string> Parameters);
+    IReadOnlyDictionary<string, string> Parameters, string? FirstPassToken = null, IReadOnlyList<string>? FirstPassTokens = null);
 public sealed record RequirementCoverageItem(string Id, string? Label, string Text,
     IReadOnlyList<RequirementResponse> Responses, string ResponseState, bool Reviewed, bool EvidenceGap);
 public sealed record RequirementControlLink(string ControlId, string Title, bool Selected, bool HasNarrative);
@@ -26,11 +28,16 @@ public sealed record RequirementCoverageDetail(string SystemId, string ControlId
     RequirementControlLink? Parent, IReadOnlyList<RequirementControlLink> Enhancements,
     IReadOnlyList<RequirementCoverageItem> Requirements, IReadOnlyList<CatalogParameter> Parameters,
     IReadOnlyDictionary<string, string> ParameterValues, IReadOnlyList<string> Gaps,
-    IReadOnlyList<RequirementProposalSummary> Proposals, bool CanAuthor, bool CanReview, bool CanBind);
+    IReadOnlyList<RequirementProposalSummary> Proposals, bool CanAuthor, bool CanReview, bool CanBind)
+{
+    public RequirementFirstPassProvenance? FirstPass { get; init; }
+    public IReadOnlyList<RequirementFirstPassProvenance>? FirstPasses { get; init; }
+}
 
 /// <summary>Scoped requirement documentation and transactional enhancement selection.</summary>
-public sealed class RequirementCoverageService(AtoCopilotContext db, ITenantContext tenant,
-    ISystemWorkspaceAccessService accessService, ILogger<RequirementCoverageService> logger)
+public sealed partial class RequirementCoverageService(AtoCopilotContext db, ITenantContext tenant,
+    ISystemWorkspaceAccessService accessService, ILogger<RequirementCoverageService> logger,
+    IControlNarrativeService? generator = null, IDataProtectionProvider? dataProtection = null)
 {
     private Guid TenantId => tenant.EffectiveTenantId;
     private Guid PersonId => tenant.PersonId ?? throw new UnauthorizedAccessException("An authenticated person assignment is required.");
@@ -162,7 +169,7 @@ public sealed class RequirementCoverageService(AtoCopilotContext db, ITenantCont
                 p.Status == "Pending" && permissions.CanManageSystem && permissions.CanReviewNarratives
                     && p.AuthorPersonId != tenant.PersonId, p.ReviewNote)).ToArray(),
             permissions.CanAuthorNarratives, permissions.CanReviewNarratives,
-            permissions.CanManageSystem && permissions.CanReviewNarratives);
+            permissions.CanManageSystem && permissions.CanReviewNarratives) { FirstPass = snapshot?.FirstPass, FirstPasses = snapshot?.FirstPasses };
     }
 
     private async Task SaveMappingsCoreAsync(string systemId, string controlId, RequirementMappingInput input, string actor, CancellationToken ct)
@@ -198,8 +205,18 @@ public sealed class RequirementCoverageService(AtoCopilotContext db, ITenantCont
                 throw new ArgumentException("Parameter assignment must reference this catalog control and have a bounded value.");
         if (!await EvidenceValidAsync(systemId, input.Responses.SelectMany(x => x.Evidence), ct))
             throw new ArgumentException("Evidence must be a current, accessible artifact from this system with the expected content hash.");
+        if (input.FirstPassTokens is not null && (input.FirstPassToken is not null || input.FirstPassTokens.Count is < 1 or > 2
+            || input.FirstPassTokens.Any(t => t is null)))
+            throw new ArgumentException("Provide at most one verified first-pass proof per narrative type.");
+        var proofs = input.FirstPassTokens ?? (input.FirstPassToken is null ? [] : new[] { input.FirstPassToken });
+        var provenance = new List<RequirementFirstPassProvenance>();
+        foreach (var proof in proofs)
+            provenance.Add(await ValidateFirstPassProofAsync(systemId, control.DisplayId, input.ExpectedVersion, proof, ct));
+        if (provenance.Select(p => p.Kind).Distinct().Count() != provenance.Count)
+            throw new ArgumentException("Duplicate first-pass narrative types are not allowed.");
         var snapshot = new RequirementCoverageSnapshot(binding.Id, binding.ContentHash, input.Responses,
-            input.Parameters, NarrativeHash(implementation), PersonId, actor, DateTime.UtcNow);
+            input.Parameters, NarrativeHash(implementation), PersonId, actor, DateTime.UtcNow)
+        { FirstPass = provenance.Count == 1 ? provenance[0] : null, FirstPasses = provenance.Count > 1 ? provenance : null };
         implementation.RequirementCoverageJson = JsonSerializer.Serialize(snapshot, Json);
         AppendVersion(implementation, actor, "Saved explicit requirement mappings; content remains unreviewed.");
         await db.SaveChangesAsync(ct);

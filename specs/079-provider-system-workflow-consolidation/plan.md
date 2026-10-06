@@ -71,6 +71,113 @@ review, no new agent/tool, no external writes. Scope-use entries are necessary
 because provider-service consumption and infrastructure containment are different
 facts; reusing immediate boundary mutation would violate baseline preservation.
 No new feature/issue hierarchy is created without the user's approved GitHub write.
+### Focused offering drawer follow-up
+
+Read canonical relationship permissions and complete paged applicability once
+per selected drawer; reuse the existing validated request layer and page fencing.
+Extract a typed, pure presentation selector, not a new authorization policy.
+Keep relationship editing inline and all retained mutations in secondary
+disclosures. Use same-tab guarded links carrying the captured offering,
+assignment and hosting release. Add read-only total/missing-capability metadata
+to published duties because malformed duty content is currently omitted; retain
+the existing Capabilities semantics for downstream consumers. Also project exact
+hosting-scope exclusions from the retained hosting snapshot, not current working
+provider records or private citations. No schema changes.
+TDD covers states, known diagnostics, pagination, permissions and retained actions;
+then focused frontend/backend, TypeScript/build, synthetic 1440/390 keyboard
+checks and read-only live verification at 4196. API-only rollout, if required,
+must preserve runtime configuration and peers. User acceptance/export gates stay
+open; no external writes. Existing issue linkage/approval limits are unchanged.
+
+Native same-tab acceptance exposed a coupled focus gap: the inline navigation
+guard removes its Keep editing button without restoring the initiating drawer
+link. Add a failing browser regression before restoring focus in the retained
+guard, so subsequent Escape/Tab remain inside the drawer. Do not replace the
+guard or weaken unsaved-input protection.
+
+The Environment scope projection and canonical relationship task can report
+different review flags. The selector uses the canonical relationship DTO and
+explicit task permissions; retain the captured scope projection's flag only as
+labeled technical diagnostics, not a second contradictory relationship status.
+
+### October 6 register cleanup
+
+Frontend-only: reuse SystemEnvironments projections, provider relationship
+preview/review operations, paged applicability API, responsibility matrix route,
+SetupDialog and existing navigation guard. No schema, backend, dependencies or
+shared-runtime changes. Keep all 41 staged Overview files and existing unstaged
+Mission/design/AI/Users/Data/scope/Environment work. Use one parent dialog with
+inline close/navigation confirmation, never a second modal for relationship
+editing. Responsibility/adoption routes open separately without losing input.
+Use narrowly scoped shared register CSS for mobile labeled reflow. TDD before
+production; combined provider/subscription/profile tests, affected guard tests,
+environment Playwright at 4196, strict TypeScript and production build. Preserve
+live GET bytes before/after, record feature writes and page errors. Manual
+acceptance and downstream export revalidation remain separate gates.
+
+Constitution: existing authorization/version/audit contracts retained; no
+complexity exception. No GitHub writes or issue creation without approval.
+
+Focused browser validation exposed a coupled keyboard-trap defect: Chromium
+returns layout rectangles for a textarea under closed details, but the control
+is not visible/focusable. Add a red regression and use native visibility checks
+in the existing SetupDialog focus filter; preserve its fallback for test DOMs.
+Native live verification also reproduced a repeated-Escape dismissal after
+Keep editing at 390px. Prevent the Escape key's native close-watcher default
+before invoking the existing guarded close handler; retain native cancel-event
+handling and respect child widgets that already consume Escape.
+The opened provider panel retains its exact read snapshot during register
+refresh or failure, keeping local input mounted. Block mutations while the
+current register cannot be verified; retain original expected revisions rather
+than rebasing input silently onto a changed source.
+Relocated Manage-operation tests require explicit impact blockers and exact
+server-confirmed detachment, not HTTP success alone. Reuse the provider impact
+blocker predicate for subscription detachment/scope review, retain rationale on
+failures, reject expired previews and fence replay keys to the exact intent.
+These are frontend guards over unchanged backend contracts.
+Exact 1440px/390px long-text tests reproduced horizontal overflow inside the
+review panel for 180-260-character unbroken names/source metadata, despite the
+register itself wrapping correctly. Scope overflow-wrap to Environment review
+dialogs, including their headings/descriptions, rather than hiding overflow.
+
+### October 5 System Overview implementation
+
+The uncommitted overview implementation was transferred from
+`agents/redesign-component-details-panel` into
+`agents/mission-tab-form-cleanup-ssp` for the existing port 4196 preview.
+Keep the destination's mission/diagram changes and existing shared data intact.
+The previous guided-overview presentation is superseded; source/edit workflows
+and historical verification notes remain retained.
+
+1. Extend retained readiness check JSON additively with individual finding IDs and
+   source-qualified control context. Keep legacy runs identifiable when raw
+   findings are unavailable; never reinterpret check counts as findings.
+2. Add authenticated read-only paged work-group/finding projection over selected
+   readiness runs. Resolve existing workflow actions and explicit current owners.
+   Reconcile totals and supported system-design prerequisite priority server-side.
+3. Read explicit RMF provenance alongside the existing enum. Expose an authorized,
+   revision-fenced phase action through the audited lifecycle without forced
+   gates; browsing is presentation only. Document records do not imply approvals.
+4. Replace the overview with persistent journey, compact summary, paged work,
+   ownership filters, documentation and separate milestones. Retain successful
+   results on failures and preserve URL return context.
+5. Use read-only model calls for explanations/focus/mapping/response suggestions,
+   actual catalog/narrative/evidence/provider sources, versions and questions.
+   Never apply proposals, overwrite corrections or duplicate approval lifecycles.
+6. Reuse scoped monitoring coverage/rules/evaluations/impacts, without implying
+   live collection, approved baseline coverage, cATO or authorization.
+
+Source-worktree verification: 113 focused Dashboard tests, 58 scoped HTTP tests,
+198 downstream unit checks and nine overview browser scenarios passed. Full
+.NET unit run passed 8,126; builds and TypeScript passed with recorded warnings.
+Broader regression, lint and 100% modified-path gates remain open; transfer
+verification must be performed on this destination branch, not inferred.
+See [manual acceptance](../../docs/guides/system-overview-journey.md).
+
+Constitution: additive JSON, existing authorization and review services, no new
+tables or dependencies. Target branch code and shared runtime/data must be
+preserved. No external issue writes or pushes without approval.
+
 ### SACA/SCCA-aware Azure deployment delivery
 
 Use a pure selector and scoped environment resolver over existing canonical

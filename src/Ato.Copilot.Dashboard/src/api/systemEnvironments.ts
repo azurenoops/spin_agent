@@ -69,6 +69,7 @@ export interface SystemEnvironmentsResponse {
 }
 export interface SystemProviderScope {
   providerId?: string; hostingScopeRevision?: number;
+  exclusions?: { scope: ProviderScope; rationale: string }[];
   publishedDuties?: ProviderScopePublishedDuties;
   responsibilityReview?: ProviderScopeResponsibilityReview;
   assignmentId: string; assignmentVersion: number; relationshipId: string | null;
@@ -86,6 +87,9 @@ export interface SystemProviderScopeChoice {
 }
 export interface ProviderScopePublishedDuties {
   state: 'Available' | 'Unavailable'; capabilities: ProviderScopeCapabilityDuties[]; reason: string | null;
+  totalCapabilities?: number | null;
+  unavailableCapabilities?: { capabilityId: string; capabilityName: string | null; releaseId: string;
+    releaseRevision: number; reason: string }[];
 }
 export interface ProviderScopeCapabilityDuties {
   capabilityId: string; capabilityName: string; description: string | null;

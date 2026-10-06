@@ -28,6 +28,10 @@ import '../helpers/dialog';
 
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({ useWorkspaceSession: vi.fn() }));
 vi.mock('../../components/layout/SystemLayout', () => ({ useSystemContext: () => ({ detail: systemDetail }) }));
+vi.mock('../../features/systems/GovernedBoundaryInventory', () => ({
+  default: ({ children, renderHeading }: { children: React.ReactNode; renderHeading?: (actions: React.ReactNode) => React.ReactNode }) =>
+    <>{renderHeading?.(null)}{children}</>,
+}));
 vi.mock('../../hooks/usePolling', async () => {
   const { useEffect } = await import('react');
   return { usePolling: (fn: () => void) => useEffect(() => { fn(); }, [fn]) };
@@ -120,7 +124,7 @@ function page(kind: keyof typeof pages, legacy = false) {
 }
 
 async function openBoundary() {
-  if (!screen.queryByRole('dialog')) fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+  if (!screen.queryByRole('dialog')) fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
   await screen.findByRole('button', { name: 'Excluded' });
 }
 
@@ -133,9 +137,9 @@ describe('mock-defined boundary and baseline tasks', () => {
     // Arrange
     render(page('boundaries'));
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     // Assert
-    expect(screen.getByRole('heading', { name: 'Inventory & system boundary' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Components & system scope' })).toBeVisible();
     expect(await screen.findByRole('button', { name: 'Excluded' })).toBeVisible();
     expect(boundaries.listBoundaryComponents).toHaveBeenCalled();
     expect(components.getComponents).not.toHaveBeenCalled();
@@ -463,7 +467,7 @@ describe('System-domain permission boundary (#1017)', () => {
     // Arrange
     vi.mocked(boundaries.listBoundaryComponents).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 50 });
     render(page('boundaries'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     const remove = await screen.findByRole('button', { name: 'Remove' });
     // Act
     await invokeClick(remove);

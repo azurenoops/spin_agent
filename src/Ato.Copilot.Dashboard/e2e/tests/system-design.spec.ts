@@ -678,7 +678,7 @@ for (const width of [1440, 390]) {
     // Act / Assert
     await expect(page.getByRole('heading', { name: 'System design', exact: true })).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'System task views' });
-    await expect(tabs.getByRole('link')).toHaveText(['Mission', 'Users', 'Environment & hosting', 'Data', 'Inventory & boundary', 'Ports & interconnections', 'System design']);
+    await expect(tabs.getByRole('link')).toHaveText(['Mission', 'Users', 'Environment & hosting', 'Data', 'Components & system scope', 'Ports & interconnections', 'System design']);
     await expect(tabs.locator('[aria-current="page"]')).toHaveText('System design');
     await expect(page.getByRole('navigation', { name: 'System navigation' }).getByRole('link', { name: 'System design', exact: true })).toHaveCount(0);
     await expect(page.getByTestId('design-canvas').locator('.react-flow__node').first()).toBeVisible();

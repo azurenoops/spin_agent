@@ -40,6 +40,39 @@ public sealed class SystemDesignExportTests
     }
 
     [Fact]
+    public async Task InventoryBoundary_ReviewedScopeOwnerEnvironmentAndCspSourceReachNativeOutputs_NotLaterDrafts()
+    {
+        // Arrange
+        using var fixture = new DesignFixture();
+        await fixture.SeedAsync();
+        fixture.WorkingGraph = fixture.WorkingGraph with
+        {
+            Nodes = fixture.WorkingGraph.Nodes.Select(node => node.Id == "application" ? node with
+            {
+                Environment = "LATER INVENTORY environment", DeploymentOwner = "LATER INVENTORY owner",
+                BoundaryRationale = "LATER INVENTORY rationale", BoundaryDisposition = "OutOfBoundary"
+            } : node).ToArray()
+        };
+        var exporter = new OscalSspExportService(fixture.Scopes, NullLogger<OscalSspExportService>.Instance);
+        var template = new DocumentTemplateService(fixture.Scopes, NullLogger<DocumentTemplateService>.Instance);
+        // Act
+        var oscal = await exporter.ExportAsync("design-system");
+        var word = await template.RenderDocxAsync("design-system", "ssp");
+        var pdf = await template.RenderPdfAsync("design-system", "ssp");
+        // Assert
+        oscal.OscalJson.Should().Contain("APPROVED SACA owner").And.Contain("Synthetic laboratory")
+            .And.Contain("APPROVED inventory scope rationale").And.Contain("CSP reference")
+            .And.NotContain("LATER INVENTORY");
+        using (var archive = new ZipArchive(new MemoryStream(word)))
+        using (var reader = new StreamReader(archive.GetEntry("word/document.xml")!.Open()))
+            (await reader.ReadToEndAsync()).Should().Contain("APPROVED SACA owner").And.Contain("Synthetic laboratory")
+                .And.Contain("APPROVED inventory scope rationale").And.NotContain("LATER INVENTORY");
+        using var document = UglyToad.PdfPig.PdfDocument.Open(pdf);
+        string.Join("\n", document.GetPages().Select(page => page.Text)).Should().Contain("APPROVED SACA owner")
+            .And.Contain("Synthetic laboratory").And.Contain("APPROVED inventory scope rationale")
+            .And.NotContain("LATER INVENTORY");
+    }
+    [Fact]
     public void WorkingContribution_SourceRoleAndKnownSourceKindsRemainHidden_WithoutDiscardingSourceData()
     {
         // Arrange
@@ -483,13 +516,16 @@ public sealed class SystemDesignExportTests
                     new() { Id = "system-node", Label = "DEMO Design System", Kind = "System", BoundaryDisposition = "InBoundary", ReviewState = "Approved" },
                     new() { Id = "application", Label = "APPROVED DESIGN application", Kind = "SystemComponent",
                         BoundaryDisposition = "InBoundary", Environment = "Synthetic laboratory", NetworkZone = "Application",
+                        BoundaryRationale = "APPROVED inventory scope rationale", SecurityResponsibility = "APPROVED inventory operations",
+                        Properties = new() { ["ComponentType"] = "Thing", ["SubType"] = "Application service" },
                         DataFlowRole = "Function", FunctionDescription = "APPROVED DFD transformation",
                         NetworkRole = "Application", NetworkSegment = "APPROVED NETWORK segment", NetworkAddress = "10.20.0.1",
                         SacaRole = "VDSS", SacaZone = "AzureCloud", DeploymentOwner = "APPROVED SACA owner",
                         DeploymentEvidenceReference = "https://example.invalid/saca", DeploymentSecurityFunctions = "APPROVED SACA security functions",
                         ReviewState = "Approved", Source = new("SystemComponent", "application", "3", "Canonical", "Approved", 1, "/components/application") },
                     new() { Id = "external", Label = "APPROVED DESIGN external", Kind = "ExternalSystem",
-                        BoundaryDisposition = "OutOfBoundary", ReviewState = "Approved" },
+                        BoundaryDisposition = "OutOfBoundary", ReviewState = "Approved",
+                        Source = new("CspInheritedComponent", "external", "3", "CSP reference", "Approved", 1, "/components/external") },
                     new() { Id = "goal", Label = "APPROVED DESIGN mission goal", Kind = "LogicalConstruct",
                         Properties = new() { ["logicalType"] = "Goal", ["logicalLayer"] = "Capability",
                             ["desiredEffect"] = "APPROVED DESIGN desired effect" } },

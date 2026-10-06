@@ -16,6 +16,38 @@ _Implementation issue #892 (Epic #64 — Feature 052). Each task cites the file 
 
 ## Requirement coverage continuation
 
+### AI first-pass follow-up (October 5)
+
+- [x] RF01 — Document readable parameters, scoped source-based AI and human
+  review/provenance requirements before production changes.
+- [x] RF02 — Extend existing generator/prompt with typed statement/parameter
+  suggestions, source validation and conservative extractive assignments.
+- [x] RF03 — Capture current authorized source context, protect generation
+  proof, recheck authority/staleness and preserve assistance in existing JSON
+  snapshots/native output without approval or baseline mutation.
+- [x] RF04 — Replace raw insert wording/ID-first inputs, preview first-pass
+  basis/questions, fill empty fields only and preserve manual/other-half edits.
+- [x] RF05 — Complete API/native/browser/build/coverage and runtime/manual
+  acceptance while preserving staged overview work and saved demo approvals.
+
+RF05 evidence: 113 targeted backend/generator/coverage/native-export tests and
+53 authenticated narrative/overview API tests passed, including real protected-
+proof save, viewer/foreign scope rejection and unchanged unreviewed status.
+31 Dashboard tests and 8 desktop/mobile narrative cases passed; type-check,
+solution and production builds passed with existing warnings. First-pass
+capture/proof executable lines 92.44%, generator 91.49%, native projection
+100%; focused presentation 98.02% lines / 89.34% branches.
+
+Matching API image is healthy on 4196 with unchanged normalized runtime
+configuration/volumes/ports/user and peer containers, preserving the previously
+running overview implementation. Docker used its existing package-only offline
+feed path after NuGet TLS/EOF failure; no dependency/TLS policy changed.
+Real PT-2 automatic generation returned HTTP 200, 5 scoped sources, 2 response
+suggestions, 0 guessed parameter assignments and 5 questions. Narrative version
+1 and saved/approved content remained unchanged; no save/review request or
+page error occurred. Separate staged overview work was not staged/committed
+by this task. Manual acceptance steps are in the existing capability guide.
+
 ### Hierarchical table correction
 
 - [x] HT001: Add failing tests for parent-first groups, indentation, child-only

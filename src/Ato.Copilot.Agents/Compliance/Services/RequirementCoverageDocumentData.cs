@@ -182,6 +182,13 @@ internal static class RequirementCoverageDocumentData
             text.AppendLine($"Authored by: {snapshot.AuthoredBy} ({snapshot.AuthorPersonId}) at {snapshot.AuthoredAt:O}");
             text.AppendLine($"Mapping review: {snapshot.ReviewedBy ?? "[Unreviewed]"} ({snapshot.ReviewerPersonId}) at {snapshot.ReviewedAt:O}");
             text.AppendLine($"Narrative revision hash: {snapshot.NarrativeHash}");
+            var assistance = snapshot.FirstPasses ?? (snapshot.FirstPass is null ? [] : new[] { snapshot.FirstPass });
+            foreach (var firstPass in assistance)
+            {
+                text.AppendLine($"AI-assisted draft basis: {firstPass.Kind}; prepared {firstPass.GeneratedAt:O}; source context {firstPass.ContextHash}. Human edits and independent review are separate; assistance is not implementation or approval evidence.");
+                foreach (var reference in firstPass.Sources)
+                    text.AppendLine($"First-pass source: {reference.Title} ({reference.Id}); version {reference.Version}; hash {reference.ContentHash}; {reference.ReviewState}.");
+            }
         }
         foreach (var gap in control.Gaps) text.AppendLine($"Requirement coverage gap: {gap}");
         return text.ToString();

@@ -1374,6 +1374,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.UserCategoryReviewSchemaAdditions
         .ApplyAsync(db, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.DataTypeHandlingSchemaAdditions
+        .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderSetupSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.WorkspaceOperationsSchemaAdditions

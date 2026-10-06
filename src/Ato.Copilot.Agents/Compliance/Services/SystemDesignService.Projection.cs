@@ -187,8 +187,12 @@ public sealed partial class SystemDesignService
                 if (properties.GetValueOrDefault("PendingDeletion") is "True" or "true") continue;
                 string[] allowed = kind switch
                 {
-                    "ActorGroup" => ["CategoryName", "Description", "ApproximateCount", "AccessMethod", "DataSensitivityLevel"],
-                    "InformationType" => ["DataTypeName", "Description", "SensitivityClassification", "Source", "Destination", "ApplicableRegulations"],
+                    "ActorGroup" => ["CategoryName", "Description", "ApproximateCount", "AccessMethod", "DataSensitivityLevel",
+                        "IdentityType", "PrivilegeLevel", "Affiliation", "AuthenticationMethod", "ResponsibleOwner",
+                        "UserLocations", "PermittedEnvironments", "AuthorizedDataTypes"],
+                    "InformationType" => ["DataTypeName", "Description", "SensitivityClassification", "Source", "Destination", "ApplicableRegulations",
+                        "CuiCategory", "ConfidentialityImpact", "IntegrityImpact", "AvailabilityImpact", "PrivacyApplicability",
+                        "RetentionRule", "DisposalMethod", "CategorizationRationale", "CategorizationReference"],
                     "PpsEntry" => ["PortOrRange", "Protocol", "ServiceName", "Direction", "Justification"],
                     _ => ["ProviderName", "AuthorizationType", "AuthorizationDate", "CoveredControlFamilies"]
                 };

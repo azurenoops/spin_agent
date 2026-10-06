@@ -7,6 +7,111 @@ This document defines the dashboard component changes, new components, TypeScrip
 
 ---
 
+## Environment & hosting organization (October 6)
+
+Both profile status and preparation guidance precede the shared main/sidebar
+columns. The main column contains one Deployment description editor with all
+deployment, network/location and recovery/operating fields visible together.
+There are no separate disclosures for those three groups and only one actual
+HTML profile form. EnvironmentAndDeployment alone does not expose the profile
+Submit for Review CTA; other profile tabs retain their submit controls.
+Existing UnderReview/read-only locks, withdrawal, review/error feedback and
+retained approved baselines remain unchanged, as does the backend review
+lifecycle. Provider, applicability and responsibility drawer review actions
+are independent and remain available under their existing permissions.
+One header Save Draft
+targets that live form and its existing shared dirty state, including legacy and
+unknown values; errors and read-only locks must not discard or hide fields.
+Provider services & scopes and System subscriptions follow outside the draft
+form; adding/attaching/checking/reviewing is independent of Save Draft.
+
+Provider service, released scope, actual relationship/responsibility-review
+state, linked subscriptions and existing actions form a compact named register.
+Inspectors retain exact revisions, assigned scopes, published duties, references,
+management, removal and optional subscription links. No subscription is required
+for a provider relationship; on-premises and organization-managed environments
+do not require a provider. Subscription source, scope review, assessment access
+and monitoring health remain independent visible facts, not inferred readiness.
+
+Reuse shared Used in your package / Review & ownership / Related work support.
+Keep every existing scalar/legacy/custom key and all source/governance/version
+locks. Saving a draft must not mutate attachments or replace retained approvals.
+Manual acceptance: 1440/390px, header save, detail expansion, provider inspectors,
+attachment setup/cancel, keyboard focus restoration, read-only and UnderReview,
+no page overflow, and independent writes tested only with synthetic fixtures.
+
+## Data information-handling cleanup (October 6)
+
+Data uses Information type / Classification & CUI / CIA / Privacy & retention /
+Review summaries and named Open actions, with Add data type beside the table
+and Save Draft/Preview SSP contribution in the header. Keep the package,
+documentation-readiness and ownership sidebar. Preserve system-wide data
+context in its existing dialog; it and all information types are reviewed
+together. Do not fabricate individual type approvals from the mock.
+
+Add nullable CUI category, declared confidentiality/integrity/availability
+impacts (Low/Moderate/High/Undetermined), privacy applicability
+(NoPii/PiiApplies/ReviewRequired/Undetermined), retention rule, disposal method,
+categorization rationale and safe source-reference URL. These are attributable
+declarations, not a new categorization/PIA approval framework. The separate
+FIPS/SP800-60 categorization and privacy workflow remains authoritative;
+profile review alone does not approve CIA, decide PII applicability or issue
+authorization. No automatic name-based mapping to an InformationType is added.
+
+All new fields persist in authorized child save/GET, complete-section
+review/audit/retained snapshots, working preview, SSP/OSCAL/Word/PDF and
+design/AI source projections. Add nullable rerunnable SQLite/SQL Server
+columns, preserve omissions from older clients and never infer legacy impacts/
+privacy/CUI/retention. Declared values may be edited only in allowed draft state;
+UnderReview remains locked. Existing name/description/classification/source/
+destination/regulations/order and custom scalar content are preserved.
+
+Show missing CUI (when CUI is declared), CIA/PII/retention/disposal/reference
+facts as explicit documentation gaps with named correction actions. Readiness
+counts eleven applicable documentation fields per record, not ATO readiness or
+approved categorization. Non-CUI applicability may make CUI category inapplicable,
+but must not invent a CUI designation. Keep original sources/provenance and
+independent review. No mock 7/11, revision4 or approved-version/date is copied.
+
+Manual acceptance: desktop/mobile CUI/PII/non-PII and unknown data types,
+top save, scope correction/editor, context review, reload/UnderReview lock,
+approved SSP/native output vs later draft changes and read-only access.
+Never save/approve shared demo data simply to populate the table.
+
+## Users record cleanup (October 6)
+
+Match the supplied Users reference with compact Category / Identity & privilege /
+Access & authentication / Data access / Review columns, with named row Open
+actions for the existing category editor. Keep actual per-category statuses,
+revision/review/removal controls and independent access-context workflow.
+Put Save Draft and Preview SSP contribution in the page header; Add user
+category belongs beside the table. The header submit targets the existing
+form/local dirty state, not a reconstructed row payload.
+
+Add nullable user identity type (Human/WorkloadIdentity), privilege level
+(Privileged/NonPrivileged), affiliation (Internal/External), authentication
+method, responsible owner, user locations, permitted environments and authorized
+data types. These are documentation declarations, not account/role grants,
+accepted inheritance or automatically authorized access. Descriptive data/
+environment names do not create canonical links or evidence of permission.
+Preserve old descriptions/count/access/sensitivity/custom scalar context.
+
+All added fields persist through authorized save/GET, individual category
+revision/audit/retained approval, working preview, SSP/OSCAL/DOCX/PDF source
+projection and system design/AI grounding. Add rerunnable nullable SQLite/
+SQL Server columns with no fabricated legacy values. Changes to any new
+field reset that category to Draft and cannot edit an UnderReview row.
+Show real missing documentation and a named correction action, especially
+workload owner/permitted environment, without inventing review state or counts.
+Readiness measures explicitly described field completeness, not ATO readiness.
+No mock "Working revision 4", approved version/date or 6/9 is copied.
+
+Manual acceptance: desktop/mobile Human/Workload, privileged/external records;
+header Save Draft, reload, category review/edit isolation, pending removal,
+working vs retained SSP/native output, legacy data preservation and viewer
+access. Keep sidebar and unsaved-change safeguards. Do not save/approve the
+shared demo merely to verify rendering.
+
 ## Mission System Record Layout (2026-10-02)
 
 The System definition Mission tab uses one System record card matching
@@ -1073,3 +1178,100 @@ When CAC/Entra ID authentication is implemented:
 2. Replace `settings.role` reads with authenticated user's `RmfRoleAssignment` for the current system
 3. Remove `X-Simulated-Role` header interceptor from `api/client.ts`
 4. All role-aware view logic in components remains unchanged — it reads from whatever role source is active
+# Inventory & boundary reference cleanup (October 6)
+
+The current task label is **Components & system scope**, with unchanged routes.
+Introduction: **What belongs to this system?**
+
+Your authorization boundary defines the system you are preparing for ATO review. Include your application, API, and other system-managed components. Record external services and their connections separately.
+
+An app and its API usually belong to the same system scope—not separate authorization boundaries.
+
+Disposition options: **Included in this system**, **Outside this system**,
+**Needs confirmation**. Raw unknown/conflicting values must remain visible until
+explicitly corrected. The operation/management field reuses deploymentOwner;
+securityResponsibility, rationale and exact source associations remain independent.
+Do not infer membership from hosting/provider links, groups or zones.
+
+External systems & shared services:
+
+These support your system but are not automatically inside its authorization boundary. Document the connection, responsibility split, and supporting source records.
+
+Actions: **Save scope draft**, **Review scope changes**. Explain exactly:
+Saving a draft does not change the reviewed baseline or establish authorization.
+Advanced scope details expose existing optional named definitions, source versions
+and external authorization references without inventing a system-area taxonomy.
+
+The main inventory is the existing governed System design component register,
+not a second set of guessed boundary assignments. Show computing components,
+external systems and provider services, excluding actors, system identity,
+hosting scopes and documentation-only references. Use the existing effective
+disposition: shared/separately authorized services remain outside. Retain the
+canonical **Recorded boundary definitions** table directly beneath the
+**What belongs to this system?** introduction, before the governed component
+table. It is visible without opening a disclosure. Remove the duplicate
+**Recorded system scope** explanation and obsolete **Manage boundary definitions
+and source placements** wrapper, not their underlying workflows. Retain actual
+definition types, missing/error states, status and permissions. Canonical source
+changes remain immediate writes, distinct from **Save scope draft**.
+
+Banner/action follow-up: immediately below the heading/navigation, render the
+actual canonical boundary count/status and governed working-revision status,
+each full width and exactly once, above **What belongs to this system?**.
+Remove the duplicate canonical sidebar (Boundary description and inventory,
+Review & ownership, Related work); retain the lower governed **SSP · Reviewed
+system definition** and readiness sidebar. Preserve immediate-write guidance
+beside the canonical register and in its dialogs. Remove the header **Review
+boundary** action. Authorized authors have **Add System Boundary** beside
+**Recorded boundary definitions**, including populated registers, opening the
+existing canonical create dialog. Row **Open**, drawer source/edit/add tools,
+errors, permission checks and cancellation/focus restoration remain intact.
+Opening or creating a record does not automatically select component scope.
+
+Shared-column layout follow-up: both full-width banners remain above the
+columns. One main left column contains the introduction, actual Recorded
+boundary definitions table and then the component register. The single governed
+sidebar starts alongside the introduction immediately below both banners,
+beside both registers rather than only the component section. Below the existing
+desktop breakpoint, stack the main column before support and keep wide tables
+scrolling locally. Preserve all actions, dialogs, provenance and review semantics.
+
+Top Save Draft saves the same complete design revision with optimistic
+concurrency and an explicit reason. Component editing stages changes locally
+using the existing design editor; it does not rewrite canonical sources.
+Reuse existing environment, deploymentOwner, securityResponsibility,
+boundaryRationale, boundaryRelationship, externalAuthorizationReference and
+named boundary selection fields. CSP provenance remains attached; manual
+components start Undetermined. No new database fields or migration are needed.
+
+Match the supplied table: component, type/source, environment, boundary
+decision, owner, review and Open. Show actual in/out/undetermined component
+counts and deduplicated unselected component candidates/pending reconciliation
+proposals. Add component offers exact recorded sources or a manual component.
+Named boundary selection includes existing source definitions even before they
+join the design; applying explicitly retains the selected definition's source
+record without changing canonical placement. Completeness counts
+documented fields (label/type/environment/disposition/owner/rationale), not
+authorization readiness; never copy example counts/statuses. Display the
+whole design review status separately from source review labels. Source
+approval alone does not approve a component boundary annotation.
+Known provider/external kinds supply their recorded broad type; generic
+component kinds without a recorded type remain incomplete. Save Draft is in
+the page header, above the tab's table and review ribbon.
+
+Reconciliation explicitly creates source-change proposals for human review,
+never accepted inheritance or automated scope approval. Approved revisions
+require an explicit working revision; UnderReview is read-only. The sidebar
+links to the existing SSP preview and design review, reports retained approved
+revision when available, and opens named documentation gaps. Unsaved navigation
+must be guarded, failures visible, records retained on conflict. All data uses
+the existing tenant-scoped design API and approved SSP/native snapshot path.
+# Focused provider offering inspection (October 6 follow-up)
+
+The Environment review drawer uses actual relationship/applicability permissions,
+not visible roles, hosting descriptions or subscriptions. Missing, blocked,
+unavailable and recorded outcomes remain distinct. Published source and system
+review are separate. The initial state has one contextual primary action;
+capabilities/source and all existing maintenance operations are disclosed.
+Same-tab workflow links retain the captured system/offering/assignment/release
+context and are subject to the existing unsaved-input guard.

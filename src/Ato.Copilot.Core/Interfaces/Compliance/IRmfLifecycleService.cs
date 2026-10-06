@@ -86,6 +86,10 @@ public interface IRmfLifecycleService
         string? notes = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Confirm or advance the expected current phase without overriding lifecycle gates.</summary>
+    Task<RmfStepAdvanceResult> AdvanceRmfStepAsync(string systemId, RmfPhase targetStep,
+        RmfPhase expectedStep, string userId, string notes, CancellationToken cancellationToken);
+
     /// <summary>
     /// Check gate conditions for advancing to a target step without actually performing the transition.
     /// </summary>

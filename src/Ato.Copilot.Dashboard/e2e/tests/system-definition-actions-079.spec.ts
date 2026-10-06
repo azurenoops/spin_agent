@@ -7,7 +7,7 @@ const pages = [
   ['Users', 'profile/UsersAndAccess', 'Users & access'],
   ['Environment & hosting', 'profile/EnvironmentAndDeployment', 'Environment & hosting'],
   ['Data', 'profile/DataTypes', 'Data types & sensitivity'],
-  ['Inventory & boundary', 'boundaries', 'Inventory & system boundary'],
+  ['Components & system scope', 'boundaries', 'Components & system scope'],
   ['Ports & interconnections', 'profile/PortsProtocolsAndServices', 'Ports & interconnections'],
 ];
 
@@ -59,6 +59,10 @@ for (const width of [1440, 390]) {
       await expect(page).toHaveURL(`${baseURL}${root}/${path}`);
       const heading = page.getByRole('heading', { name: title, exact: true });
       await expect(heading).toBeVisible();
+      if (label === 'Environment & hosting') {
+        await expect(page.getByRole('button', { name: 'Submit for Review', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Save Draft', exact: true })).toBeVisible();
+      }
       await expect(navigation.getByRole('link')).toHaveCount(7);
       await expect(navigation.locator('[aria-current="page"]')).toHaveText(label);
       expect((await heading.boundingBox())!.y).toBeLessThan((await navigation.boundingBox())!.y);

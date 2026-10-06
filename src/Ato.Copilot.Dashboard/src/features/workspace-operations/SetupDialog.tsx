@@ -32,11 +32,17 @@ export default function SetupDialog({ children, busy, onClose, organizationName,
         : `m-auto max-h-[90dvh] w-[calc(100%-2rem)] ${organizationName !== undefined ? `${expanded ? 'max-w-3xl' : 'max-w-xl'} rounded-lg` : 'max-w-3xl rounded-2xl'}`}`}
     onCancel={event => { if (event.target !== event.currentTarget) return; event.preventDefault(); if (!busy) onClose(); }}
     onKeyDown={event => {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        event.preventDefault(); event.stopPropagation();
+        if (!busy) onClose();
+        return;
+      }
       if (event.key !== 'Tab' || !event.currentTarget.contains(event.target as Node)) return;
       const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
         'button, a[href], input, select, textarea, summary, [tabindex]',
       )).filter(element => element.tabIndex >= 0 && !element.matches(':disabled')
-        && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden');
+        && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden'
+        && (typeof element.checkVisibility !== 'function' || element.checkVisibility()));
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (!first || !last) {

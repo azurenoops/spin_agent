@@ -47,7 +47,9 @@ public sealed class RequirementCoverageExportTests
             var reviewed = RequirementCoverageService.Deserialize(implementation.ApprovedRequirementCoverageJson)!;
             implementation.ApprovedRequirementCoverageJson = JsonSerializer.Serialize(reviewed with
             {
-                NarrativeHash = RequirementCoverageService.NarrativeHash(implementation)
+                NarrativeHash = RequirementCoverageService.NarrativeHash(implementation),
+                FirstPass = new("synthetic-context-hash", "Policy", DateTimeOffset.UnixEpoch,
+                    [new("synthetic-profile", "SystemProfile", "Synthetic AI source", "source-v1", "synthetic-source-hash", "Working source")])
             }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
             var version = await fixture.Db.NarrativeVersions.SingleAsync(x => x.Id == implementation.ApprovedVersionId);
             version.Content = $"{implementation.PolicyNarrative}\n{implementation.TechnicalNarrative}";
@@ -101,7 +103,10 @@ public sealed class RequirementCoverageExportTests
         {
             markdown.ControlsWithNarratives.Should().Be(2);
             markdown.ControlsMissingNarratives.Should().Be(0);
+            text.Should().Contain("Synthetic AI source").And.Contain("AI-assisted draft basis");
         }
+        if (format is "docx" or "pdf") text.Should().Contain("Synthetic AI source").And.Contain("source-v1");
+        if (format is "oscal" or "emass" or "stream") text.Should().Contain("Synthetic AI source");
         if (format == "oscal")
         {
             using var document = JsonDocument.Parse(text);

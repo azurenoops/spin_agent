@@ -19,6 +19,96 @@ namespace Ato.Copilot.Tests.Unit.Server;
 
 public sealed partial class ProfileDraftPersistenceTests
 {
+    [Fact]
+    public async Task UsersDetails_RoundTripIndependentReviewAndRetainedSspWithoutDraftLeak()
+    {
+        // Arrange
+        await SeedSectionAsync();
+        await AddReviewerAsync();
+        const string payload = """
+            {"content":"original","childItems":[{"id":"existing","revision":1,"categoryName":"Recorded automation",
+             "identityType":"WorkloadIdentity","privilegeLevel":"Privileged","affiliation":"Internal","authenticationMethod":"Managed identity",
+             "responsibleOwner":"Recorded service owner","userLocations":"CONUS","permittedEnvironments":"Recorded production scope",
+             "authorizedDataTypes":"Recorded inventory metadata","accessMethod":"Recorded API access","dataSensitivityLevel":"CUI"}]}
+            """;
+        // Act
+        var saved = await PutAsync("UsersAndAccess", payload);
+        // Assert
+        saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
+        var detail = await _client.GetFromJsonAsync<JsonElement>(Root + "UsersAndAccess");
+        var category = detail.GetProperty("userCategories")[0];
+        category.GetProperty("identityType").GetString().Should().Be("WorkloadIdentity");
+        category.GetProperty("responsibleOwner").GetString().Should().Be("Recorded service owner");
+        var revision = category.GetProperty("revision").GetInt32();
+        using (var approvalScope = _app.Services.CreateScope())
+        {
+            var service = approvalScope.ServiceProvider.GetRequiredService<ISystemProfileService>();
+            await service.SubmitForReviewAsync("mission", [ProfileSectionType.UsersAndAccess], "owner");
+            await service.ReviewSectionAsync("mission", ProfileSectionType.UsersAndAccess, ReviewDecision.Approve, "reviewer");
+        }
+        // Act
+        (await ReviewRowAsync("existing", "submit", revision)).StatusCode.Should().Be(HttpStatusCode.OK);
+        _user.SetupGet(x => x.CurrentUserId).Returns("reviewer");
+        (await ReviewRowAsync("existing", "approve", revision + 1)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var scopes = _app.Services.GetRequiredService<IServiceScopeFactory>();
+        var export = await new OscalSspExportService(scopes, NullLogger<OscalSspExportService>.Instance).ExportAsync("mission");
+        var template = new DocumentTemplateService(scopes, NullLogger<DocumentTemplateService>.Instance);
+        var docx = await template.RenderDocxAsync("mission", "ssp");
+        var pdf = await template.RenderPdfAsync("mission", "ssp");
+        // Assert
+        export.OscalJson.Should().Contain("Recorded service owner").And.Contain("Recorded inventory metadata").And.Contain("Managed identity");
+        using (var zip = new System.IO.Compression.ZipArchive(new MemoryStream(docx)))
+        using (var reader = new StreamReader(zip.GetEntry("word/document.xml")!.Open()))
+            (await reader.ReadToEndAsync()).Should().Contain("Recorded service owner").And.Contain("Recorded inventory metadata");
+        using (var document = UglyToad.PdfPig.PdfDocument.Open(pdf))
+            string.Join("\n", document.GetPages().Select(p => p.Text)).Should().Contain("Recorded service owner").And.Contain("Managed identity");
+        // Act
+        _user.SetupGet(x => x.CurrentUserId).Returns("owner");
+        var successor = payload.Replace("\"revision\":1", $"\"revision\":{revision + 2}")
+            .Replace("Recorded service owner", "LATER DRAFT owner");
+        (await PutAsync("UsersAndAccess", successor)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var retained = await new OscalSspExportService(scopes, NullLogger<OscalSspExportService>.Instance).ExportAsync("mission");
+        // Assert
+        retained.OscalJson.Should().Contain("Recorded service owner").And.NotContain("LATER DRAFT owner");
+        var current = await _client.GetFromJsonAsync<JsonElement>(Root + "UsersAndAccess");
+        current.GetProperty("userCategories")[0].GetProperty("governanceStatus").GetString().Should().Be("Draft");
+    }
+    [Theory]
+    [InlineData("identityType", "AutograntedIdentity")]
+    [InlineData("privilegeLevel", "AutoApprovedAdmin")]
+    [InlineData("affiliation", "UnknownSource")]
+    public async Task UsersDetails_RejectInvalidDocumentationEnumsForNewRows(string field, string value)
+    {
+        // Arrange
+        await SeedSectionAsync();
+        var payload = $$"""{"content":"original","childItems":[{"id":"existing","revision":1,"categoryName":"Existing"},{"categoryName":"New","{{field}}":"{{value}}"}]}""";
+        // Act
+        var result = await PutAsync("UsersAndAccess", payload);
+        // Assert
+        result.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+    [Fact]
+    public async Task UsersDetails_NewFieldsCannotEditUnderReviewAndLegacyOmissionsPreserveSavedDetails()
+    {
+        // Arrange
+        await SeedSectionAsync();
+        var first = await PutAsync("UsersAndAccess", """{"content":"original","childItems":[{"id":"existing","revision":1,"categoryName":"Existing","responsibleOwner":"Retained owner"}]}""");
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        var detail = await _client.GetFromJsonAsync<JsonElement>(Root + "UsersAndAccess");
+        var revision = detail.GetProperty("userCategories")[0].GetProperty("revision").GetInt32();
+        // Act
+        var legacy = await PutAsync("UsersAndAccess", $$"""{"content":"original","childItems":[{"id":"existing","revision":{{revision}},"categoryName":"Existing"}]}""");
+        // Assert
+        legacy.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _client.GetFromJsonAsync<JsonElement>(Root + "UsersAndAccess")).GetProperty("userCategories")[0]
+            .GetProperty("responsibleOwner").GetString().Should().Be("Retained owner");
+        // Act
+        (await ReviewRowAsync("existing", "submit", revision)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var changed = await PutAsync("UsersAndAccess", $$"""{"content":"original","childItems":[{"id":"existing","revision":{{revision + 1}},"categoryName":"Existing","responsibleOwner":"Changed owner"}]}""");
+        // Assert
+        changed.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private Task<HttpResponseMessage> ReviewRowAsync(string id, string action, int revision, string? comments = null) =>
         _client.PostAsJsonAsync(Root + $"UsersAndAccess/user-categories/{id}/review",
             new { action, expectedRevision = revision, comments });
@@ -268,6 +358,7 @@ public sealed partial class ProfileDraftPersistenceTests
         (await db.Database.SqlQueryRaw<string>("SELECT GovernanceStatus AS Value FROM UserCategories").SingleAsync()).Should().Be("Draft");
         (await db.Database.SqlQueryRaw<int>("SELECT Revision AS Value FROM UserCategories").SingleAsync()).Should().Be(1);
         (await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM UserCategories WHERE ApprovedSnapshotId IS NOT NULL").SingleAsync()).Should().Be(0);
+        (await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM UserCategories WHERE IdentityType IS NOT NULL OR ResponsibleOwner IS NOT NULL OR AuthorizedDataTypes IS NOT NULL").SingleAsync()).Should().Be(0);
         (await db.Database.SqlQueryRaw<string>("SELECT SnapshotJson AS Value FROM ProfileAuditEntries").SingleAsync()).Should().Be("retained old snapshot");
     }
 

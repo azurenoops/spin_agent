@@ -47,7 +47,7 @@ describe('Recorded boundary inventory', () => {
     expect(open).toHaveBeenCalledExactlyOnceWith('boundary-b');
   });
 
-  it('retains the compact mock table and offers creation only when supplied by its caller', () => {
+  it('retains the compact table and offers a heading action in empty and populated registers only when supplied', () => {
     // Arrange
     const create = vi.fn();
     // Act
@@ -58,10 +58,18 @@ describe('Recorded boundary inventory', () => {
     expect(screen.getByRole('table')).toHaveClass('text-xs');
     // Act
     view.rerender(<SystemBoundaryInventory boundaries={[]} onOpenBoundary={vi.fn()}
-      emptyAction={<button onClick={create}>Create boundary</button>} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Create boundary' }));
+      action={<button onClick={create}>Add System Boundary</button>} />);
+    const trigger = screen.getByRole('button', { name: 'Add System Boundary' });
+    expect(trigger.parentElement).toContainElement(screen.getByRole('heading', { name: 'Recorded boundary definitions' }));
+    fireEvent.click(trigger);
     // Assert
     expect(create).toHaveBeenCalledOnce();
+    // Act
+    view.rerender(<SystemBoundaryInventory boundaries={[boundary]} onOpenBoundary={vi.fn()}
+      action={<button onClick={create}>Add System Boundary</button>} />);
+    // Assert
+    expect(screen.getByRole('button', { name: 'Add System Boundary' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Open boundary mission-api' })).toBeVisible();
   });
 
   it('keeps the boundary row and its trigger stable when assignment counts refresh', () => {

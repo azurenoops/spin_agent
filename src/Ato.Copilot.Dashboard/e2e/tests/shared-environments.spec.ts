@@ -115,7 +115,8 @@ for (const width of [1440, 390]) {
     await expect(description).toHaveValue('Unsaved deployment changes must survive');
     expect(applies).toHaveLength(3); expect(profileWrites).toEqual([]);
     expect(attachments.every(item => item.hostingAssignmentId === null)).toBe(true);
-    await connected.getByRole('button', { name: 'Review pending scope', exact: true }).first().click();
+    await connected.getByRole('button', { name: 'Manage Mission subscription 1', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Review pending scope', exact: true }).click();
     const review = page.getByRole('dialog');
     await review.getByRole('button', { name: 'Continue to system scope', exact: true }).click();
     await expect(review.getByRole('checkbox', { name: 'Include Mission API', exact: true })).toBeChecked();
