@@ -20,7 +20,7 @@ namespace Ato.Copilot.Core.Services;
 /// the existing concrete singleton; concrete-typed callers continue to work
 /// unchanged (back-compat per the audit's "surgical extension" mandate).
 /// </remarks>
-public class NarrativeTemplateService : IControlNarrativeService
+public partial class NarrativeTemplateService : IControlNarrativeService
 {
     private readonly IChatClient? _chatClient;
     private readonly AzureAiOptions? _aiOptions;

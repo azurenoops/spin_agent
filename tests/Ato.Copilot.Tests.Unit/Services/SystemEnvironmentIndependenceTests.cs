@@ -20,6 +20,36 @@ namespace Ato.Copilot.Tests.Unit.Services;
 public sealed partial class SystemEnvironmentServiceTests
 {
     [Fact]
+    public async Task IndependentProviderScope_ExclusionsRemainBoundToTheCapturedHostingSource()
+    {
+        // Arrange
+        var f = await PublishedServiceAsync();
+        var tenant = Tenant();
+        using var pushed = _accessor.Push(tenant);
+        var service = Service(tenant);
+        await service.AddProviderScopeAsync(_system, new(0, f.OfferingId, 1, f.HostingId), "add", "actor");
+        await using (var db = new AtoCopilotContext(_options))
+        {
+            var hosting = await db.Set<ProviderHostingScopeRevision>().SingleAsync(x => x.Id == f.HostingId);
+            var material = ProviderAuthorizationStore.Read<CreateProviderHostingScopeRequest>(hosting.SnapshotJson);
+            hosting.SnapshotJson = ProviderAuthorizationStore.Json(material with {
+                Exclusions = [new(new ProviderServiceScope("ManualService", "excluded", "Excluded endpoints", null), "Customer endpoints excluded")]
+            });
+            hosting.SnapshotHash = ProviderAuthorizationStore.Hash(hosting.SnapshotJson);
+            await db.SaveChangesAsync();
+        }
+        // Act
+        var scope = (await service.ListAsync(_system)).ProviderScopes.Single();
+        var projection = System.Text.Json.JsonSerializer.SerializeToElement(scope,
+            new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+        // Assert
+        projection.TryGetProperty("exclusions", out var exclusions).Should().BeTrue();
+        exclusions.GetArrayLength().Should().Be(1);
+        exclusions[0].GetProperty("rationale").GetString().Should().Be("Customer endpoints excluded");
+        scope.HostingScopeRevisionId.Should().Be(f.HostingId);
+    }
+
+    [Fact]
     public async Task IndependentProviderChoices_InspectExactPublishedDutiesBeforeAnySystemAssignment()
     {
         // Arrange
@@ -71,6 +101,13 @@ public sealed partial class SystemEnvironmentServiceTests
         // Assert
         choice.PublishedDuties.State.Should().Be("Unavailable");
         choice.PublishedDuties.Capabilities.Should().BeEmpty();
+        var projection = System.Text.Json.JsonSerializer.SerializeToElement(choice.PublishedDuties,
+            new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+        projection.TryGetProperty("totalCapabilities", out var total).Should().BeTrue(
+            "a published capability with missing duties must not disappear from the offering count");
+        total.GetInt32().Should().Be(1);
+        projection.TryGetProperty("unavailableCapabilities", out var missing).Should().BeTrue();
+        missing.GetArrayLength().Should().Be(1);
         var review = workspace.ProviderScopes.Single().ResponsibilityReview;
         review.State.Should().Be("NotAdopted");
         review.CanReview.Should().BeTrue();

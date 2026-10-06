@@ -1,0 +1,22 @@
+.environment-register { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.environment-register th, .environment-register td { padding: 12px 8px; vertical-align: top; overflow-wrap: anywhere; }
+.environment-register thead th { border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 12px; font-weight: 500; }
+.environment-register tbody tr + tr { border-top: 1px solid #e2e8f0; }
+.environment-register tbody th { font-weight: 400; }
+.environment-register .register-action { width: 90px; text-align: right; }
+.environment-register button { white-space: nowrap; }
+.environment-register .register-label { display: none; }
+.dark .environment-register thead th { color: #cbd5e1; }
+.dark .environment-register thead th, .dark .environment-register tbody tr + tr { border-color: #334155; }
+@media (max-width: 650px) {
+  .environment-register, .environment-register tbody { display: block; }
+  .environment-register thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .environment-register tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 16px 0; }
+  .environment-register tbody th, .environment-register tbody td { display: block; min-width: 0; padding: 0; }
+  .environment-register tbody th { grid-column: 1 / -1; }
+  .environment-register tbody td:not(.register-action) { grid-column: 1; }
+  .environment-register .register-action { grid-column: 2; grid-row: 2 / 5; align-self: start; width: auto; }
+  .environment-register .register-label { display: block; margin-bottom: 2px; color: #64748b; font-size: 11px; }
+  .dark .environment-register .register-label { color: #cbd5e1; }
+  .environment-register button { min-height: 44px; }
+}

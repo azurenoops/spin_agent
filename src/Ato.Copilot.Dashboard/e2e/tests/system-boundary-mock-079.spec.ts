@@ -31,7 +31,7 @@ for (const width of [1440, 390]) {
       route => route.fulfill({ json: { locked: false, lockedBy: null, lockedAt: null, expiresAt: null } }));
     // Act: create only the boundary, without adding any components.
     await page.goto(`${root}/boundaries`);
-    await page.getByRole('button', { name: 'Create boundary', exact: true }).click();
+    await page.getByRole('button', { name: 'Add System Boundary', exact: true }).click();
     const form = page.getByRole('dialog', { name: 'Create Boundary', exact: true });
     await form.getByRole('textbox', { name: 'Name *', exact: true }).fill('mission-api');
     await form.getByRole('button', { name: 'Create Boundary', exact: true }).click();
@@ -59,7 +59,7 @@ for (const width of [1440, 390]) {
     await context.route('**/api/dashboard/systems/system-a/boundary-definitions', route => route.fulfill({ json: { items: [] } }));
     // Act
     await page.goto(`${root}/boundaries`);
-    const create = page.getByRole('button', { name: 'Create boundary', exact: true });
+    const create = page.getByRole('button', { name: 'Add System Boundary', exact: true });
     await create.click();
     // Assert
     await expect(page.getByRole('dialog', { name: 'Create Boundary', exact: true })).toBeVisible();
@@ -69,7 +69,7 @@ for (const width of [1440, 390]) {
     // Assert
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(create).toBeFocused();
-    await expect(page.getByRole('button', { name: 'Review boundary', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Review boundary', exact: true })).toHaveCount(0);
     expect(writes).toEqual([]);
   });
 
@@ -109,17 +109,17 @@ for (const width of [1440, 390]) {
     } }));
     // Act / Assert: mock heading/tabs/status/table and exact boundary selection.
     await page.goto(`${root}/boundaries`);
-    const heading = page.getByRole('heading', { name: 'Inventory & system boundary', exact: true });
+    const heading = page.getByRole('heading', { name: 'Components & system scope', exact: true });
     await expect(heading).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'System task views' });
     await expect(tabs.getByRole('link')).toHaveCount(7);
-    await expect(tabs.locator('[aria-current="page"]')).toHaveText('Inventory & boundary');
+    await expect(tabs.locator('[aria-current="page"]')).toHaveText('Components & system scope');
     expect((await heading.boundingBox())!.y).toBeLessThan((await tabs.boundingBox())!.y);
     await expect(page.getByRole('cell', { name: 'Production boundary', exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Recovery boundary', exact: true })).toBeVisible();
     await expect(page.getByRole('status', { name: 'Boundary record status' })).toContainText('2 boundaries defined');
     await expect(page.getByRole('link', { name: 'Manage component inventory', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Preview contribution', exact: true })).toHaveAttribute('href', `${root}/documents/preview`);
+    await expect(page.getByText('SSP · Boundary description and inventory', { exact: true })).toHaveCount(0);
     const openComponent = page.getByRole('button', { name: 'Open boundary Production boundary', exact: true });
     await openComponent.click();
     const placement = page.getByRole('dialog', { name: 'Production boundary — Details', exact: true });
@@ -138,12 +138,13 @@ for (const width of [1440, 390]) {
     expect(writes).toEqual([]);
     await page.keyboard.press('Escape');
     await expect(openComponent).toBeFocused();
-    const review = page.locator('main header').first().getByRole('button', { name: 'Review boundary', exact: true });
-    await review.click();
-    await expect(page.getByRole('dialog', { name: 'Production boundary — Details', exact: true })).toBeVisible();
+    const create = page.getByRole('button', { name: 'Add System Boundary', exact: true });
+    await create.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog', { name: 'Create Boundary', exact: true })).toBeVisible();
     expect(writes).toEqual([]);
     await page.keyboard.press('Escape');
-    await expect(review).toBeFocused();
+    await expect(create).toBeFocused();
     await page.getByRole('button', { name: 'Open boundary Recovery boundary', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Recovery boundary — Details', exact: true })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Placement Recovery store', exact: true })).toBeVisible();

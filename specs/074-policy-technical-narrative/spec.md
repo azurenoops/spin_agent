@@ -11,6 +11,46 @@
 
 ## Background
 
+### Source-backed AI requirement first passes (October 5)
+
+Authors should not interpret OSCAL insert syntax or manually start every
+requirement response from an empty field. Show readable source parameter
+labels/recorded values and prepare an AI draft from selected-system entered
+Mission/profile/information/privacy records, applicable narrative context and
+retained policy references. Explicitly expose missing facts and source basis.
+Preserve edits and require explicit draft save and independent review; AI must
+not invent legal authority, evidence, control satisfaction or baseline changes.
+
+### Hierarchical table correction (2026-10-01)
+
+The approved mock requires enhancements to appear directly below their parent
+as indented table rows with a connecting guide, not only a parent label in a
+flat list. Use the API's catalog-backed `parentControlId`, never ID parsing.
+Each matching row retains its own statement states and detail action. Lettered
+requirements remain inside Statements. Preserve server filters, counts and
+pagination; when a parent is absent from the current matching page, show an
+explicit navigation-only parent context row, not invented narrative states.
+Do not add collapse controls, a role switch or mock sample counts.
+
+### Requirement coverage continuation (2026-09-30)
+
+**Status: design approved; local implementation in progress; GitHub writes pending approval.**
+The user approved extending the existing Control Narratives workspace with
+catalog-backed requirement coverage and parent/enhancement navigation. This is
+not a claim that the continuation is implemented or tested.
+
+The [requirement coverage contract](contracts/requirement-coverage.md) governs
+this continuation, including explicit baseline/catalog binding, independent
+Policy/Technical mappings, staged enhancement selection, permissions, and
+reviewed exports. It supersedes FR-007's synthetic OSCAL statement-ID convention
+for this work: response type is not a catalog statement identifier.
+
+New feature and user-story issue bodies have been previewed, but no approval to
+write them was available. No issue numbers or parent links have been invented.
+The user subsequently directed autonomous implementation to continue. Local
+implementation proceeds without external writes; release traceability remains
+an open gate in [tasks.md](tasks.md#requirement-coverage-continuation).
+
 Every NIST 800-53 control implementation in Security Posture Intelligence Navigator today has exactly one `ControlImplementation.Narrative`
 field. In real RMF practice auditors expect **two** canonical halves:
 

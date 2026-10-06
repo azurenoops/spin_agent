@@ -119,6 +119,8 @@ public partial class SystemProfileService
         audit.SnapshotJson = JsonSerializer.Serialize(new
         {
             row.Id, row.CategoryName, row.Description, row.ApproximateCount, row.AccessMethod,
+            row.IdentityType, row.PrivilegeLevel, row.Affiliation, row.AuthenticationMethod, row.ResponsibleOwner,
+            row.UserLocations, row.PermittedEnvironments, row.AuthorizedDataTypes,
             row.DataSensitivityLevel, row.SortOrder, row.PendingDeletion, row.Revision
         });
         audit.SnapshotHash = ApprovedProfileDocumentData.Hash(audit.SnapshotJson);

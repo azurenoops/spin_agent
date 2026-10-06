@@ -2,6 +2,23 @@
 
 Status: implementation decision for Feature 079, September 30, 2026.
 
+## Components & system scope presentation (October 6)
+
+The boundaries route now presents **Components & system scope**. The component
+question displays the recorded disposition, including unknown/conflicting values,
+rather than hiding a contradiction through the diagram's effective external
+grouping. The existing server rejects included SharedService/SeparatelyAuthorized
+records. Provider hosting alone does not require exclusion. Draft annotations use
+the same revision-fenced full graph and retain immutable canonical provenance.
+
+BoundaryDefinition name/type/primary properties do not establish a separate
+authorization scope or an internal system area. All options remain recorded
+definitions, with explicit purpose ambiguity. Internal groups are shown with
+their actual kind; no area taxonomy or enclosing boundary is created. Source
+definition/placement management remains immediate canonical writes, separate
+from scope draft saves and whole-design review. Native outputs continue to use
+the reviewed snapshot, not subsequent drafts.
+
 ## SACA/SCCA-aware deployment delivery
 
 Azure deployment now uses a pure instance selector/resolver over system-scoped
@@ -345,7 +362,7 @@ projected are not duplicated. A proposed external design element can be authored
 without fabricating a canonical source; it remains undetermined and cannot
 bypass the required canonical interconnection/agreement for boundary crossings.
 When no addition is staged, users create or correct the record in the existing
-Inventory & boundary or Ports & interconnections workflow, then reconcile.
+Components & system scope or Ports & interconnections workflow, then reconcile.
 The browser never creates an authoritative source identity from typed text.
 
 ## Clarified presentation contract

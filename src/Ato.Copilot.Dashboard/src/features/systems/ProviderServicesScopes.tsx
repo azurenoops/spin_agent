@@ -1,11 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import * as api from '../../api/systemEnvironments';
-import { listAllProviderRelationships } from '../provider-relationships/api';
+import type { ProviderRelationship } from '../provider-relationships/types';
 import { ScopeDetails } from '../provider-relationships/MissionTaskPresentation';
 import ProviderScopeReview from '../provider-relationships/ProviderScopeReview';
 import { Link } from '../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
-import SetupDialog from '../workspace-operations/SetupDialog';
+import EnvironmentReviewDialog from './EnvironmentReviewDialog';
+import ProviderOfferingReview from './ProviderOfferingReview';
+import './environmentRegisters.css';
+import { hasImpactBlockers } from './environmentImpact';
 import { buttonClass, inputClass, message, secondaryButtonClass, Status, useRemote } from '../workspace-operations/workspaceUi';
 
 interface Props {
@@ -36,15 +39,16 @@ export default function ProviderServicesScopes(props: Props) {
 function ProviderContent({ systemId, systemName, busy = false, refreshVersion = 0, onChanged }: Props) {
   const titleId = useId();
   const data = useRemote(signal => api.getSystemEnvironments(systemId, signal), [systemId, refreshVersion]);
-  const [dialog, setDialog] = useState<'add' | 'view' | 'manage' | 'warning' | null>(null);
+  const [dialog, setDialog] = useState<'add' | 'review' | 'warning' | null>(null);
   const [selected, setSelected] = useState<api.SystemProviderScope | null>(null);
+  const [reviewWorkspace, setReviewWorkspace] = useState<api.SystemEnvironmentsResponse | null>(null);
   const [selectedWarning, setSelectedWarning] = useState<api.LegacyEnvironmentReference | null>(null);
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const disabled = busy || working;
-  const close = () => { if (!disabled) { setDialog(null); setSelected(null); setSelectedWarning(null); } };
+  const close = () => { if (!disabled) { setDialog(null); setSelected(null); setSelectedWarning(null); setReviewWorkspace(null); } };
   const saved = (noticeText: string) => {
-    setDialog(null); setSelected(null); setSelectedWarning(null); setWorking(false); setNotice(noticeText); data.retry(); onChanged?.();
+    setDialog(null); setSelected(null); setSelectedWarning(null); setReviewWorkspace(null); setWorking(false); setNotice(noticeText); data.retry(); onChanged?.();
   };
   const scopes = data.data?.providerScopes?.filter(item => item.state === 'Active') ?? [];
   const warnings = [...new Map(data.data?.legacyReferences.filter(reference => reference.kind === 'ProviderScopeLink' || reference.kind === 'HostingAssignment')
@@ -71,44 +75,43 @@ function ProviderContent({ systemId, systemName, busy = false, refreshVersion = 
           ? scope.assignmentId === attachment?.hostingAssignmentId
           : scope.assignmentId === reference.referenceId || scope.relationshipId === reference.referenceId);
         const match = matches?.length === 1 ? matches[0] : undefined;
-        setSelectedWarning(reference); setSelected(match ?? null); setDialog(match ? 'manage' : 'warning');
+        setSelectedWarning(reference); setSelected(match ?? null); setReviewWorkspace(data.data); setDialog(match ? 'review' : 'warning');
       }}>Review relationship</button>
     </div>)}
     {data.data && !canManage && <p className="text-sm">You can view provider scopes. Environment-management permission is required to add or remove relationships.</p>}
     {data.data && !scopes.length && <p className="text-sm">No provider scopes selected.</p>}
-    <div className="grid min-w-0 gap-3">
-      {scopes.map(item => {
-        const linkedIds = new Set(data.data?.hostingLinks?.filter(link => link.assignmentId === item.assignmentId && link.state === 'Linked')
-          .map(link => link.attachmentId));
-        const linked = data.data?.attachments.filter(attachment => linkedIds.has(attachment.attachmentId) && attachment.attachmentState === 'Attached') ?? [];
-        return <article key={item.assignmentId} aria-label={`${item.offeringName} — ${item.hostingScopeName}`}
-          className="min-w-0 space-y-3 rounded border border-slate-200 p-4 text-sm dark:border-gray-700">
-          <p className="text-slate-500 dark:text-gray-400">{item.providerName || 'Provider name unavailable'}</p>
-          <h3 className="font-semibold">{item.offeringName}</h3>
-          <p>{item.hostingScopeName}</p>
-          <p>Scope release revision: {item.hostingScopeRevision ?? 'Unavailable'} · Relationship revision: {item.assignmentVersion}</p>
-          <p>Relationship: {stateLabel(item.relationshipState)}{item.reviewRequired ? ' · Review required' : ''}</p>
-          <ResponsibilityStatus review={item.responsibilityReview} />
-          {linked.length ? <div><p>Linked subscriptions (optional)</p><ul className="list-inside list-disc">
-            {linked.map(attachment => <li key={attachment.attachmentId}>{attachment.registration.displayName}</li>)}
-          </ul></div> : <p>No subscriptions linked (optional).</p>}
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className={secondaryButtonClass} disabled={disabled}
-              onClick={() => { setSelected(item); setDialog('view'); }}>View scope</button>
-            <ResponsibilityLink systemId={systemId} review={item.responsibilityReview} />
-            <button type="button" className={secondaryButtonClass} disabled={disabled}
-              onClick={() => { setSelected(item); setDialog('manage'); }}>Manage relationship</button>
-          </div>
-        </article>;
-      })}
-    </div>
+    {!!scopes.length && <div role="region" aria-label="Provider register" tabIndex={0} className="min-w-0">
+      <table aria-label="Provider services & scopes" className="environment-register">
+        <thead><tr>{['Offering', 'System relationship', 'Responsibility review', 'Action'].map(label =>
+          <th key={label} scope="col">{label}</th>)}</tr></thead>
+        <tbody>{scopes.map(item => <tr key={item.assignmentId}>
+          <th scope="row">
+            <span className="block font-semibold">{item.offeringName}</span>
+            <span className="mt-1 block text-xs text-slate-500 dark:text-gray-400">{item.providerName || 'Provider name unavailable'} · Selected scope release {item.hostingScopeRevision ?? 'unavailable'}</span>
+          </th>
+          <td><span className="register-label" aria-hidden="true">System relationship</span>
+            <p>{stateLabel(item.relationshipState)}</p>
+            {item.reviewRequired && <p className="text-xs text-slate-500 dark:text-gray-400">Pending review</p>}
+          </td>
+          <td><span className="register-label" aria-hidden="true">Responsibility review</span>
+            <ResponsibilityStatus review={item.responsibilityReview} compact />
+          </td>
+          <td className="register-action">
+            <button type="button" className={secondaryButtonClass} aria-label={`Review ${item.offeringName}`} disabled={disabled}
+              onClick={() => { setSelected(item); setReviewWorkspace(data.data); setDialog('review'); }}>Review</button>
+          </td>
+        </tr>)}</tbody></table>
+    </div>}
     <p className="text-xs text-slate-500 dark:text-gray-400">Provider relationships do not require subscriptions. They do not accept inheritance, approve responsibilities, satisfy controls or authorize this system. Environment-description drafts are saved separately.</p>
-    {dialog && <SetupDialog title={dialog === 'add' ? 'Add provider scope' : dialog === 'manage' ? 'Manage provider relationship'
-      : dialog === 'warning' ? 'Review relationship' : 'Provider scope details'}
-      description={`${systemName || 'Selected system'} · ${description}`} placement="right" busy={disabled} onClose={close}>
+    {dialog && <EnvironmentReviewDialog title={dialog === 'add' ? 'Add provider scope'
+      : dialog === 'warning' ? 'Review relationship' : 'Review provider offering'}
+      description={selected && dialog === 'review' ? `${selected.providerName || 'Provider name unavailable'} · ${systemName || 'Selected system'}`
+        : `${systemName || 'Selected system'} · ${description}`} placement="right" busy={disabled} onClose={close}>
+      {requestClose => <>
       {dialog === 'add' && <AddProviderScope systemId={systemId} busy={busy} onBusyChange={setWorking}
         onSaved={() => saved('Provider scope added. Responsibilities and authorization remain separately reviewed.')} />}
-      {selectedWarning && <div className="mb-4 space-y-2 rounded border border-amber-300 p-3 text-sm">
+      {selectedWarning && <details className="mb-4 space-y-2 rounded border border-amber-300 p-3 text-sm">
+        <summary>Recorded relationship warning</summary>
         <h3 className="font-semibold">{selectedWarning.displayName}</h3>
         <p>{selectedWarning.reason}</p>
         <p>Recorded state: {stateLabel(selectedWarning.reconciliationState)}</p>
@@ -119,12 +122,17 @@ function ProviderContent({ systemId, systemName, busy = false, refreshVersion = 
           <p>The subscription record is retained while its optional provider link is reconciled.</p>
         </>}
         {dialog === 'warning' && <p>This recorded reference cannot be matched to a current provider scope. Ask an authorized provider or system owner to reconcile this exact relationship. A subscription is not required and must not be added merely to resolve this reference.</p>}
-      </div>}
-      {selected && dialog === 'view' && <ScopeSummary item={selected} />}
-      {selected && dialog === 'manage' && data.data && <ManageRelationship systemId={systemId} item={selected}
-        workspace={data.data} canManage={canManage && selected.state === 'Active'} busy={disabled} onBusyChange={setWorking}
+      </details>}
+      {selected && dialog === 'review' && (data.loading || data.error || data.data?.version !== reviewWorkspace?.version) &&
+        <p role="status" className="mb-4 text-sm">The current register is refreshing, changed or unavailable. Your review input and original source revisions are retained. Refresh and compare current records before another write.</p>}
+      {selected && dialog === 'review' && data.error && <p role="alert" className="mb-4 text-sm">{data.error}</p>}
+      {selected && dialog === 'review' && reviewWorkspace && <ManageRelationship systemId={systemId} item={selected}
+        workspace={reviewWorkspace} canManage={canManage && selected.state === 'Active'}
+        busy={disabled || data.loading || !!data.error || data.data?.version !== reviewWorkspace.version} onBusyChange={setWorking}
         onSaved={() => saved('Provider relationship updated. Subscriptions and retained history are unchanged.')} />}
-    </SetupDialog>}
+      <button type="button" className={`${secondaryButtonClass} mt-4`} disabled={disabled} onClick={requestClose}>Close</button>
+      </>}
+    </EnvironmentReviewDialog>}
   </section>;
 }
 
@@ -133,35 +141,45 @@ function stateLabel(state: string) {
 }
 function ScopeSummary({ item }: { item: api.SystemProviderScope }) {
   return <div className="space-y-3 text-sm">
-    <h3 className="font-semibold">{item.providerName || 'Provider name unavailable'} · {item.offeringName}</h3>
-    <p>{item.hostingScopeName}</p>
-    <p className="break-words">Released scope: {item.hostingScopeRevisionId}</p>
-    <p>Released scope revision: {item.hostingScopeRevision ?? 'Unavailable'}</p>
-    <p>Relationship revision: {item.assignmentVersion} · Selection revision: {item.selectionVersion}</p>
+    <p>Selected scope release: {item.hostingScopeRevision ?? 'Unavailable'}</p>
+    <h4 className="font-semibold">Pinned published scope (read-only)</h4>
     <ScopeDetails scopes={item.assignedScopes} />
-    {item.publishedDuties && <PublishedDuties duties={item.publishedDuties} />}
+    {item.exclusions ? item.exclusions.length ? <section aria-label="Published scope exclusions" className="space-y-2">
+      <h4 className="font-semibold">Published scope exclusions</h4>
+      {item.exclusions.map((entry, index) => <div key={index}><p>{entry.rationale}</p><ScopeDetails scopes={[entry.scope]} /></div>)}
+    </section> : <p>No scope exclusions recorded in this published release.</p>
+      : <p>Published scope exclusions are unavailable from this server version.</p>}
+    <details className="break-words"><summary className="cursor-pointer">Source and technical metadata</summary>
+      <div className="space-y-1 pt-2">
+        <p>Source scope name: {item.hostingScopeName}</p>
+        <p>Released scope: {item.hostingScopeRevisionId}</p>
+        <p>Released scope revision: {item.hostingScopeRevision ?? 'Unavailable'}</p>
+        <p>Assignment revision: {item.assignmentVersion} · Selection revision: {item.selectionVersion}</p>
+        <p>Captured scope projection relationship: {stateLabel(item.relationshipState)}</p>
+        <p>Scope projection review flag: {item.reviewRequired ? 'Review required' : 'No review flag'}</p>
+        <p>The canonical relationship task supplies the current system relationship status shown above.</p>
+        <p>Offering identifier: {item.offeringId}</p><p>Assignment identifier: {item.assignmentId}</p>
+        <p>Relationship identifier: {item.relationshipId ?? 'Not recorded'}</p>
+      </div>
+    </details>
     <p>Scope selection is not acceptance of provider coverage or customer responsibilities.</p>
   </div>;
 }
 
-function ResponsibilityStatus({ review }: { review?: api.ProviderScopeResponsibilityReview }) {
-  if (!review) return <p>Responsibility review: unavailable here. Inspect the authoritative responsibility matrix for current decisions.</p>;
+function ResponsibilityStatus({ review, compact = false }: { review?: api.ProviderScopeResponsibilityReview; compact?: boolean }) {
+  if (!review) return <p>{compact ? 'Unavailable' : 'Responsibility review: unavailable here. Inspect the authoritative responsibility matrix for current decisions.'}</p>;
   return <div className="space-y-1">
-    <p>Responsibility review: {stateLabel(review.state)}</p>
-    {review.reason && <p>{review.reason}</p>}
-    <p className="text-xs">{review.canReview
+    <p>{compact ? stateLabel(review.state) : `Responsibility review: ${stateLabel(review.state)}`}</p>
+    {!compact && review.reason && <p>{review.reason}</p>}
+    {!compact && <p className="text-xs">{review.canReview
       ? review.canConfirm ? 'Review and confirmation are available in the responsibility matrix.' : 'Review is available; confirmation is not currently permitted.'
-      : 'View only. Responsibility review and confirmation are not permitted here.'}</p>
+      : 'View only. Responsibility review and confirmation are not permitted here.'}</p>}
   </div>;
 }
 
-function ResponsibilityLink({ systemId, review }: { systemId: string; review?: api.ProviderScopeResponsibilityReview }) {
-  return <Link className="underline" to={responsibilitiesPath(systemId)}>
-    {review?.canReview === true ? 'Review responsibilities' : 'View responsibilities'}
-  </Link>;
-}
-
-function PublishedDuties({ duties }: { duties?: api.ProviderScopePublishedDuties }) {
+function PublishedDuties({ duties, unavailableText = 'Customer-duty content and responsibility-review status are unavailable in this picker.' }: {
+  duties?: api.ProviderScopePublishedDuties; unavailableText?: string;
+}) {
   return <section aria-label="Published provider duties" className="space-y-3">
     <h4 className="font-semibold">Published provider duties</h4>
     {duties?.state === 'Available' ? <>
@@ -191,7 +209,7 @@ function PublishedDuties({ duties }: { duties?: api.ProviderScopePublishedDuties
         </details>
       </article>)}
       <p>These are published source responsibilities, not accepted system responsibilities. Control applicability and customer-duty acceptance remain separately reviewed.</p>
-    </> : <p>{duties?.reason ?? 'Customer-duty content and responsibility-review status are unavailable in this picker.'}</p>}
+    </> : <p>{duties?.reason ?? unavailableText}</p>}
   </section>;
 }
 
@@ -199,22 +217,22 @@ function ManageRelationship({ systemId, item, workspace, canManage, busy, onBusy
   systemId: string; item: api.SystemProviderScope; workspace: api.SystemEnvironmentsResponse; canManage: boolean; busy: boolean;
   onBusyChange: (busy: boolean) => void; onSaved: () => void;
 }) {
-  const [review, setReview] = useState(false);
-  if (review) return <fieldset disabled={busy}><CanonicalRelationshipReview systemId={systemId} item={item}
-    onBusyChange={onBusyChange} onSaved={onSaved} onCancel={() => setReview(false)} /></fieldset>;
-  return <div className="space-y-4 text-sm">
-    <ScopeSummary item={item} />
-    <button type="button" className={secondaryButtonClass} disabled={busy || !item.relationshipId}
-      onClick={() => setReview(true)}>Review provider relationship</button>
-    <ResponsibilityStatus review={item.responsibilityReview} />
-    <ResponsibilityLink systemId={systemId} review={item.responsibilityReview} />
-    <ManageSubscriptionLinks systemId={systemId} item={item} workspace={workspace} busy={busy}
-      canManage={canManage} onBusyChange={onBusyChange} onSaved={onSaved} />
-    <p>Removing this relationship leaves system subscriptions, evidence and review history intact. Optional links are ended, not the subscription records.</p>
-    {canManage ? <RemoveRelationship systemId={systemId} item={item} version={workspace.version} busy={busy}
-      onBusyChange={onBusyChange} onSaved={onSaved} />
-      : <p>Environment-management permission is required to remove this relationship.</p>}
-  </div>;
+  return <ProviderOfferingReview systemId={systemId} item={item} busy={busy} source={<ScopeSummary item={item} />}
+    renderRelationship={(current, onCancel) => <CanonicalRelationshipReview systemId={systemId} item={item} current={current}
+      onBusyChange={onBusyChange} onSaved={onSaved} onCancel={onCancel} />}>
+    <details><summary className="cursor-pointer">Optional subscription links</summary>
+      <div className="pt-3"><ManageSubscriptionLinks systemId={systemId} item={item} workspace={workspace} busy={busy}
+        canManage={canManage} onBusyChange={onBusyChange} onSaved={onSaved} /></div>
+    </details>
+    <details><summary className="cursor-pointer">Remove provider relationship</summary>
+      <div className="space-y-3 pt-3">
+        <p>Removing this relationship leaves system subscriptions, evidence and review history intact. Optional links are ended, not the subscription records.</p>
+        {workspace.permissions.canManageEnvironments ? <RemoveRelationship systemId={systemId} item={item} version={workspace.version} busy={busy || !canManage}
+          onBusyChange={onBusyChange} onSaved={onSaved} />
+          : <p>Environment-management permission is required to remove this relationship.</p>}
+      </div>
+    </details>
+  </ProviderOfferingReview>;
 }
 
 function ManageSubscriptionLinks({ systemId, item, workspace, canManage, busy, onBusyChange, onSaved }: {
@@ -326,23 +344,25 @@ function ImpactDetails({ preview }: { preview: api.EnvironmentImpactPreview }) {
   </>;
 }
 
-function hasImpactBlockers(preview: api.EnvironmentImpactPreview) {
-  return preview.canCommit === false || !!preview.blockers?.length;
-}
-
-function CanonicalRelationshipReview({ systemId, item, onBusyChange, onSaved, onCancel }: {
+function CanonicalRelationshipReview({ systemId, item, current, onBusyChange, onSaved, onCancel }: {
   systemId: string; item: api.SystemProviderScope; onBusyChange: (busy: boolean) => void;
+  current?: ProviderRelationship;
   onSaved: () => void; onCancel: () => void;
 }) {
-  const review = useRemote(signal => listAllProviderRelationships(systemId, signal), [systemId, item.relationshipId]);
-  const current = review.data?.find(row => row.relationshipId === item.relationshipId && row.assignmentId === item.assignmentId);
   return <div className="space-y-3">
-    <Status loading={review.loading} error={review.error} retry={review.retry} />
-    {current?.canReviewRelationship && current.state !== 'ExplicitlyCoveredByRecordedScope'
+    {current?.canReviewRelationship && !!current.relationshipId && current.state !== 'ExplicitlyCoveredByRecordedScope'
       ? <ProviderScopeReview systemId={systemId} item={current} onBusyChange={onBusyChange} onRecorded={onSaved} onCancel={onCancel} />
-      : !review.loading && !review.error && <>
-        <p>Relationship review is not permitted here. Covered-scope decisions require the assigned Authorizing Official and exact authorization evidence.</p>
-        <button type="button" className={secondaryButtonClass} onClick={onCancel}>Back to relationship</button>
+      : <>
+        <p>{!current ? 'The exact relationship record is unavailable. Refresh the source before continuing.'
+          : !current.relationshipId ? 'Associate this selected provider scope before recording its system relationship review. The hosting task rechecks association permission and exact source revisions.'
+          : current.state === 'ExplicitlyCoveredByRecordedScope'
+          ? 'Covered-scope decisions require the assigned Authorizing Official and exact authorization evidence.'
+          : 'The server does not permit relationship review for this record and identity.'}</p>
+        {current?.canAssociate && !current.relationshipId && <Link className="block underline"
+          to={`/systems/${encodeURIComponent(systemId)}/profile/EnvironmentAndDeployment/hosting`}>
+          Associate provider relationship
+        </Link>}
+        {item.relationshipId && <button type="button" className={secondaryButtonClass} onClick={onCancel}>Back to relationship</button>}
       </>}
   </div>;
 }
@@ -400,9 +420,9 @@ function RemoveRelationship({ systemId, item, version, busy, onBusyChange, onSav
     {preview && <div className="space-y-3">
       <h4 className="font-semibold">Removal impact</h4>
       <ImpactDetails preview={preview} />
-      {hasImpactBlockers(preview) && <Link className="block underline" target="_blank" rel="noopener noreferrer"
+      {hasImpactBlockers(preview) && <Link className="block underline"
         to={`/systems/${encodeURIComponent(systemId)}/security-capabilities`}>
-        Review capability dependencies (opens in a new tab)
+        Review capability dependencies
       </Link>}
       <label className="flex items-start gap-2"><input type="checkbox" checked={acknowledged} disabled={busy || working || hasImpactBlockers(preview)}
         onChange={event => setAcknowledged(event.target.checked)} />I acknowledge this impact. Remove only the provider relationship; retain subscriptions and history.</label>

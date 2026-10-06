@@ -1,123 +1,100 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from '../workspaces/workspaceNavigation';
-import SystemPackageValidation from './SystemPackageValidation';
-import SystemNextActions from './SystemNextActions';
-import { getConMonOverview, type ConMonOverviewResponse } from '../../api/conmon';
-import { SystemTaskColumns, SystemTaskHeading, SystemTaskSupport, systemPanel, systemPrimaryAction, systemSecondaryAction } from './SystemTaskPresentation';
-import { moveTabFocus, useQueryState } from '../workspace-operations/workspaceUi';
+import { useQueryState, useRemote, moveTabFocus, Status } from '../workspace-operations/workspaceUi';
+import { getOverviewWork, type OverviewWork, type OverviewWorkGroup } from '../../api/systemOverview';
+import OverviewJourney from './OverviewJourney';
+import OverviewWorkGroups from './OverviewWorkGroups';
+import OverviewDocuments from './OverviewDocuments';
+import OverviewMonitoring from './OverviewMonitoring';
+import OverviewAiHelp, { type OverviewAiEdit } from './OverviewAiHelp';
+import { useSystemOverview } from './useSystemOverview';
+import { overviewDate, overviewPhase } from './overviewPresentation';
+import { systemPanel, systemSecondaryAction, SystemTaskHeading } from './SystemTaskPresentation';
 
-export default function SystemReadinessOverview({ systemId, systemName, currentPhase }: { systemId: string; systemName: string; currentPhase?: string }) {
+export default function SystemReadinessOverview({ systemId, systemName }: {
+  systemId: string; systemName: string; currentPhase?: string;
+}) {
   const { params, set } = useQueryState();
-  const requested = params.get('overview');
-  const mode = requested === 'readiness' ? 'readiness' : requested === 'monitoring' || currentPhase === 'Monitor' ? 'monitoring' : 'readiness';
-  const navigation = <nav role="tablist" aria-label="System overview tasks" className="system-section-tabs my-6" onKeyDown={moveTabFocus}>
-    {([['readiness', 'Readiness'], ['monitoring', 'Monitoring & follow-up']] as const).map(([value, label]) =>
-      <button key={value} type="button" id={`overview-tab-${value}`} role="tab" aria-selected={mode === value}
-        aria-controls={`overview-panel-${value}`} tabIndex={mode === value ? 0 : -1}
-        className={`shrink-0 whitespace-nowrap border-b-2 px-0 py-[11px] text-xs ${mode === value ? 'border-[#5143d7] text-[#5143d7]' : 'border-transparent text-slate-500'}`}
-        onClick={() => set({ overview: value })}>{label}</button>)}
-  </nav>;
-  return mode === 'readiness'
-    ? <SubmissionReadiness key={systemId} systemId={systemId} systemName={systemName} navigation={navigation} />
-    : <MonitoringNextActions key={systemId} systemId={systemId} systemName={systemName} navigation={navigation} />;
-}
-
-function SubmissionReadiness({ systemId, systemName, navigation }: { systemId: string; systemName: string; navigation: ReactNode }) {
-  const [nextPath, setNextPath] = useState<string | null>(null);
-  const base = `/systems/${encodeURIComponent(systemId)}`;
-  const checklist = `${base}/documents?purpose=InitialSubmission`;
-  const continueTo = nextPath ? `${base}/${nextPath}` : checklist;
-  return <section aria-label="Initial submission readiness" className="mb-6">
-    <SystemTaskHeading eyebrow={systemName} title="A clear path to your ATO package"
-      description="Finish applicable documentation, review evidence, and prepare an initial submission."
-      action={<Link to={continueTo} className={systemPrimaryAction}>Continue preparation</Link>} />
-    {navigation}
-    <div role="tabpanel" id="overview-panel-readiness" aria-labelledby="overview-tab-readiness">
-    <SystemPackageValidation systemId={systemId} initialPurpose="InitialSubmission" summaryOnly />
-    <SystemTaskColumns support={<>
-      <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Used in your package</p>
-        <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Complete reviewed submission package</h2>
-        <p className="mb-3 leading-relaxed">Reviewed records supply the submission package. Draft edits must not replace the approved baseline.</p>
-        <Link className={systemSecondaryAction} to={`${base}/documents/preview`}>Preview contribution</Link>
-        <p className="mt-2 leading-relaxed">The preview uses current records; it is not an approved export.</p>
-      </section>
-      <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Review &amp; ownership</p>
-        <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Keep the next action clear</h2>
-        <p className="leading-relaxed">Review responsible roles, source versions, review status and evidence in each task. A readiness check is not an authorization decision or eMASS acceptance.</p>
-      </section>
-      <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Related work</p>
-        <Link className={systemSecondaryAction} to={checklist}>View package readiness</Link>
-      </section>
-    </>}>
-      <SystemNextActions systemId={systemId} onNextPathChange={setNextPath} />
-    </SystemTaskColumns>
-    </div>
-    <p className="mt-6 text-xs text-slate-500">Inputs → reviewed records → document output → ongoing change review</p>
-  </section>;
-}
-
-function MonitoringNextActions({ systemId, systemName, navigation }: { systemId: string; systemName: string; navigation: ReactNode }) {
-  const [data, setData] = useState<ConMonOverviewResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [attempt, setAttempt] = useState(0);
+  const state = useSystemOverview(systemId);
+  const mode = params.get('overview') === 'monitoring' ? 'monitoring' : 'readiness';
+  const mine = params.get('owner') === 'mine';
+  const parsedOffset = Number(params.get('workOffset') ?? '0');
+  const offset = Number.isSafeInteger(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
+  const viewing = overviewPhase(params.get('phase')) ?? (state.workspace?.rmf.confirmed ? overviewPhase(state.workspace.rmf.phase) : null) ?? 'Prepare';
+  const expanded = params.getAll('expanded').flatMap(value => value.split(',')).filter(Boolean);
+  const allFindings = params.get('findings') === 'all';
+  const runId = state.successful?.id ?? null;
+  const work = useRemote<OverviewWork | null>(signal => runId
+    ? getOverviewWork(systemId, runId, { mine, limit: 10, offset }, signal) : Promise.resolve(null),
+  [systemId, runId, mine, offset, state.revision]);
+  const [retainedTotals, setTotals] = useState<{ runId: string; counts: OverviewWork['counts'] } | null>(null);
+  const totals = retainedTotals?.runId === runId ? retainedTotals.counts : null;
+  const [aiGroup, setAiGroup] = useState<OverviewWorkGroup | null>(null);
+  const aiEdits = useRef(new Map<string, OverviewAiEdit>());
   useEffect(() => {
-    let current = true;
-    setLoading(true); setError(null); setData(null);
-    void getConMonOverview(systemId).then(value => {
-      if (!current) return;
-      if (value.systemId !== systemId) throw new Error('Monitoring context does not match the selected system.');
-      setData(value);
-    }).catch(reason => { if (current) setError(reason instanceof Error ? reason.message : 'Monitoring context is unavailable.'); })
-      .finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, [systemId, attempt]);
-  const base = `/systems/${encodeURIComponent(systemId)}`;
-  return <section className="mb-6" aria-label="Monitoring follow-up">
-    <SystemTaskHeading eyebrow={systemName} title="Maintain the reviewed baseline"
-      description="Review recorded changes and follow-up work before deciding whether reassessment or document updates are needed."
-      action={<Link className={systemPrimaryAction} to={`${base}/conmon`}>Review monitoring</Link>} />
-    {navigation}
-    <div role="tabpanel" id="overview-panel-monitoring" aria-labelledby="overview-tab-monitoring">
-    <SystemTaskColumns support={<>
-      <SystemTaskSupport title="Contributes to"><p>Monitoring evidence / Reviewed baseline follow-up</p></SystemTaskSupport>
-      <SystemTaskSupport title="Review scope and records">
-        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`${base}/conmon`}>Coverage &amp; health</Link>
-        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`${base}/documents?tab=exports`}>Retained packages</Link>
-        <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`${base}/authorize`}>Recorded decisions</Link>
-        <p>A monitoring check is not proof of complete resource coverage, an active authorization, or an approved package revision.</p>
-      </SystemTaskSupport>
-    </>}>
-      <section className={systemPanel}>
-        <h2 className="text-lg font-semibold">Changes &amp; follow-up</h2>
-        {loading && <p role="status" className="mt-4 text-sm">Loading recorded monitoring context…</p>}
-        {error && <div className="mt-4 space-y-3 text-sm text-amber-900"><p role="alert">{error}</p>
-          <button type="button" className={systemSecondaryAction} onClick={() => setAttempt(value => value + 1)}>Retry monitoring context</button></div>}
-        {data && <>
-          <div className="my-5 grid gap-3 sm:grid-cols-3">
-            {[['Monitoring', data.status.monitoringEnabled ? 'Enabled' : 'Not enabled'],
-              ['Recorded open findings', data.status.openFindings], ['Overdue POA&M items', data.status.overduePoamItems]].map(([label, value]) =>
-              <div key={label} className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p></div>)}
-          </div>
-          <p className="text-sm text-slate-600 dark:text-slate-300">{data.expiration.alertMessage}</p>
-          <p className="mt-2 text-xs text-slate-500">Last monitoring check: {data.status.lastMonitoringCheck ? new Date(data.status.lastMonitoringCheck).toLocaleString() : 'Not recorded'}</p>
-          {!data.plan && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-            <p className="text-sm">No continuous monitoring plan is recorded.</p><Link className={systemSecondaryAction} to={`${base}/conmon`}>Review monitoring plan</Link>
-          </div>}
-          {data.reauthorization.isTriggered && <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-semibold">Review recorded reassessment triggers</p><ul className="mt-2 list-inside list-disc">{data.reauthorization.triggers.map(trigger => <li key={trigger}>{trigger}</li>)}</ul>
-          </div>}
-          <div className="mt-5 divide-y divide-slate-100 dark:divide-slate-700">{data.significantChanges.filter(change => !change.reviewedAt).slice(0, 5).map(change => <article key={change.id} className="py-4">
-            <h3 className="font-semibold">{change.changeType}</h3><p className="mt-2 text-sm text-slate-500">{change.description}</p>
-            <Link className="mt-3 inline-block text-sm text-indigo-700 underline dark:text-indigo-300" to={`${base}/conmon`}>Review recorded change</Link>
-          </article>)}</div>
-          {data.significantChanges.length === 0 && <p className="mt-5 text-sm text-slate-500">No significant-change records were returned. This does not establish complete collection coverage.</p>}
-        </>}
-      </section>
-    </SystemTaskColumns>
+    if (work.data?.findingsAvailable) setTotals({ runId: work.data.runId, counts: work.data.counts });
+  }, [work.data]);
+  const lastFailure = state.error || state.workspace?.latestRun?.failure?.message
+    || (state.workspace?.latestRun?.outcome === 'SourceChanged' ? 'Sources changed during the last evaluation. Recheck against current records.'
+      : state.workspace?.latestRun?.outcome === 'Failed' ? 'The last readiness evaluation failed. Current readiness is not established.' : '');
+  const freshness = state.successful?.freshness.state;
+  const status = state.checking ? 'Checking requirements…' : lastFailure ? 'Readiness refresh failed'
+    : state.loading ? 'Loading saved readiness…' : !runId ? 'Not checked'
+      : freshness === 'Stale' ? 'Stale — check again' : freshness === 'Unavailable' ? 'Freshness unavailable'
+        : 'Current saved result';
+  return <div className="min-w-0 space-y-5 pb-6">
+    <SystemTaskHeading eyebrow={systemName} title="A clear path to your ATO package"
+      description="Follow the RMF journey and finish the work that builds a reviewable, evidence-backed package." />
+    <OverviewJourney systemId={systemId} rmf={state.workspace?.rmf} viewing={viewing}
+      onView={phase => set({ phase })} onConfirmed={() => { void state.load(); }} />
+    <div role="tablist" aria-label="Overview sections" className="flex flex-wrap gap-5 border-b border-slate-200 dark:border-slate-700" onKeyDown={moveTabFocus}>
+      {([{ value: 'readiness', label: 'Package preparation' }, { value: 'monitoring', label: 'Monitoring & follow-up' }] as const).map(tab =>
+        <button type="button" role="tab" key={tab.value} id={`overview-tab-${tab.value}`} aria-selected={mode === tab.value}
+          aria-controls={`overview-panel-${tab.value}`} tabIndex={mode === tab.value ? 0 : -1}
+          className={`min-h-11 border-b-2 px-2 text-sm ${mode === tab.value ? 'border-indigo-600 font-semibold text-indigo-700 dark:text-indigo-300' : 'border-transparent'}`}
+          onClick={() => set({ overview: tab.value })}>{tab.label}</button>)}
     </div>
-  </section>;
+    <div role="tabpanel" id={`overview-panel-${mode}`} aria-labelledby={`overview-tab-${mode}`} tabIndex={0}>
+      {mode === 'monitoring' ? <OverviewMonitoring systemId={systemId} /> : <div className="space-y-5">
+        <section aria-label="Readiness summary" className={`${systemPanel} space-y-2`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="font-semibold">Package preparation</h2><p className="text-sm">Initial submission</p></div>
+            <button type="button" className={systemSecondaryAction} disabled={state.loading || state.checking || !state.workspace?.permissions.canValidate}
+              onClick={() => { void state.check(); }}>Check again</button>
+          </div>
+          <p role="status" className="text-sm font-medium">{status}</p>
+          {totals && runId && <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <span>{totals.blocking} blocking requirements</span><span>{totals.warnings} {totals.warnings === 1 ? 'warning' : 'warnings'}</span>
+            <span>{totals.total} returned findings</span>
+          </div>}
+          {state.successful && <p className="text-xs text-slate-600 dark:text-slate-300">Last successful check: {overviewDate(state.successful.evaluatedAt)}</p>}
+          {lastFailure && <><p role="alert" className="text-sm text-red-800 dark:text-red-200">{lastFailure}</p>
+            {state.successful && <p className="text-xs">Previous successful check retained from {overviewDate(state.successful.evaluatedAt)}. It is not a successful refresh; current validity must be rechecked.</p>}
+            <button type="button" className={systemSecondaryAction} disabled={state.loading || state.checking} onClick={() => { void state.load(); }}>Reload saved readiness</button></>}
+          {freshness !== 'Current' && state.successful?.freshness.reason && <p className="text-xs">{state.successful.freshness.reason}</p>}
+          {runId && !totals && !work.loading && <p className="text-xs">Individual finding totals are unavailable for this saved check. Aggregate check counts are not finding totals.</p>}
+          {state.workspace?.permissions.validateReason && <p className="text-xs">{state.workspace.permissions.validateReason}</p>}
+          <p className="text-xs text-slate-600 dark:text-slate-300">Finding counts do not indicate RMF phase completion. A check does not approve documents, accept inheritance, submit eMASS or authorize the system.</p>
+        </section>
+        <div className="grid min-w-0 items-start gap-5 min-[1051px]:grid-cols-[minmax(0,1.65fr)_minmax(260px,1fr)]">
+          <div className="min-w-0 space-y-5">
+            <Status loading={work.loading && !!runId} error={work.error} retry={work.retry} />
+            {!runId && !state.loading && <p className="text-sm">No successful readiness evaluation is recorded. Check requirements to identify actual grouped package work.</p>}
+            <OverviewWorkGroups systemId={systemId} work={work.data} mine={mine} offset={offset} expanded={expanded}
+              allFindings={allFindings} search={`?${params.toString()}`} onOwner={personal => set({ owner: personal ? 'mine' : 'all', workOffset: 0 })}
+              onOffset={next => set({ workOffset: next })}
+              onExpanded={(id, open) => set({ expanded: [...new Set(open ? [...expanded, id] : expanded.filter(value => value !== id))].join(',') || null })}
+              onAllFindings={() => set({ findings: allFindings ? null : 'all' })} onAi={setAiGroup} />
+            {aiGroup && runId && <OverviewAiHelp key={`${runId}:${aiGroup.id}`} systemId={systemId} runId={runId}
+              group={aiGroup} edits={aiEdits.current} onClose={() => setAiGroup(null)} />}
+            <details className={`${systemPanel} text-sm`}><summary className="cursor-pointer font-semibold">How readiness is determined</summary>
+              <p className="mt-3">Checks evaluate the selected purpose and saved source versions. Individual findings are grouped without discarding requirements. Source changes require revalidation; document and package review remain separate.</p>
+              <Link className={`${systemSecondaryAction} mt-3`} to={`/systems/${encodeURIComponent(systemId)}/documents?purpose=InitialSubmission`}>Inspect canonical checks and history</Link>
+            </details>
+          </div>
+          <OverviewDocuments systemId={systemId} workspace={state.workspace} search={`?${params.toString()}`} />
+        </div>
+      </div>}
+    </div>
+  </div>;
 }

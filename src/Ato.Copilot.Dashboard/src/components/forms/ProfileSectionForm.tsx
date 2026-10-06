@@ -2,6 +2,8 @@ import { Fragment, useState, useEffect, useCallback, useRef, useId, type ReactNo
 import ConnectedSystemEnvironments from '../../features/systems/ConnectedSystemEnvironments';
 import UnsavedDesignGuard from '../../features/system-design/UnsavedDesignGuard';
 import SetupDialog from '../../features/workspace-operations/SetupDialog';
+import { identitySummary, userDocumentation, userClassificationLabel, type UserDocumentation } from '../../features/systems/userCategoryPresentation';
+import { dataDocumentation, ciaSummary, privacyLabel, privacySummary, type DataDocumentation } from '../../features/systems/dataTypePresentation';
 import type {
   ProfileSectionType,
   GovernanceStatus,
@@ -25,10 +27,9 @@ interface FieldDef {
   rows?: number;
 }
 
-function FieldGroup({ label, children, className, preparation, contextDialog, recordTitle }: {
+function FieldGroup({ label, children, className, contextDialog, recordTitle }: {
   label?: string; children: ReactNode; className?: string;
   recordTitle?: string;
-  preparation?: { recorded: number; total: number; guidance: string };
   contextDialog?: { open: boolean; busy: boolean; readOnly: boolean; error: string | null; onClose: () => void; onSave: () => void };
 }) {
   if (contextDialog) return contextDialog.open ? <SetupDialog title="System-wide information handling context"
@@ -52,17 +53,10 @@ function FieldGroup({ label, children, className, preparation, contextDialog, re
     <div className={className}>{children}</div>
   </section>;
   return label
-    ? <details open={preparation ? true : undefined} className={`rounded-lg border border-gray-200 p-4 dark:border-gray-700${preparation ? ' bg-white dark:bg-slate-900' : ''}`}>
+    ? <details className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
         <summary className="cursor-pointer font-medium">
           <span>{label}</span>
-          {preparation && <span className="mt-2 flex flex-wrap gap-2 text-xs font-normal">
-            <span className="rounded bg-indigo-50 px-2 py-1 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">ATO preparation</span>
-            <span className="rounded bg-amber-50 px-2 py-1 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              {preparation.recorded} of {preparation.total} fields recorded
-            </span>
-          </span>}
         </summary>
-        {preparation && <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{preparation.guidance}</p>}
         <div className="mt-4 space-y-4">{children}</div>
       </details>
     : <div className={className ?? 'space-y-4'}>{children}</div>;
@@ -163,11 +157,20 @@ const childConfig: Partial<Record<ProfileSectionType, { childKey: ChildType; col
         'Auditors / Assessors', 'Help Desk / Support', 'Developers', 'Other',
       ], width: 'w-44' },
       { key: 'description', label: 'Description', type: 'text', maxLength: 2000, width: 'w-48' },
+      { key: 'identityType', label: 'Identity type', type: 'select', options: ['Human', 'WorkloadIdentity'], maxLength: 40 },
+      { key: 'privilegeLevel', label: 'Privilege level', type: 'select', options: ['Privileged', 'NonPrivileged'], maxLength: 40 },
+      { key: 'affiliation', label: 'Affiliation', type: 'select', options: ['Internal', 'External'], maxLength: 40 },
       { key: 'approximateCount', label: 'Count', type: 'number', width: 'w-20' },
       { key: 'accessMethod', label: 'Access Method', type: 'select', options: [
         'CAC/PIV', 'VPN + MFA', 'Direct Console', 'SSH Key', 'Web Portal (SSO)',
         'API Token', 'RDP', 'Citrix / VDI', 'Badge + Escort', 'Other',
       ], width: 'w-36' },
+      { key: 'authenticationMethod', label: 'Authentication method', type: 'text', maxLength: 500,
+        options: ['CAC/PIV + MFA', 'PIM + MFA', 'Managed identity', 'Workload identity federation', 'MFA', 'Certificate-based authentication'] },
+      { key: 'responsibleOwner', label: 'Responsible owner', type: 'text', maxLength: 500 },
+      { key: 'userLocations', label: 'User locations', type: 'text', maxLength: 1000 },
+      { key: 'permittedEnvironments', label: 'Permitted environments', type: 'text', maxLength: 1000 },
+      { key: 'authorizedDataTypes', label: 'Authorized data types', type: 'text', maxLength: 2000 },
       { key: 'dataSensitivityLevel', label: 'Sensitivity', type: 'select', options: [
         'Public', 'CUI', 'PII', 'PHI', 'Classified', 'FOUO', 'SBU',
       ], width: 'w-28' },
@@ -186,8 +189,17 @@ const childConfig: Partial<Record<ProfileSectionType, { childKey: ChildType; col
       ], width: 'w-44' },
       { key: 'description', label: 'Description', type: 'text', maxLength: 2000, width: 'w-44' },
       { key: 'sensitivityClassification', label: 'Classification', type: 'select', required: true, options: [
-        'Public', 'FOUO', 'CUI', 'PII', 'PHI', 'PCI', 'Classified', 'Top Secret',
+        'Undetermined', 'Public', 'FOUO', 'CUI', 'PII', 'PHI', 'PCI', 'Classified', 'Top Secret',
       ], width: 'w-28' },
+      { key: 'cuiCategory', label: 'CUI category', type: 'text', maxLength: 500 },
+      { key: 'confidentialityImpact', label: 'Declared confidentiality impact', type: 'select', maxLength: 40, options: ['Low', 'Moderate', 'High', 'Undetermined'] },
+      { key: 'integrityImpact', label: 'Declared integrity impact', type: 'select', maxLength: 40, options: ['Low', 'Moderate', 'High', 'Undetermined'] },
+      { key: 'availabilityImpact', label: 'Declared availability impact', type: 'select', maxLength: 40, options: ['Low', 'Moderate', 'High', 'Undetermined'] },
+      { key: 'privacyApplicability', label: 'Privacy applicability', type: 'select', maxLength: 40, options: ['NoPii', 'PiiApplies', 'ReviewRequired', 'Undetermined'] },
+      { key: 'retentionRule', label: 'Retention rule', type: 'text', maxLength: 2000 },
+      { key: 'disposalMethod', label: 'Disposal / destruction method', type: 'text', maxLength: 2000 },
+      { key: 'categorizationRationale', label: 'Categorization rationale', type: 'text', maxLength: 2000 },
+      { key: 'categorizationReference', label: 'Categorization source reference URL', type: 'text', maxLength: 2000 },
       { key: 'source', label: 'Source', type: 'select', options: [
         'User Input', 'External API', 'Database', 'File Upload', 'Partner Feed',
         'Sensor / IoT', 'Internal System', 'Manual Entry', 'Other',
@@ -253,7 +265,7 @@ const childConfig: Partial<Record<ProfileSectionType, { childKey: ChildType; col
 
 const childTaskLabels: Partial<Record<ProfileSectionType, { title: string; add: string; context: string }>> = {
   UsersAndAccess: { title: 'User categories', add: 'Add user category', context: 'Access context' },
-  DataTypes: { title: 'Information types', add: 'Add data type', context: 'Information handling context' },
+  DataTypes: { title: 'Information types and handling', add: 'Add data type', context: 'Information handling context' },
   PortsProtocolsAndServices: { title: 'Ports and services', add: 'Add port / service', context: 'Communication context' },
 };
 
@@ -285,6 +297,12 @@ interface ProfileSectionFormProps {
   hideChildItems?: boolean;
   onHostingStatusChange?: (status: string) => void;
   formId?: string;
+  onUserDocumentationChange?: (value: UserDocumentation) => void;
+  openUserCategoryId?: string | null;
+  onUserCategoryOpened?: () => void;
+  onDataDocumentationChange?: (value: DataDocumentation) => void;
+  openDataTypeId?: string | null;
+  onDataTypeOpened?: () => void;
   addEntryOpen?: boolean;
   onAddEntryClose?: () => void;
   contextDialogOpen?: boolean;
@@ -364,6 +382,12 @@ export default function ProfileSectionForm({
   hideChildItems = false,
   onHostingStatusChange,
   formId,
+  onUserDocumentationChange,
+  openUserCategoryId,
+  onUserCategoryOpened,
+  onDataDocumentationChange,
+  openDataTypeId,
+  onDataTypeOpened,
   addEntryOpen,
   onAddEntryClose,
   contextDialogOpen = false,
@@ -452,6 +476,12 @@ export default function ProfileSectionForm({
 
   const isOptionalSection = sectionType === 'LeveragedAuthorizations';
   const individualReviews = sectionType === 'UsersAndAccess';
+  useEffect(() => {
+    if (individualReviews) onUserDocumentationChange?.(userDocumentation(rows));
+  }, [individualReviews, rows, onUserDocumentationChange]);
+  useEffect(() => {
+    if (sectionType === 'DataTypes') onDataDocumentationChange?.(dataDocumentation(rows));
+  }, [sectionType, rows, onDataDocumentationChange]);
   const roles = effectiveRoles ?? [userRole];
   const canSubmit = (!individualReviews || roles.includes('MissionOwner')) && (governanceStatus === 'Draft' || governanceStatus === 'NeedsRevision');
   const canWithdraw = governanceStatus === 'UnderReview' && roles.includes('MissionOwner');
@@ -470,9 +500,8 @@ export default function ProfileSectionForm({
     onContextDialogClose?.();
   };
   const groups: { label?: string; keys: string[] }[] = sectionType === 'EnvironmentAndDeployment' ? [
-    { keys: ['hostingModel', 'cloudProvider', 'additionalDetails'] },
-    { label: 'Network zones & deployment locations', keys: ['networkZones', 'geographicLocations'] },
-    { label: 'Recovery, availability & operating details', keys: ['availabilityTier', 'disasterRecoveryPosture', 'rtoRpo', 'maintenanceWindows', 'operatingSystem'] },
+    { keys: ['hostingModel', 'cloudProvider', 'additionalDetails', 'networkZones', 'geographicLocations',
+      'availabilityTier', 'disasterRecoveryPosture', 'rtoRpo', 'maintenanceWindows', 'operatingSystem'] },
   ] : sectionType === 'MissionAndPurpose' ? [
     { keys: [...(missionIdentityFields ? ['name', 'owner', 'acronym'] : []), 'systemVersion',
       ...(missionIdentityFields ? ['emass', 'ditpr'] : []),
@@ -480,15 +509,8 @@ export default function ProfileSectionForm({
     { label: 'Additional mission details', keys: ['operationalJustification', 'businessFunctions'] },
   ] : [{ keys: fields.map(field => field.key) }];
   const identityFields: Record<string, ReactNode> = missionIdentityFields ? { ...missionIdentityFields } : {};
-  const fieldRecorded = (key: string) => fields.find(field => field.key === key)?.type === 'multiselect'
-    ? readSelection(values[key]).some(value => value.trim().length > 0)
-    : !!values[key]?.trim();
 
   const sectionContext = <>
-      {sectionType === 'EnvironmentAndDeployment' && <p className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
-        Prepare for ATO review: complete the applicable deployment, network/location and recovery/operating details below.
-        Expanded sections show which fields are still unrecorded.
-      </p>}
       <UnsavedDesignGuard dirty={dirty && !isReadOnly} title="Unsaved System definition changes"
         description="Leaving this section will discard unsaved form changes. Keep editing to save first; recorded source reviews and approved baselines are unchanged." />
       {/* Optional section label */}
@@ -535,6 +557,7 @@ export default function ProfileSectionForm({
         isReadOnly={isReadOnly} disabled={isSubmitting} title={childTask.title} addLabel={childTask.add}
         userCategories={individualReviews} addEntryOpen={addEntryOpen} onAddEntryClose={onAddEntryClose}
         dataTypes={sectionType === 'DataTypes'} sectionGovernanceStatus={governanceStatus}
+        openDataTypeId={openDataTypeId} onDataTypeOpened={onDataTypeOpened}
         onReviewUserCategory={onReviewUserCategory} dirty={dirty} reviewError={error} savedRows={initialChildItems} />}
 
       {/* Scalar fields */}
@@ -544,15 +567,12 @@ export default function ProfileSectionForm({
           open: contextDialogOpen, busy: isSubmitting, readOnly: isReadOnly,
           error: error ?? contentError, onClose: closeContextDialog, onSave: handleSave,
         } : undefined}
-        preparation={sectionType === 'EnvironmentAndDeployment' && group.label ? {
-          recorded: group.keys.filter(fieldRecorded).length, total: group.keys.length,
-          guidance: group.keys.includes('networkZones')
-            ? 'Document the trust zones and deployment locations that support the SSP boundary and environment description. Record the actual system design, including provider-managed dependencies.'
-            : 'Document availability, recovery strategy, recovery time/data-loss targets (RTO/RPO), maintenance windows and operating platforms. These support contingency planning and operating procedures.',
-        } : undefined}
         className={sectionType === 'MissionAndPurpose' && !group.label ? 'mission-record-fields'
           : sectionType === 'EnvironmentAndDeployment' && !group.label ? 'grid min-w-0 gap-[18px] rounded-[10px] border border-slate-200 bg-white p-4 sm:grid-cols-2 min-[651px]:p-[22px] dark:border-slate-700 dark:bg-slate-900' : undefined}>
-        {sectionType === 'EnvironmentAndDeployment' && !group.label && <h2 className="text-lg font-semibold sm:col-span-2">Deployment description</h2>}
+        {sectionType === 'EnvironmentAndDeployment' && !group.label && <div className="sm:col-span-2">
+          <h2 className="text-lg font-semibold">Deployment description</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Describe cloud, on-premises or hybrid hosting. Save Draft records this description and the details below, not provider or subscription changes.</p>
+        </div>}
         {group.keys.map(key => {
           if (sectionType === 'MissionAndPurpose' && !group.label && identityFields[key]) {
             return <div key={key} className={`min-w-0 mission-${key}`}>{identityFields[key]}</div>;
@@ -566,8 +586,6 @@ export default function ProfileSectionForm({
             <label htmlFor={field.type === 'multiselect' ? undefined : `profile-${field.key}`} className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">
               {field.label}
               {field.required && sectionType !== 'MissionAndPurpose' && <span aria-hidden="true" className="text-red-500 ml-0.5">*</span>}
-              {sectionType === 'EnvironmentAndDeployment' && group.label && !fieldRecorded(field.key) &&
-                <span aria-hidden="true" className="ml-2 text-xs font-normal text-amber-700 dark:text-amber-300">Not recorded</span>}
             </label>
             {field.type === 'textarea' ? (
               <>
@@ -626,10 +644,8 @@ export default function ProfileSectionForm({
           </div>
         ); })}
       </FieldGroup>
-        {!group.label && sectionType === 'EnvironmentAndDeployment' && systemId &&
-          <ConnectedSystemEnvironments systemId={systemId} systemName={systemDisplayName} busy={isSubmitting} onStatusChange={onHostingStatusChange} />}
       </Fragment>)}
-      {sectionType === 'EnvironmentAndDeployment' && <p className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
+      {sectionType === 'EnvironmentAndDeployment' && <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
         Complete applicable details before submitting the environment for review. If a detail is provider-managed or not applicable, explain why and cite the source in Deployment description.
         {' '}Recorded values still require review; these counts are not an ATO-readiness score. Your ISSM determines adequacy against the applicable controls.
       </p>}
@@ -663,7 +679,7 @@ export default function ProfileSectionForm({
             >
               {isSubmitting ? 'Saving...' : individualReviews ? 'Save access context' : 'Save Draft'}
             </button>}
-            {canSubmit && (
+            {canSubmit && sectionType !== 'EnvironmentAndDeployment' && (
               <button
                 type="button"
                 onClick={() => { if (!editingLocked && !dirty && !contentError) onSubmit(); }}
@@ -724,7 +740,8 @@ export default function ProfileSectionForm({
           {child && childTask && <ChildEntityTable key={sourceKey} columns={child.columns} rows={rows} onChange={setRows}
             isReadOnly={isReadOnly} disabled={isSubmitting} title={childTask.title} addLabel={childTask.add}
             userCategories addEntryOpen={addEntryOpen} onAddEntryClose={onAddEntryClose}
-            onReviewUserCategory={onReviewUserCategory} dirty={dirty} reviewError={error} savedRows={initialChildItems} />}
+            onReviewUserCategory={onReviewUserCategory} dirty={dirty} reviewError={error} savedRows={initialChildItems}
+            openUserCategoryId={openUserCategoryId} onUserCategoryOpened={onUserCategoryOpened} />}
           {dirty && <p role="status" className="text-sm text-amber-700">
             Save draft changes before reviewing an individual user category.
           </p>}
@@ -734,6 +751,9 @@ export default function ProfileSectionForm({
           </button>}
         </> : sectionContext}
       </form>
+      {sectionType === 'EnvironmentAndDeployment' && systemId && <div className="mt-5">
+        <ConnectedSystemEnvironments systemId={systemId} systemName={systemDisplayName} busy={isSubmitting} onStatusChange={onHostingStatusChange} />
+      </div>}
       {individualReviews && contextDialogOpen && <SetupDialog title="System-wide access context"
         description="Manage and review the system-wide access model independently of individual user categories. Saving persists the access context and any pending category drafts together. Cancel discards only context edits made in this dialog."
         busy={isSubmitting} onClose={closeContextDialog}>
@@ -903,6 +923,10 @@ function MultiSelectField({ label, options, selected, onChange, disabled, placeh
 // ─── Child Entity Table ─────────────────────────────────────────────────────
 
 interface ChildEntityTableProps {
+  openUserCategoryId?: string | null;
+  onUserCategoryOpened?: () => void;
+  openDataTypeId?: string | null;
+  onDataTypeOpened?: () => void;
   columns: ColDef[];
   rows: ChildRow[];
   onChange: (rows: ChildRow[]) => void;
@@ -922,7 +946,8 @@ interface ChildEntityTableProps {
 }
 
 function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel = 'Add Row', disabled = false,
-  userCategories = false, dataTypes = false, sectionGovernanceStatus, addEntryOpen = false, onAddEntryClose, onReviewUserCategory, dirty = false, reviewError, savedRows }: ChildEntityTableProps) {
+  userCategories = false, dataTypes = false, sectionGovernanceStatus, addEntryOpen = false, onAddEntryClose, onReviewUserCategory, dirty = false, reviewError, savedRows,
+  openUserCategoryId, onUserCategoryOpened, openDataTypeId, onDataTypeOpened }: ChildEntityTableProps) {
   const [editor, setEditor] = useState<{ index: number | null; row: ChildRow; invalidNumbers?: string[]; inspect?: boolean; confirmRemoval?: boolean;
     reviewAction?: UserCategoryReviewRequest['action']; comments?: string } | null>(null);
   const [removing, setRemoving] = useState<number | null>(null);
@@ -941,6 +966,18 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
     return !source || JSON.stringify(source) !== JSON.stringify(row);
   };
   const closeEditor = () => { if (disabled) return; setEditor(null); onAddEntryClose?.(); };
+  useEffect(() => {
+    if (!userCategories || !openUserCategoryId || disabled) return;
+    const index = rows.findIndex(row => (row.id ?? row._tempId) === openUserCategoryId);
+    if (index >= 0) { setValidationError(null); setEditor({ index, row: { ...rows[index] }, inspect: true }); }
+    onUserCategoryOpened?.();
+  }, [userCategories, openUserCategoryId, disabled, rows, onUserCategoryOpened]);
+  useEffect(() => {
+    if (!dataTypes || !openDataTypeId || disabled) return;
+    const index = rows.findIndex(row => (row.id ?? row._tempId) === openDataTypeId);
+    if (index >= 0) { setValidationError(null); setEditor({ index, row: { ...rows[index] }, inspect: true }); }
+    onDataTypeOpened?.();
+  }, [dataTypes, openDataTypeId, disabled, rows, onDataTypeOpened]);
 
   useEffect(() => {
     if (dataTypes) dataDialogContent.current?.querySelector<HTMLElement>('input, select, button')?.focus();
@@ -979,7 +1016,7 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
         setValidationError(`${col.label} is required.`);
         return;
       }
-      if (dataTypes && col.maxLength && String(value ?? '').length > col.maxLength) {
+      if ((dataTypes || userCategories) && col.maxLength && String(value ?? '').length > col.maxLength) {
         setValidationError(`${col.label} must be ${col.maxLength} characters or fewer.`);
         return;
       }
@@ -1022,28 +1059,29 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
 
   return (
     <div ref={dataTypes ? dataTable : undefined} className="space-y-2">
-      {title && <div className={(userCategories || dataTypes) && onAddEntryClose ? 'sr-only' : 'mb-4 flex flex-wrap items-center justify-between gap-3'}>
+      {title && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{title}</h2>
-        {!isReadOnly && !onAddEntryClose && <button type="button" onClick={addRow} disabled={disabled}
+        {!isReadOnly && (!onAddEntryClose || userCategories || dataTypes) && <button type="button" onClick={addRow} disabled={disabled}
           className="rounded-[7px] bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">{addLabel}</button>}
       </div>}
       {dataTypes ? <div className="relative overflow-x-auto">
-        <table aria-label="Information types" tabIndex={-1} className="w-full min-w-[520px] table-fixed text-left text-xs">
+        <table aria-label="Information types" tabIndex={-1} className="w-full min-w-[640px] table-fixed rounded-lg bg-white text-left text-xs dark:bg-slate-900">
           <thead><tr className="border-b border-slate-200">
-            {['Data type', 'Context', 'Sensitivity', 'Review state', 'Open'].map((label, index) => <th key={label} scope="col"
-              className={`px-2.5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500 ${index === 4 ? 'w-20' : ''}`}>
+            {['Information type', 'Classification / CUI', 'CIA', 'Privacy & retention', 'Review', 'Open'].map((label, index) => <th key={label} scope="col"
+              className={`px-2.5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500 ${index === 5 ? 'w-16' : index === 4 ? 'w-24' : ''}`}>
               {label}
             </th>)}
           </tr></thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.length === 0 && <tr><td colSpan={5} className="px-2.5 py-10 text-slate-500">
+            {rows.length === 0 && <tr><td colSpan={6} className="px-2.5 py-10 text-slate-500">
               No information types are recorded.{!isReadOnly && ' Choose Add data type to describe the information handled by this system.'}
             </td></tr>}
             {rows.map((row, index) => <tr key={row.id ?? row._tempId ?? index}>
               <td className="break-words px-2.5 py-4 font-semibold">{row.dataTypeName}</td>
-              <td className="px-2.5 py-4"><span className="line-clamp-2 break-words">{row.description || 'Not recorded'}</span></td>
-              <td className="break-words px-2.5 py-4">{row.sensitivityClassification || 'Not recorded'}</td>
-              <td className="break-words px-2.5 py-4 text-slate-500">{dataReviewState}</td>
+              <td className="break-words px-2.5 py-4">{row.sensitivityClassification || 'Not recorded'}{row.cuiCategory && ` · ${row.cuiCategory}`}</td>
+              <td className="break-words px-2.5 py-4">{ciaSummary(row)}</td>
+              <td className="break-words px-2.5 py-4">{privacySummary(row)}</td>
+              <td className="break-words px-2.5 py-4"><span className="inline-block rounded-full bg-indigo-50 px-2 py-1 text-[10px] text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{dataReviewState}</span></td>
               <td className="px-2.5 py-4"><button type="button" disabled={disabled}
                 aria-label={`Open data type ${row.dataTypeName}`}
                 onClick={() => { setValidationError(null); setEditor({ index, row: { ...row }, inspect: true }); }}
@@ -1051,26 +1089,34 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
             </tr>)}
           </tbody>
         </table>
+        {dataDocumentation(rows).firstIncompleteName && <p role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>Information handling documentation is incomplete.</strong> {dataDocumentation(rows).firstIncompleteName} needs declared classification/CUI, CIA, privacy, retention/disposal or a categorization source reference.
+          Open the record to correct missing fields. Section review does not approve categorization or a privacy decision.
+        </p>}
       </div> : userCategories ? <div className="relative overflow-x-auto">
-        <table aria-label="User categories" className="w-full min-w-[520px] table-fixed text-left text-xs">
+        <table aria-label="User categories" className="w-full min-w-[640px] table-fixed rounded-lg bg-white text-left text-xs dark:bg-slate-900">
           <thead><tr className="border-b border-slate-200">
-            {['Category', 'Context', 'Count', 'Access method', ''].map((label, index) => <th key={index} scope="col"
-              className={`px-2.5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500 ${index === 2 ? 'w-16' : index === 4 ? 'w-20' : ''}`}>
-              {label || <span className="sr-only">Actions</span>}
+            {['Category', 'Identity / privilege', 'Access & authentication', 'Data access', 'Review', 'Open'].map((label, index) => <th key={index} scope="col"
+              className={`px-2.5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500 ${index === 5 ? 'w-16' : index === 4 ? 'w-24' : ''}`}>
+              {label}
             </th>)}
           </tr></thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.length === 0 && <tr><td colSpan={5} className="px-2.5 py-10 text-slate-500">
+            {rows.length === 0 && <tr><td colSpan={6} className="px-2.5 py-10 text-slate-500">
               No user categories are recorded.{!isReadOnly && ' Choose Add user category to describe a population.'}
             </td></tr>}
             {rows.map((row, index) => <tr key={row.id ?? row._tempId ?? index}>
               <td className="break-words px-2.5 py-4 font-semibold">{row.categoryName}
-                <span className="mt-1 block text-[10px] font-normal text-slate-500">{hasUnsavedRow(row) ? 'Unsaved changes' : row.governanceStatus ?? 'Review status unavailable'}</span>
                 {row.pendingDeletion && <span className="mt-1 block text-[10px] font-normal text-amber-700">Removal requested</span>}
               </td>
-              <td className="px-2.5 py-4"><span className="line-clamp-2 break-words">{row.description || 'Not recorded'}</span></td>
-              <td className="px-2.5 py-4">{row.approximateCount ?? 'Not recorded'}</td>
-              <td className="break-words px-2.5 py-4">{row.accessMethod || 'Not recorded'}</td>
+              <td className="break-words px-2.5 py-4">{identitySummary(row)}</td>
+              <td className="break-words px-2.5 py-4">{row.accessMethod || 'Access not recorded'} · {row.authenticationMethod || 'Authentication not recorded'}</td>
+              <td className="break-words px-2.5 py-4">{row.authorizedDataTypes || 'Data types not recorded'}
+                {row.dataSensitivityLevel && <span className="mt-1 block text-slate-500">{row.dataSensitivityLevel}</span>}</td>
+              <td className="px-2.5 py-4"><span className={`inline-block rounded-full px-2 py-1 text-[10px] ${
+                row.governanceStatus === 'Approved' && !hasUnsavedRow(row) ? 'bg-emerald-50 text-emerald-800'
+                  : row.governanceStatus === 'NeedsRevision' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
+                {hasUnsavedRow(row) ? 'Unsaved changes' : row.governanceStatus ?? 'Review status unavailable'}</span></td>
               <td className="px-2.5 py-4"><button type="button" disabled={disabled}
                 aria-label={`Open user category ${row.categoryName}`}
                 onClick={() => { setValidationError(null); setEditor({ index, row: { ...row }, inspect: true }); }}
@@ -1078,6 +1124,10 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
             </tr>)}
           </tbody>
         </table>
+        {userDocumentation(rows).workloadName && <p role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>Access documentation needs correction.</strong> {userDocumentation(rows).workloadName} has no recorded owner or permitted environment.
+          Open the category to record both before review. This is a documentation gap, not a detected access grant.
+        </p>}
       </div> : <div className="relative overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-gray-50 text-left">
@@ -1167,7 +1217,8 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
         {dataTypes && editor.inspect ? <div className="space-y-5">
           <dl className="grid gap-4 sm:grid-cols-2">{columns.map(col => <div key={col.key} className={col.key === 'description' ? 'sm:col-span-2' : ''}>
             <dt className="text-xs text-slate-500">{col.label}</dt>
-            <dd className="mt-1 whitespace-pre-wrap break-words text-sm">{editor.row[col.key] || 'Not recorded'}</dd>
+            <dd className="mt-1 whitespace-pre-wrap break-words text-sm">{col.key === 'privacyApplicability' && editor.row[col.key]
+              ? privacyLabel(editor.row[col.key]) : editor.row[col.key] || 'Not recorded'}</dd>
           </div>)}</dl>
           <p className="text-xs text-slate-500">{dataReviewState}</p>
           <div className="flex flex-wrap gap-3">
@@ -1210,7 +1261,9 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
         </form> : editor.inspect ? <div className="space-y-5">
           <dl className="grid gap-4 sm:grid-cols-2">{columns.map(col => <div key={col.key} className={col.key === 'description' ? 'sm:col-span-2' : ''}>
             <dt className="text-xs text-slate-500">{col.label}</dt>
-            <dd className="mt-1 whitespace-pre-wrap break-words text-sm">{editor.row[col.key] ?? 'Not recorded'}</dd>
+            <dd className="mt-1 whitespace-pre-wrap break-words text-sm">{editor.row[col.key] == null || editor.row[col.key] === '' ? 'Not recorded'
+              : userCategories && ['identityType', 'privilegeLevel', 'affiliation'].includes(col.key)
+                ? userClassificationLabel(editor.row[col.key]) : editor.row[col.key]}</dd>
           </div>)}</dl>
           <div className="space-y-1 text-xs text-slate-500">
             {hasUnsavedRow(editor.row) && <p>Unsaved changes. The recorded review status does not approve these edits.</p>}
@@ -1281,7 +1334,8 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
               <option value="">— Select —</option>
               {editor.row[col.key] && !col.options?.includes(editor.row[col.key]) &&
                 <option value={editor.row[col.key]}>{editor.row[col.key]} (previously recorded)</option>}
-              {col.options?.map(option => <option key={option} value={option}>{option}</option>)}
+              {col.options?.map(option => <option key={option} value={option}>{userCategories ? userClassificationLabel(option)
+                : col.key === 'privacyApplicability' ? privacyLabel(option) : option}</option>)}
             </select> : <input id={`child-${col.key}`} aria-label={col.label}
               list={col.type === 'text' && col.options ? `child-${col.key}-suggestions` : undefined}
               type={col.type === 'number' ? 'number' : 'text'} min={col.type === 'number' ? 0 : undefined}
@@ -1301,6 +1355,8 @@ function ChildEntityTable({ columns, rows, onChange, isReadOnly, title, addLabel
               {col.options.map(option => <option key={option} value={option} />)}
             </datalist>}
           </div>)}
+          {userCategories && <p className="text-xs text-slate-500">Document the population, not individual credentials. Owner, locations, environments and data types contribute to the SSP; these descriptions do not create account permissions, canonical data/environment links or accepted inheritance.</p>}
+          {dataTypes && <p className="text-xs text-slate-500">Record actual handling requirements and their source. CIA and privacy values are declarations, not approved FIPS categorization or a PIA decision. Profile review covers context and all data types together; use Categorization and Privacy workflows for their authoritative records.</p>}
           <div className="flex justify-end gap-3 border-t pt-4">
             <button type="button" disabled={disabled} onClick={() => {
               if (dataTypes && editor.index !== null) {

@@ -25,7 +25,7 @@ describe('Environment primary fields', () => {
     expect(screen.getByRole('option', { name: 'Provider-managed cloud' })).toHaveValue('CSP-hosted');
     expect(screen.getByRole('combobox', { name: 'Cloud environment' })).toBeVisible();
     expect(screen.getByRole('combobox', { name: 'Cloud environment' })).toHaveTextContent('Azure Government');
-    expect(screen.getByRole('combobox', { name: 'Availability Tier' })).toBeVisible();
+    expect(screen.getByLabelText(/^Availability Tier/)).toHaveValue('');
     expect(JSON.parse(save.mock.calls[0]![0])).toEqual({ ...original, additionalDetails: 'Updated deployment.' });
   });
   it('supports keyboard cloud selection without dropping legacy values', () => {
@@ -64,22 +64,21 @@ describe('Environment primary fields', () => {
     expect(screen.getByRole('textbox', { name: 'Deployment description' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
   });
-  it('opens both ATO preparation sections with honest recorded counts and field guidance', () => {
+  it('shows every deployment field together in one actual form without disclosures before independent connections', () => {
     // Arrange
     mount({ networkZones: '["DMZ"]', geographicLocations: '[]', availabilityTier: 'Not Defined' });
     // Assert
-    const network = screen.getByText('Network zones & deployment locations').closest('details')!;
-    const recovery = screen.getByText('Recovery, availability & operating details').closest('details')!;
-    expect(network).toHaveAttribute('open');
-    expect(recovery).toHaveAttribute('open');
-    expect(network).toHaveTextContent('1 of 2 fields recorded');
-    expect(recovery).toHaveTextContent('1 of 5 fields recorded');
-    expect(screen.getByRole('combobox', { name: 'Network Zones' })).toBeVisible();
-    expect(screen.getByRole('combobox', { name: 'Operating Systems' })).toBeVisible();
+    const form = screen.getByRole('textbox', { name: 'Deployment description' }).closest('form')!;
+    expect(document.querySelectorAll('form')).toHaveLength(1);
+    expect(form.querySelectorAll('details, form')).toHaveLength(0);
+    for (const name of ['Hosting model', 'Cloud environment', 'Network Zones', 'Geographic Locations',
+      'Availability Tier', 'Disaster Recovery Strategy', 'RTO / RPO Targets', 'Maintenance Windows', 'Operating Systems']) {
+      expect(within(form).getByRole('combobox', { name })).toBeVisible();
+    }
+    expect(within(form).getByRole('textbox', { name: 'Deployment description' })).toBeVisible();
     expect(screen.getByText(/Recorded values still require review/)).toBeVisible();
-    expect(screen.getAllByText('ATO preparation')).toHaveLength(2);
     const hosting = screen.getByRole('region', { name: 'System subscriptions' });
-    expect(hosting.compareDocumentPosition(network) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(network.compareDocumentPosition(recovery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(form.compareDocumentPosition(hosting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(hosting.closest('form')).toBeNull();
   });
 });

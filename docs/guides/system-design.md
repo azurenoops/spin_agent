@@ -1,5 +1,42 @@
 # System design: local acceptance walkthrough
 
+## Components & system scope (October 6)
+
+The System definition task formerly labeled Inventory & boundary retains its
+boundaries route. Use **Components & system scope** to record inclusion decisions,
+operators and rationale in the governed design. **Save scope draft** keeps the
+reviewed baseline unchanged; **Review scope changes** opens the existing design
+review workflow. Unknown legacy values and shared-service inclusion conflicts
+require explicit correction rather than diagram-style effective-scope coercion.
+An app and API may share system scope without each acquiring a new named boundary.
+
+**Advanced scope details** retain exact definition associations and source
+versions. Physical/Logical/Hybrid definitions do not prove authorization scope or
+internal-area meaning. Recorded groups, environments and network zones stay
+distinct. External/shared-service use and connections come from actual graph
+records; unused excluded components are not presented as consumed services.
+Canonical source management is separate and clearly labeled immediate writes.
+The **Recorded boundary definitions** table is visible directly below
+**What belongs to this system?**, before the component register. Open a named
+definition to inspect its source placements or use the existing create/edit
+workflow. No management disclosure needs to be expanded. Saving a definition
+or placement updates canonical records immediately; **Save scope draft** still
+only saves the governed working design. Definition types do not establish
+authorization scope.
+
+The boundary count and working-revision banners appear full width immediately
+below the heading/navigation, before the columns. The single **SSP ·
+Reviewed system definition** sidebar starts beside **What belongs to this
+system?**, immediately below both banners. The introduction, **Recorded boundary
+definitions** table and component register share one main left column, so the
+same sidebar is beside both registers. On narrow screens the main column stacks
+before the sidebar, with wide tables scrolling inside their own containers.
+The duplicate canonical sidebar remains removed. **Add System Boundary**, beside **Recorded boundary definitions**,
+opens the existing immediate-write create form for authorized authors, whether
+the register is empty or populated. The header no longer has **Review boundary**;
+use each row's **Open** to inspect that exact record. Cancel or Escape restores
+focus without saving. Neither action automatically chooses a component's scope.
+
 ## PR review corrections (October 5)
 
 Context now preserves shared/separately authorized components and their
@@ -422,7 +459,7 @@ Status: local implementation with verified canonical-source output acceptance.
 Live deployment status and remaining external gates are recorded below.
 
 System design is the seventh tab in System definition. The existing Mission,
-Users, Environment & hosting, Data, Inventory & boundary, and Ports &
+Users, Environment & hosting, Data, Components & system scope, and Ports &
 interconnections tabs remain unchanged. Source records, design decisions and
 diagram placement have different owners and approval meaning.
 
@@ -622,6 +659,35 @@ substitute draft artifacts for an approved baseline.
    must deny them without disclosing another system's graph or source content.
 
 ## Important boundaries
+
+### Environment & hosting: organize existing records
+
+Open **System definition → Environment & hosting**. Describe hosting model,
+cloud environment and deployment first. All network/location and recovery/
+availability/operating fields are visible together in the same **Deployment
+description** editor and actual form; no section expansion is needed.
+Explain provider-managed or inapplicable details and cite their source in the
+deployment description. **Save Draft** in the header saves only this profile.
+This tab does not expose Submit for Review. Existing backend review, withdrawal
+and retained approval semantics remain unchanged; saving alone does not approve
+the profile. Later drafts do not replace the retained approved SSP source.
+
+The **Provider services & scopes** register and **System subscriptions** follow
+the draft. Open provider details for pinned scope revisions and published duties,
+or manage the relationship and optional subscription links. Add/attach actions
+use their own confirmations and server permissions, not Save Draft. On-premises,
+hybrid and organization-managed deployments need not invent provider links;
+provider services may exist without subscriptions. Check recorded subscription
+scope, access and monitoring independently. Attachment or hosting association
+does not accept responsibilities, approve inheritance, enable healthy monitoring
+or authorize the system.
+
+Manual local check: use the Environment tab at desktop and narrow widths,
+confirm every deployment field is visible without expanding, edit an isolated draft and use top Save
+Draft, reload to verify retention, then open/cancel provider and attachment
+dialogs without saving. Check the shared right sidebar starts below both page
+banners. Test real mutations only on an authorized disposable system; never
+populate shared demo records merely to demonstrate the layout.
 
 Design approval is not accepted control inheritance, technical implementation
 verification, monitoring health, cATO readiness, eMASS submission or an AO

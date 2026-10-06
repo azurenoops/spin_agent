@@ -18,6 +18,22 @@ const choice: api.EnvironmentChoice = { choiceId: 'choice-a', source: 'Organizat
   allocationVersion: null, offeringId: null, offeringName: null, hostingScopeRevisionId: null, allocationState: null,
   startsAt: null, expiresAt: null, provenance, eligible: true, ineligibleReason: null };
 const empty: api.SystemEnvironmentsResponse = { systemId: 'system-a', version: 0, permissions, attachments: [], legacyReferences: [] };
+const attached: api.SystemEnvironmentAttachment = {
+  attachmentId: 'attachment-a', systemId: 'system-a', version: 2, source: 'OrganizationOwned', registration,
+  allocationId: null, allocationVersion: null, offeringId: null, offeringName: null,
+  hostingAssignmentId: null, hostingReviewState: 'Undetermined', attachmentState: 'Attached',
+  scope: { revisionId: 'scope-a', version: 1, reviewState: 'PendingReview',
+    resourceIds: ['/subscriptions/subscription-a/resourceGroups/rg-app/providers/Microsoft.Web/sites/api'],
+    exclusions: [], sharedDependencyResourceIds: [], discoveredAt: '2026-09-29' },
+  assessmentAccess: { state: 'NotChecked', checkedAt: null, reason: null },
+  monitoringAccess: { state: 'NotChecked', checkedAt: null, reason: null },
+  monitoring: { configured: false, enabled: false, health: 'NotEvaluated', evaluatedAt: null, reason: null },
+  readiness: { state: 'Blocked', checkedAt: null, reason: 'Scope review required' }, provenance, updatedAt: '2026-09-29',
+};
+const impact: api.EnvironmentImpactPreview = {
+  previewId: 'preview-a', systemId: 'system-a', allocationId: null, expectedVersion: 4,
+  expiresAt: '2099-01-01', systems: [], warnings: ['Retain historical evidence'], requiresScopeReview: false,
+};
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.getSystemEnvironments).mockResolvedValue(empty);
@@ -29,6 +45,202 @@ beforeEach(() => {
 });
 const mount = () => render(<MemoryRouter><ConnectedSystemEnvironments systemId="system-a" busy={false} /></MemoryRouter>);
 describe('Canonical system environments', () => {
+  it.each(['2000-01-01', 'not-a-date'])('rejects an expired or invalid detachment preview %s without losing rationale', async expiresAt => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4, attachments: [attached] });
+    vi.mocked(api.previewEnvironmentDetach).mockResolvedValue({ ...impact, expiresAt });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Mission production' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Detachment rationale' }), { target: { value: 'Keep this intent' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Preview detachment impact' })); });
+    fireEvent.click(screen.getByRole('checkbox', { name: /reviewed the affected assessment/ }));
+    // Act
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirm detachment' })); });
+    // Assert
+    expect(api.detachSystemEnvironment).not.toHaveBeenCalled();
+    expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('impact preview expired');
+    expect(screen.getByRole('textbox', { name: 'Detachment rationale' })).toHaveValue('Keep this intent');
+  });
+  it('keeps Manage readable while every mutation follows the current server permission flags', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4,
+      permissions: { ...permissions, canManageEnvironments: false, canCheckAccess: false }, attachments: [attached] });
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Mission production' }));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Manage system scope' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Review pending scope' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Check access' })).toBeDisabled();
+    expect(screen.queryByRole('textbox', { name: 'Detachment rationale' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('server does not permit changing');
+  });
+  it.each([
+    { ...impact, canCommit: false, blockers: ['Review the current resource source.'] },
+    { ...impact, expiresAt: '2000-01-01' },
+  ])('does not commit an unavailable or expired system-scope preview $expiresAt/$canCommit', async preview => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4, attachments: [attached] });
+    vi.mocked(api.getEnvironmentChoices).mockResolvedValue({ ...empty, version: 4, choices: [choice], registrationHref: '' });
+    vi.mocked(api.previewEnvironmentScope).mockResolvedValue(preview);
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Mission production' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Review pending scope' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue to system scope' })); });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for scope change' }), { target: { value: 'Retained scope review' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Review attachment' })); });
+    // Act / Assert
+    if (preview.canCommit === false) {
+      expect(screen.getByRole('checkbox', { name: /reviewed this exact system scope/ })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Accept reviewed environment scope' })).toBeDisabled();
+      expect(screen.getByRole('alert')).toHaveTextContent('Review the current resource source.');
+    } else {
+      fireEvent.click(screen.getByRole('checkbox', { name: /reviewed this exact system scope/ }));
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accept reviewed environment scope' })); });
+      expect(screen.getByRole('alert')).toHaveTextContent('impact preview expired');
+      expect(screen.getByRole('textbox', { name: 'Reason for scope change' })).toHaveValue('Retained scope review');
+    }
+    expect(api.commitEnvironmentScope).not.toHaveBeenCalled();
+  });
+  it('updates actual assessment access inside Manage without claiming monitoring connectivity', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4, attachments: [attached] });
+    vi.mocked(api.checkEnvironmentAccess).mockResolvedValue({ systemId: 'system-a', version: 5, attachments: [{
+      ...attached, assessmentAccess: { state: 'Denied', checkedAt: '2026-10-06', reason: 'Assessment source permission denied' },
+    }] });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Mission production' }));
+    // Act
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Check access' })); });
+    // Assert
+    expect(api.checkEnvironmentAccess).toHaveBeenCalledWith('system-a', { expectedVersion: 4, purpose: 'Assessment' });
+    expect(screen.getByRole('dialog')).toHaveTextContent('Denied');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Monitoring access: Not Checked · Collection: Not enabled');
+    expect(screen.getByRole('link', { name: 'View monitoring (opens in a new tab)' })).toHaveAttribute('target', '_blank');
+  });
+  it('opens pending scope review through Manage and keeps input after a stale commit', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4, attachments: [attached] });
+    vi.mocked(api.getEnvironmentChoices).mockResolvedValue({ ...empty, version: 4, choices: [choice], registrationHref: '' });
+    vi.mocked(api.previewEnvironmentScope).mockResolvedValue(impact);
+    vi.mocked(api.commitEnvironmentScope).mockRejectedValue(new Error('The current scope version changed.'));
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Mission production' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Review pending scope' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Continue to system scope' })); });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for scope change' }), { target: { value: 'Retained scope review rationale' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Review attachment' })); });
+    fireEvent.click(screen.getByRole('checkbox', { name: /reviewed this exact system scope/ }));
+    // Act
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Accept reviewed environment scope' })); });
+    // Assert
+    expect(api.previewEnvironmentScope).toHaveBeenCalledWith('system-a', 'attachment-a', expect.objectContaining({
+      expectedVersion: 4, expectedAttachmentVersion: 2, reviewPendingScope: true,
+      resourceIds: attached.scope.resourceIds, rationale: 'Retained scope review rationale',
+    }));
+    expect(screen.getByRole('alert')).toHaveTextContent('current scope version changed');
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('textbox', { name: 'Reason for scope change' })).toHaveValue('Retained scope review rationale');
+  });
+  it('retains detachment rationale and does not claim success when the server still reports attachment', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4, attachments: [attached] });
+    vi.mocked(api.previewEnvironmentDetach).mockResolvedValue(impact);
+    vi.mocked(api.detachSystemEnvironment).mockResolvedValue({ ...empty, version: 4, attachments: [attached] });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Mission production' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Detachment rationale' }), { target: { value: 'Retained removal rationale' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Preview detachment impact' })); });
+    fireEvent.click(screen.getByRole('checkbox', { name: /reviewed the affected assessment/ }));
+    // Act
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirm detachment' })); });
+    // Assert
+    expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('did not confirm detachment');
+    expect(screen.getByRole('textbox', { name: 'Detachment rationale' })).toHaveValue('Retained removal rationale');
+    expect(screen.queryByText(/Environment detached/)).not.toBeInTheDocument();
+  });
+  it('blocks detachment when its impact preview cannot be committed', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4, attachments: [attached] });
+    vi.mocked(api.previewEnvironmentDetach).mockResolvedValue({ ...impact, canCommit: false, blockers: ['Current source must be reviewed.'] });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Mission production' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Detachment rationale' }), { target: { value: 'Source cleanup' } });
+    // Act
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Preview detachment impact' })); });
+    // Assert
+    expect(screen.getByRole('checkbox', { name: /reviewed the affected assessment/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Confirm detachment' })).toBeDisabled();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Current source must be reviewed.');
+    expect(api.detachSystemEnvironment).not.toHaveBeenCalled();
+  });
+  it('retains the selected subscription when wizard Cancel is canceled', async () => {
+    // Arrange
+    mount();
+    await screen.findByText('No subscriptions attached.');
+    fireEvent.click(screen.getByRole('button', { name: 'Attach subscription' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Mission production/ }));
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    // Assert
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('checkbox', { name: /Mission production/ })).toBeChecked();
+    expect(api.applySystemEnvironments).not.toHaveBeenCalled();
+  });
+  it('has no empty table or access/monitoring primary actions before attachment', async () => {
+    // Arrange
+    mount();
+    // Act
+    await screen.findByText('No subscriptions attached.');
+    // Assert
+    const register = within(screen.getByRole('region', { name: 'System subscriptions' }));
+    expect(register.queryByRole('table')).not.toBeInTheDocument();
+    expect(register.getAllByRole('button')).toHaveLength(1);
+    expect(register.getByRole('button', { name: 'Attach subscription' })).toBeEnabled();
+    expect(register.queryByRole('link', { name: /monitoring/i })).not.toBeInTheDocument();
+    expect(register.getByText('Provider scopes can be recorded without a subscription.')).toBeVisible();
+  });
+  it('keeps the named subscription register, source and independent access/monitoring states truthful', async () => {
+    // Arrange
+    const attachment: api.SystemEnvironmentAttachment = {
+      attachmentId: 'attachment-a', systemId: 'system-a', version: 2, source: 'ProviderAllocation', registration,
+      allocationId: 'allocation-a', allocationVersion: 3, offeringId: 'offering-a', offeringName: 'Provider service',
+      hostingAssignmentId: null, hostingReviewState: 'Undetermined', attachmentState: 'Attached', allocationState: 'Active',
+      scope: { revisionId: 'scope-a', version: 1, reviewState: 'PendingReview', resourceIds: ['resource-a'],
+        exclusions: [], sharedDependencyResourceIds: [], discoveredAt: '2026-09-29' },
+      assessmentAccess: { state: 'Denied', checkedAt: '2026-09-29', reason: 'Assessment permission denied' },
+      monitoringAccess: { state: 'NotChecked', checkedAt: null, reason: null },
+      monitoring: { configured: true, enabled: true, health: 'Degraded', evaluatedAt: null, reason: 'Telemetry incomplete' },
+      readiness: { state: 'Blocked', checkedAt: null, reason: 'Scope review required' }, provenance, updatedAt: '2026-09-29',
+    };
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...empty, version: 4, attachments: [attachment] });
+    mount();
+    // Act
+    const table = await screen.findByRole('table', { name: 'System subscriptions' });
+    // Assert
+    expect(within(table).getAllByRole('columnheader').map(cell => cell.textContent)).toEqual([
+      'Subscription name and identifier', 'System resource scope', 'Assessment-access status', 'Monitoring status', 'Action',
+    ]);
+    expect(within(table).getAllByRole('button')).toHaveLength(1);
+    expect(table).toHaveTextContent('subscription-a');
+    expect(table).toHaveTextContent('Pending Review');
+    expect(table).toHaveTextContent('Denied');
+    expect(table).toHaveTextContent('Degraded');
+    expect(screen.getByRole('region', { name: 'Subscription register' })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByText(/Attachment and access checks are separate operations/)).toBeVisible();
+    // Act
+    fireEvent.click(within(table).getByRole('button', { name: 'Manage Mission production' }));
+    fireEvent.click(screen.getByText('Subscription source and technical details'));
+    // Assert
+    expect(screen.getByRole('dialog')).toHaveTextContent('Allocation statusActive');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Assessment permission denied');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Telemetry incomplete');
+    expect(screen.getByRole('dialog')).toHaveTextContent('ManualVerified');
+    expect(api.applySystemEnvironments).not.toHaveBeenCalled();
+    expect(api.checkEnvironmentAccess).not.toHaveBeenCalled();
+  });
   it('supports organization-owned setup without fabricating provider prerequisites or whole-subscription selection', async () => {
     // Arrange
     mount(); await screen.findByText('No subscriptions attached.');

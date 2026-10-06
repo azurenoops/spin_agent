@@ -36,7 +36,8 @@
   margin-bottom: 22px;
 }
 
-:is(.boundary-inventory-card, .connection-register) > h2 {
+:is(.boundary-inventory-card, .connection-register) > h2,
+.boundary-inventory-card > div > h2 {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -.3px;
@@ -79,6 +80,10 @@
   color: #778399;
 }
 
+.scope-inventory .boundary-support :is(p, h2) { color: #475569; }
+.scope-inventory .boundary-inventory-card th { color: #475569; }
+.dark .scope-inventory .boundary-support :is(p, h2) { color: #cbd5e1; }
+.dark .scope-inventory .boundary-inventory-card th { color: #cbd5e1; }
 .dark :is(.boundary-workspace, .ports-workspace) { color: #e2e8f0; }
 .dark :is(.boundary-workspace, .ports-workspace) > header h1 + p,
 .dark :is(.boundary-inventory-card, .connection-register) > p:first-of-type,

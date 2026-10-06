@@ -130,6 +130,7 @@ export interface PackageReadinessDocument {
 export interface PackageReadinessWorkspace extends PackageReadinessScope {
   source: { state: 'Available' | 'Unavailable'; hash: string | null; ruleVersion: string; reason: string | null };
   latestRun: PackageReadinessRun | null;
+  lastSuccessfulRun?: PackageReadinessRun | null;
   permissions: { canValidate: boolean; validateReason: string | null; canGenerate: boolean; generateReason: string | null };
   progress: PackageReadinessProgress[];
   documents: PackageReadinessDocument[];
@@ -137,6 +138,11 @@ export interface PackageReadinessWorkspace extends PackageReadinessScope {
     phase: string;
     transitions: { id: string; fromPhase: string; toPhase: string; occurredAt: string; actor: string }[];
     totalCount: number;
+    confirmed?: boolean;
+    source?: string | null;
+    recordedAt?: string | null;
+    actor?: string | null;
+    canConfirm?: boolean;
   };
 }
 
@@ -188,6 +194,7 @@ const paths = new Set([
   'narratives', 'assessments', 'assessments/environment', 'poam', 'evidence', 'baseline',
   'inheritance', 'inheritance/subscriptions', 'security-capabilities', 'security-capabilities/inventory',
   'roles', 'legal', 'conmon',
+  'profile/SystemDesign',
 ]);
 const root = (systemId: string) => `/systems/${encodeURIComponent(systemId)}/package-readiness`;
 const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
@@ -328,6 +335,10 @@ export async function getPackageReadinessWorkspace(
     && text(data.source.ruleVersion) && nullableText(data.source.reason)
     && (data.source.state === 'Available' ? hash(data.source.hash) : data.source.hash === null && text(data.source.reason)));
   if (data.latestRun !== null) checkRun(data.latestRun);
+  if (data.lastSuccessfulRun != null) {
+    checkRun(data.lastSuccessfulRun);
+    requireContract(['Ready', 'Blocked'].includes(data.lastSuccessfulRun.outcome));
+  }
   const p = data.permissions;
   requireContract(p && typeof p.canValidate === 'boolean' && typeof p.canGenerate === 'boolean'
     && nullableText(p.validateReason) && nullableText(p.generateReason)
@@ -356,6 +367,12 @@ export async function getPackageReadinessWorkspace(
   requireContract(data.rmf && text(data.rmf.phase) && Array.isArray(data.rmf.transitions)
     && data.rmf.transitions.length <= 5 && count(data.rmf.totalCount) && data.rmf.totalCount >= data.rmf.transitions.length
     && data.rmf.transitions.every(t => t && [t.id, t.fromPhase, t.toPhase, t.actor].every(text) && date(t.occurredAt)));
+  if (data.rmf.confirmed !== undefined) {
+    requireContract(typeof data.rmf.confirmed === 'boolean' && typeof data.rmf.canConfirm === 'boolean'
+      && [data.rmf.source, data.rmf.actor].every(nullableText)
+      && (data.rmf.recordedAt === null || date(data.rmf.recordedAt))
+      && (!data.rmf.confirmed || text(data.rmf.source) && text(data.rmf.actor) && date(data.rmf.recordedAt)));
+  }
   return data;
 }
 

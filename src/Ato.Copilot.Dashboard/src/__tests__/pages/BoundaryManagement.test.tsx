@@ -6,6 +6,7 @@ import * as api from '../../api/boundaries';
 import { getComponents } from '../../api/components';
 import { useSystemMutationPermission } from '../../components/permissions/useSystemMutationPermission';
 import type { BoundaryDefinitionDto, BoundaryComponentDto } from '../../types/dashboard';
+import type { ReactNode } from 'react';
 import '../helpers/dialog';
 
 vi.mock('../../components/permissions/useSystemMutationPermission', () => ({ useSystemMutationPermission: vi.fn() }));
@@ -22,6 +23,10 @@ vi.mock('../../api/boundaries', () => ({
   acquireLock: vi.fn(), releaseLock: vi.fn(), checkLockStatus: vi.fn(),
 }));
 vi.mock('../../api/components', () => ({ getComponents: vi.fn() }));
+vi.mock('../../features/systems/GovernedBoundaryInventory', () => ({
+  default: ({ children, recordStatus, renderHeading }: { children: ReactNode; recordStatus?: ReactNode; renderHeading?: (actions: ReactNode) => ReactNode }) =>
+    <>{renderHeading?.(null)}{recordStatus}{children}</>,
+}));
 
 const boundary: BoundaryDefinitionDto = {
   id: 'boundary-a', name: 'Production', description: 'Application and storage.', boundaryType: 'Logical',
@@ -46,6 +51,28 @@ function expectNoWrites() {
   }
 }
 describe('Inventory and boundary mock parity', () => {
+  it('offers the authorized canonical create action beside a populated register without the duplicate sidebar', async () => {
+    // Arrange
+    render(page());
+    const register = await screen.findByRole('region', { name: 'Recorded boundary inventory' });
+    const create = within(register).getByRole('button', { name: 'Add System Boundary' });
+    create.focus();
+    // Act
+    fireEvent.click(create);
+    // Assert
+    const dialog = screen.getByRole('dialog', { name: 'Create Boundary' });
+    expect(dialog).toHaveTextContent('saving updates the named definition immediately');
+    expect(screen.queryByRole('button', { name: 'Review boundary' })).not.toBeInTheDocument();
+    expect(screen.queryByText('SSP · Boundary description and inventory')).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+    expect(register).toHaveTextContent('Canonical definition and placement changes take effect immediately');
+    expectNoWrites();
+    // Act
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    // Assert
+    expect(create).toHaveFocus();
+    expectNoWrites();
+  });
   it('shows a saved empty boundary in the same register counted by the status', async () => {
     // Arrange
     vi.mocked(api.fetchBoundaryDefinitions).mockResolvedValue([{ ...boundary, name: 'mission-api', componentCount: 0 }]);
@@ -84,20 +111,20 @@ describe('Inventory and boundary mock parity', () => {
     // Arrange / Act
     render(page());
     // Assert
-    expect(await screen.findByRole('heading', { name: 'Mission system boundary' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Recorded boundary definitions' })).toBeVisible();
     expect(screen.getByText('Mission Alpha')).toBeVisible();
     expect(screen.getByRole('status', { name: 'Boundary record status' })).toHaveTextContent('2 boundaries defined');
     expect(screen.getByRole('status', { name: 'Boundary record status' })).toHaveTextContent('Viewing does not approve scope');
     expect(within(screen.getByRole('navigation', { name: 'System task views' })).getAllByRole('link')).toHaveLength(7);
-    expect(screen.getByRole('button', { name: 'Review boundary' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Open boundary Production' })).toBeEnabled();
     expect(await screen.findAllByRole('table')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Manage boundaries' })).not.toBeInTheDocument();
     expect(screen.queryByText('NIST RMF Step P-16: Complete Asset Identification First')).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Search boundaries' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Preview contribution' })).toHaveAttribute('href', '/systems/system-a/documents/preview');
-    expect(screen.getByRole('link', { name: 'View package readiness' })).toHaveAttribute('href', '/systems/system-a/documents');
+    expect(screen.queryByRole('link', { name: 'Preview contribution' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'View package readiness' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage component inventory' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Review & ownership' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Review & ownership' })).not.toBeInTheDocument();
     expectNoWrites();
   });
   it('opens the selected row in a right drawer without introducing another boundary table', async () => {
@@ -161,7 +188,7 @@ describe('Inventory and boundary mock parity', () => {
       { id: 'candidate-a', name: 'API service', componentType: 'Thing', source: 'Organization', description: null },
     ]);
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Add components to boundary' }));
     const drawer = screen.getByRole('dialog', { name: 'Production — Details' });
     // Act
@@ -197,7 +224,7 @@ describe('Inventory and boundary mock parity', () => {
     vi.mocked(api.listBoundaryComponents).mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 25 });
     vi.mocked(api.listBoundaryComponentCandidates).mockResolvedValue([]);
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     const drawer = screen.getByRole('dialog', { name: 'Production — Details' });
     // Act
     fireEvent.click(within(drawer).getByRole('button', { name: 'Add components to boundary' }));
@@ -219,7 +246,7 @@ describe('Inventory and boundary mock parity', () => {
     ]);
     render(page());
     const opener = await screen.findByRole('button', { name: 'Open boundary Production' });
-    const review = screen.getByRole('button', { name: 'Review boundary' });
+    const review = screen.getByRole('button', { name: 'Add System Boundary' });
     const focusReview = review.focus.bind(review);
     const focus = vi.spyOn(review, 'focus').mockImplementation(() => {
       // Native modal dialogs make background elements inert until they close.
@@ -253,7 +280,7 @@ describe('Inventory and boundary mock parity', () => {
     vi.mocked(api.acquireLock).mockResolvedValue({ locked: true, lockedBy: 'Recorder A', lockedAt: '2026-09-01', expiresAt: '2099-01-01' });
     vi.mocked(api.updateAssignment).mockRejectedValue(new Error('Conflict'));
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     fireEvent.click(await screen.findByRole('button', { name: 'In Scope' }));
     const drawer = screen.getByRole('dialog', { name: 'Production — Details' });
     // Act
@@ -275,7 +302,7 @@ describe('Inventory and boundary mock parity', () => {
       { id: 'candidate-a', name: 'API service', componentType: 'Thing', source: 'Organization', description: null },
     ]);
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Add components to boundary' }));
     const search = screen.getByPlaceholderText('Search eligible components...');
     fireEvent.change(search, { target: { value: 'API' } });
@@ -313,7 +340,7 @@ describe('Inventory and boundary mock parity', () => {
     let resolveLock!: (value: Awaited<ReturnType<typeof api.acquireLock>>) => void;
     vi.mocked(api.acquireLock).mockReturnValue(new Promise(resolve => { resolveLock = resolve; }));
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     const drawer = screen.getByRole('dialog', { name: 'Production — Details' });
     expectNoWrites();
     // Act
@@ -343,7 +370,7 @@ describe('Inventory and boundary mock parity', () => {
       ],
     }]);
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     const remove = await screen.findByRole('button', { name: 'Remove' });
     // Act
     await act(async () => { fireEvent.click(remove); });
@@ -370,7 +397,7 @@ describe('Inventory and boundary mock parity', () => {
     await screen.findByRole('table');
     expect(screen.queryByText('Do cloud-native systems need an inventory?')).not.toBeInTheDocument();
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open boundary Production' }));
     fireEvent.click(await screen.findByText('Inventory & scope guidance'));
     // Assert
     expect(await screen.findByText('Yes, cloud-native systems still require an inventory of in-scope virtual resources, managed services, workloads and software. Document provider-managed infrastructure as a dependency; do not invent physical hardware details.')).toBeVisible();
@@ -379,13 +406,13 @@ describe('Inventory and boundary mock parity', () => {
     expectNoWrites();
   });
 
-  it('reviews the default primary boundary and restores focus to the header action on close', async () => {
+  it('opens the exact primary row and restores focus to its action on close', async () => {
     // Arrange
     vi.mocked(api.fetchBoundaryDefinitions).mockResolvedValue([
       { ...boundary, id: 'boundary-b', name: 'Recovery', isPrimary: false }, boundary,
     ]);
     render(page());
-    const review = await screen.findByRole('button', { name: 'Review boundary' });
+    const review = await screen.findByRole('button', { name: 'Open boundary Production' });
     review.focus();
     // Act
     fireEvent.click(review);
@@ -399,16 +426,21 @@ describe('Inventory and boundary mock parity', () => {
     expectNoWrites();
   });
 
-  it.each([true, false])('offers a separate authorized empty-state create action with canManage=%s', async allowed => {
+  it.each([
+    { allowed: true, populated: false }, { allowed: false, populated: false },
+    { allowed: true, populated: true }, { allowed: false, populated: true },
+  ])('gates the heading create action with canManage=$allowed and populated=$populated', async ({ allowed, populated }) => {
     // Arrange
     vi.mocked(useSystemMutationPermission).mockReturnValue(allowed);
-    vi.mocked(api.fetchBoundaryDefinitions).mockResolvedValue([]);
+    vi.mocked(api.fetchBoundaryDefinitions).mockResolvedValue(populated ? [boundary] : []);
     render(page());
     // Assert
-    expect(await screen.findByRole('button', { name: 'Review boundary' })).toBeDisabled();
-    expect(screen.getByText('No boundaries defined yet.')).toBeVisible();
-    expect(screen.getByRole('status', { name: 'Boundary record status' })).toHaveTextContent('No boundary recorded');
-    expect(Boolean(screen.queryByRole('button', { name: 'Create boundary' }))).toBe(allowed);
+    await screen.findByRole('heading', { name: 'Recorded boundary definitions' });
+    if (populated) expect(screen.getByRole('button', { name: 'Open boundary Production' })).toBeVisible();
+    else expect(screen.getByText('No boundaries defined yet.')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Review boundary' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Boundary record status' })).toHaveTextContent(populated ? '1 boundary defined' : 'No boundary recorded');
+    expect(Boolean(screen.queryByRole('button', { name: 'Add System Boundary' }))).toBe(allowed);
     expectNoWrites();
   });
 
@@ -417,7 +449,7 @@ describe('Inventory and boundary mock parity', () => {
     vi.mocked(api.fetchBoundaryComponents).mockRejectedValue(new Error('Unavailable'));
     render(page());
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     // Assert
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load boundary components');
     expectNoWrites();
@@ -427,7 +459,7 @@ describe('Inventory and boundary mock parity', () => {
     // Arrange
     vi.mocked(api.acquireLock).mockResolvedValue({ locked: true, lockedBy: 'Recorder A', lockedAt: '2026-09-01', expiresAt: '2099-01-01' });
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     const scope = await screen.findByRole('button', { name: 'Excluded' });
     expectNoWrites();
     // Act
@@ -445,7 +477,7 @@ describe('Inventory and boundary mock parity', () => {
     // Arrange
     vi.mocked(api.acquireLock).mockResolvedValue({ locked: true, lockedBy: 'Recorder A', lockedAt: '2026-09-01', expiresAt: '2099-01-01' });
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open boundary Production' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Excluded' }));
     const dialog = screen.getByRole('dialog', { name: 'Production — Details' });
     const scope = await within(dialog).findByRole('combobox');
@@ -468,13 +500,13 @@ describe('Inventory and boundary mock parity', () => {
     // Arrange
     if (mode === 'create') vi.mocked(api.fetchBoundaryDefinitions).mockResolvedValue([]);
     render(page());
-    await screen.findByRole('button', { name: 'Review boundary' });
+    await screen.findByRole('heading', { name: 'Recorded boundary definitions' });
     if (mode === 'edit') {
       await screen.findByRole('cell', { name: 'Production' });
-      fireEvent.click(screen.getByRole('button', { name: 'Review boundary' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Open boundary Production' }));
       await screen.findByRole('button', { name: 'Excluded' });
     }
-    const trigger = mode === 'create' ? screen.getByRole('button', { name: 'Create boundary' })
+    const trigger = mode === 'create' ? screen.getByRole('button', { name: 'Add System Boundary' })
       : screen.getAllByTitle('Edit boundary')[0]!;
     trigger.focus();
     // Act
@@ -490,7 +522,7 @@ describe('Inventory and boundary mock parity', () => {
     fireEvent(dialog, new Event('cancel', { bubbles: false, cancelable: true }));
     // Assert
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(mode === 'create' ? trigger : screen.getByRole('button', { name: 'Review boundary' })).toHaveFocus();
+    expect(mode === 'create' ? trigger : screen.getByRole('button', { name: 'Add System Boundary' })).toHaveFocus();
     expectNoWrites();
   });
 
@@ -503,9 +535,9 @@ describe('Inventory and boundary mock parity', () => {
       vi.mocked(api.createBoundaryDefinition).mockReturnValue(pending);
     } else vi.mocked(api.updateBoundaryDefinition).mockReturnValue(pending);
     render(page());
-    await screen.findByRole('button', { name: 'Review boundary' });
-    if (mode === 'edit') fireEvent.click(screen.getByRole('button', { name: 'Review boundary' }));
-    fireEvent.click(mode === 'create' ? screen.getByRole('button', { name: 'Create boundary' }) : screen.getAllByTitle('Edit boundary')[0]!);
+    await screen.findByRole('heading', { name: 'Recorded boundary definitions' });
+    if (mode === 'edit') fireEvent.click(screen.getByRole('button', { name: 'Open boundary Production' }));
+    fireEvent.click(mode === 'create' ? screen.getByRole('button', { name: 'Add System Boundary' }) : screen.getAllByTitle('Edit boundary')[0]!);
     const dialog = screen.getByRole('dialog', { name: mode === 'create' ? 'Create Boundary' : 'Edit Boundary' });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name *' }), { target: { value: 'Documented scope' } });
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Hybrid' }));
@@ -537,7 +569,7 @@ describe('Inventory and boundary mock parity', () => {
     vi.mocked(api.fetchBoundaryDefinitions).mockResolvedValue([]);
     vi.mocked(api.createBoundaryDefinition).mockRejectedValue(new Error('Unavailable'));
     render(page());
-    fireEvent.click(await screen.findByRole('button', { name: 'Create boundary' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add System Boundary' }));
     const dialog = screen.getByRole('dialog', { name: 'Create Boundary' });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name *' }), { target: { value: 'Keep my entry' } });
     // Act
@@ -565,10 +597,10 @@ describe('Inventory and boundary mock parity', () => {
     // Act
     fireEvent(dialog, new Event('cancel', { cancelable: true }));
     // Assert
-    expect(screen.getByRole('button', { name: 'Review boundary' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Add System Boundary' })).toHaveFocus();
     expect(api.deleteBoundaryDefinition).not.toHaveBeenCalled();
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'Review boundary' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open boundary Recovery' }));
     fireEvent.click(screen.getByTitle('Delete boundary'));
     const confirmation = screen.getByRole('dialog', { name: 'Delete Boundary' });
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Delete' }));

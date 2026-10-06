@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import ProviderServicesScopes from '../../features/systems/ProviderServicesScopes';
 import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 import * as api from '../../api/systemEnvironments';
 import * as relationshipApi from '../../features/provider-relationships/api';
-import { allocationResponse } from '../provider-relationships/fixtures';
+import { allocationResponse, capability } from '../provider-relationships/fixtures';
 
 const access = vi.hoisted(() => ({ canRead: true, systemId: 'system-a' }));
 vi.mock('../../api/systemEnvironments', () => ({
@@ -13,9 +13,13 @@ vi.mock('../../api/systemEnvironments', () => ({
   previewSystemProviderScopeRemoval: vi.fn(), removeSystemProviderScope: vi.fn(),
   previewEnvironmentHostingLink: vi.fn(), commitEnvironmentHostingLink: vi.fn(),
 }));
-vi.mock('../../features/provider-relationships/api', () => ({ listAllProviderRelationships: vi.fn() }));
+vi.mock('../../features/provider-relationships/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../features/provider-relationships/api')>(),
+  listAllProviderRelationships: vi.fn(), listApplicableProviderCapabilities: vi.fn(),
+}));
 vi.mock('../../features/provider-relationships/ProviderScopeReview', () => ({
-  default: ({ item }: { item: { relationshipId: string } }) => <p>Canonical review: {item.relationshipId}</p>,
+  default: ({ item, onCancel }: { item: { relationshipId: string }; onCancel: () => void }) =>
+    <><p>Canonical review: {item.relationshipId}</p><button type="button" onClick={onCancel}>Cancel canonical review</button></>,
 }));
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
   useWorkspaceSession: () => ({
@@ -69,10 +73,23 @@ function attachment(id: string, name: string): api.SystemEnvironmentAttachment {
       reconciliationState: 'Verified', evidenceReference: null, recordedAt: '2026-09-29' }, updatedAt: '2026-09-29',
   };
 }
+function content(busy = false, refreshVersion = 0) {
+  return <MemoryRouter><WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-a' }}>
+    <ProviderServicesScopes systemId="system-a" systemName="Mission Alpha" busy={busy} refreshVersion={refreshVersion} onChanged={changed} />
+  </WorkspaceNavigationProvider></MemoryRouter>;
+}
 function mount(busy = false) {
-  return render(<MemoryRouter><WorkspaceNavigationProvider workspace={{ kind: 'organization', tenantId: 'org-a' }}>
-    <ProviderServicesScopes systemId="system-a" systemName="Mission Alpha" busy={busy} onChanged={changed} />
-  </WorkspaceNavigationProvider></MemoryRouter>);
+  return render(content(busy));
+}
+async function openReview() {
+  const action = await screen.findByRole('button', { name: 'Review Collaboration' });
+  await act(async () => {
+    fireEvent.click(action);
+  });
+  const panel = screen.getByRole('dialog', { name: 'Review provider offering' });
+  for (const summary of panel.querySelectorAll('summary')) {
+    fireEvent.click(summary);
+  }
 }
 beforeEach(() => {
   vi.resetAllMocks();
@@ -80,10 +97,346 @@ beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
   vi.mocked(api.getSystemEnvironments).mockResolvedValue(workspace);
+  vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([]);
+  vi.mocked(relationshipApi.listApplicableProviderCapabilities).mockResolvedValue({ items: [], page: 1, pageSize: 25, total: 0 });
   vi.mocked(api.getSystemProviderScopeChoices).mockResolvedValue({ systemId: 'system-a', version: 4, canManage: true, choices: [] });
 });
 
 describe('independent provider services and scopes', () => {
+  it('keeps an unavailable capability inspectable when its captured name is blank', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{
+      ...scope, publishedDuties: { state: 'Unavailable', reason: 'Invalid published duties.', capabilities: [], totalCapabilities: 1,
+        unavailableCapabilities: [{ capabilityId: 'missing', capabilityName: '   ', releaseId: 'missing-release',
+          releaseRevision: 2, reason: 'Published duty content is missing or invalid.' }] },
+    }] });
+    mount();
+    // Act
+    await openReview();
+    // Assert
+    expect(screen.getByText('Capability name unavailable', { selector: 'summary' })).toBeVisible();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Published duty content is missing or invalid.');
+  });
+  it('distinguishes captured scope-projection flags from canonical relationship review', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{
+      ...scope, relationshipState: 'SeparateBoundaryConsumer', reviewRequired: true,
+    }] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId,
+      state: 'SeparateBoundaryConsumer', reviewRequired: false, reviewedAt: '2026-10-06',
+    }]);
+    mount();
+    // Act
+    await openReview();
+    // Assert
+    const status = screen.getByLabelText('Review status');
+    expect(status).toHaveTextContent('System relationshipReview recorded');
+    expect(screen.getByText('Scope projection review flag: Review required')).toBeVisible();
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('Relationship: Separate Boundary Consumer · Review required');
+  });
+  it('retries failed review reads explicitly and inspects recorded status without a mutation', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{
+      ...scope, responsibilityReview: { state: 'Reviewed', canReview: true, canConfirm: false, reason: 'Current canonical review.' },
+    }] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockRejectedValueOnce(new Error('Current source unavailable'))
+      .mockResolvedValue([{ ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId, reviewRequired: false }]);
+    mount();
+    const opener = await screen.findByRole('button', { name: 'Review Collaboration' });
+    // Act
+    fireEvent.click(opener);
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry review records' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Inspect recorded review' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect source and prerequisites' }));
+    // Assert
+    expect(screen.getByText('Source details and prerequisites').closest('details')).toHaveAttribute('open');
+    expect(relationshipApi.listAllProviderRelationships).toHaveBeenCalledTimes(2);
+    expect(api.removeSystemProviderScope).not.toHaveBeenCalled();
+  });
+  it('retains the mounted canonical editor when returning to the focused review', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [scope] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId,
+      canReviewRelationship: true, reviewRequired: true,
+    }]);
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Collaboration' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Review relationship' }));
+    const editor = screen.getByText('Canonical review: relationship-a');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel canonical review' }));
+    // Assert
+    expect(editor).not.toBeVisible();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Review relationship' }));
+    // Assert
+    expect(screen.getByText('Canonical review: relationship-a')).toBe(editor);
+    expect(editor).toBeVisible();
+  });
+  it.each([0, 1, 51])('discloses the actual %i published capabilities with bounded pages and no inferred review outcome', async count => {
+    // Arrange
+    const entries = Array.from({ length: count }, (_, index) => ({
+      ...publishedDuties.capabilities[0]!, capabilityId: `cap-${index}`, capabilityName: `Recorded capability ${index}`,
+      releaseId: `release-${index}`,
+    }));
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{
+      ...scope, reviewRequired: false, publishedDuties: { ...publishedDuties, capabilities: entries, totalCapabilities: count },
+      responsibilityReview: { state: 'Reviewed', canReview: true, canConfirm: false, reason: 'Recorded canonical review.' },
+    }] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId,
+      reviewRequired: false, reviewedAt: '2026-10-06',
+    }]);
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Collaboration' }));
+    const panel = screen.getByRole('dialog');
+    await within(panel).findByRole('button', { name: 'Inspect recorded review' });
+    fireEvent.click(within(panel).getByText(`What's included · ${count} ${count === 1 ? 'capability' : 'capabilities'}`));
+    // Assert
+    expect(panel).toHaveTextContent('Review recorded');
+    expect(panel).not.toHaveTextContent('Setup needed');
+    expect(panel.querySelectorAll('section[aria-label="Published provider duties"] > details')).toHaveLength(Math.min(10, count));
+    if (count === 0) expect(within(panel).getByText('No capabilities are bound to this published scope.')).toBeVisible();
+    if (count > 0) {
+      fireEvent.click(within(panel).getByText('Recorded capability 0', { selector: 'summary' }));
+      expect(within(panel).getAllByText('Captured mail filtering responsibilities.')[0]).toBeVisible();
+    }
+    if (count > 10) {
+      fireEvent.click(within(panel).getByRole('button', { name: 'Next capabilities' }));
+      expect(within(panel).getByText('Recorded capability 10', { selector: 'summary' })).toBeVisible();
+      expect(panel).not.toHaveTextContent('Recorded capability 0');
+      fireEvent.click(within(panel).getByRole('button', { name: 'Previous capabilities' }));
+      expect(within(panel).getByText('Recorded capability 0', { selector: 'summary' })).toBeVisible();
+    }
+  });
+  it('groups shared blockers once while retaining affected names, per-capability detail and raw diagnostics', async () => {
+    // Arrange
+    const capabilities = [0, 1].map(index => ({ ...capability, assignmentId: scope.assignmentId,
+      capabilityId: `cap-${index}`, capabilityName: `Actual capability ${index}`, canProposeAdoption: false,
+      reasonCodes: ['PROVIDER_DECISION_REQUIRED'], applicabilityState: 'ReviewRequired',
+    }));
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [scope] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId, reviewRequired: false,
+    }]);
+    vi.mocked(relationshipApi.listApplicableProviderCapabilities).mockResolvedValue({ items: capabilities, page: 1, pageSize: 25, total: 2 });
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Collaboration' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve adoption prerequisites' }));
+    // Assert
+    const group = screen.getByRole('region', { name: 'Shared source prerequisites' });
+    expect(within(group).getAllByText('A recorded provider decision is required')).toHaveLength(1);
+    expect(group).toHaveTextContent('Actual capability 0, Actual capability 1');
+    expect(within(group).queryByText('PROVIDER_DECISION_REQUIRED')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Raw applicability diagnostics'));
+    expect(screen.getAllByText('PROVIDER_DECISION_REQUIRED')).toHaveLength(2);
+  });
+  it('includes missing duty entries in the source count instead of implying they are resolved', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{
+      ...scope, publishedDuties: { ...publishedDuties, state: 'Unavailable', totalCapabilities: 2,
+        unavailableCapabilities: [{ capabilityId: 'missing', capabilityName: 'Missing published capability',
+          releaseId: 'missing-release', releaseRevision: 2, reason: 'Captured duties unavailable.' }] },
+    }] });
+    mount();
+    // Act
+    const opener = await screen.findByRole('button', { name: 'Review Collaboration' });
+    await act(async () => { fireEvent.click(opener); });
+    fireEvent.click(screen.getByText("What's included · 2 capabilities"));
+    fireEvent.click(screen.getByText('Missing published capability', { selector: 'summary' }));
+    // Assert
+    expect(screen.getByText('1 capability has missing published duty content.')).toBeVisible();
+    expect(screen.getByText('Captured duties unavailable.')).toBeVisible();
+    expect(screen.getByText('Published capability release: 2')).toBeVisible();
+  });
+  it('does not offer a writable relationship action to a read-only identity', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace,
+      permissions: { ...workspace.permissions, canManageEnvironments: false }, providerScopes: [scope] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId,
+      canAssociate: false, canReviewRelationship: false, reviewRequired: true,
+    }]);
+    mount();
+    // Act
+    await openReview();
+    // Assert
+    expect(screen.getByRole('button', { name: 'Inspect unresolved review' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Review provider relationship' })).toBeDisabled();
+    expect(screen.queryByRole('textbox', { name: 'Removal rationale' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('server does not permit');
+    expect(screen.getByRole('dialog').querySelectorAll('a[target="_blank"]')).toHaveLength(0);
+  });
+  it('reads later applicability pages before choosing an action', async () => {
+    // Arrange
+    const rows = Array.from({ length: 26 }, (_, index) => ({ ...capability, assignmentId: scope.assignmentId,
+      capabilityId: `cap-${index}`, relationshipReviewRequired: false,
+      reasonCodes: index === 25 ? ['HOSTING_CONTEXT_STALE'] : [], canProposeAdoption: index !== 25 }));
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [scope] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId, reviewRequired: false,
+    }]);
+    vi.mocked(relationshipApi.listApplicableProviderCapabilities).mockImplementation(async (_, query) => ({
+      items: rows.slice((query.page - 1) * 25, query.page * 25), page: query.page, pageSize: 25, total: 26,
+    }));
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Collaboration' }));
+    // Assert
+    expect(await screen.findByRole('button', { name: 'Review changed source' })).toBeEnabled();
+    expect(relationshipApi.listApplicableProviderCapabilities).toHaveBeenCalledTimes(2);
+  });
+  it('initial offering review is focused with capabilities, source and maintenance collapsed', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{ ...scope, publishedDuties }] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, relationshipId: scope.relationshipId,
+      reviewRequired: true, canReviewRelationship: true,
+    }]);
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Review Collaboration' }));
+    const panel = screen.getByRole('dialog', { name: 'Review provider offering' });
+    // Assert
+    expect(await within(panel).findByRole('button', { name: 'Review relationship' })).toBeEnabled();
+    expect(within(panel).getByRole('heading', { name: 'Collaboration' })).toBeVisible();
+    expect(panel).toHaveTextContent('Service Provider · Mission Alpha');
+    expect(panel.querySelector('details')?.open).toBe(false);
+    expect(within(panel).getByRole('heading', { name: 'Published mail protection', hidden: true })).not.toBeVisible();
+    expect(within(panel).queryByRole('button', { name: 'Confirm responsibilities' })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('textbox', { hidden: true })).not.toBeVisible();
+    expect(panel.querySelectorAll('a[target="_blank"]')).toHaveLength(0);
+  });
+  it('retains review input and blocks mutations while the register refresh fails', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValueOnce({ ...workspace, providerScopes: [scope] })
+      .mockRejectedValueOnce(new Error('Current register unavailable'));
+    const view = mount();
+    await openReview();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Removal rationale' }), { target: { value: 'Preserve concurrent review input' } });
+    // Act
+    view.rerender(content(false, 1));
+    await within(screen.getByRole('dialog')).findByText('Current register unavailable');
+    // Assert
+    expect(screen.getByRole('textbox', { name: 'Removal rationale' })).toHaveValue('Preserve concurrent review input');
+    expect(screen.getByRole('button', { name: 'Preview removal' })).toBeDisabled();
+    expect(api.removeSystemProviderScope).not.toHaveBeenCalled();
+  });
+  it('reads applicability for the exact assignment without deriving adoption permission from publication', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [scope] });
+    vi.mocked(relationshipApi.listApplicableProviderCapabilities).mockResolvedValue({
+      items: [{ ...capability, assignmentId: scope.assignmentId, canProposeAdoption: false,
+        applicabilityState: 'PendingReview', reasonCodes: ['Source revision requires review'] }],
+      page: 1, pageSize: 25, total: 1,
+    });
+    mount();
+    // Act
+    await openReview();
+    // Assert
+    expect(relationshipApi.listApplicableProviderCapabilities).toHaveBeenCalledWith('system-a', {
+      page: 1, assignmentId: scope.assignmentId, offeringId: scope.offeringId,
+    }, expect.any(AbortSignal));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Applicability: PendingReview');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Source revision requires review');
+    expect(screen.getByRole('dialog')).toHaveTextContent('does not currently permit proposing adoption');
+  });
+  it('shows association prerequisites only from the current canonical record', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{ ...scope, relationshipId: null }] });
+    vi.mocked(relationshipApi.listAllProviderRelationships).mockResolvedValue([{
+      ...allocationResponse, assignmentId: scope.assignmentId, canAssociate: true, relationshipId: null,
+    }]);
+    mount();
+    // Act
+    await openReview();
+    // Assert
+    const association = screen.getByRole('link', { name: 'Associate provider relationship' });
+    expect(association).toHaveAttribute('href', '/workspaces/organizations/org-a/systems/system-a/profile/EnvironmentAndDeployment/hosting?offeringId=offering-a&assignmentId=scope-a&hostingScopeRevisionId=release-a');
+    expect(association).not.toHaveAttribute('target');
+    expect(screen.getByRole('button', { name: 'Review provider relationship' })).toBeDisabled();
+  });
+  it('does not report failed applicability reads as an empty successful list', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [scope] });
+    vi.mocked(relationshipApi.listApplicableProviderCapabilities).mockRejectedValue(new Error('Applicability source denied'));
+    mount();
+    // Act
+    await openReview();
+    // Assert
+    expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('Applicability source denied');
+    expect(screen.queryByText(/No applicable capability entries returned/)).not.toBeInTheDocument();
+  });
+  it('keeps relationship-removal input when closing is canceled', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [scope] });
+    mount();
+    await openReview();
+    // Act
+    fireEvent.change(screen.getByRole('textbox', { name: 'Removal rationale' }), { target: { value: 'Retained draft rationale' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    // Assert
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('textbox', { name: 'Removal rationale' })).toHaveValue('Retained draft rationale');
+    expect(api.removeSystemProviderScope).not.toHaveBeenCalled();
+  });
+  it('consolidates the register into one Review and separates pinned source from system acceptance', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [{
+      ...scope, publishedDuties, responsibilityReview: {
+        state: 'NotAdopted', canReview: true, canConfirm: false, reason: 'No current capability adoption is bound to this relationship.',
+      },
+    }] });
+    mount();
+    // Act
+    const table = await screen.findByRole('table', { name: 'Provider services & scopes' });
+    // Assert
+    expect(within(table).getAllByRole('columnheader').map(cell => cell.textContent)).toEqual([
+      'Offering', 'System relationship', 'Responsibility review', 'Action',
+    ]);
+    expect(within(table).getAllByRole('button')).toHaveLength(1);
+    expect(within(table).queryByRole('link')).not.toBeInTheDocument();
+    expect(table).not.toHaveTextContent('release-a');
+    // Act
+    await act(async () => { fireEvent.click(within(table).getByRole('button', { name: 'Review Collaboration' })); });
+    for (const summary of screen.getByRole('dialog').querySelectorAll('summary')) fireEvent.click(summary);
+    // Assert
+    const panel = screen.getByRole('dialog', { name: 'Review provider offering' });
+    expect(panel).toHaveTextContent('Selected scope release: 12');
+    expect(panel).toHaveTextContent('No current capability adoption is bound to this relationship.');
+    expect(panel).toHaveTextContent('not system adoption or accepted responsibilities');
+    expect(within(panel).getByRole('link', { name: 'Review responsibilities' })).not.toHaveAttribute('target');
+    expect(within(panel).queryByRole('button', { name: 'Confirm responsibilities' })).not.toBeInTheDocument();
+  });
+  it('uses a compact provider register and retains revision/provenance in the existing inspector', async () => {
+    // Arrange
+    vi.mocked(api.getSystemEnvironments).mockResolvedValue({ ...workspace, providerScopes: [scope] });
+    mount();
+    // Act
+    const table = await screen.findByRole('table', { name: 'Provider services & scopes' });
+    // Assert
+    expect(within(table).getAllByRole('columnheader').map(cell => cell.textContent)).toEqual([
+      'Offering', 'System relationship', 'Responsibility review', 'Action',
+    ]);
+    expect(table).toHaveTextContent('Undetermined');
+    expect(table).toHaveTextContent('Review Required');
+    expect(table).not.toHaveTextContent('Scope release revision');
+    // Act
+    await act(async () => { fireEvent.click(within(table).getByRole('button', { name: 'Review Collaboration' })); });
+    fireEvent.click(screen.getByText('Source details and prerequisites'));
+    fireEvent.click(screen.getByText('Source and technical metadata'));
+    // Assert
+    const dialog = screen.getByRole('dialog', { name: 'Review provider offering' });
+    expect(dialog).toHaveTextContent('Released scope revision: 12');
+    expect(dialog).toHaveTextContent('Assignment revision: 3 · Selection revision: 2');
+    expect(dialog).toHaveTextContent('release-a');
+    expect(api.addSystemProviderScope).not.toHaveBeenCalled();
+  });
   it('offers a provider action without any subscriptions or Azure permissions', async () => {
     // Arrange
     mount();
@@ -125,18 +478,18 @@ describe('independent provider services and scopes', () => {
     // Act
     await screen.findByText('Collaboration');
     // Assert
-    expect(screen.getByText('Service Provider')).toBeVisible();
-    expect(screen.getByText('Shared mail')).toBeVisible();
-    expect(screen.getByText('No subscriptions linked (optional).')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Review responsibilities' })).toHaveAttribute(
-      'href', '/workspaces/organizations/org-a/systems/system-a/inheritance/subscriptions');
+    expect(screen.getByText('Service Provider · Selected scope release 12')).toBeVisible();
+    expect(screen.queryByText('No subscriptions linked (optional).')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Review responsibilities/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/reconciliation required/i)).not.toBeInTheDocument();
     // Act
-    fireEvent.click(screen.getByRole('button', { name: 'View scope' }));
+    await openReview();
     // Assert
-    expect(screen.getByRole('dialog', { name: 'Provider scope details' })).toBeVisible();
+    expect(screen.getByRole('dialog', { name: 'Review provider offering' })).toBeVisible();
     expect(within(screen.getByRole('dialog')).getByText(/release-a/)).toBeVisible();
     expect(within(screen.getByRole('dialog')).getByText('Released scope revision: 12')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Review responsibilities' })).toHaveAttribute(
+      'href', '/workspaces/organizations/org-a/systems/system-a/inheritance/subscriptions?offeringId=offering-a&assignmentId=scope-a&hostingScopeRevisionId=release-a');
     expect(changed).not.toHaveBeenCalled();
   });
   it('shows an accessible empty chooser and restores focus without saving', async () => {
@@ -168,9 +521,10 @@ describe('independent provider services and scopes', () => {
     mount();
     // Act
     await screen.findByText('Collaboration');
+    await openReview();
     // Assert
     expect(screen.getByText('Mission production')).toBeVisible();
-    expect(screen.queryByText('Unrelated production')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Subscription to link' })).toHaveTextContent('Unrelated production');
     expect(screen.queryByText('No subscriptions linked (optional).')).not.toBeInTheDocument();
   });
   it('disables mutations while the parent is saving its independent draft', async () => {
@@ -234,7 +588,9 @@ describe('independent provider services and scopes', () => {
     // Act
     await screen.findByText('Collaboration');
     // Assert
-    expect(screen.getByText('Responsibility review: unavailable here. Inspect the authoritative responsibility matrix for current decisions.')).toBeVisible();
+    expect(within(screen.getByRole('table')).getByText('Unavailable')).toBeVisible();
+    await openReview();
+    expect(screen.getByText('Responsibility review is unavailable here.')).toBeVisible();
     expect(screen.queryByText(/Responsibilities accepted|Responsibilities confirmed/)).not.toBeInTheDocument();
   });
   it('shows captured published duties and pinned source details before saving a relationship', async () => {
@@ -279,11 +635,14 @@ describe('independent provider services and scopes', () => {
     // Act
     await screen.findByText('Collaboration');
     // Assert
-    expect(screen.getByText(`Responsibility review: ${review.state.replace(/([a-z])([A-Z])/g, '$1 $2')}`)).toBeVisible();
-    expect(screen.getByText('Authoritative source reason.')).toBeVisible();
+    expect(within(screen.getByRole('table')).getByText(review.state.replace(/([a-z])([A-Z])/g, '$1 $2'))).toBeVisible();
+    // Act
+    await openReview();
+    // Assert
+    expect(within(screen.getByRole('dialog')).getByText('Authoritative source reason.')).toBeVisible();
     expect(screen.getByRole('link', { name: review.action })).toBeVisible();
-    if (!review.canReview) expect(screen.queryByRole('link', { name: 'Review responsibilities' })).not.toBeInTheDocument();
-    expect(screen.getByText(review.canReview
+    if (!review.canReview) expect(screen.queryByRole('link', { name: 'Review responsibilities (opens in a new tab)' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText(review.canReview
       ? review.canConfirm ? 'Review and confirmation are available in the responsibility matrix.' : 'Review is available; confirmation is not currently permitted.'
       : 'View only. Responsibility review and confirmation are not permitted here.')).toBeVisible();
   });
@@ -378,7 +737,7 @@ describe('independent provider services and scopes', () => {
     }]);
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     fireEvent.click(screen.getByRole('button', { name: 'Review provider relationship' }));
     // Assert
     expect(await screen.findByText('Canonical review: relationship-a')).toBeVisible();
@@ -393,7 +752,7 @@ describe('independent provider services and scopes', () => {
     }]);
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     fireEvent.click(screen.getByRole('button', { name: 'Review provider relationship' }));
     // Assert
     expect(await screen.findByText(/Covered-scope decisions require the assigned Authorizing Official/)).toBeVisible();
@@ -450,7 +809,7 @@ describe('independent provider services and scopes', () => {
     vi.mocked(api.removeSystemProviderScope).mockResolvedValue({ ...workspace, version: 5 });
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     fireEvent.change(screen.getByRole('textbox', { name: 'Removal rationale' }), { target: { value: 'Service no longer used' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview removal' }));
     await screen.findByText('Existing subscriptions and review history are retained.');
@@ -476,7 +835,7 @@ describe('independent provider services and scopes', () => {
     });
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     fireEvent.change(screen.getByRole('textbox', { name: 'Removal rationale' }), { target: { value: 'Old rationale' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview removal' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: /acknowledge/i }));
@@ -498,7 +857,7 @@ describe('independent provider services and scopes', () => {
     });
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     fireEvent.change(screen.getByRole('textbox', { name: 'Removal rationale' }), { target: { value: 'Retiring this service' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview removal' }));
     // Assert
@@ -506,9 +865,9 @@ describe('independent provider services and scopes', () => {
     expect(alert).toHaveTextContent(restriction.blockers[0] ?? 'This change cannot be committed. Resolve the preview restrictions and prepare a fresh preview.');
     expect(screen.getByRole('checkbox', { name: /acknowledge this impact/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Remove provider relationship' })).toBeDisabled();
-    const dependencies = screen.getByRole('link', { name: 'Review capability dependencies (opens in a new tab)' });
+    const dependencies = screen.getByRole('link', { name: 'Review capability dependencies' });
     expect(dependencies).toHaveAttribute('href', '/workspaces/organizations/org-a/systems/system-a/security-capabilities');
-    expect(dependencies).toHaveAttribute('target', '_blank');
+    expect(dependencies).not.toHaveAttribute('target');
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Remove provider relationship' }));
     // Assert
@@ -526,7 +885,7 @@ describe('independent provider services and scopes', () => {
     vi.mocked(api.removeSystemProviderScope).mockResolvedValue(current);
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     fireEvent.change(screen.getByRole('textbox', { name: 'Removal rationale' }), { target: { value: 'No longer used' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview removal' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: /acknowledge/i }));
@@ -544,7 +903,7 @@ describe('independent provider services and scopes', () => {
     });
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     fireEvent.change(screen.getByRole('textbox', { name: 'Removal rationale' }), { target: { value: 'No longer used' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview removal' }));
     fireEvent.click(await screen.findByRole('checkbox', { name: /acknowledge/i }));
@@ -569,7 +928,7 @@ describe('independent provider services and scopes', () => {
       hostingLinks: [{ ...link, state: action === 'Link' ? 'Linked' : 'Unlinked' }] });
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Manage relationship' }));
+    await openReview();
     const dialog = within(screen.getByRole('dialog'));
     if (action === 'Link') {
       fireEvent.change(dialog.getByRole('combobox', { name: 'Subscription to link' }), { target: { value: 'attached-a' } });
@@ -633,11 +992,12 @@ describe('independent provider services and scopes', () => {
     expect(screen.getAllByRole('button', { name: 'Review relationship' })).toHaveLength(1);
     expect(warning).toHaveTextContent('Recorded provider scope release is unavailable');
     expect(screen.queryByText('Legacy subscription')).not.toBeInTheDocument();
-    expect(screen.getByText('No subscriptions linked (optional).')).toBeVisible();
+    expect(screen.queryByText('No subscriptions linked (optional).')).not.toBeInTheDocument();
     // Act
     fireEvent.click(screen.getByRole('button', { name: 'Review relationship' }));
     // Assert
     const unresolved = within(screen.getByRole('dialog', { name: 'Review relationship' }));
+    fireEvent.click(unresolved.getByText('Recorded relationship warning'));
     expect(unresolved.getByText('Recorded reference: invalid-scope')).toBeVisible();
     expect(unresolved.getByText(/cannot be matched to a current provider scope/)).toBeVisible();
     expect(unresolved.queryByRole('button', { name: /Save|Remove|Link subscription/ })).not.toBeInTheDocument();
@@ -650,11 +1010,13 @@ describe('independent provider services and scopes', () => {
     ] });
     mount();
     // Act
-    fireEvent.click(await screen.findByRole('button', { name: 'Review relationship' }));
+    const action = await screen.findByRole('button', { name: 'Review relationship' });
+    await act(async () => { fireEvent.click(action); });
     // Assert
-    const dialog = within(screen.getByRole('dialog', { name: 'Manage provider relationship' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Review provider offering' }));
+    for (const summary of screen.getByRole('dialog').querySelectorAll('summary')) fireEvent.click(summary);
     expect(dialog.getByText('Release mapping requires an explicit review.')).toBeVisible();
-    expect(dialog.getByText('Service Provider · Collaboration')).toBeVisible();
+    expect(dialog.getByRole('heading', { name: 'Collaboration' })).toBeVisible();
     expect(dialog.getByRole('button', { name: 'Review provider relationship' })).toBeVisible();
     expect(api.addSystemProviderScope).not.toHaveBeenCalled();
   });

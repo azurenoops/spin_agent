@@ -21,7 +21,11 @@ public static partial class DashboardEndpoints
             ?? throw new KeyNotFoundException();
         var source = await service.ReadSourceAsync(systemId, selection, actor.CurrentUserId, ct);
         var latest = await ReadinessRuns(db, systemId, selection).OrderByDescending(x => x.EvaluatedAt).ThenBy(x => x.Id).FirstOrDefaultAsync(ct);
-        var run = latest == null ? null : ReadinessRunDto(latest, source, await ReadinessPermissions(http, systemId, ct));
+        var permissions = await ReadinessPermissions(http, systemId, ct);
+        var run = latest == null ? null : ReadinessRunDto(latest, source, permissions);
+        var successful = await ReadinessRuns(db, systemId, selection).Where(x => x.Outcome == "Ready" || x.Outcome == "Blocked")
+            .OrderByDescending(x => x.EvaluatedAt).ThenBy(x => x.Id).FirstOrDefaultAsync(ct);
+        var lastSuccessfulRun = successful == null ? null : ReadinessRunDto(successful, source, permissions);
         var ready = run?.Outcome == "Ready" && run.Freshness.State == "Current";
         var checks = latest == null ? [] : PackageReadinessService.Checks(latest);
         var packageQuery = db.AuthorizationPackages.AsNoTracking().Where(x => x.RegisteredSystemId == systemId && x.Purpose == selection.Purpose);
@@ -91,12 +95,12 @@ public static partial class DashboardEndpoints
         return Results.Ok(new
         {
             systemId, selection.Purpose, selection.RetainedContext, selectionHash = PackageReadinessService.SelectionHash(selection),
-            source, latestRun = run, permissions = new { canValidate = true, validateReason = (string?)null,
+            source, latestRun = run, lastSuccessfulRun, permissions = new { canValidate = true, validateReason = (string?)null,
                 canGenerate = ready, generateReason = ready ? null : "A current Ready evaluation for this purpose and source is required." },
             progress, documents = selection.RetainedContext == null
                 ? (await ReadinessDocuments(db, systemId, checks, ct)).Select(x => x with { SourceState = run?.Freshness.State ?? "NotChecked" }).ToArray()
                 : await RetainedReadinessDocuments(db, systemId, selection, source, ct),
-            rmf = await ReadinessRmf(db, system, ct)
+            rmf = await ReadinessRmf(db, system, permissions.CanManageSystem, ct)
         });
     }
 
@@ -159,6 +163,12 @@ public static partial class DashboardEndpoints
             x => Record("evidence", x.Id, x.NarrativeType.ToString(), Utc(x.UploadedAt), "evidence"), "evidence");
         await AddPage("inventory", "Hardware/software inventory", db.InventoryItems.Where(x => x.RegisteredSystemId == systemId).OrderBy(x => x.Id),
             x => Record("inventory", x.Id, "Recorded", null, "security-capabilities/inventory?tab=hardware-software"), "security-capabilities/inventory?tab=hardware-software");
+        await AddPage("boundary", "Authorization boundary records", db.AuthorizationBoundaryDefinitions.Where(x => x.RegisteredSystemId == systemId).OrderBy(x => x.Id),
+            x => Record("boundary", x.Id, "Recorded", Utc(x.CreatedAt), "boundaries"), "boundaries",
+            "Boundary presence does not establish reviewed scope or approval.");
+        await AddPage("conmon", "Continuous monitoring plan", db.ConMonPlans.Where(x => x.RegisteredSystemId == systemId).OrderBy(x => x.Id),
+            x => Record("conmon-plan", x.Id, "Recorded", Utc(x.CreatedAt), "conmon"), "conmon",
+            "A recorded plan does not establish monitoring connectivity, healthy evaluations or cATO authorization.");
         var pta = await db.PrivacyThresholdAnalyses.AsNoTracking().Where(x => x.RegisteredSystemId == systemId).ToListAsync(ct);
         var pia = await db.PrivacyImpactAssessments.AsNoTracking().Where(x => x.RegisteredSystemId == systemId).ToListAsync(ct);
         Add("privacy", "Privacy records", pta.Select(x => Record("pta", x.Id, x.Determination.ToString(), null, "legal"))
@@ -169,18 +179,26 @@ public static partial class DashboardEndpoints
         return documents;
     }
 
-    private static async Task<PackageReadinessRmf> ReadinessRmf(AtoCopilotContext db, RegisteredSystem system, CancellationToken ct)
+    private static async Task<PackageReadinessRmf> ReadinessRmf(AtoCopilotContext db, RegisteredSystem system, bool canConfirm, CancellationToken ct)
     {
-        var candidates = await db.AuditLogs.AsNoTracking().Where(x => x.Action == "RmfPhase.Transitioned" && x.Details.Contains(system.Id))
-            .OrderByDescending(x => x.Timestamp).ToListAsync(ct);
+        var candidates = await db.AuditLogs.AsNoTracking().Where(x => x.TenantId == system.TenantId
+            && (x.Action == "RmfPhase.Transitioned" || x.Action == "RmfPhase.Confirmed") && x.Details.Contains(system.Id))
+            .OrderByDescending(x => x.Timestamp).ThenBy(x => x.Id).ToListAsync(ct);
         var transitions = new List<PackageReadinessTransition>();
+        AuditLogEntry? confirmation = null;
         foreach (var entry in candidates.Where(x => x.AffectedResources.Contains(system.Id)))
         {
             var details = JsonSerializer.Deserialize<RmfPhaseTransitionAuditDetails>(entry.Details, PackageReadinessService.Json)
                 ?? throw new InvalidDataException("Recorded RMF transition details are invalid.");
             if (details.SystemId == system.Id)
-                transitions.Add(new(entry.Id, details.PreviousPhase, details.TargetPhase, Utc(entry.Timestamp), entry.UserId));
+            {
+                if (confirmation == null && details.TargetPhase == system.CurrentRmfStep.ToString()) confirmation = entry;
+                if (entry.Action == "RmfPhase.Transitioned")
+                    transitions.Add(new(entry.Id, details.PreviousPhase, details.TargetPhase, Utc(entry.Timestamp), entry.UserId));
+            }
         }
-        return new(system.CurrentRmfStep.ToString(), transitions.Take(5).ToArray(), transitions.Count);
+        return new(system.CurrentRmfStep.ToString(), transitions.Take(5).ToArray(), transitions.Count,
+            confirmation != null, confirmation?.Action, confirmation == null ? null : Utc(confirmation.Timestamp),
+            confirmation?.UserId, canConfirm);
     }
 }

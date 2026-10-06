@@ -319,7 +319,8 @@ export default function SystemLayout() {
         <SystemPageSelector systemId={detail.systemId} />
         {packageReturnHref(detail.systemId, location.search) && <Link
           className="mb-4 inline-flex text-sm font-medium text-indigo-700 underline dark:text-indigo-300"
-          to={packageReturnHref(detail.systemId, location.search)!}>Return to package readiness</Link>}
+          to={packageReturnHref(detail.systemId, location.search)!}>{packageReturnHref(detail.systemId, location.search)!.split('?')[0] === `/systems/${encodeURIComponent(detail.systemId)}`
+            ? 'Return to system overview' : 'Return to package readiness'}</Link>}
         {/* Breadcrumb */}
         <div className="mb-4 text-sm">
           <Link to="/systems" className="text-indigo-600 hover:underline dark:text-indigo-300">
@@ -330,7 +331,7 @@ export default function SystemLayout() {
             {detail.name}
           </Link>
           {isOverview && <><span className="mx-2 text-gray-400">/</span><span className="text-slate-500">Overview</span></>}
-          {isDefinitionPage && <><span className="mx-2 text-gray-400">/</span><span className="text-slate-500">System definition</span></>}
+          {isDefinitionPage && <><span className="mx-2 text-gray-400">/</span><span className="text-slate-600 dark:text-slate-300">System definition</span></>}
         </div>
         {!isOverview && !isDefinitionPage && <SystemTaskNavigation />}
         <div className="min-w-0"><Outlet /></div>

@@ -29,17 +29,24 @@ public sealed partial class SystemEnvironmentService
         ProviderHostingScopeRevision hosting, IReadOnlyList<ProviderCatalogContextSnapshot> contexts, CancellationToken ct)
     {
         var rows = new List<ProviderScopeCapabilityDuties>();
+        var missing = new List<ProviderScopeUnavailableCapability>();
+        var releases = new HashSet<Guid>();
         var incomplete = false;
         foreach (var context in contexts.OrderBy(x => x.Id))
         {
             if (!await MatchesPublishedScopeAsync(db, context, offering, hosting, ct)) continue;
             var release = await db.ProviderCapabilityReleases.AsNoTracking().SingleAsync(x =>
                 x.Id == context.ReleaseId && x.CapabilityId == context.CapabilityId, ct);
-            if (rows.Any(x => x.ReleaseId == release.Id)) continue;
+            if (!releases.Add(release.Id)) continue;
+            string? capturedName = null;
             try
             {
                 using var document = JsonDocument.Parse(release.SnapshotJson);
                 var root = document.RootElement;
+                if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Capability", out var source)
+                    && source.ValueKind == JsonValueKind.Object && source.TryGetProperty("Name", out var sourceName)
+                    && sourceName.ValueKind == JsonValueKind.String)
+                    capturedName = sourceName.GetString();
                 if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("DutiesJson", out var raw)
                     || raw.ValueKind != JsonValueKind.String || !root.TryGetProperty("Capability", out var captured)
                     || captured.ValueKind != JsonValueKind.Object || !captured.TryGetProperty("Name", out var name)
@@ -61,12 +68,18 @@ public sealed partial class SystemEnvironmentService
                 logger?.LogWarning("Published provider scope duties unavailable for release {ReleaseId}: {FailureKind}",
                     release.Id, failure.GetType().Name);
                 incomplete = true;
+                missing.Add(new(release.CapabilityId, capturedName, release.Id, release.Revision,
+                    "Published duty content is missing or invalid. No responsibility allocation has been inferred."));
             }
         }
         return new(rows.Count > 0 && !incomplete ? "Available" : "Unavailable", rows,
             incomplete ? "One or more matching published releases lack valid captured duty content. No missing customer duty text has been inferred."
                 : rows.Count == 0 ? "No current published capability duties are bound to this exact offering and hosting-scope revision."
-                : "Source-stated control-duty allocations only; system applicability and customer acceptance require separate review.");
+                : "Source-stated control-duty allocations only; system applicability and customer acceptance require separate review.")
+        {
+            TotalCapabilities = releases.Count,
+            UnavailableCapabilities = missing
+        };
     }
 
     private async Task<ProviderScopeResponsibilityReview> ScopeResponsibilitiesAsync(AtoCopilotContext db, string systemId,

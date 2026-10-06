@@ -15,11 +15,15 @@ public partial class SystemProfileService
         {
             case ProfileSectionType.UsersAndAccess:
                 ReplaceChildren(db, section, section.UserCategories, rows,
-                    ["categoryName", "description", "approximateCount", "accessMethod", "dataSensitivityLevel"]);
+                    ["categoryName", "description", "approximateCount", "accessMethod", "dataSensitivityLevel",
+                        "identityType", "privilegeLevel", "affiliation", "authenticationMethod", "responsibleOwner",
+                        "userLocations", "permittedEnvironments", "authorizedDataTypes"]);
                 break;
             case ProfileSectionType.DataTypes:
                 ReplaceChildren(db, section, section.DataTypeEntries, rows,
-                    ["dataTypeName", "description", "sensitivityClassification", "source", "destination", "applicableRegulations"]);
+                    ["dataTypeName", "description", "sensitivityClassification", "source", "destination", "applicableRegulations",
+                        "cuiCategory", "confidentialityImpact", "integrityImpact", "availabilityImpact", "privacyApplicability",
+                        "retentionRule", "disposalMethod", "categorizationRationale", "categorizationReference"]);
                 break;
             case ProfileSectionType.PortsProtocolsAndServices:
                 ReplaceChildren(db, section, section.PpsEntries, rows,
@@ -140,9 +144,20 @@ public partial class SystemProfileService
                 throw InvalidChild(string.Join(" ", errors.Select(error => error.ErrorMessage)));
             if (parsed is UserCategory category)
             {
+                if (category.IdentityType is not (null or "" or "Human" or "WorkloadIdentity")
+                    || category.PrivilegeLevel is not (null or "" or "Privileged" or "NonPrivileged")
+                    || category.Affiliation is not (null or "" or "Internal" or "External"))
+                    throw InvalidChild("Identity type, privilege and affiliation must use supported documentation classifications.");
                 var old = existingById.GetValueOrDefault(category.Id) as UserCategory;
                 if (old is not null)
                 {
+                    foreach (var field in new[] { "identityType", "privilegeLevel", "affiliation", "authenticationMethod",
+                        "responsibleOwner", "userLocations", "permittedEnvironments", "authorizedDataTypes" })
+                        if (!seenFields.Contains(field))
+                        {
+                            var name = char.ToUpperInvariant(field[0]) + field[1..];
+                            entry.Property(name).CurrentValue = db.Entry(old).Property(name).CurrentValue;
+                        }
                     if (!seenFields.Contains("revision") || category.Revision != old.Revision)
                         throw new InvalidOperationException("CONCURRENCY_CONFLICT: Refresh the category and include its current revision.");
                     if (!seenFields.Contains("pendingDeletion")) category.PendingDeletion = old.PendingDeletion;
@@ -151,6 +166,25 @@ public partial class SystemProfileService
                 else if (category.PendingDeletion)
                     throw InvalidChild("A new category cannot be a pending deletion.");
                 else category.Revision = 1;
+            }
+            if (parsed is DataTypeEntry data)
+            {
+                if (existingById.GetValueOrDefault(data.Id) is DataTypeEntry old)
+                    foreach (var field in new[] { "cuiCategory", "confidentialityImpact", "integrityImpact", "availabilityImpact",
+                        "privacyApplicability", "retentionRule", "disposalMethod", "categorizationRationale", "categorizationReference" })
+                        if (!seenFields.Contains(field))
+                        {
+                            var name = char.ToUpperInvariant(field[0]) + field[1..];
+                            entry.Property(name).CurrentValue = db.Entry(old).Property(name).CurrentValue;
+                        }
+                if (new[] { data.ConfidentialityImpact, data.IntegrityImpact, data.AvailabilityImpact }
+                    .Any(value => value is not (null or "" or "Low" or "Moderate" or "High" or "Undetermined"))
+                    || data.PrivacyApplicability is not (null or "" or "NoPii" or "PiiApplies" or "ReviewRequired" or "Undetermined"))
+                    throw InvalidChild("Declared CIA impacts and privacy applicability must use supported classifications.");
+                if (data.CategorizationReference is { Length: > 0 } reference && (reference.Any(char.IsControl) || reference.Contains('\\')
+                    || !(reference.StartsWith('/') && !reference.StartsWith("//")
+                        || Uri.TryCreate(reference, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps)))
+                    throw InvalidChild("Categorization references require HTTPS or an application-relative source URL.");
             }
             replacements.Add(parsed);
         }
@@ -206,6 +240,14 @@ public partial class SystemProfileService
             old.ApproximateCount != replacement.ApproximateCount ||
             (old.AccessMethod ?? "") != (replacement.AccessMethod ?? "") ||
             (old.DataSensitivityLevel ?? "") != (replacement.DataSensitivityLevel ?? "") ||
+            (old.IdentityType ?? "") != (replacement.IdentityType ?? "") ||
+            (old.PrivilegeLevel ?? "") != (replacement.PrivilegeLevel ?? "") ||
+            (old.Affiliation ?? "") != (replacement.Affiliation ?? "") ||
+            (old.AuthenticationMethod ?? "") != (replacement.AuthenticationMethod ?? "") ||
+            (old.ResponsibleOwner ?? "") != (replacement.ResponsibleOwner ?? "") ||
+            (old.UserLocations ?? "") != (replacement.UserLocations ?? "") ||
+            (old.PermittedEnvironments ?? "") != (replacement.PermittedEnvironments ?? "") ||
+            (old.AuthorizedDataTypes ?? "") != (replacement.AuthorizedDataTypes ?? "") ||
             old.PendingDeletion != replacement.PendingDeletion;
         if (changed && old.GovernanceStatus == SspSectionStatus.UnderReview)
             throw new InvalidOperationException("INVALID_STATUS: Withdraw the category before editing it.");
@@ -221,6 +263,14 @@ public partial class SystemProfileService
             replacement.Description = old.Description;
             replacement.AccessMethod = old.AccessMethod;
             replacement.DataSensitivityLevel = old.DataSensitivityLevel;
+            replacement.IdentityType = old.IdentityType;
+            replacement.PrivilegeLevel = old.PrivilegeLevel;
+            replacement.Affiliation = old.Affiliation;
+            replacement.AuthenticationMethod = old.AuthenticationMethod;
+            replacement.ResponsibleOwner = old.ResponsibleOwner;
+            replacement.UserLocations = old.UserLocations;
+            replacement.PermittedEnvironments = old.PermittedEnvironments;
+            replacement.AuthorizedDataTypes = old.AuthorizedDataTypes;
             return;
         }
         replacement.Revision++;

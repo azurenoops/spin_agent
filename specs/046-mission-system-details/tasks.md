@@ -8,6 +8,206 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+## Environment organization follow-up (October 6)
+
+### Session commit review (October 6)
+
+The final combined-session review reproduced eight failures in
+`ProfileSectionForm.Data.test.tsx` (13 passes). Five still expected the former
+five-column summary; the other three expected a hidden external-Add heading,
+inline description text and table focus after removal. The requested Data
+layout now has six handling columns, visible table Add, descriptions in the
+inspector and Add as the empty-table focus destination. Update those assertions
+without weakening source preservation, failed-save retention or keyboard checks.
+Revalidate the related form/page/helper suites before the local commit.
+The same review found Environment guidance still telling users to expand
+Documentation details after its fields became permanently visible. Reproduce
+that copy mismatch in the page test, then describe the visible fields directly.
+Manual acceptance and publication remain separate; no push is authorized.
+
+Final review verification: 699 Dashboard tests passed, including the migrated
+21-case Data suite; the final two-file rerun passed all 80 cases. The guidance
+assertion failed before its copy correction. Strict TypeScript and production
+build passed after correcting the test query types. The related backend runs
+passed 355 profile/design/requirement tests and 44 provider/lifecycle tests;
+132 authenticated integration tests passed. MCP build passed without warnings.
+The first browser batch passed 51 cases. A further batch passed 42 and failed
+four broader walkthrough cases at the unchanged Applicable policies & references
+and Security Capabilities heading assertions (both viewport widths), not the
+new Overview/Data/scope assertions. These walkthroughs are not claimed green;
+their underlying fixture/root causes were not resolved in this commit task.
+The full repository suite, formal coverage gate, manual acceptance and actual
+eMASS submission remain unverified. Dashboard warnings remain for Browserslist,
+SignalR annotations, mixed imports and bundle size.
+
+The full session candidate contains 157 source/documentation/test files.
+Credential-pattern review found only the explicit synthetic test API-key
+sentinel, not a real credential. Generated Playwright HTML remains excluded
+and preserved in the worktree; session logs and browser artifacts are not staged.
+No dependency changes, hook/signature bypass, remote write or service restart
+is part of the commit operation.
+
+Focused offering follow-up is tracked by FD01-FD05 in Feature 079. The profile
+editor and prior work remain intact. Fresh acceptance: 257 tests across eleven
+frontend suites, 20 desktop/mobile browser cases, 158 scoped/backend/downstream
+unit tests and 13 HTTP authorization/tenant checks pass. TypeScript and production
+build pass with existing warnings. Manual acceptance and live export/submission
+verification remain open; this does not supersede the older Data-suite caveat.
+
+Current narrow follow-up supersedes only the earlier collapsed presentation:
+- [x] EU01 - Document one visible Deployment description editor and unchanged
+  profile/connection contracts before code.
+- [x] EU02 - Failing-first tests for all ten fields in one actual form, no
+  disclosures, top save, retained custom values, errors/reload and read-only locks.
+- [x] EU03 - Unite only the three scalar groups; keep provider/subscription
+  registers and their immediate-write actions outside the form.
+- [x] EU04 - Focused frontend tests, TypeScript/build and 1440/390px fixtures;
+  inspect/cancel live 4196, compare profile GET before/after, no feature writes.
+  Prior 190 native/export tests are not rerun for this layout-only follow-up.
+
+Unification verification: first run failed on the two remaining disclosures
+(1 failure, 58 passes). Final five-file focused suite and coverage run: 113
+passes; form executable-line coverage 92.91%, page 92.89%. Six Chromium fixture
+cases pass with explicit `PLAYWRIGHT_BASE_URL=http://127.0.0.1:4196`, including
+1440/390px unified visibility, top save/reload, legacy/custom values, independent
+connections and Viewer/UnderReview locks. TypeScript, production build and
+whitespace checks pass. Build retains Browserslist, SignalR annotation, mixed
+imports and large-bundle warnings.
+
+An additionally selected Data-form suite has eight failures (old five-column/
+heading, inline context and focus expectations); it is outside this Environment
+request and was not changed. The full frontend suite is not claimed green.
+
+Live normal Chromium on the supplied organization/system route: 1440/390px,
+one actual form, all ten fields visible, no disclosures or page overflow, one
+header Save Draft targeting `system-profile-editor`, provider/subscription
+registers outside the form. Provider details opened/closed without feature
+writes. Profile GET before/after returned 200 with identical 1337-character content;
+no JavaScript page errors were observed during inspection. Both optional shell
+GETs (`/api/csp/onboarding/state`, `/api/onboarding/organization-context`) still
+return 403; a clean-console claim is not made. All 41 staged files remain staged.
+No commit, push, backend/schema/API/export change, rollout or service stop.
+Manual isolated-system save acceptance remains available in the guides above;
+downstream exports and actual eMASS submission were not reverified.
+
+- [x] EH01 — Reproduce interleaved draft/connections, expanded technical details,
+  bottom save and extra sidebar frame; document the existing-record-only contract.
+- [x] EH02 — Failing-first tests for top save, grouped progressive draft details,
+  compact provider register and preserved independent workflows/permissions.
+- [x] EH03 — Reorganize existing surfaces without changing payloads, field keys,
+  retained approvals, provenance or immediate-write/versioned review semantics.
+- [x] EH04 — Focused tests, strict TypeScript, production build, synthetic
+  desktop/mobile save/open/cancel/connection and native-source regressions;
+  inspect live 4196 without feature writes and provide manual acceptance steps.
+
+Verification: the failing-first run had seven failures and 93 passes; it
+reproduced the intended layout/save gaps and exposed two label queries needing
+adjustment for the existing "Not recorded" text. Final focused coverage run:
+209 tests across eight files pass; six synthetic browser cases pass, covering
+1440/390px top save/reload, retained unknown/collapsed values, provider details/
+management open/cancel, mixed provider/organization subscription attachment
+and scope review, keyboard/focus, and independent Viewer/UnderReview permissions.
+Strict `tsc --noEmit`, production build and `git diff --check` pass.
+Focused native profile/draft/export/environment-independence suite: 190 pass.
+
+Coverage: form 93.02%, page 92.88%, provider register 97.95% executable lines.
+The changed executable register lines are 3/3 subscription and 30/30 provider.
+Whole-file subscription coverage is only 42.2%; this run does not claim coverage
+of every pre-existing scope/detach path. Build/test warnings remain: stale
+Browserslist data, SignalR annotations, mixed static/dynamic imports, large
+bundle, and native pre-existing nullability/obsolete API warnings.
+
+Live normal Chromium (in-page dev-issm simulation) on Vite 4196: both exact
+1440px and 390px widths show one top Save Draft, two current provider rows,
+collapsed detail groups, sidebar below both banners, no page overflow and
+working open/cancel/keyboard focus. Zero feature-write requests; before/after
+profile and environment response SHA-256 hashes match. Retained local snapshots
+are outside the repository. `/api/csp/onboarding/state` and
+`/api/onboarding/organization-context` still return known 403s; no clean-console
+claim. Direct APIRequestContext reads initially rejected the secure simulation
+cookies on HTTP; verification used actual Chromium in-page cookie handling
+instead, without changing permissions or server configuration.
+
+No backend/schema/export change or frontend deployment. The 41 staged files and
+other Mission/design/AI/Users/Data/scope work remain intact. Native approved
+profile projection still targets SSP section 6 and retains snapshot hashes;
+full operational exports/eMASS submission and human local acceptance are not
+claimed by these UI checks. Manual steps are in the existing system-design guide.
+
+Older `environment-hosting-parity-079` and `environment-direct-association-079`
+browser scripts still reference legacy "Provider hosting"/"Choose provider
+hosting" UI absent before this cleanup. They were inspected, not rewritten or
+reported green; current shared-environment and new record tests verify the
+actual provider-scope/subscription composition.
+
+## Data form follow-up (October 6)
+
+- [x] DT01 — Document compact reference, top save and truthful section review/
+  declared CIA/privacy distinction against existing authoritative records.
+- [x] DT02 — TDD nullable field schema/persistence/GET, value/reference/bounds/
+  legacy omission/UnderReview and working/retained native source projections.
+- [x] DT03 — Compact classification/CUI/CIA/privacy/retention summary, source
+  editor, actual documentation counts/correction sidebar and top header save.
+- [x] DT04 — Complete tests/build/coverage/browser and real SQL Server API/
+  schema/UI acceptance, leaving saved demo sources and other work intact.
+
+DT04 verified: 301 profile/native/design/AI unit tests, 35 authenticated profile/
+control API tests, 3 real initial-package/schema tests, 173 Dashboard profile/
+design/helper tests and 8 Data/Users/Mission/definition desktop/mobile cases
+passed. The coverage rerun passed 98 focused UI tests. Solution, TypeScript
+type-check and production builds passed with existing warnings.
+
+Data GET round-trips every submitted field; reviewed values reach native
+OSCAL/Word/PDF. Later drafts remain excluded from all three retained outputs.
+Source references reject unsafe schemes, protocol-relative paths and
+backslashes. Omitted legacy fields are preserved and UnderReview is locked.
+Profile review is explicitly distinguished from CIA/privacy/authorization
+decisions in rendered SSP text and structured OSCAL profile metadata.
+Executable-line coverage: Data schema 85.71%, children 96.99%, retained profile
+renderer 85.36%, working projection 100%; UI statements: form 91.38%, page
+93.03%, Data completeness helper 100%.
+
+API-only `ato-copilot-mcp:data-handling-1312bde8-20261006` is healthy with
+unchanged normalized runtime/volumes/ports/user and unchanged peer containers.
+All nine nullable SQL Server columns exist. Real 4196 sign-in, top Save Draft,
+compact table and all new editor labels were verified without profile writes/
+page errors. This demo Data section is NotStarted with zero rows, unchanged
+before/after; no sample data or approval was fabricated. Exact populated GET/
+save/reload behavior is covered by isolated API/browser tests, not claimed as a
+live populated-row check. Earlier staged and unstaged work remains intact.
+No commit, push or GitHub write was made for this follow-up.
+
+## Users form follow-up (October 6)
+
+- [x] UF01 — Document reference table/top save/sidebar and missing SSP fields
+  against the actual independent category/access-context governance model.
+- [x] UF02 — TDD nullable field persistence, supported classification/bounds,
+  legacy omissions, under-review lock, audit/approval and source/output parity.
+- [x] UF03 — Compact summary table, existing detail editor, top header save/
+  preview, table Add, actual review status and documentation correction counts.
+- [x] UF04 — Complete schema/build/coverage/API/native/browser/live acceptance
+  preserving old sources, review/removal semantics and other in-progress work.
+
+UF04 verified: 292 backend profile/review/design/AI tests, 51 authenticated
+API/native package tests, 170 Dashboard profile/design tests and 6 desktop/
+mobile Users/Mission/definition cases passed. Solution/type-check/production
+builds passed with existing warnings. Actual independently approved Users fields
+appear in OSCAL/Word/PDF and later owner drafts stay out of retained output.
+Legacy omissions preserve new values, under-review field edits are rejected,
+invalid classifications fail, and SQLite schema upgrade is rerunnable with
+no inferred approval or values.
+
+Changed executable-line coverage: children 96.70%, individual category review
+97.27%, retained profile projection 91.55%, schema additions 92.31%; focused
+UI 92.20% lines / 86.34% branches and Users completeness helper 100% lines.
+
+API-only `ato-copilot-mcp:users-record-1312bde8-20261006` is healthy with
+unchanged normalized runtime/volumes/ports/user and unchanged peer containers.
+Real 4196 sign-in, Users table, top Save Draft, detail inspection and all eight
+new SQL Server fields were verified with no profile writes/page errors or
+category/status changes. Earlier overview/AI work and all 41 separately staged
+files remain intact; no commit/push/GitHub write was performed by this task.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
@@ -370,3 +570,215 @@ Delivers: Full backend (all 7 MCP tools with withdrawal support, all entities, n
 - Performance target (under 500ms p95) is covered in: T054 (integration test assertions)
 - Cross-system review queue (FR-027) is covered in: T057 (REST endpoint + service method + integration test)
 - FR-026 (only Approved content in SSP) is a cross-feature dependency on Features 022/037; no implementation needed in this feature
+# Inventory & boundary follow-up (October 6)
+
+- [x] IB06 — Failing-first banner-order/uniqueness and populated-register create
+  assertions; hoist both full-width statuses, remove the duplicate canonical
+  sidebar/header Review boundary and preserve source/draft workflows.
+- [x] IB07 — Verify related UI suites, strict type-check/production build and
+  1440/390 keyboard/cancel/create browser regressions. Inspect real 4196 with
+  feature writes blocked and unchanged design/boundary GET snapshots; preserve
+  all 41 staged files and shared runtime services.
+
+IB06/IB07 verification: three new targeted assertions failed before production
+changes (missing canonical status slot and Add System Boundary action).
+Final 103 tests across four related UI/permission suites passed; coverage is
+100% lines for both inventory components and 93.84% lines/80.33% branches for
+BoundaryManagement. All 14 focused Playwright cases passed at 1440/390 using
+`PLAYWRIGHT_BASE_URL=http://127.0.0.1:4196`: measured full-width banner order,
+unique statuses, retained governed sidebar, empty/populated create, rejection
+and input retention, keyboard focus/trapping/cancellation, source drawer
+edit/add placements, governed save/reload/error and scope/source preservation.
+The existing broader task walkthrough's two removed-header selectors were
+migrated to exact row Open; that broader suite was not rerun or counted.
+
+Browser checks caught the action wrapper bypassing the old direct-child heading
+style; its original typography is preserved. The governed canonical table
+headers had 3.76:1 contrast, now corrected with existing readable slate colors
+and dark-mode counterparts; the targeted WCAG checks pass. Initial new keyboard
+assertions assumed the wrong existing form button order; assertions now follow
+the real Create → Cancel → Close focus cycle, without changing shared dialogs.
+Final `npx tsc --noEmit`, production build and `git diff --check` passed.
+Build warnings remain: stale Browserslist data, SignalR PURE annotations,
+mixed static/dynamic import and large bundles.
+
+Live native Chromium used in-page dev ISSM simulation (204) and cookies.
+At both widths it verified two definitions, five components, both full-width
+banners above the introduction, no duplicate canonical sidebar/header CTA,
+retained reviewed-definition sidebar, Add System Boundary and source edit/add/
+governed-component inspection with cancellation and restored focus.
+Feature writes were blocked: zero attempted feature writes, zero page errors
+and no horizontal overflow. Before/after design and definition GET snapshots
+were unchanged: revision 2, Draft, no approved baseline. Optional shell calls to
+`/api/csp/onboarding/state` and `/api/onboarding/organization-context` returned
+403; this is not a whole-console-clean claim.
+
+Manual acceptance: open the demo system's Components & system scope on 4196.
+Confirm navigation → boundary count → working revision → introduction, each
+banner full width. Confirm Add System Boundary beside Recorded boundary
+definitions while populated; press Enter, inspect immediate-write guidance and
+Escape/Cancel without saving. Open mission-app, inspect/cancel Edit and source
+Add components; inspect/cancel a governed component. Verify focus returns and
+Save scope draft stays disabled. Repeat at 390px.
+
+All 41 staged files remain byte-for-byte unchanged (staged-diff SHA-256
+`f66519ec3b0a5a9e94050a6c9fd4207977b4ea7a1464d5ca4e3fe0a4636c54d1`).
+API e9db06a4c490, dashboard 1b26573f90c7, chat dd7515d617bc,
+Redis 03bc09cf7026 and SQL 3c0f302ae7a3 remain running with unchanged IDs.
+No commit/push/external write, backend rollout/schema change, shared-service stop
+or automatic scope selection. Native/backend/export suites were not rerun for
+this UI-only follow-up; no fresh native-output verification is claimed.
+
+- [x] IB04 — Add failing-first tests for visible canonical definitions directly
+  after the introduction and before components; remove duplicate prose and the
+  obsolete bottom disclosure without changing source or draft workflows.
+- [x] IB05 — Run related frontend tests and strict type-check; inspect 4196 at
+  1440/390 with edit/add cancellation and unchanged design/definition GETs.
+  Native export contracts are unchanged; do not claim a fresh export verification.
+
+IB04/IB05 verification: two layout assertions failed before production changes;
+54 related frontend tests and 10 Playwright cases passed after the change.
+The obsolete disclosure-dependent unit/browser assertions were updated.
+`npx tsc --noEmit`, production build and `git diff --check` passed.
+Build warnings remain: stale Browserslist data, SignalR PURE annotations,
+mixed static/dynamic import and large bundles.
+
+Live Chromium at `http://127.0.0.1:4196`, using in-page dev ISSM simulation
+(204) and browser cookies, verified introduction → canonical definitions →
+components at 1440/390. Two definitions and five components remained visible.
+Source edit/create/add inspection and governed component inspection were
+cancelled; keyboard focus restoration and no horizontal page overflow passed.
+Design and boundary-definition GET snapshots were unchanged: revision 2,
+Draft, no approved baseline. Zero feature writes attempted and zero page errors.
+Optional shell requests to CSP onboarding state and organization context
+returned 403; this is not a whole-console-clean claim.
+
+Manual acceptance: open the demo system's Components & system scope view on
+4196; verify the definitions directly below the introduction, open mission-app,
+inspect Edit/Create and source Add components, and cancel without saving.
+Then inspect/cancel a component and confirm Save scope draft stays disabled.
+Repeat at 390px. The frontend was started locally because 4196 was not listening;
+no backend deployment was performed. Native export/backend suites were not
+rerun for this layout-only change; their contracts and handlers are unchanged.
+The staged-diff SHA-256 remained
+`f66519ec3b0a5a9e94050a6c9fd4207977b4ea7a1464d5ca4e3fe0a4636c54d1`.
+No commit, push or external write was performed.
+
+- [x] Add failing-first Components & system scope tests for exact copy/navigation,
+      shared system scope, unknown/conflicting decisions, source/group distinctions,
+      provider-hosted inclusion and consumed-versus-unused external records.
+- [x] Implement the clarified task/editor with existing governed draft/review
+      contracts and distinctly labeled canonical source workflows.
+- [x] Run focused UI/backend/native-output tests, typecheck/build and mobile/keyboard
+      browser tests. Inspect live port 4196 without saving/submitting/reconciling;
+      compare design and boundary GET snapshots before and after.
+
+- [x] IB01 — Trace source placement versus governed inventory and document
+  reference layout, saved revision and SSP approval semantics.
+- [x] IB02 — Failing tests, compact component table/counts, missing-field editor,
+  top draft save, truthful sidebar and preserved source management.
+- [x] IB03 — Verify type-check/build/unit/browser/native outputs and live
+  read-only acceptance; leave shared data and staged work unchanged.
+
+IB03 verified: 118 Dashboard inventory/source-management/design tests,
+178 backend boundary/design/native tests and 14 desktop/mobile browser cases
+passed. The final 2 inventory cases were rerun after the completeness change;
+the exact six-field denominator is asserted. Strict Dashboard type-check and
+production build passed with existing bundle/Browserslist warnings.
+
+Coverage statements: governed inventory >99%, source-boundary page >91%,
+shared editor >93%. Native regression verifies reviewed environment, owner,
+scope rationale and CSP provenance in OSCAL/Word/PDF and exclusion of later
+draft annotations. The existing canonical schema and API are reused; no
+backend deployment, migration or new approval lifecycle was required.
+
+Live 4196 verification: top header Save Draft, compact component table,
+named mission-app/mission-api source scopes and the shortened owner/environment/
+scope editor were inspected and cancelled without writes or JavaScript page
+errors. Before/after design and boundary API responses were unchanged:
+working revision 2, no approved baseline, 5 working components and 2 source
+boundary definitions. Optional surrounding workspace requests logged 403s;
+this is not a claim that the whole application's network console is clean.
+Runtime services and all 41 separately staged files remain unchanged.
+No commit/push/GitHub write was performed for this follow-up.
+
+## Components & system scope verification (October 6)
+
+The clarification above supersedes the earlier six-field score/Inventory label.
+Six new scope assertions failed before production edits (11 existing tests passed).
+Browser failing-first checks additionally exposed missing retention guidance for
+the shared client's status-less error envelope and 4.39-4.44:1 text contrast;
+both root causes were corrected without changing the global client contract.
+
+Final verification: 186 Dashboard tests (11 files), 140 backend unit tests and
+41 authenticated design/preview/native-package integration tests passed.
+The 16 focused browser cases passed at 1440/390, including shared app/API scope
+without individual named-definition selection, provider-hosted inclusion, unknown
+legacy decisions, conflict/save failure retention, source/group preservation,
+keyboard Enter/Escape/focus restoration and WCAG 2 A/AA/2.1 AA checks.
+Strict `npx tsc --noEmit` and production build passed. Warnings: stale
+Browserslist data, SignalR PURE annotations, mixed static/dynamic import and
+large bundles. Targeted coverage: governed inventory 100% lines/89.86% branches,
+editor 94.33% lines/80.21% branches, definition table 100% lines/branches.
+
+Live acceptance used native Chromium with in-page dev ISSM simulation (204),
+browser cookies and feature writes blocked, not a standalone HTTP client.
+Five components and the actual mission-app/mission-api Logical options were
+inspected/cancelled at 1440/390. No scope was selected automatically. Enter,
+Escape, restored focus and no horizontal page overflow passed. Design and
+definition GET responses remained byte-equivalent JSON before/after:
+revision 2, Draft, no approved baseline; zero feature writes/page errors.
+The shared integrated browser tab was hidden and its click/native-key interactions
+were unreliable; native Chromium supplied the final acceptance evidence.
+Optional shell calls to CSP onboarding state and organization context returned
+403. No whole-console-clean claim is made.
+
+No backend production contract/schema change or runtime rollout was needed.
+Existing native tests verify reviewed environment/operator/rationale/CSP sources
+in OSCAL/Word/PDF, working previews versus final artifacts, source/version
+retention and exclusion of later drafts. No live export/submission/approval was
+performed; real eMASS submission and AO authorization remain unverified.
+All 41 staged files and prior unrelated dirty work remain preserved.
+
+## Shared inventory sidebar layout follow-up (October 6)
+
+- [x] IL01 — Add failing-first structural and desktop/mobile geometry assertions:
+  both banners full width before one grid, intro and both registers in its main
+  column, one support sidebar aligned to the intro on desktop.
+- [x] IL02 — Rearrange existing governed content only; retain canonical dialog
+  placement, actions, errors, permissions, focus and governance behavior.
+- [x] IL03 — Run targeted UI tests, strict type-check/build and explicit 4196
+  browser cases. Inspect/cancel real records at 1440/390 with feature writes
+  blocked and unchanged design/boundary snapshots; preserve the staged index.
+
+IL verification: the structural assertion and both 1440/390 containment cases
+failed before rearrangement. A stricter desktop sidebar-span assertion then
+failed before enabling the existing stretch option. Final 103 targeted UI tests
+and 14 desktop/mobile browser cases passed with
+`PLAYWRIGHT_BASE_URL=http://127.0.0.1:4196`; strict `npx tsc --noEmit` and
+production build passed. No shared presentation/CSS changes were needed.
+
+Live native Chromium acceptance used the configured `dev-issm` identity and
+HTTP 204 simulation response. The literal `dev-issm204` identity returned 404;
+the login-config descriptor verified the actual ISSM identity before retrying.
+At 1440px both banners span 1137px; main and sidebar begin at y=429.5 below
+the second banner's bottom y=409.5. The main column and both register containers
+share x=252 and width=741.33; the sidebar starts x=1018.33 and spans the entire
+1609px main-column height, covering both tables. At 390px the 358px main/support
+columns stack, both tables scroll locally and the page has no horizontal
+overflow. Enter/Escape inspection and cancellation restored focus for Add System
+Boundary, canonical row Open and component Open. No duplicate banners, sidebar
+or headings appeared; top Save scope draft and table Add action remain.
+
+Live feature writes and page errors were zero; design and definition GET
+snapshots were unchanged (revision 2, Draft, no approved baseline, two
+definitions). Optional shell onboarding calls returned 403. Build warnings were
+stale Browserslist data, SignalR PURE annotations, mixed static/dynamic import
+and large bundles. Backend/native export suites were not rerun for this layout
+change. No backend edit, service stop, commit, push or GitHub write occurred.
+
+Manual acceptance: on 4196 open Components & system scope as dev ISSM. At
+1440px confirm both ribbons precede the aligned introduction/sidebar and both
+registers occupy the left column. At 390px confirm support follows the main
+column, with table-local scrolling and no page overflow. Open each record type
+and use Escape/Cancel without saving; verify focus returns to its trigger.

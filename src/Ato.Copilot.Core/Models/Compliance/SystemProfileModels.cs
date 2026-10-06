@@ -185,6 +185,23 @@ public class UserCategory
     [MaxLength(100)]
     public string? DataSensitivityLevel { get; set; }
 
+    [MaxLength(40)]
+    public string? IdentityType { get; set; }
+    [MaxLength(40)]
+    public string? PrivilegeLevel { get; set; }
+    [MaxLength(40)]
+    public string? Affiliation { get; set; }
+    [MaxLength(500)]
+    public string? AuthenticationMethod { get; set; }
+    [MaxLength(500)]
+    public string? ResponsibleOwner { get; set; }
+    [MaxLength(1000)]
+    public string? UserLocations { get; set; }
+    [MaxLength(1000)]
+    public string? PermittedEnvironments { get; set; }
+    [MaxLength(2000)]
+    public string? AuthorizedDataTypes { get; set; }
+
     /// <summary>Display ordering.</summary>
     public int SortOrder { get; set; }
 
@@ -242,6 +259,25 @@ public class DataTypeEntry
     /// <summary>Applicable regulations, e.g., "HIPAA, FISMA" (comma-separated).</summary>
     [MaxLength(1000)]
     public string? ApplicableRegulations { get; set; }
+
+    [MaxLength(500)]
+    public string? CuiCategory { get; set; }
+    [MaxLength(40)]
+    public string? ConfidentialityImpact { get; set; }
+    [MaxLength(40)]
+    public string? IntegrityImpact { get; set; }
+    [MaxLength(40)]
+    public string? AvailabilityImpact { get; set; }
+    [MaxLength(40)]
+    public string? PrivacyApplicability { get; set; }
+    [MaxLength(2000)]
+    public string? RetentionRule { get; set; }
+    [MaxLength(2000)]
+    public string? DisposalMethod { get; set; }
+    [MaxLength(2000)]
+    public string? CategorizationRationale { get; set; }
+    [MaxLength(2000)]
+    public string? CategorizationReference { get; set; }
 
     /// <summary>Display ordering.</summary>
     public int SortOrder { get; set; }

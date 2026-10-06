@@ -18,7 +18,7 @@ const sourceRoots = new Set(['profile', 'boundaries', 'security-capabilities', '
   'evidence', 'legal', 'assessments', 'poam', 'remediation', 'deviations', 'documents', 'emass',
   'authorize', 'roles', 'history', 'baseline', 'categorization', 'settings', 'conmon', 'privacy', 'inventory']);
 
-export function packageSourceHref(systemId: string, path: string, readinessSearch: string): string | null {
+export function packageSourceHref(systemId: string, path: string, readinessSearch: string, destination: 'documents' | 'overview' = 'documents'): string | null {
   const decoded = (() => { try { return decodeURIComponent(path); } catch { return ''; } })();
   if (!decoded || decoded.startsWith('/') || decoded.includes('\\') || /^[a-z][a-z0-9+.-]*:/i.test(decoded)
     || decoded.split(/[/?#]/).some(segment => segment === '.' || segment === '..')
@@ -26,7 +26,7 @@ export function packageSourceHref(systemId: string, path: string, readinessSearc
   const base = `/systems/${encodeURIComponent(systemId)}`;
   const target = new URL(`${base}/${path}`, 'https://readiness.invalid');
   if (target.origin !== 'https://readiness.invalid' || !target.pathname.startsWith(`${base}/`)) return null;
-  target.searchParams.set('readinessReturn', `${base}/documents${readinessSearch}`);
+  target.searchParams.set('readinessReturn', `${base}${destination === 'documents' ? '/documents' : ''}${readinessSearch}`);
   return `${target.pathname}${target.search}${target.hash}`;
 }
 
@@ -35,6 +35,13 @@ export function packageReturnHref(systemId: string, search: string): string | nu
   if (!target || target.includes('\\') || target.includes('#')) return null;
   const expected = `/systems/${encodeURIComponent(systemId)}/documents`;
   const [path, query] = target.split('?', 2);
+  if (path === `/systems/${encodeURIComponent(systemId)}`) {
+    const params = new URLSearchParams(query ?? '');
+    if (params.has('overview') && !['readiness', 'monitoring'].includes(params.get('overview')!)
+      || params.has('phase') && !['Prepare', 'Categorize', 'Select', 'Implement', 'Assess', 'Authorize', 'Monitor'].includes(params.get('phase')!)
+      || params.has('owner') && !['mine', 'all'].includes(params.get('owner')!)) return null;
+    return target;
+  }
   if (path !== expected || packagePurposeFromSearch(query ?? '') === null) return null;
   return target;
 }

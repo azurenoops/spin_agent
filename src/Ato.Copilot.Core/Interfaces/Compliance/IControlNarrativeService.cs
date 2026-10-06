@@ -28,6 +28,9 @@ namespace Ato.Copilot.Core.Interfaces.Compliance;
 /// </remarks>
 public interface IControlNarrativeService
 {
+    Task<RequirementFirstPassSuggestion> GenerateRequirementFirstPassAsync(
+        RequirementFirstPassContext context, CancellationToken cancellationToken = default);
+
     Task<GroundedNarrativeDraft> GenerateGroundedDraftAsync(
         string narrativeType, string contextJson, CancellationToken cancellationToken = default);
 

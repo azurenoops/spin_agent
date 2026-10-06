@@ -19,6 +19,14 @@ public static class UserCategoryReviewSchemaAdditions
             ("UserCategories", "ReviewedAt", "datetime2 NULL", "TEXT NULL"),
             ("UserCategories", "ReviewerComments", "nvarchar(2000) NULL", "TEXT NULL"),
             ("UserCategories", "ApprovedSnapshotId", "nvarchar(36) NULL", "TEXT NULL"),
+            ("UserCategories", "IdentityType", "nvarchar(40) NULL", "TEXT NULL"),
+            ("UserCategories", "PrivilegeLevel", "nvarchar(40) NULL", "TEXT NULL"),
+            ("UserCategories", "Affiliation", "nvarchar(40) NULL", "TEXT NULL"),
+            ("UserCategories", "AuthenticationMethod", "nvarchar(500) NULL", "TEXT NULL"),
+            ("UserCategories", "ResponsibleOwner", "nvarchar(500) NULL", "TEXT NULL"),
+            ("UserCategories", "UserLocations", "nvarchar(1000) NULL", "TEXT NULL"),
+            ("UserCategories", "PermittedEnvironments", "nvarchar(1000) NULL", "TEXT NULL"),
+            ("UserCategories", "AuthorizedDataTypes", "nvarchar(2000) NULL", "TEXT NULL"),
             ("ProfileAuditEntries", "UserCategoryId", "nvarchar(36) NULL", "TEXT NULL"),
             ("ProfileAuditEntries", "UserCategoryRevision", "int NULL", "INTEGER NULL")
         };

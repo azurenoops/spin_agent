@@ -3,6 +3,7 @@ using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Mcp.Authorization;
 using Ato.Copilot.Mcp.Services;
@@ -24,6 +25,34 @@ public static partial class DashboardEndpoints
         });
         routes.MapGet("", ReadReadinessWorkspace)
             .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
+        routes.MapGet("/runs/{runId}/work", ReadReadinessWork)
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
+        routes.MapPost("/runs/{runId}/work/explain", ExplainReadinessWork)
+            .RequireWorkspaceOperation(SystemWorkspaceOperation.ReadSystem, Policies.ComplianceReader);
+        routes.MapPost("/rmf-phase", async (string systemId, PackageReadinessPhaseRequest body,
+            AtoCopilotContext db, IRmfLifecycleService lifecycle, ICurrentUserService actor,
+            ITenantContext tenant, HttpContext http, CancellationToken ct) =>
+        {
+            if (!Enum.TryParse<RmfPhase>(body.Phase, false, out var phase) || !Enum.GetNames<RmfPhase>().Contains(body.Phase)
+                || !Enum.TryParse<RmfPhase>(body.ExpectedPhase, false, out var expected)
+                || !Enum.GetNames<RmfPhase>().Contains(body.ExpectedPhase) || string.IsNullOrWhiteSpace(body.Notes)
+                || body.Notes.Length > 2000)
+                throw new ArgumentException("Select a named RMF phase, expected phase and a rationale of at most 2000 characters.");
+            var permissions = await ReadinessPermissions(http, systemId, ct);
+            if (!permissions.CanManageSystem) return Results.Forbid();
+            var system = await db.RegisteredSystems.AsNoTracking().SingleOrDefaultAsync(x => x.Id == systemId
+                && x.TenantId == tenant.EffectiveTenantId && x.IsActive, ct) ?? throw new KeyNotFoundException();
+            if (system.CurrentRmfStep != expected)
+                return Results.Conflict(new { errorCode = "RMF_PHASE_CHANGED", error = "The recorded phase changed. Refresh before confirming." });
+            var result = await lifecycle.AdvanceRmfStepAsync(systemId, phase, expected,
+                actor.CurrentUserId, body.Notes.Trim(), ct);
+            if (!result.Success)
+                return Results.Conflict(new { errorCode = result.PreviousStep != expected ? "RMF_PHASE_CHANGED" : "RMF_PHASE_GATE_BLOCKED",
+                    error = result.PreviousStep != expected ? "The recorded phase changed. Refresh before confirming."
+                        : "The requested phase cannot be recorded because lifecycle gates are not met.", gates = result.GateResults });
+            system = result.System ?? throw new InvalidOperationException("A successful lifecycle transition must return its system.");
+            return Results.Ok(await ReadinessRmf(db, system, permissions.CanManageSystem, ct));
+        }).RequireWorkspaceOperation(SystemWorkspaceOperation.ManageSystem, Policies.ComplianceReader);
         routes.MapGet("/runs/latest", async (string systemId, HttpRequest request, AtoCopilotContext db,
             PackageReadinessService service, ICurrentUserService actor, CancellationToken ct) =>
         {

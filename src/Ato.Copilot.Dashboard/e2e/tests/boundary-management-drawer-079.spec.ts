@@ -58,7 +58,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('combobox', { name: 'Recorded boundary', exact: true })).toHaveCount(0);
     await expect(page.getByText('Source: System', { exact: true })).toHaveCount(0);
     const support = page.getByRole('complementary', { name: 'Document contribution and next tasks' });
-    await expect(support.getByRole('link')).toHaveCount(2);
+    await expect(support).toHaveCount(0);
     await expect(support.getByText('Do cloud-native systems need an inventory?')).toHaveCount(0);
     // Compare actual typography and spacing against the checked-in design, not a guessed proxy.
     const reference = await page.context().browser()!.newPage({ viewport: { width, height: 1050 } });
@@ -70,7 +70,6 @@ for (const width of [1440, 390]) {
         ['.boundary-inventory-card h2', '.panel h2', ['fontSize', 'fontWeight', 'letterSpacing', 'marginBottom']],
         ['.boundary-inventory-card th', '.panel th', ['fontSize', 'fontWeight', 'lineHeight', 'paddingTop', 'paddingLeft']],
         ['.boundary-inventory-card td button', '.panel td button', ['fontSize', 'lineHeight', 'paddingTop', 'paddingLeft']],
-        ['.boundary-support p', '.support p', ['fontSize', 'lineHeight', 'marginTop', 'marginBottom']],
       ] as const;
       for (const [liveSelector, mockSelector, properties] of pairs) {
         const readStyles = (element: Element, keys: readonly string[]) => {

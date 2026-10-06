@@ -10,7 +10,22 @@ public sealed record PackageReadinessOwner(string PersonId, string DisplayName, 
 public sealed record PackageReadinessCheck(
     string Id, string RuleId, string Title, string Outcome, string Category, bool Required,
     string Applicability, string Why, string? MissingSource, IReadOnlyList<PackageReadinessSource> Sources,
-    IReadOnlyList<string> NextSteps, string? ExpectedRole, PackageReadinessOwner? RecordedOwner, PackageReadinessAction Action);
+    IReadOnlyList<string> NextSteps, string? ExpectedRole, PackageReadinessOwner? RecordedOwner, PackageReadinessAction Action,
+    IReadOnlyList<PackageReadinessWorkFinding>? Findings = null);
+public sealed record PackageReadinessWorkFinding(string Id, string Severity, string Category, string? ArtifactType,
+    string Description, string? Remediation, string? ControlId, string? RecordId);
+public sealed record PackageReadinessWorkCounts(int Total, int Blocking, int Warnings);
+public sealed record PackageReadinessWorkGroup(string Id, string Title, string Category, PackageReadinessOwner? Owner,
+    PackageReadinessAction Action, IReadOnlyList<string> RmfPhases, IReadOnlyList<string> Documents,
+    IReadOnlyList<string> Controls, int Total, int Blocking, int Warnings, string? PriorityReason,
+    PackageReadinessPage<PackageReadinessWorkFinding> Findings);
+public sealed record PackageReadinessWork(string SystemId, PackagePurpose Purpose, string SelectionHash, string RunId,
+    bool FindingsAvailable, PackageReadinessWorkCounts Counts, PackageReadinessPage<PackageReadinessWorkGroup> Groups,
+    string? RecommendedGroupId, string? ActorPersonId);
+public sealed record PackageReadinessPhaseRequest(string Phase, string ExpectedPhase, string Notes);
+public sealed record PackageReadinessExplanationRequest(string GroupId, string? ControlId, string? ScopeId, string Mode = "Explain");
+public sealed record PackageReadinessExplanation(string SystemId, string RunId, string GroupId, string SourceHash,
+    string Content, IReadOnlyList<ResponsibilityDraftSource> Sources, IReadOnlyList<string> Questions, string Origin);
 public sealed record PackageReadinessCounts(int Total, int Passed, int Blocking, int FollowUp,
     int NotApplicable, int Unavailable, int RequiredUnavailable)
 {
@@ -33,4 +48,5 @@ public sealed record PackageReadinessDocument(string Kind, string Title, string 
     string? ReviewState, string? SourceState, string? ValidationOutcome, int? RecordCount,
     IReadOnlyList<PackageReadinessRecord> Records, PackageReadinessAction Action);
 public sealed record PackageReadinessTransition(string Id, string FromPhase, string ToPhase, DateTime OccurredAt, string Actor);
-public sealed record PackageReadinessRmf(string Phase, IReadOnlyList<PackageReadinessTransition> Transitions, int TotalCount);
+public sealed record PackageReadinessRmf(string Phase, IReadOnlyList<PackageReadinessTransition> Transitions, int TotalCount,
+    bool Confirmed = false, string? Source = null, DateTime? RecordedAt = null, string? Actor = null, bool CanConfirm = false);

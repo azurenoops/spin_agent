@@ -197,7 +197,8 @@ public partial class OscalSspExportService : IOscalSspExportService
                     ["ns"] = "https://ato-copilot.io/ns/profile",
                     ["value"] = JsonSerializer.Serialize(new
                     {
-                        sectionType = profile.Type.ToString(), profile.ApprovalId, profile.Hash, profile.Content
+                        sectionType = profile.Type.ToString(), profile.ApprovalId, profile.Hash, profile.Content,
+                        dataHandlingInterpretation = profile.Type == ProfileSectionType.DataTypes ? ApprovedProfileDocumentData.DataHandlingInterpretation : null
                     })
                 });
             systemChars["props"] = profileProps;
@@ -216,7 +217,8 @@ public partial class OscalSspExportService : IOscalSspExportService
                     {
                         sectionType = profile.Type.ToString(), sectionId = profile.SectionId,
                         sourceState = "CurrentWorkingData", governanceStatus = profile.GovernanceStatus,
-                        reviewScope = profile.ReviewScope, contentHash = profile.Hash, content = profile.Content
+                        reviewScope = profile.ReviewScope, contentHash = profile.Hash, content = profile.Content,
+                        dataHandlingInterpretation = profile.Type == ProfileSectionType.DataTypes ? ApprovedProfileDocumentData.DataHandlingInterpretation : null
                     })
                 });
             if (profileProps.Count > 0) systemChars["props"] = profileProps;

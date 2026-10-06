@@ -4,6 +4,36 @@ import '../helpers/dialog';
 import SetupDialog from '../../features/workspace-operations/SetupDialog';
 
 describe('Capability dialog dismissal', () => {
+  it('prevents native Escape dismissal before requesting guarded close', () => {
+    // Arrange
+    const close = vi.fn();
+    render(<SetupDialog busy={false} onClose={close}><textarea aria-label="Review rationale" /></SetupDialog>);
+    const rationale = screen.getByRole('textbox', { name: 'Review rationale' });
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    // Act
+    fireEvent(rationale, escape);
+    // Assert
+    expect(escape.defaultPrevented).toBe(true);
+    expect(close).toHaveBeenCalledOnce();
+  });
+  it('excludes closed-details controls with layout rectangles from keyboard focus', () => {
+    // Arrange
+    render(<SetupDialog busy={false} onClose={vi.fn()}>
+      <details><summary>Optional operations</summary><textarea aria-label="Hidden rationale" /></details>
+    </SetupDialog>);
+    const close = screen.getByRole('button', { name: 'Close dialog' });
+    const summary = screen.getByText('Optional operations');
+    const hidden = screen.getByLabelText('Hidden rationale');
+    for (const element of [close, summary, hidden]) {
+      vi.spyOn(element, 'getClientRects').mockReturnValue(Object.assign([new DOMRect()], { item: () => new DOMRect() }));
+      Object.defineProperty(element, 'checkVisibility', { value: () => element !== hidden, configurable: true });
+    }
+    close.focus();
+    // Act
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    // Assert
+    expect(summary).toHaveFocus();
+  });
   it('renders outside layout spacing so page margins cannot move a full-height drawer', () => {
     // Arrange / Act
     render(<section data-testid="page-content" className="space-y-5">

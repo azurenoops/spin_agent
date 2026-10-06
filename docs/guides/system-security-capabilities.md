@@ -26,15 +26,98 @@ Use an isolated test organization for the write scenarios below.
 
 ### Environment, hosting and assessment configuration
 
+#### Focused offering review at port 4196
+
+Open [Environment & hosting](http://127.0.0.1:4196/workspaces/organizations/ef3a19e6-858f-48f8-ab35-d0ab88b54d39/systems/09d6774b-e8a1-48db-b71f-5873e27163c4/profile/EnvironmentAndDeployment)
+and choose a provider row's **Review**. The initial drawer contains the readable
+offering/provider/system, current review states, and one contextual action.
+Its action uses the canonical relationship and complete paged applicability
+records with explicit permissions, never the offering name or an assumed setup
+sequence. Published applicable is not system adoption; review recorded is not an
+authorization decision. A captured scope projection flag is retained separately
+in technical details and does not override the canonical relationship task.
+
+Expand **What's included** for the actual source count and named capabilities.
+Each capability discloses its captured description and provider/shared/customer
+control allocations. Lists over ten are paged. Missing duty entries remain in
+the count and are explicitly unavailable, not resolved or not applicable.
+Complete operational duty text and private supporting source content are not
+exposed by this projection; missing content is not inferred.
+
+Expand **Source details and prerequisites** to inspect pinned scope/release
+identifiers, hashes, revisions, exact hosting exclusions and grouped prerequisites.
+Known blocker codes use plain language; raw diagnostics remain separate.
+Current release differences never replace the captured selection silently.
+Relationship editing, optional subscription links and previewed removal remain
+available in secondary disclosures with their existing permissions and
+confirmation/version checks.
+
+In-app workflow links stay in the same tab and retain system/offering/assignment/
+hosting-release context. The receiving task verifies that context and fails
+explicitly if it changed. Responsibility review still shows the full system
+baseline; origin context does not preselect adoption or accept a control.
+Save the independent Environment draft before intentionally leaving to another
+task. Canceling navigation or close preserves input; canceled navigation restores
+focus to its initiating drawer link. The existing independent profile guard is
+also retained.
+
+Manual acceptance: at 1440px and 390px, inspect the initially collapsed drawer,
+its current next action, all source details and optional actions. Use Tab,
+Shift+Tab and Escape. On the shared system, inspect/cancel only: do not connect,
+save, prepare/record a review, confirm duties, preview removal, attach a
+subscription, check access or enable monitoring. In an isolated authorized test
+system, also exercise 0/1/many capabilities, missing/changed source, read-only
+permissions, blocked/expired previews, failed saves and stale-source rejection.
+Keep text after rejected writes and obtain separate human review.
+
+Fresh automated verification: 257 focused frontend tests, 20 Chromium scenarios,
+158 backend/downstream unit tests and 13 scoped HTTP checks pass. TypeScript and
+production build pass with existing warnings. Live inspection verified actual
+5/8 capability counts, source-preserving navigation and zero feature writes;
+retained entity/profile data is unchanged. Optional shell onboarding GETs still
+return 403. These checks do not assert live SSP/eMASS export, submission or an AO
+decision; user acceptance remains open.
+
+Focused register acceptance (port 4196, October 6): the Environment draft form
+and top Save Draft remain independent. Provider rows have one **Review** action:
+inspect pinned published scope/duties and applicability, edit the authorization
+relationship through its existing preview workflow, or open the responsibility
+matrix separately. Missing prerequisites and confirmation permissions come from
+the current server source. Expand optional subscription links and technical
+metadata when needed. A published duty is not an accepted system duty.
+
+Empty System subscriptions shows **No subscriptions attached.** and one primary
+**Attach subscription**. A provider scope can exist without a subscription.
+Populated rows have one **Manage** action for source details, scope review,
+assessment access, independent monitoring and previewed detachment. In an
+isolated authorized test system, verify stale/save errors keep inputs and Cancel
+or Keep editing preserves drafts; shared demo inspection must not save, attach,
+confirm, check access or reconcile. Test at 1440px and 390px with Tab/Shift+Tab
+and Escape; closing an unchanged panel restores its invoking action.
+These register changes do not verify downstream SSP/eMASS export or submission.
+
+October 6 focused verification: 153 frontend tests and eight Environment browser
+scenarios passed at port 4196, with strict TypeScript and production build.
+Native live desktop/mobile inspection verified two retained provider scopes and
+empty subscriptions without feature writes or page errors. Local rationale
+input was discarded, not recorded. Environment/Profile response bytes and
+relationship entity data remained unchanged; transport timestamp/timing metadata
+was not byte-stable. Two shell onboarding GETs returned 403 and were not bypassed.
+Shared API, Dashboard, Chat, Redis and SQL containers were unchanged. Manual
+acceptance and SSP/eMASS export verification remain open. Broader Data-suite
+failures previously reported were not rerun or diagnosed by this cleanup.
+
 1. Confirm the system sidebar no longer has **Provider relationships**.
 2. Open **Environment**. Hosting model and Environment description come first,
    followed by saved hosting associations and applied security capabilities.
    Azure scan forms and overall Profile Completeness are not above the form.
    The organization, selected system and roles remain visible; the right panel
    defaults collapsed and can be reopened. Completeness is on the system overview.
-3. Expand Network zones & deployment locations, then Recovery, availability &
-   operating details. Confirm existing values remain. Change a short description,
-   save, reload and verify hidden fields and legacy hosting values are retained.
+3. Confirm deployment description, network zones, locations, availability,
+   recovery, RTO/RPO, maintenance and operating systems are visible together in
+   one Deployment description form without expanding sections. Change a short
+   description in an isolated test system, use the top Save Draft, reload and
+   verify all fields, custom JSON and legacy hosting values are retained.
    Save your draft before leaving to start another task.
 4. For an associated scope, choose **Use these hosting details**. Inspect the old
    and proposed descriptions in the dialog; Use in draft is disabled until the

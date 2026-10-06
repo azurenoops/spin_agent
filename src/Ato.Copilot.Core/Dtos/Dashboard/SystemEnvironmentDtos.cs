@@ -72,6 +72,7 @@ public sealed record SystemProviderScope(Guid AssignmentId, long AssignmentVersi
 {
     public Guid ProviderId { get; init; }
     public long HostingScopeRevision { get; init; }
+    public IReadOnlyList<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.ProviderHostingExclusion> Exclusions { get; init; } = [];
     public ProviderScopePublishedDuties PublishedDuties { get; init; } = new("Unavailable", [], "Published duties have not been loaded.");
     public ProviderScopeResponsibilityReview ResponsibilityReview { get; init; } =
         new("Unavailable", false, false, "Responsibility review has not been loaded.");
@@ -85,7 +86,13 @@ public sealed record SystemProviderScopeChoice(Guid OfferingId, long OfferingVer
     public long HostingScopeRevision { get; init; }
     public ProviderScopePublishedDuties PublishedDuties { get; init; } = new("Unavailable", [], "Published duties have not been loaded.");
 }
-public sealed record ProviderScopePublishedDuties(string State, IReadOnlyList<ProviderScopeCapabilityDuties> Capabilities, string? Reason);
+public sealed record ProviderScopePublishedDuties(string State, IReadOnlyList<ProviderScopeCapabilityDuties> Capabilities, string? Reason)
+{
+    public int? TotalCapabilities { get; init; }
+    public IReadOnlyList<ProviderScopeUnavailableCapability> UnavailableCapabilities { get; init; } = [];
+}
+public sealed record ProviderScopeUnavailableCapability(Guid CapabilityId, string? CapabilityName,
+    Guid ReleaseId, long ReleaseRevision, string Reason);
 public sealed record ProviderScopeCapabilityDuties(Guid CapabilityId, string CapabilityName, string? Description,
     Guid ReleaseId, long ReleaseRevision, string ReleaseSnapshotHash, string ContentHash, Guid ApplicabilityContextId,
     IReadOnlyList<string> ProviderControlIds, IReadOnlyList<string> SharedControlIds, IReadOnlyList<string> CustomerControlIds);

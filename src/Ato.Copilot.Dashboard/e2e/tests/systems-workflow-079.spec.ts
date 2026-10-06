@@ -33,9 +33,9 @@ for (const width of [1440, 390]) {
     await page.goto(systemRoot);
 
     // Assert
-    await expect(page.getByRole('tab', { name: 'Readiness', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Package preparation', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Monitoring & follow-up', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Continue preparation', exact: true })).toHaveAttribute('href', `${systemRoot}/documents?purpose=InitialSubmission`);
+    await expect(page.getByRole('link', { name: 'Open package workspace', exact: true })).toHaveAttribute('href', `${systemRoot}/documents?purpose=InitialSubmission`);
     await expect(page.getByText('System diagnostics & RMF phase management', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'RMF Phase Progress', exact: true })).toHaveCount(0);
     expect(heatmapRequests).toEqual([]);

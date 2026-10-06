@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useParams } from '../features/workspaces/workspaceNavigation';
-import { SystemTaskColumns, SystemTaskHeading, systemPrimaryAction, systemSecondaryAction } from '../features/systems/SystemTaskPresentation';
+import { SystemTaskHeading, systemSecondaryAction } from '../features/systems/SystemTaskPresentation';
 import SystemBoundaryInventory from '../features/systems/SystemBoundaryInventory';
+import GovernedBoundaryInventory from '../features/systems/GovernedBoundaryInventory';
 import '../features/systems/systemRecordPages.css';
 import SystemTaskNavigation from '../features/systems/SystemTaskNavigation';
 import { useSystemContext } from '../components/layout/SystemLayout';
@@ -50,7 +51,7 @@ export default function BoundaryManagement() {
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<BoundaryDefinitionDto | null>(null);
   const [deleteResult, setDeleteResult] = useState<DeleteBoundaryDefinitionResponse | null>(null);
-  const reviewTrigger = useRef<HTMLButtonElement>(null);
+  const createTrigger = useRef<HTMLButtonElement>(null);
   const drawerInvoker = useRef<HTMLElement | null>(null);
   const restoreDrawerFocus = useRef(false);
   const requireManagement = () => {
@@ -59,9 +60,6 @@ export default function BoundaryManagement() {
     return false;
   };
 
-  const [selectedBoundaryId, setSelectedBoundaryId] = useState('');
-  const selectedBoundary = boundaries.find(item => item.id === selectedBoundaryId)
-    ?? boundaries.find(item => item.isPrimary) ?? boundaries[0];
   const [expandedBoundary, setExpandedBoundary] = useState<string | null>(null);
   const expandedDefinition = boundaries.find(item => item.id === expandedBoundary);
   const [drawerBusy, setDrawerBusy] = useState(false);
@@ -77,7 +75,7 @@ export default function BoundaryManagement() {
     restoreDrawerFocus.current = false;
     const invoker = drawerInvoker.current;
     if (invoker?.isConnected && invoker !== document.body) invoker.focus();
-    else reviewTrigger.current?.focus();
+    else createTrigger.current?.focus();
   }, [expandedBoundary, formMode.kind, deleteConfirm]);
 
   const fetchData = useCallback(async () => {
@@ -178,7 +176,6 @@ export default function BoundaryManagement() {
       restoreDrawerFocus.current = false;
     }
     const request = ++detailRequest.current;
-    setSelectedBoundaryId(boundaryId);
     setExpandedBoundary(boundaryId);
     setBoundaryComponents([]);
     setDetailError(null);
@@ -199,25 +196,6 @@ export default function BoundaryManagement() {
 
   return (
       <div className="boundary-workspace">
-        {/* Header */}
-        <SystemTaskHeading eyebrow={detail.systemId === systemId ? detail.name : undefined} title="Inventory & system boundary"
-          description="Confirm which components and resources are included in the documented system."
-          action={<button
-            ref={reviewTrigger}
-            type="button"
-            disabled={!selectedBoundary}
-            onClick={() => { if (selectedBoundary) void handleExpandBoundary(selectedBoundary.id); }}
-            className={systemPrimaryAction}
-          >
-            Review boundary<span aria-hidden="true"> →</span>
-          </button>} />
-        <SystemTaskNavigation definitionOnly />
-        <div role="status" aria-label="Boundary record status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dedaf5] bg-[#f1effc] px-[17px] py-3 text-xs dark:border-slate-700 dark:bg-slate-800">
-          <span>{boundaries.length > 0 ? `${boundaries.length} ${boundaries.length === 1 ? 'boundary' : 'boundaries'} defined`
-            : error ? 'Boundary records unavailable' : 'No boundary recorded'}</span>
-          <span>Viewing does not approve scope</span>
-        </div>
         {error && (
           <div role="alert" className="bg-red-50 text-red-700 p-3 rounded text-sm">{error}
             <button type="button" className="ml-3 underline" onClick={() => void fetchData()}>Retry boundaries</button>
@@ -230,36 +208,31 @@ export default function BoundaryManagement() {
             <button onClick={() => setDeleteResult(null)} className="ml-2 text-green-600 hover:underline text-xs">Dismiss</button>
           </div>
         )}
-        <SystemTaskColumns support={<>
-          <section className="boundary-support">
-            <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px] text-slate-500">Used in your package</h2>
-            <h3 className="text-sm font-semibold">SSP · Boundary description and inventory</h3>
-            <p>This page contributes boundary records to the artifact above. Draft edits must not replace the approved baseline.</p>
-            <Link className={systemSecondaryAction} to={`/systems/${systemId}/documents/preview`}>Preview contribution<span aria-hidden="true"> →</span></Link>
-          </section>
-          <section className="boundary-support">
-            <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px] text-slate-500">Review &amp; ownership</h2>
-            <h3 className="text-sm font-semibold">Keep the next action clear</h3>
-            <p>{canManage ? 'Review boundary to manage recorded scope and inspect source details.' : 'Review boundary to inspect recorded scope and source details. Your access is read-only.'} Opening records does not approve them.</p>
-          </section>
-          <section className="boundary-support">
-            <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px] text-slate-500">Related work</h2>
-            <Link className={systemSecondaryAction} to={`/systems/${systemId}/documents`}>View package readiness<span aria-hidden="true"> →</span></Link>
-          </section>
+        {systemId && <GovernedBoundaryInventory key={systemId} systemId={systemId}
+          recordStatus={<div role="status" aria-label="Boundary record status"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dedaf5] bg-[#f1effc] px-[17px] py-3 text-xs dark:border-slate-700 dark:bg-slate-800">
+            <span>{boundaries.length > 0 ? `${boundaries.length} ${boundaries.length === 1 ? 'boundary' : 'boundaries'} defined`
+              : error ? 'Boundary records unavailable' : 'No boundary recorded'}</span>
+            <span>Viewing does not approve scope</span>
+          </div>}
+          renderHeading={actions => <>
+          <SystemTaskHeading eyebrow={detail.systemId === systemId ? detail.name : undefined} title="Components & system scope"
+            description="Confirm which components and resources are included in the documented system."
+            action={actions} />
+          <SystemTaskNavigation definitionOnly />
         </>}>
         {systemId && (!error || boundaries.length > 0) && <SystemBoundaryInventory boundaries={boundaries}
           onOpenBoundary={boundaryId => { void handleExpandBoundary(boundaryId); }}
-          emptyAction={canManage && <button type="button" className={systemSecondaryAction}
-            onClick={() => { if (!requireManagement()) return; setFormMode({ kind: 'create' }); setFormError(null); }}>Create boundary</button>} />}
-
-        </SystemTaskColumns>
+          action={canManage && <button ref={createTrigger} type="button" className={systemSecondaryAction}
+            onClick={() => { if (!requireManagement()) return; setFormMode({ kind: 'create' }); setFormError(null); }}>Add System Boundary</button>} />}
+        </GovernedBoundaryInventory>}
         <p className="boundary-workflow-note">Inputs → reviewed records → document output → ongoing change review</p>
 
         {/* Create/Edit Modal */}
         {formMode.kind !== 'closed' && (
           <SetupDialog busy={submitting} onClose={closeForm}
             title={formMode.kind === 'create' ? 'Create Boundary' : 'Edit Boundary'}
-            description="Record the boundary name, type and description. Saving does not approve scope or authorize the system.">
+            description="Canonical source change: saving updates the named definition immediately, not a scope draft. Type alone does not identify authorization scope or a system area. Saving does not approve scope or authorize the system.">
               <BoundaryForm
                 canSubmit={canManage}
                 initial={formMode.kind === 'edit' ? formMode.boundary : undefined}

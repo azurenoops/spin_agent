@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import type { DesignEdge, DesignNode } from '../../api/systemDesign';
+import type { DesignEdge, DesignGroup, DesignNode } from '../../api/systemDesign';
 import SetupDialog from '../workspace-operations/SetupDialog';
+import { Link } from '../workspaces/workspaceNavigation';
 import { isArchitectureNode, isContextConstraint, isNonTechnicalInteraction } from './graphAdapter';
 import { LOGICAL_TYPES, LOGICAL_PREDICATES, logicalType } from './graphAdapter';
 import { DFD_ROLES, DATA_LIFECYCLE, isFlowEndpoint } from './graphAdapter';
 import { NETWORK_ROLES, NETWORK_MEDIA, isNetworkComponent } from './graphAdapter';
 import { SACA_ZONES, SACA_ROLES, isContextPerformer } from './graphAdapter';
 
-export default function DesignRecordEditor({ node, edge, nodes, edges = [], onApply, onClose }: {
+export default function DesignRecordEditor({ node, edge, nodes, edges = [], groups = [], inventoryOnly = false, onApply, onClose }: {
   node?: DesignNode; edge?: DesignEdge; nodes: DesignNode[]; edges?: DesignEdge[];
+  groups?: DesignGroup[];
+  inventoryOnly?: boolean;
   onApply: (record: DesignNode | DesignEdge) => void; onClose: () => void;
 }) {
-  const [draft, setDraft] = useState<DesignNode | DesignEdge>(() => structuredClone(node ?? edge!));
+  const [draft, setDraft] = useState<DesignNode | DesignEdge>(() => structuredClone(node && inventoryOnly
+    ? { ...node, deploymentOwner: node.deploymentOwner ?? node.properties.Owner,
+      environment: node.environment ?? node.properties.Environment } : node ?? edge!));
   const [error, setError] = useState('');
   const canonicalConnection = edge?.source?.type === 'SystemInterconnection';
   const logical = 'sourceNodeId' in draft && LOGICAL_PREDICATES.includes(draft.relationshipType);
@@ -20,8 +25,15 @@ export default function DesignRecordEditor({ node, edge, nodes, edges = [], onAp
   const set = (key: string, value: string) => setDraft(current => ({ ...current, [key]: value || (required.has(key) ? '' : null) }));
   const field = (label: string, key: string, options?: string[]) => <label className="sd-field" key={key}>{label}
     {options ? <select required={required.has(key)} value={String((draft as unknown as Record<string, unknown>)[key] ?? '')} onChange={event => set(key, event.target.value)}>
-      <option value="">Not recorded</option>{options.map(option => <option key={option}>{option}</option>)}
-    </select> : <input required={key === 'label'} value={String((draft as unknown as Record<string, unknown>)[key] ?? '')} onChange={event => set(key, event.target.value)} />}
+      <option value="">Not recorded</option>
+      {String((draft as unknown as Record<string, unknown>)[key] ?? '')
+        && !options.includes(String((draft as unknown as Record<string, unknown>)[key]))
+        && <option value={String((draft as unknown as Record<string, unknown>)[key])}>Unknown recorded value: {String((draft as unknown as Record<string, unknown>)[key])}</option>}
+      {options.map(option => <option key={option} value={option}>
+        {inventoryOnly ? option.replace(/([a-z])([A-Z])/g, '$1 $2') : option}</option>)}
+    </select> : <input required={key === 'label'} maxLength={key === 'label' || key === 'deploymentOwner' ? 500
+      : key === 'externalAuthorizationReference' ? 2000 : 4000}
+      value={String((draft as unknown as Record<string, unknown>)[key] ?? '')} onChange={event => set(key, event.target.value)} />}
   </label>;
   const contextField = (label: string, key: string, options?: string[]) => {
     if (!('label' in draft)) return null;
@@ -37,17 +49,76 @@ export default function DesignRecordEditor({ node, edge, nodes, edges = [], onAp
       </select>
       : <input disabled={!!node?.source} maxLength={4000} value={draft.properties[key] ?? ''} onChange={event => update(event.target.value)} />}</label>;
   };
-  return <SetupDialog title={node ? 'Edit design element' : logical ? 'Edit logical relationship' : nonTechnical ? 'Edit context interaction' : 'Edit data flow'} busy={false} onClose={onClose}
+  return <SetupDialog title={node ? inventoryOnly ? 'Edit inventory component' : 'Edit design element' : logical ? 'Edit logical relationship' : nonTechnical ? 'Edit context interaction' : 'Edit data flow'} busy={false} onClose={onClose}
     description="Stage a governed correction. Renaming changes the design label, not the canonical source record. Canonical provenance remains attached; saving a draft is not approval.">
     <form className="sd-editor" onSubmit={event => {
       event.preventDefault();
       if ('label' in draft && !draft.label.trim()) return setError('A label is required.');
+      if (inventoryOnly && 'label' in draft) {
+        if (!['InBoundary', 'OutOfBoundary', 'Undetermined'].includes(draft.boundaryDisposition))
+          return setError('Choose a supported scope decision. Unknown recorded values cannot be saved unchanged.');
+        if (draft.boundaryDisposition === 'InBoundary' && (['SharedService', 'SeparatelyAuthorized'].includes(draft.boundaryRelationship ?? '')
+          || draft.kind === 'ExternalSystem' && draft.source?.type === 'SystemInterconnection'))
+          return setError(`${draft.boundaryRelationship || 'Canonical external system'} must be outside this system under the recorded contract. Correct the decision or relationship explicitly; provider hosting alone does not require exclusion.`);
+      }
       if ('sourceNodeId' in draft && (!nodes.some(item => item.id === draft.sourceNodeId) || !nodes.some(item => item.id === draft.targetNodeId)))
         return setError('Select recorded source and destination elements.');
       onApply(draft);
     }}>
       {node ? <>
-        {field('Label', 'label')}
+        {field(inventoryOnly ? 'Component name' : 'Label', 'label')}
+        {inventoryOnly && 'label' in draft && <>
+          <label className="sd-field">Does this component belong to this system?
+            <select required value={draft.boundaryDisposition} onChange={event => set('boundaryDisposition', event.target.value)}>
+              {!['InBoundary', 'OutOfBoundary', 'Undetermined'].includes(draft.boundaryDisposition)
+                && <option value={draft.boundaryDisposition}>Unknown recorded decision: {draft.boundaryDisposition || '(empty)'}</option>}
+              <option value="InBoundary">Included in this system</option>
+              <option value="OutOfBoundary">Outside this system</option>
+              <option value="Undetermined">Needs confirmation</option>
+            </select>
+          </label>
+          {field('Who operates or manages this component?', 'deploymentOwner')}
+          {field('Inclusion / exclusion rationale', 'boundaryRationale')}
+          {field('Security responsibility', 'securityResponsibility')}
+          <section className="sd-muted col-span-full">
+            <h3>Which recorded system area does it support, when applicable?</h3>
+            {groups.filter(group => group.nodeIds.includes(node.id) && group.kind !== 'Boundary').map(group =>
+              <p key={group.id}>{group.label} ({group.kind})</p>)}
+            {!groups.some(group => group.nodeIds.includes(node.id) && group.kind !== 'Boundary')
+              && <p>No internal group association recorded. Manage recorded groups in System design; no system-area classification is inferred.</p>}
+            <p>Internal groups, hosting environments and network zones do not establish authorization scope.</p>
+          </section>
+          <p className="sd-muted">A provider-hosted application may be included. Provider associations alone do not decide scope.
+            Separately authorized is recorded information, not verified coverage without supporting evidence.</p>
+          {field('Environment', 'environment')}
+          <details className="col-span-full rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <summary>Advanced scope details</summary>
+            <p className="sd-muted">Optional named definition association: select only an applicable recorded option.
+              Physical, Logical and Hybrid definitions do not establish authorization scope or a system-area classification.
+              An app and its API do not each require a new enclosing boundary. Missing associations remain review work.</p>
+            <label className="sd-field">Named boundary scope
+              <select value={draft.boundaryDefinitionId ?? ''} onChange={event => set('boundaryDefinitionId', event.target.value)}>
+                <option value="">Not selected</option>
+                {nodes.filter(item => item.kind === 'BoundaryDefinition' && item.source?.id).map(item =>
+                  <option key={item.id} value={item.source!.id}>{item.label} ({item.properties.BoundaryType || 'Type not recorded'})</option>)}
+                {draft.boundaryDefinitionId && !nodes.some(item => item.kind === 'BoundaryDefinition' && item.source?.id === draft.boundaryDefinitionId)
+                  && <option value={draft.boundaryDefinitionId}>Recorded selection unavailable — reconcile source</option>}
+              </select>
+            </label>
+            {field('Recorded scope relationship', 'boundaryRelationship', ['SystemManaged', 'SharedService', 'SeparatelyAuthorized', 'Undetermined'])}
+            {field('Network / trust zone', 'networkZone')}{field('Provider', 'provider')}
+            {field('External authorization/source reference URL', 'externalAuthorizationReference')}
+            <p className="sd-muted">Design record: {node.id}. These annotations do not change canonical placement or an AO decision.</p>
+            {node.source && <p className="sd-muted">Recorded type: {node.properties.SubType || node.properties.ComponentType || node.kind}
+              {' · '}Source: {node.source.provenance} · {node.source.type} · {node.source.id} · Version {node.source.version}.
+              Canonical type and ownership records are edited in their source workflow.
+              {node.source.resolutionUrl.startsWith('/') && !node.source.resolutionUrl.startsWith('//')
+                && !/[\\\u0000-\u0020]/.test(node.source.resolutionUrl)
+                && <Link className="sd-button" to={node.source.resolutionUrl}>Open source record</Link>}</p>}
+          </details>
+          {!node.source && contextField('Component type', 'componentType')}
+        </>}
+        {!inventoryOnly && <>
         {field('Boundary disposition', 'boundaryDisposition', ['InBoundary', 'OutOfBoundary', 'Undetermined'])}
         <label className="sd-field">Named boundary scope
           <select value={'label' in draft ? draft.boundaryDefinitionId ?? '' : ''} onChange={event => set('boundaryDefinitionId', event.target.value)}>
@@ -64,8 +135,9 @@ export default function DesignRecordEditor({ node, edge, nodes, edges = [], onAp
         {field('External authorization/source reference URL', 'externalAuthorizationReference')}
         <p className="sd-muted">These are governed design annotations, not changes to canonical scope or an AO decision. Shared/separately authorized systems stay outside. A recorded system decision does not automatically verify this component's authorization coverage.</p>
         {field('Environment', 'environment')}{field('Network / trust zone', 'networkZone')}{field('Provider', 'provider')}
-        {field('SSP impact', 'sspImpact')}
-        {isArchitectureNode(node) && <>
+        {!inventoryOnly && field('SSP impact', 'sspImpact')}
+        </>}
+        {!inventoryOnly && isArchitectureNode(node) && <>
           {field('SACA deployment zone', 'sacaZone', SACA_ZONES)}
           {field('SACA / SCCA role', 'sacaRole', 'label' in draft && isContextPerformer(draft)
             ? ['TCCM', 'Undetermined'] : SACA_ROLES.filter(role => role !== 'TCCM'))}
@@ -82,14 +154,14 @@ export default function DesignRecordEditor({ node, edge, nodes, edges = [], onAp
           {field('Recorded deployment security functions', 'deploymentSecurityFunctions')}
           <p className="sd-muted">Record actual protection at rest/in transit, isolation, IAM/RBAC and monitoring functions with source evidence. TCCM is an AO-appointed business performer, not Key Vault or another appliance. SACA/CNAP labels and CSP links do not establish compliance, appointment, implementation or authorization.</p>
         </>}
-        {isNetworkComponent(node) && <>
+        {!inventoryOnly && isNetworkComponent(node) && <>
           {field('Network component role', 'networkRole', NETWORK_ROLES)}
           {field('Network segment / enclave', 'networkSegment')}
           {field('Network IP / CIDR address', 'networkAddress')}
           {field('Claimed hosting impact level', 'hostingImpactLevel', ['IL2', 'IL3', 'IL4', 'IL5', 'IL6'])}
           <p className="sd-muted">Reuse canonical inventory addresses where recorded. These annotations do not establish IL accreditation, accepted inheritance, inventory completeness or authorization. Source and evidence remain reviewable separately.</p>
         </>}
-        {(isArchitectureNode(node) || node.kind === 'DataFlowElement'
+        {!inventoryOnly && (isArchitectureNode(node) || node.kind === 'DataFlowElement'
           || node.kind === 'LogicalConstruct' && node.properties.logicalType === 'Activity') && <>
           {field('DFD role', 'dataFlowRole', node.kind === 'LogicalConstruct' ? ['Function', 'Undetermined'] : DFD_ROLES)}
           {field('System function / transformation description', 'functionDescription')}
@@ -97,7 +169,7 @@ export default function DesignRecordEditor({ node, edge, nodes, edges = [], onAp
           {field('Data disposal / destruction method', 'disposalMethod')}
           <p className="sd-muted">These are reviewed design annotations, not canonical record changes. Record actual functions, stores and external data producers/consumers; hosting/CSP links do not establish a data exchange.</p>
         </>}
-        {node.kind === 'LogicalConstruct' ? <>
+        {!inventoryOnly && (node.kind === 'LogicalConstruct' ? <>
           {contextField('Logical construct type', 'logicalType', LOGICAL_TYPES)}
           {contextField('Abstraction layer', 'logicalLayer', ['Capability', 'Operational', 'System', 'Implementation'])}
           {contextField('Construct description', 'description')}
@@ -119,7 +191,7 @@ export default function DesignRecordEditor({ node, edge, nodes, edges = [], onAp
           {contextField('Supported operational activities', 'contextActivities')}
           {contextField('Entity/source reference URL', 'referenceUrl')}
           <p className="sd-muted">Context describes the entity, not an application role grant. CSP linkage comes from canonical hosting/provider records, not the Provider text field. Canonical context facts must be updated in their source workflow.</p>
-        </>}
+        </>)}
       </> : <>
         {!nonTechnical && <label className="sd-field">Recorded information type
           <select aria-label="Recorded information type" value={'sourceNodeId' in draft ? draft.informationTypeId ?? '' : ''} onChange={event => {

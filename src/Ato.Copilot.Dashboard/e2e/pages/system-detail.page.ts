@@ -20,7 +20,7 @@ export class SystemDetailPage {
   // ── Overview ──────────────────────────────────────────────────────────────
 
   async expectReadinessTasks() {
-    await expect(this.page.getByRole('tab', { name: 'Readiness', exact: true })).toBeVisible();
+    await expect(this.page.getByRole('tab', { name: 'Package preparation', exact: true })).toBeVisible();
     await expect(this.page.getByRole('tab', { name: 'Monitoring & follow-up', exact: true })).toBeVisible();
     await expect(this.page.getByText('System diagnostics & RMF phase management', { exact: true })).toHaveCount(0);
   }

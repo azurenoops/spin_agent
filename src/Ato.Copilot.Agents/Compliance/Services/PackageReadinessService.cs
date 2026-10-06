@@ -108,7 +108,29 @@ public sealed class PackageReadinessService(IServiceScopeFactory scopes, ILogger
                 if (checks.Count == 0)
                     throw new InvalidOperationException("The validation implementation did not return evaluated checks.");
             }
-            checks = checks.Select(check => check with
+            var retainedChecks = checks.Select(x => x with { Findings = Array.Empty<PackageReadinessWorkFinding>() }).ToList();
+            var snapshots = new Dictionary<int, List<PackageReadinessWorkFinding>>();
+            foreach (var finding in validation.Findings)
+            {
+                var index = finding.ReadinessCheckId == null ? -1 : retainedChecks.FindIndex(x => x.Id == finding.ReadinessCheckId);
+                if (index < 0) index = retainedChecks.FindIndex(x => x.RuleId == finding.Category);
+                if (index < 0) index = retainedChecks.FindIndex(x => x.Category == finding.Category);
+                if (index < 0)
+                {
+                    retainedChecks.Add(PackageValidationService.Check($"finding-category-{finding.Category}", finding.Category,
+                        finding.Severity == ValidationSeverity.Error ? "Blocking" : "FollowUp",
+                        finding.Severity == ValidationSeverity.Error, finding.Description,
+                        finding.Remediation ?? "Review the source finding.", null, finding.Category)
+                        with { Findings = Array.Empty<PackageReadinessWorkFinding>() });
+                    index = retainedChecks.Count - 1;
+                }
+                var snapshot = new PackageReadinessWorkFinding(finding.Id, finding.Severity.ToString(), finding.Category,
+                    finding.ArtifactType, finding.Description, finding.Remediation, finding.ControlId, finding.RecordId);
+                if (!snapshots.TryGetValue(index, out var bucket)) snapshots[index] = bucket = [];
+                bucket.Add(snapshot);
+            }
+            foreach (var (index, bucket) in snapshots) retainedChecks[index] = retainedChecks[index] with { Findings = bucket };
+            checks = retainedChecks.Select(check => check with
             {
                 Sources = before.Sources.Where(s => s.Kind == check.Category || check.Category == "schema").Take(200).ToArray()
             }).ToArray();
@@ -196,6 +218,22 @@ public sealed class PackageReadinessService(IServiceScopeFactory scopes, ILogger
         ?? throw new KeyNotFoundException("System not found in this workspace.");
 
     private static bool SourceFailure(Exception ex) => ex is InvalidOperationException or ArgumentException or IOException or JsonException or KeyNotFoundException;
+
+    public static async Task<IReadOnlyDictionary<PackageReadinessOwner, PackageReadinessOwner?>> VerifyRecordedOwnersAsync(
+        AtoCopilotContext db, string systemId, IEnumerable<PackageReadinessOwner> snapshots, CancellationToken ct)
+    {
+        var system = await RequireSystem(db, systemId, ct);
+        var retained = snapshots.Distinct().ToArray();
+        var currentByRole = new Dictionary<string, PackageReadinessOwner?>(StringComparer.Ordinal);
+        foreach (var role in retained.Select(x => x.Role).Distinct())
+            currentByRole[role] = await RecordedOwnerAsync(db, system, role, ct);
+        return retained.ToDictionary(x => x, snapshot =>
+        {
+            var current = currentByRole[snapshot.Role];
+            return current != null && current.PersonId == snapshot.PersonId && current.AssignmentId == snapshot.AssignmentId
+                && current.Scope == snapshot.Scope ? current : null;
+        });
+    }
 
     private static async Task<PackageReadinessOwner?> RecordedOwnerAsync(AtoCopilotContext db, RegisteredSystem system,
         string role, CancellationToken ct)

@@ -140,6 +140,7 @@ public sealed partial class SystemEnvironmentService
                 selection?.Version ?? 0)
             {
                 ProviderId = assignment.ProviderId, HostingScopeRevision = hosting.Revision,
+                Exclusions = Read<CreateProviderHostingScopeRequest>(hosting.SnapshotJson).Exclusions,
                 PublishedDuties = await PublishedDutiesAsync(db, offering, hosting,
                     await PublishedScopeContexts(db).Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id).ToListAsync(ct), ct),
                 ResponsibilityReview = await ScopeResponsibilitiesAsync(db, systemId, assignment, selection?.State == "Removed", ct)

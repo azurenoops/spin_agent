@@ -186,18 +186,43 @@ public class RmfLifecycleService : IRmfLifecycleService
     }
 
     /// <inheritdoc />
-    public async Task<RmfStepAdvanceResult> AdvanceRmfStepAsync(
+    public Task<RmfStepAdvanceResult> AdvanceRmfStepAsync(
         string systemId,
         RmfPhase targetStep,
         bool force = false,
         string? userId = null,
         string? notes = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        AdvanceRmfStepCoreAsync(systemId, targetStep, force, userId, notes, null, cancellationToken);
+
+    public async Task<RmfStepAdvanceResult> AdvanceRmfStepAsync(string systemId, RmfPhase targetStep,
+        RmfPhase expectedStep, string userId, string notes, CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        return await context.Database.CreateExecutionStrategy().ExecuteAsync(() =>
+            AdvanceRmfStepCoreAsync(systemId, targetStep, false, userId, notes, expectedStep, cancellationToken));
+    }
+
+    private async Task<RmfStepAdvanceResult> AdvanceRmfStepCoreAsync(string systemId, RmfPhase targetStep,
+        bool force, string? userId, string? notes, RmfPhase? expectedStep, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(systemId, nameof(systemId));
 
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        if (expectedStep != null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(notes);
+            if (!Enum.IsDefined(targetStep) || !Enum.IsDefined(expectedStep.Value))
+                throw new ArgumentException("Select named RMF phases.");
+            await Ato.Copilot.Core.Services.Roles.SystemWorkspaceAccessPolicy.RequireAsync(
+                context, systemId, permissions => permissions.CanManageSystem, cancellationToken);
+        }
+        await using var transaction = expectedStep != null && context.Database.IsRelational()
+            ? await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken)
+            : null;
 
         var system = await context.RegisteredSystems
             .Include(s => s.SecurityCategorization)
@@ -225,11 +250,34 @@ public class RmfLifecycleService : IRmfLifecycleService
         }
 
         var previousStep = system.CurrentRmfStep;
+        if (expectedStep != null && expectedStep != previousStep)
+            return new RmfStepAdvanceResult
+            {
+                Success = false, System = system, PreviousStep = previousStep, NewStep = previousStep,
+                ErrorMessage = "RMF_PHASE_CHANGED: The recorded phase changed. Refresh before confirming."
+            };
         var isForward = targetStep > previousStep;
         var isBackward = targetStep < previousStep;
 
         if (targetStep == previousStep)
         {
+            if (expectedStep != null)
+            {
+                context.AuditLogs.Add(new AuditLogEntry
+                {
+                    TenantId = system.TenantId, Action = "RmfPhase.Confirmed", UserId = userId!,
+                    AffectedResources = [system.Id], Outcome = AuditOutcome.Success,
+                    Details = JsonSerializer.Serialize(new RmfPhaseTransitionAuditDetails
+                    {
+                        SystemId = system.Id, SystemName = system.Name, PreviousPhase = previousStep.ToString(),
+                        TargetPhase = targetStep.ToString(), Forced = false, Notes = notes!.Trim()
+                    }, JsonSerializerOptions.Web)
+                });
+                await context.SaveChangesAsync(cancellationToken);
+                if (transaction != null) await transaction.CommitAsync(cancellationToken);
+                _logger.LogInformation("Confirmed RMF phase {RmfPhase} for system {SystemId} by {UserId}", targetStep, systemId, userId);
+                return new RmfStepAdvanceResult { Success = true, System = system, PreviousStep = previousStep, NewStep = previousStep };
+            }
             return new RmfStepAdvanceResult
             {
                 Success = false,
@@ -307,6 +355,7 @@ public class RmfLifecycleService : IRmfLifecycleService
             }, JsonSerializerOptions.Web)
         });
         await context.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
 
         var logLevel = force ? LogLevel.Warning : LogLevel.Information;
         _logger.Log(logLevel,
