@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.SystemDesign;
 using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Interfaces.Workspaces;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +13,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 
 /// <summary>Tenant-authorized governed architecture; presentation and retained approvals are separate stores.</summary>
 public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotContext> factory,
-    ITenantContext tenant, ISystemWorkspaceAccessService access) : ISystemDesignService
+    ITenantContext tenant, ISystemWorkspaceAccessService access, IWorkspaceOperationsService? workspace = null) : ISystemDesignService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private Guid TenantId => tenant.EffectiveTenantId;
@@ -65,8 +66,9 @@ public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotCont
     private async Task<SystemDesignGraph> DecorateAsync(AtoCopilotContext db, SystemDesignGraph graph,
         SystemDesignGraph canonical, DesignActions actions, long? approvedRevision, CancellationToken ct)
     {
-        var stale = graph.SourceFingerprint != canonical.SourceFingerprint;
-        var gaps = FindGaps(graph, stale, canonical).Concat(ProjectionGaps(graph, canonical)).ToArray();
+        var scopeGaps = await ComponentScopeGapsAsync(graph, ct);
+        var stale = graph.SourceFingerprint != canonical.SourceFingerprint || scopeGaps.Any(x => x.Id.StartsWith("ComponentScopeSource:"));
+        var gaps = FindGaps(graph, stale, canonical).Concat(ProjectionGaps(graph, canonical)).Concat(scopeGaps).ToArray();
         var baseline = approvedRevision is null ? null : await Revisions(db, graph.SystemId).AsNoTracking()
             .SingleOrDefaultAsync(x => x.Revision == approvedRevision, ct);
         var contentEditable = graph.GovernanceStatus is "NotStarted" or "Draft" or "NeedsRevision";
@@ -89,7 +91,11 @@ public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotCont
         };
     }
 
-    public async Task<SystemDesignGraph> SaveAsync(string systemId, SaveSystemDesignRequest request, CancellationToken ct = default)
+    public Task<SystemDesignGraph> SaveAsync(string systemId, SaveSystemDesignRequest request, CancellationToken ct = default) =>
+        SaveDesignAsync(systemId, request, null, ct);
+
+    private async Task<SystemDesignGraph> SaveDesignAsync(string systemId, SaveSystemDesignRequest request,
+        SaveComponentScopeRequest? scopeRequest, CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
         var (system, actions) = await AuthorizeAsync(db, systemId, ct);
@@ -99,6 +105,13 @@ public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotCont
         var canonical = await ProjectAsync(db, system, ct);
         var prior = row is null ? canonical : Read<SystemDesignGraph>(row.GraphJson);
         Editable(prior);
+        var scopes = prior.ComponentScopes;
+        if (scopeRequest is not null)
+        {
+            var scope = await ValidateComponentScopeAsync(systemId, scopeRequest, ct);
+            scopes = scopes.Where(x => x.Source != scope.Source || x.ComponentId != scope.ComponentId).Append(scope).ToArray();
+            if (scopes.Count > 1000) throw new ArgumentException("Component scope exceeds the 1000 record budget.");
+        }
         var groups = MergeProjectedGroups(request.Nodes, request.Groups);
         Validate(request.Nodes, request.Edges, groups, prior, canonical);
         var priorNodes = prior.Nodes.ToDictionary(x => x.Id, Json);
@@ -110,7 +123,7 @@ public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotCont
         var retainedIds = nodes.Select(x => x.Id).Concat(edges.Select(x => x.Id)).ToHashSet();
         var removedSourceIds = prior.Nodes.Where(x => x.Source is not null).Select(x => x.Id)
             .Concat(prior.Edges.Where(x => x.Source is not null).Select(x => x.Id)).Where(x => !retainedIds.Contains(x));
-        var graph = prior with { Nodes = nodes, Edges = edges, Groups = groups,
+        var graph = prior with { Nodes = nodes, Edges = edges, Groups = groups, ComponentScopes = scopes,
             SuppressedSourceIds = prior.SuppressedSourceIds.Concat(removedSourceIds).Distinct()
                 .Where(x => !retainedIds.Contains(x)).OrderBy(x => x).ToArray(), HasAssemblyBaseline = true,
             GovernanceStatus = "Draft", LastEditor = Actor };
@@ -163,7 +176,7 @@ public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotCont
                 throw new UnauthorizedAccessException("An independent assigned ISSM reviewer is required.");
             if (graph.GovernanceStatus != "UnderReview") throw new ArgumentException("The design is not under review.");
             if (action == "approve" && FindGaps(graph, graph.SourceFingerprint != canonical.SourceFingerprint, canonical)
-                .Concat(ProjectionGaps(graph, canonical)).Any(x => x.Severity == "Error"))
+                .Concat(ProjectionGaps(graph, canonical)).Concat(await ComponentScopeGapsAsync(graph, ct)).Any(x => x.Severity == "Error"))
                 throw new ArgumentException("Resolve blocking design and source gaps before approval.");
             graph = graph with { GovernanceStatus = action == "approve" ? "Approved" : "NeedsRevision",
                 Reviewer = Actor, ReviewerComments = request.Reason };
@@ -181,7 +194,8 @@ public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotCont
                 ("derive_draft", "Approved") => "Draft",
                 _ => throw new ArgumentException("Invalid design governance transition.")
             };
-            if (action == "submit" && graph.SourceFingerprint != canonical.SourceFingerprint)
+            if (action == "submit" && (graph.SourceFingerprint != canonical.SourceFingerprint
+                || (await ComponentScopeGapsAsync(graph, ct)).Any(x => x.Id.StartsWith("ComponentScopeSource:"))))
                 throw new DbUpdateConcurrencyException("Canonical sources changed. Reconcile before submitting.");
             graph = graph with { GovernanceStatus = status };
         }
@@ -209,7 +223,8 @@ public sealed partial class SystemDesignService(IDbContextFactory<AtoCopilotCont
         var graph = Read<SystemDesignGraph>(snapshot.GraphJson);
         var canonical = await ProjectAsync(db, system, ct);
         return new(graph, snapshot.Revision, snapshot.Actor, snapshot.At, snapshot.SnapshotHash,
-            snapshot.SourceFingerprint, snapshot.SourceFingerprint != canonical.SourceFingerprint);
+            snapshot.SourceFingerprint, snapshot.SourceFingerprint != canonical.SourceFingerprint
+                || (await ComponentScopeGapsAsync(graph, ct)).Any(x => x.Id.StartsWith("ComponentScopeSource:")));
     }
 
     public async Task<SystemDesignGraph> GetRevisionAsync(string systemId, long revision, CancellationToken ct = default)

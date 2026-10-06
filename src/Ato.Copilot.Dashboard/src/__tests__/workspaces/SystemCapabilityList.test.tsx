@@ -4,14 +4,20 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import '../helpers/dialog';
 import SystemCapabilityList from '../../features/workspace-operations/system-capabilities/SystemCapabilityList';
 import * as api from '../../features/workspace-operations/system-capabilities/systemCapabilityApi';
-import type { SystemCapabilityDetail, SystemCapabilityItem, SystemCapabilityPage } from '../../features/workspace-operations/system-capabilities/systemCapabilityTypes';
+import type { SystemCapabilityDetail, SystemCapabilityItem, SystemCapabilityOperation, SystemCapabilityPage } from '../../features/workspace-operations/system-capabilities/systemCapabilityTypes';
 import { systemSetupOperationFixture } from '../fixtures/systemCapabilityDetailSetup';
+import { appliedResponsibilityContext } from '../helpers/appliedResponsibilityContext';
+import { getResponsibilityDraft } from '../../api/responsibilityDrafts';
+import { getSystemDesign, getApprovedSystemDesign } from '../../api/systemDesign';
+import { componentDesignFixture } from '../fixtures/componentReview';
 
 vi.mock('../../features/workspace-operations/system-capabilities/systemCapabilityApi', () => ({
   listSystemCapabilities: vi.fn(), getSystemCapability: vi.fn(),
   prepareSystemCapabilitySetup: vi.fn(), getSystemCapabilityOperation: vi.fn(),
   completeSystemCapabilityOperation: vi.fn(),
+  getSystemComponentPlacements: vi.fn(),
 }));
+vi.mock('../../api/systemDesign', () => ({ getSystemDesign: vi.fn(), getApprovedSystemDesign: vi.fn() }));
 vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { systemId: 'system-a', name: 'Mission Alpha' } }),
 }));
@@ -21,6 +27,10 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
     identity: { directoryTenantId: 'directory-a', oid: 'actor-a' },
   }),
 }));
+vi.mock('../../features/workspace-operations/system-capabilities/ResponsibilityDraftEditor', () => ({
+  default: ({ controlId }: { controlId: string }) => <section aria-label={`Prepared draft for ${controlId}`} />,
+}));
+vi.mock('../../api/responsibilityDrafts', () => ({ getResponsibilityDraft: vi.fn() }));
 const permissions = {
   canRead: true, canManage: true, canReviewResponsibilities: false,
   canManageEvidence: false, canAuthorNarratives: false, canReviewNarratives: false,
@@ -85,6 +95,14 @@ beforeEach(() => {
   vi.mocked(api.listSystemCapabilities).mockResolvedValue(page);
   vi.mocked(api.getSystemCapability).mockImplementation(async (_tenantId, _systemId, key) =>
     key.recordType === 'component' ? componentDetail : capabilityDetail);
+  vi.mocked(getResponsibilityDraft).mockImplementation(async (system, control) => appliedResponsibilityContext(system, control));
+  vi.mocked(getSystemDesign).mockResolvedValue(componentDesignFixture('org-a', 'system-a'));
+  vi.mocked(getApprovedSystemDesign).mockResolvedValue(null);
+  vi.mocked(api.getSystemComponentPlacements).mockResolvedValue({
+    source: 'provider', recordId: 'component-a', sourceRevision: 'r1', relationshipRevision: 'rel',
+    canAssignBoundary: true, assignBlockedReason: null, boundaries: [],
+    placements: contributor.placements.map(placement => ({ ...placement, canUnassign: true, unassignBlockedReason: null })),
+  });
 });
 
 describe('applied system security capability views', () => {
@@ -123,18 +141,96 @@ describe('applied system security capability views', () => {
     expect(api.getSystemCapability).toHaveBeenCalledWith('org-a', 'system-a', {
       source: 'provider', recordType: 'capability', recordId: 'cap-a',
     }, expect.any(AbortSignal));
+    expect(within(drawer).getByText(/1 responsibility needs review/)).toBeVisible();
+    expect(within(drawer).getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(within(drawer).getByRole('tab', { name: /Responsibilities/ }));
     expect(within(drawer).getByText('Collect audit records')).toBeVisible();
     expect(within(drawer).getByText('Review audit records')).toBeVisible();
-    expect(within(drawer).getByRole('link', { name: 'Review responsibilities' })).toHaveAttribute(
+    expect(within(drawer).getAllByText('Review responsibility')[0]).toBeVisible();
+    expect(within(drawer).getByRole('link', { name: 'Review AU-2 responsibility' })).toHaveAttribute(
       'href',
-      '/systems/system-a/inheritance/subscriptions',
+      '/systems/system-a/security-capabilities/provider/cap-a?tab=coverage&control=AU-2',
     );
     expect(within(drawer).getByRole('link', { name: 'Review evidence and narratives' })).toHaveAttribute(
       'href',
-      '/systems/system-a/security-capabilities/provider/cap-a?tab=evidence',
+      '/systems/system-a/security-capabilities/provider/cap-a?tab=evidence&control=AU-2',
     );
-    expect(within(drawer).getByRole('button', { name: 'Manage Provider SOC placement' })).toBeEnabled();
+    fireEvent.click(within(drawer).getByRole('tab', { name: /Where it applies/ }));
+    expect(within(drawer).getByRole('button', { name: 'Change location for Provider SOC' })).toBeEnabled();
     expect(screen.getByLabelText('Route')).toHaveTextContent('capabilityId=cap-a');
+  });
+
+  it('counts missing and excluded placements without inventing drafts or coverage', async () => {
+    // Arrange
+    vi.mocked(api.getSystemCapability).mockResolvedValue({
+      ...capabilityDetail,
+      item: { ...capability, reviewRequiredCount: 99, components: [
+        { ...contributor, recordId: 'missing', name: 'Archive', placements: [] },
+        { ...contributor, recordId: 'excluded', name: 'Collector', placements: [contributor.placements[1]!] },
+      ] },
+      controls: [{ ...capabilityDetail.controls[0]!, reviewState: 'MissingAllocation' }],
+    });
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Audit monitoring' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Review applied capability' });
+    // Assert
+    expect(await within(drawer).findByText(/2 scope gaps/)).toBeVisible();
+    expect(within(drawer).getByText(/1 responsibility needs review/)).toBeVisible();
+    expect(within(drawer).queryByText(/99/)).not.toBeInTheDocument();
+    fireEvent.click(within(drawer).getByRole('tab', { name: /Where it applies/ }));
+    expect(within(drawer).getByRole('button', { name: 'Assign location for Archive' })).toBeEnabled();
+    expect(within(drawer).getByRole('button', { name: 'Assign location for Collector' })).toBeEnabled();
+    expect(within(drawer).getAllByText(/No in-scope system location is recorded/)).toHaveLength(2);
+    fireEvent.click(within(drawer).getByRole('tab', { name: /Responsibilities/ }));
+    expect(within(drawer).getAllByText('Responsibility not confirmed')[0]).toBeVisible();
+    expect(within(drawer).queryByText('MissingAllocation')).not.toBeInTheDocument();
+  });
+
+  it('keeps read-only scope actions and selected evidence context accurate', async () => {
+    // Arrange
+    vi.mocked(api.getSystemCapability).mockResolvedValue({
+      ...capabilityDetail, permissions: { ...permissions, canManage: false },
+      controls: [
+        { ...capabilityDetail.controls[0]!, reviewState: 'Applied' },
+        { ...capabilityDetail.controls[0]!, controlId: 'AU-6', reviewState: 'PendingReview' },
+      ],
+    });
+
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Audit monitoring' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Review applied capability' });
+    fireEvent.click(await within(drawer).findByRole('tab', { name: /Responsibilities/ }));
+    fireEvent.click(within(drawer).getByRole('button', { name: 'AU-6' }));
+    // Assert
+    expect(within(drawer).getByRole('link', { name: 'Review AU-6 responsibility' })).toHaveAttribute(
+      'href', '/systems/system-a/security-capabilities/provider/cap-a?tab=coverage&control=AU-6');
+    expect(within(drawer).getByRole('link', { name: 'Review evidence and narratives' })).toHaveAttribute(
+      'href', '/systems/system-a/security-capabilities/provider/cap-a?tab=evidence&control=AU-6');
+    fireEvent.click(within(drawer).getByRole('tab', { name: /Where it applies/ }));
+    expect(within(drawer).queryByRole('button', { name: /location for/ })).not.toBeInTheDocument();
+  });
+
+  it('counts stale canonical drafts without treating their saved state as accepted coverage', async () => {
+    // Arrange
+    const context = appliedResponsibilityContext('system-a', 'AU-2');
+    vi.mocked(getResponsibilityDraft).mockResolvedValue({ ...context, draft: {
+      id: 'draft-a', revision: 2, status: 'Proposed', sourceHash: 'old-source', isStale: true,
+      generationState: 'NotRequested', generationError: null, preparedAt: '2026-10-01',
+      generatedAt: null, preparedBy: 'reviewer', reviewedBy: null, reviewedAt: null,
+      values: context.sourceValues, suggestion: { values: context.sourceValues, questions: [], conflicts: [] },
+      sources: [], history: [],
+    } });
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Audit monitoring' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Review applied capability' });
+    const summary = await within(drawer).findByText('Source statement, version, evidence and limitations');
+    fireEvent.click(summary);
+    // Assert
+    expect(await within(drawer).findByText(/1 saved draft needs review/)).toBeVisible();
+    expect(within(drawer).getByText(/Choosing no provider scope uses system records/)).toBeVisible();
   });
 
   it('keeps available offerings in a separate add flow and retains inventory tools', async () => {
@@ -159,30 +255,21 @@ describe('applied system security capability views', () => {
 
   it('refreshes the applied table only after setup completes on the server', async () => {
     // Arrange
-    const added = { ...capability, recordId: 'cap-new', name: 'Identity management', isApplied: false, reviewRequiredCount: 0 };
+    const added = { ...capability, source: 'local' as const, recordId: 'cap-new', name: 'Identity management', isApplied: false, reviewRequiredCount: 0 };
     let completed = false;
+    let operation: SystemCapabilityOperation = { ...systemSetupOperationFixture(), tenantId: 'org-a', revision: 0 };
     vi.mocked(api.listSystemCapabilities).mockImplementation(async (_tenantId, _systemId, query) =>
       query.scope === 'available'
         ? { ...page, items: [added], total: 1, scope: 'available' }
         : { ...page, items: completed ? [capability, { ...added, isApplied: true }] : [capability], total: completed ? 2 : 1 });
-    vi.mocked(api.prepareSystemCapabilitySetup).mockImplementation(async (_tenantId, _systemId, body) => ({
-      existing: false,
-      operation: {
-        ...systemSetupOperationFixture(),
-        tenantId: 'org-a',
-        revision: 0,
-        idempotencyKey: body.idempotencyKey,
-        selections: body.selections,
-      },
-    }));
-    vi.mocked(api.getSystemCapabilityOperation).mockResolvedValue({
-      ...systemSetupOperationFixture(),
-      tenantId: 'org-a',
-      revision: 0,
+    vi.mocked(api.prepareSystemCapabilitySetup).mockImplementation(async (_tenantId, _systemId, body) => {
+      operation = { ...operation, idempotencyKey: body.idempotencyKey, selections: body.selections };
+      return { existing: false, operation };
     });
+    vi.mocked(api.getSystemCapabilityOperation).mockImplementation(async () => operation);
     vi.mocked(api.completeSystemCapabilityOperation).mockImplementation(async () => {
       completed = true;
-      return { ...systemSetupOperationFixture('Setup', 'Completed'), tenantId: 'org-a' };
+      return { ...operation, state: 'Completed', revision: 2 };
     });
     mount();
     await screen.findByRole('link', { name: 'Audit monitoring' });
@@ -250,8 +337,13 @@ describe('applied system security capability views', () => {
     expect(api.getSystemCapability).toHaveBeenCalledWith('org-a', 'system-a', {
       source: 'provider', recordType: 'component', recordId: 'component-a',
     }, expect.any(AbortSignal));
-    expect(within(drawer).getByText(/source is managed by the provider/i)).toBeVisible();
+    expect(within(drawer).getByText('Managed by Cloud provider')).toBeVisible();
     expect(within(drawer).getByText('Team')).toBeVisible();
+    fireEvent.click(within(drawer).getByText('Provider source and technical details'));
+    expect(within(drawer).getByText(/Source is read-only here/i)).toBeVisible();
+    fireEvent.click(within(drawer).getByRole('tab', { name: 'System scope' }));
+    fireEvent.click(within(drawer).getByText('Existing infrastructure placements'));
+    await within(drawer).findByText('Operations');
     expect(within(drawer).getByText('Operations')).toBeVisible();
     expect(within(drawer).getByText(/Development.*Excluded/)).toBeVisible();
     expect(within(drawer).queryByRole('button', { name: /edit source/i })).not.toBeInTheDocument();

@@ -16,6 +16,63 @@ namespace Ato.Copilot.Tests.Unit.Workspaces;
 
 public sealed class SystemSecurityCapabilitiesTests
 {
+    [Fact]
+    public async Task ReviewedIncludedServiceUse_ContributesAreaApplicabilityWithoutInfrastructurePlacement()
+    {
+        // Arrange
+        var (factory, tenant) = await SeedAsync();
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.ComponentCapabilityLinks.RemoveRange(await db.ComponentCapabilityLinks.ToListAsync());
+            db.ComponentCapabilityLinks.Add(new() { TenantId = tenant, SystemComponentId = "orphan", SecurityCapabilityId = "local" });
+            var graph = new Ato.Copilot.Core.Dtos.SystemDesign.SystemDesignGraph { TenantId = tenant, SystemId = "one",
+                GovernanceStatus = "Approved", ComponentScopes = [new("local", "orphan", "Direct orphan", "source",
+                    "Included", "boundary", "Operations", "Service use, not containment")] };
+            var json = JsonSerializer.Serialize(graph, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            db.Add(new SystemDesignWorkspace { TenantId = tenant, SystemId = "one", Revision = 1, ApprovedRevision = 1, GraphJson = json });
+            db.Add(new SystemDesignRevision { TenantId = tenant, SystemId = "one", Revision = 1, Action = "approve", GraphJson = json,
+                SnapshotHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json))) });
+            await db.SaveChangesAsync();
+        }
+        // Act
+        var result = await Service(factory).ListSystemSecurityCapabilitiesAsync(tenant, "one", new(BoundaryId: "boundary"), Manage, default);
+        // Assert
+        result.Items.Should().ContainSingle().Which.Placements.Should().Contain(x => x.State == "ServiceUse" && x.BoundaryId == "boundary");
+        await using var retained = await factory.CreateDbContextAsync();
+        (await retained.BoundaryComponentAssignments.AnyAsync(x => x.SystemComponentId == "orphan")).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReviewedServiceExclusion_NotDraftExclusion_RemovesInScopeCoverage(bool approved)
+    {
+        // Arrange
+        var (factory, tenant) = await SeedAsync();
+        var graph = new Ato.Copilot.Core.Dtos.SystemDesign.SystemDesignGraph {
+            TenantId = tenant, SystemId = "one", GovernanceStatus = approved ? "Approved" : "Draft",
+            ComponentScopes = [new("local", "person", "Operators", "source", "Excluded", null, null, "Not used")] };
+        var json = JsonSerializer.Serialize(graph, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.Add(new SystemDesignWorkspace { TenantId = tenant, SystemId = "one", Revision = 1, ApprovedRevision = approved ? 1 : null, GraphJson = json });
+            if (approved) db.Add(new SystemDesignRevision { TenantId = tenant, SystemId = "one", Revision = 1,
+                Action = "approve", GovernanceStatus = "Approved", GraphJson = json,
+                SnapshotHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json))) });
+            await db.SaveChangesAsync();
+        }
+        var sut = Service(factory);
+        // Act
+        var result = await sut.ListSystemSecurityCapabilitiesAsync(tenant, "one", new(BoundaryId: "boundary"), Manage, default);
+        var component = await sut.GetSystemSecurityCapabilityAsync(tenant, "one", "local", "component", "person", Manage, default);
+        // Assert
+        result.Items.Count.Should().Be(approved ? 0 : 1);
+        component!.Item.Placements.Should().Contain(x => x.State == "InScope");
+        component.Item.ScopeDecision.Should().Be(approved ? "Excluded" : null);
+        await using var saved = await factory.CreateDbContextAsync();
+        (await saved.BoundaryComponentAssignments.SingleAsync()).IsInScope.Should().BeTrue();
+    }
+
     private static readonly SystemSecurityCapabilityAccess Manage = new(true, true, false, true, true, false);
     private static WorkspaceOperationsService Service(IDbContextFactory<AtoCopilotContext> factory)
     {

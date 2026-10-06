@@ -9,6 +9,12 @@ import { buttonClass, errorClass, inputClass, message, warningClass } from '../w
 import { workspaceCard } from '../CapabilityPresentation';
 import { boundedRequest } from './systemCapabilityRequests';
 import { confirmSystemCapabilityResponsibilities, type SystemCapabilityReviewEvidence } from './systemCapabilityResponsibilityRequests';
+import { responsibilityLabel } from './responsibilityPresentation';
+
+export interface ResponsibilityConfirmationEdit {
+  allocation: ResponsibilityInheritanceType | ''; provider: string; duty: string; note: string;
+}
+export type ResponsibilityConfirmationEdits = Map<string, ResponsibilityConfirmationEdit>;
 
 interface Props {
   tenantId: string;
@@ -19,6 +25,7 @@ interface Props {
   reviewRevision: string | null;
   preview: CapabilityResponsibilityResponse;
   onChanged: (preview?: CapabilityResponsibilityResponse) => void;
+  edits?: ResponsibilityConfirmationEdits;
 }
 
 export default function SystemCapabilityResponsibility(props: Props) {
@@ -51,15 +58,18 @@ function Snapshot({ snapshot, title, revision }: { snapshot: ProviderReviewSnaps
   </section>;
 }
 
-function ControlReview({ tenantId, systemId, capabilityId, controlId, preview, item, onChanged }: Props & {
+function ControlReview({ tenantId, systemId, capabilityId, controlId, preview, item, onChanged, edits }: Props & {
   item: CapabilityResponsibilityItem & SystemCapabilityReviewEvidence;
 }) {
-  const [allocation, setAllocation] = useState<ResponsibilityInheritanceType | ''>(item.allocation?.inheritanceType ?? '');
-  const [provider, setProvider] = useState(item.allocation?.provider ?? '');
-  const [duty, setDuty] = useState(item.allocation?.customerResponsibility ?? '');
+  const editKey = `${systemId}:${capabilityId}:${controlId}`;
+  const cached = edits?.get(editKey);
+  const [allocation, setAllocation] = useState<ResponsibilityInheritanceType | ''>(cached?.allocation ?? item.allocation?.inheritanceType ?? '');
+  const [provider, setProvider] = useState(cached?.provider ?? item.allocation?.provider ?? item.providerName ?? '');
+  const [duty, setDuty] = useState(cached?.duty ?? item.allocation?.customerResponsibility ?? '');
   const [coverageReviewed, setCoverageReviewed] = useState(false);
   const [dutiesReviewed, setDutiesReviewed] = useState(false);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(cached?.note ?? '');
+  useEffect(() => { edits?.set(editKey, { allocation, provider, duty, note }); }, [edits, editKey, allocation, provider, duty, note]);
   const [busy, setBusy] = useState(false);
   const [invalidated, setInvalidated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +113,7 @@ function ControlReview({ tenantId, systemId, capabilityId, controlId, preview, i
   }
   return <section aria-label={`Review ${controlId}`} className={`${workspaceCard} space-y-4`}>
     <h2 className="text-lg font-semibold">Review {controlId}</h2>
-    <p className="text-sm">State: {item.state} · Effective allocation: {item.effectiveInheritanceType ?? 'Not designated'}</p>
+    <p className="text-sm">{responsibilityLabel(item.state)} · Effective allocation: {item.effectiveInheritanceType ?? 'Not designated'}</p>
     {(item.reviewNotes != null || item.providerCoverageVerified != null || item.customerDutiesReviewed != null) &&
       <section aria-label="Persisted responsibility review evidence" className="space-y-2 rounded border border-slate-200 p-3 text-sm dark:border-gray-700">
         <h3 className="font-semibold">Persisted review evidence</h3>

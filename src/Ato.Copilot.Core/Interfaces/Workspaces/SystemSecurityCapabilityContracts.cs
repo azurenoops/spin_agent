@@ -1,3 +1,5 @@
+using Ato.Copilot.Core.Dtos.SystemDesign;
+
 namespace Ato.Copilot.Core.Interfaces.Workspaces;
 
 /// <summary>Independently authorized actions in the selected system.</summary>
@@ -19,7 +21,11 @@ public sealed record SystemComponentPlacementOption(string Id, string? BoundaryI
 /// <summary>Current source, relationship tokens and independently authorized placement actions.</summary>
 public sealed record SystemComponentPlacementOptions(string Source, string RecordId, string SourceRevision,
     string RelationshipRevision, bool CanAssignBoundary, string? AssignBlockedReason,
-    IReadOnlyList<SystemCapabilityBoundary> Boundaries, IReadOnlyList<SystemComponentPlacementOption> Placements);
+    IReadOnlyList<SystemCapabilityBoundary> Boundaries, IReadOnlyList<SystemComponentPlacementOption> Placements)
+{
+    public string ComponentName { get; init; } = "";
+    public bool SourceAvailable { get; init; }
+}
 /// <summary>Assign one actual boundary using the reviewed source and system relationship tokens.</summary>
 public sealed record AssignSystemComponentPlacementRequest(string BoundaryId, string SourceRevision, string RelationshipRevision);
 /// <summary>Remove only the exact reviewed boundary placement.</summary>
@@ -31,13 +37,21 @@ public sealed record SystemComponentPlacementResult(string Source, string Record
 public sealed record SystemCapabilityComponent(string Source, string RecordType, string RecordId,
     string Name, string Description, string ComponentType, string? SubType, string SourceName,
     string MutationAuthority, string SourceRevision, IReadOnlyList<SystemCapabilityPlacement> Placements,
-    IReadOnlyList<SystemCapabilityRecordReference> Capabilities);
+    IReadOnlyList<SystemCapabilityRecordReference> Capabilities)
+{
+    public string? ScopeDecision { get; init; }
+    public ComponentScopeUse? ReviewedScope { get; init; }
+}
 /// <summary>A capability or component projected exclusively into one system.</summary>
 public sealed record SystemSecurityCapabilityItem(string Source, string RecordType, string RecordId,
     string Name, string Description, string SourceName, string MutationAuthority, string SourceRevision,
     bool IsApplied, bool IsAvailable, string Status, string? ComponentType, string? SubType,
     IReadOnlyList<SystemCapabilityComponent> Components, IReadOnlyList<SystemCapabilityRecordReference> Capabilities,
-    IReadOnlyList<SystemCapabilityPlacement> Placements, IReadOnlyList<string> ControlIds, int ReviewRequiredCount);
+    IReadOnlyList<SystemCapabilityPlacement> Placements, IReadOnlyList<string> ControlIds, int ReviewRequiredCount)
+{
+    public string? ScopeDecision { get; init; }
+    public ComponentScopeUse? ReviewedScope { get; init; }
+}
 /// <summary>Filtered and paginated system security capabilities with authorized actions.</summary>
 public sealed record SystemSecurityCapabilityPage(IReadOnlyList<SystemSecurityCapabilityItem> Items,
     int Page, int PageSize, int Total, string Scope, string Grouping, SystemSecurityCapabilityAccess Permissions,

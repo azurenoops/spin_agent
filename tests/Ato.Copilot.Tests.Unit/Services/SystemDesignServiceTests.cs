@@ -86,7 +86,8 @@ public sealed partial class SystemDesignServiceTests : IAsyncLifetime
         await db.SaveChangesAsync();
     }
     public Task DisposeAsync() => _connection.DisposeAsync().AsTask();
-    private SystemDesignService Service(Guid? actor = null, Guid? tenantId = null, bool canRead = true, bool edit = true)
+    private SystemDesignService Service(Guid? actor = null, Guid? tenantId = null, bool canRead = true, bool edit = true,
+        Ato.Copilot.Core.Interfaces.Workspaces.IWorkspaceOperationsService? workspace = null)
     {
         var person = actor ?? _editor;
         var tenant = new TenantContext(tenantId ?? _tenant) { PersonId = person, IsWorkspaceRequest = true };
@@ -97,7 +98,7 @@ public sealed partial class SystemDesignServiceTests : IAsyncLifetime
         var factory = new Mock<IDbContextFactory<AtoCopilotContext>>();
         factory.Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new AtoCopilotContext(_options));
-        return new(factory.Object, tenant, access.Object);
+        return new(factory.Object, tenant, access.Object, workspace);
     }
     private static SaveSystemDesignRequest Save(SystemDesignGraph graph) =>
         new(graph.Revision, graph.Nodes, graph.Edges, graph.Groups, "Synthetic reviewed architecture change");

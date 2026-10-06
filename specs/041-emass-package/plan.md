@@ -5,6 +5,21 @@
 
 ## Summary
 
+### October 4, 2026: proposed completeness follow-through
+
+See the [eMASS package completeness implementation plan](../../docs/design/emass-package-completeness-implementation-plan.md)
+for the verified current-to-proposed changes, phased dependencies, affected files
+and test-first acceptance gates. This is planning only; implementation and
+receiving-instance acceptance remain pending.
+
+The historical summary below describes SPIN's export bundle, not verified
+universal eMASS import support. Reconcile target-specific required artifacts and
+formats before coding. Reuse existing source-qualified requirement coverage,
+purpose-bound readiness and immutable package workflows. Strengthen procedure
+coverage, cross-artifact risk/evidence consistency, supporting-plan applicability
+and loss-aware handoff; do not require a pre-existing AO decision for initial
+submission or reject a legitimately empty POA&M after a clean assessment.
+
 Generate a complete eMASS-importable authorization package (ZIP) containing all six required artifacts: OSCAL 1.1.2 SSP, OSCAL 1.1.2 POA&M, OSCAL 1.1.2 Assessment Results, OSCAL 1.1.2 SAP, SAR (Word), and evidence manifest with evidence files. This feature upgrades existing OSCAL exports from 1.0.6 to 1.1.2, adds the missing SAR entity with lifecycle management, converts the SAP to OSCAL format, bundles NIST JSON schemas for offline validation, and integrates the evidence repository (Feature 038) into the package pipeline. Package generation runs as a background job using the existing Channel-based producer-consumer pattern (Feature 037) with SignalR progress notifications.
 
 ## Technical Context

@@ -406,6 +406,17 @@ public sealed partial class CapabilityResponsibilityTests : IAsyncLifetime
             NullLogger<SspService>.Instance).GenerateSspAsync(_system, sections: ["controls"]);
         ssp.Content.Should().Contain("**Responsibility**: Shared").And.Contain("Approved synthetic text")
             .And.Contain("**Status**: Planned");
+        var emass = new EmassExportService(_app.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<EmassExportService>.Instance, Mock.Of<IOscalSspExportService>());
+        var bytes = await emass.ExportControlsAsync(_system);
+        using var stream = new MemoryStream(bytes);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
+        var sheet = workbook.Worksheet("Controls");
+        var row = sheet.Column(5).CellsUsed().Single(cell => cell.GetString() == "AU-6").Address.RowNumber;
+        sheet.Cell(row, 10).GetString().Should().Be("Synthetic CSP");
+        sheet.Cell(row, 11).GetString().Should().Be("Shared");
+        sheet.Cell(row, 8).GetString().Should().Be("Planned");
+        sheet.Cell(row, 9).GetString().Should().Contain("Approved synthetic text");
     }
 
     [Fact]

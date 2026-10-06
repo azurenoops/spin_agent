@@ -114,19 +114,111 @@ it must not masquerade as an empty list.
 
 ## 2. Component drawer and placements
 
-1. From **By component**, open a component. Check its source, type/subtype,
-   delivered capabilities and actual assignments.
-2. A provider component must state that its source is provider-managed/read-only.
-   Local placement permission must not make source metadata editable.
-3. Choose **Manage system placement** when permitted. Assign an authorized
-   boundary, then confirm the refreshed assignment in the drawer and list.
-4. Remove only that placement, acknowledge the exact removal, and verify that
-   other boundaries, system assignments, capabilities and source records remain.
-5. Person contributors must not be assignable to a boundary. System-wide and
-   legacy placements that cannot be removed here must explain which assignment
-   workflow owns them.
-6. Open the drawer with the keyboard, tab through its controls, and press Escape
-   when no write is pending. Focus should return to its opener.
+The redesigned **Component details** panel follows the supplied
+`component-review-simple.html` reference (provided outside this worktree).
+The three sections are **Overview**, **System scope** and **Evidence**.
+Service-use scope uses the existing **System design** draft and independent
+review. It is not an immediate infrastructure assignment or a new approval
+lifecycle. Review may require resolving the rest of the design's blocking gaps.
+
+1. From **By component**, open a component with the keyboard. Check the readable
+   name, subtype, **Managed by** owner and synthetic demonstration label, when
+   supplied by the source. **Thing**, identifiers and revision metadata belong
+   under **Provider source and technical details**, not the header.
+2. Without a saved service-use record, expect **System scope not recorded** and
+   **Review system scope**. An existing immediate boundary assignment must not
+   be mislabelled reviewed scope.
+3. Choose **Used by this system**, select an existing **System area supported**
+   and enter **How it is used**. **Save scope draft** must confirm the server
+   response before announcing success. Close/reopen to verify persistence.
+   The provider source and actual infrastructure placements remain unchanged.
+4. Follow **Review scope draft** into **System definition > System design**.
+   Inspect **Component service-use scope**, source versions and working changes.
+   Submit the design and use an independent assigned ISSM to review it. A draft
+   cannot silently replace the reviewed baseline. An approved design requires
+   **Start working revision** before editing; under-review designs require
+   authorized withdrawal. An unresolved scope decision remains a blocking gap.
+5. Repeat with **Not used by this system** and **Needs confirmation**. Draft
+   exclusions do not change the accepted baseline. Reviewed exclusions do not
+   count toward in-scope capability applicability. Included reviewed use is
+   labelled **service use**, not infrastructure containment.
+6. In **Prepare a first pass**, choose the relevant mapped control and an
+   authorized provider scope. Published facts and responsibility splits come
+   from that scope's pinned source. No scope uses system records and attached
+   evidence, without asserting inheritance. Inspect source versions and unresolved
+   questions. Prepare a suggestion, then explicitly **Use proposed wording**.
+   Existing wording requires a replacement acknowledgement. Correct it and save
+   scope; the originating proposal revision/hash and human correction are retained.
+   Preparation does not save scope or accept responsibility.
+7. RPO and RTO are shown only when explicit objectives are present in the
+   selected provider source. **Maximum data loss target (RPO)** and **Time to
+   restore target (RTO)** always say **Results not verified**. Do not expect
+   24-hour / 8-hour values without a supporting selected source.
+8. Open **Evidence**. Inspect actual control-linked files; presence is not
+   sufficiency. Backup tasks separately identify protected workloads,
+   configuration/retention, restore results and responsibility review. Missing
+   evidence must say unavailable. Follow the existing evidence and responsibility
+   links rather than interpreting association as acceptance.
+9. Simulate a rejected or disconnected save. Confirm no success announcement,
+   entered wording remains, and **Reload saved scope** preserves corrections
+   while loading current revisions. Source changes must identify affected review
+   context without overwriting the baseline. Test a read-only identity as well.
+   Draft permissions come from System design editing authority, not permission
+   to edit provider source or immediately assign infrastructure. An unavailable
+   source cannot be newly included; its historical records remain visible.
+10. If infrastructure placement itself needs correction, expand **Existing
+    infrastructure placements** in **System scope**. This explicitly separate
+    workflow changes canonical assignments immediately. Assign an authorized area,
+    refresh, then remove only that placement with its existing acknowledgement.
+    Other areas, capabilities and source records remain. Local Person contributors
+    still use system assignments; system-wide/legacy restrictions remain explicit.
+11. Use arrow keys/Home/End on the component tabs, Tab/Shift+Tab in the modal,
+    and Escape to close. Focus must return to the refreshed component opener.
+    Check both themes at desktop and 390px without horizontal overflow.
+12. Preview the working SSP/OSCAL contribution: service-use decisions, usage,
+    area and source references must be marked draft/unapproved. Reviewed output
+    must use the retained reviewed design, not a later scope draft. Final
+    generation remains gated by existing source freshness/design approval checks.
+
+### Local verification commands
+
+From the repository root:
+
+```bash
+dotnet test tests/Ato.Copilot.Tests.Unit --filter \
+  'FullyQualifiedName~SystemDesignServiceTests|FullyQualifiedName~SystemDesignExportTests|FullyQualifiedName~SystemSecurityCapabilitiesTests'
+dotnet test tests/Ato.Copilot.Tests.Integration --filter \
+  'FullyQualifiedName~SystemDesignHttpTests'
+```
+
+From `src/Ato.Copilot.Dashboard`:
+
+```bash
+npm test -- --run src/__tests__/workspaces/SystemComponentReview.test.tsx \
+  src/__tests__/workspaces/ComponentFirstPass.test.tsx
+npx tsc --noEmit
+npm run dev -- --host 127.0.0.1 --port 5198 --strictPort
+```
+
+In another terminal in that directory, exercise the actual SPA with synthetic
+HTTP fixtures (no retained business-data writes or model calls):
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:5198 npx playwright test \
+  e2e/tests/component-review-simple.spec.ts --reporter=list
+```
+
+The scope endpoint is tenant/system-authorized and optimistic-version-fenced.
+Scope entries are additive JSON in retained System design revisions: no new
+table, no provider mutation and no automatic boundary assignment.
+Existing SSP renderers receive working/approved service-use text and OSCAL
+extension properties. Live AI output, a retained-data PDF/DOCX/eMASS package,
+monitoring connectivity, actual recovery results and actual eMASS submission
+are not established by the fixture suite; verify those separately before
+claiming end-to-end submission readiness. Local user acceptance remains open.
+
+For the original placement workflow, also verify that you can press Escape
+when no write is pending. Focus should return to its opener.
 
 To exercise stale protection, have another authorized test actor change the
 placement after the first actor loads it. The old request must fail explicitly;

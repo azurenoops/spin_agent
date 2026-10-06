@@ -29,6 +29,23 @@ beforeEach(() => {
     sourceState: 'ApprovedSources', contentHash: 'approved-output-hash', generatedAt: '2026-09-30T10:00:00Z', sourceGaps: [] });
 });
 describe('governed System design workspace', () => {
+  it('shows saved service-use proposals to the independent design reviewer', async () => {
+    // Arrange
+    const graph = designFixture();
+    graph.componentScopes = [{ source: 'provider', componentId: 'backup', name: 'Azure Backup', sourceRevision: 'source-v1',
+      decision: 'Excluded', boundaryId: null, boundaryName: null, usage: 'Not used by this system' }];
+    api.getSystemDesign.mockResolvedValue(graph);
+    // Act
+    mount();
+    // Assert
+    const scope = await screen.findByRole('region', { name: 'Component service-use scope' });
+    expect(scope).toHaveTextContent('Azure Backup');
+    expect(scope).toHaveTextContent('Excluded');
+    expect(scope).toHaveTextContent('Not used by this system');
+    expect(scope).toHaveTextContent('source-v1');
+    expect(within(scope).getByRole('link', { name: 'Review component scope' })).toHaveAttribute('href', '/systems/system-a/security-capabilities?view=component');
+  });
+
   it('builds recorded relationships on the server without synthesizing or approving connections in the browser', async () => {
     // Arrange
     const built = designFixture();

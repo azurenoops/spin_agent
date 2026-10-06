@@ -15,6 +15,8 @@ public static class DashboardSystemDesignEndpoints
             Execute(http, () => service.GetAsync(systemId, ct)));
         group.MapPut("", (string systemId, SaveSystemDesignRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>
             Execute(http, () => service.SaveAsync(systemId, body, ct)));
+        group.MapPut("/component-scope", (string systemId, SaveComponentScopeRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>
+            Execute(http, () => service.SaveComponentScopeAsync(systemId, body, ct)));
         group.MapPost("/review", (string systemId, DesignReviewRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>
             Execute(http, () => service.ReviewAsync(systemId, body, ct)));
         group.MapPost("/reconcile", (string systemId, DesignRevisionRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>

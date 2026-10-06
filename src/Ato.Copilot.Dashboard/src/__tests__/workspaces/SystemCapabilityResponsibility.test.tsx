@@ -118,7 +118,26 @@ describe('System capability responsibility review', () => {
     // Act
     mount(data);
     // Assert
-    expect(screen.getByText(/OutsideBaseline/)).toBeVisible();
+    expect(screen.getByText(/Not in the selected baseline/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Confirm AC-1 responsibility' })).toBeDisabled();
+  });
+
+  it('preserves confirmation text across source refresh while clearing acknowledgements', () => {
+    // Arrange
+    const data = preview();
+    const edits = new Map();
+    const props = { tenantId: 'tenant-a', systemId: 'system-a', capabilityId: 'capability-a', controlId: 'AC-1',
+      sourceRevision: 'source-1', reviewRevision: 'review-1', preview: data, onChanged: vi.fn(), edits };
+    const view = render(<MemoryRouter><SystemCapabilityResponsibility {...props} /></MemoryRouter>);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Customer responsibility' }), { target: { value: 'User corrected duty' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Customer duties reviewed' }));
+    const changed = structuredClone(data);
+    changed.items[0]!.sourceRevision = 'source-2';
+    // Act
+    view.rerender(<MemoryRouter><SystemCapabilityResponsibility {...props} sourceRevision="source-2" preview={changed} /></MemoryRouter>);
+    // Assert
+    expect(screen.getByRole('textbox', { name: 'Customer responsibility' })).toHaveValue('User corrected duty');
+    expect(screen.getByRole('checkbox', { name: 'Customer duties reviewed' })).not.toBeChecked();
     expect(screen.getByRole('button', { name: 'Confirm AC-1 responsibility' })).toBeDisabled();
   });
 

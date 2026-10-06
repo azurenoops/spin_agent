@@ -134,6 +134,7 @@ describe('task-led CSP hosting setup', () => {
     mount(true);
     // Act
     const context = await screen.findByRole('region', { name: 'Technical hosting scope' });
+    await within(context).findAllByRole('heading', { name: `${offering.name} · Scope revision 2` });
     // Assert
     fireEvent.click(within(context).getByText('Record details & provenance'));
     expect(within(context).getAllByRole('heading', { name: `${offering.name} · Scope revision 2` })[0]).toBeVisible();

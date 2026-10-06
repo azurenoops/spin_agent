@@ -20,6 +20,9 @@ vi.mock('../../api/narrativeLibrary', () => narratives);
 vi.mock('../../api/evidence', () => evidence);
 vi.mock('../../features/workspace-operations/system-capabilities/systemCapabilityNarrativeRequests', () => sourceGeneration);
 vi.mock('../../features/workspace-operations/system-capabilities/systemCapabilityApi', () => api);
+vi.mock('../../features/workspace-operations/system-capabilities/ResponsibilityDraftEditor', () => ({
+  default: ({ controlId }: { controlId: string }) => <section aria-label={`Prepared draft for ${controlId}`} />,
+}));
 vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
   useWorkspaceSession: () => ({ workspace: { displayName: 'Example organization', kind: 'organization', tenantId: 'tenant-a', mode: workspaceMode.value },
     identity: { directoryTenantId: 'directory-a', oid: 'actor-a' } }),

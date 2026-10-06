@@ -9,6 +9,52 @@
 
 ## Product outcome and scope
 
+### October 2: task-oriented Component details
+
+The component panel follows `docs/design/workspace-ui-mocks/component-review-simple.html`:
+readable source name, service subtype and owner; Overview, System scope and
+Evidence; one scope-resolution action before technical metadata. Full source
+text and versions remain read-only under progressive disclosure. Synthetic
+source statements are labelled, never promoted to measured recovery results.
+
+Verified contract gap: boundary placement writes are immediate, unreviewed
+canonical assignments. They cannot truthfully be called scope drafts or reviewed
+scope. Service-use proposals therefore join the existing governed System design
+working revision and independent review, with their own source-qualified component
+reference, recorded boundary-area reference, Included/Excluded/NeedsConfirmation
+decision, usage wording and source revision. This is not infrastructure containment.
+Existing placement assignments and accepted design snapshots remain unchanged.
+Excluded reviewed use must not count as in-scope capability coverage.
+
+The panel derives missing/draft/reviewed/excluded state from persisted records,
+retains notes on failed writes and exposes source-change/review restrictions.
+Unresolved use remains a named documentation gap. AI preparation reuses the
+existing responsibility first-pass engine, with explicitly selected provider scope
+and pinned published sources (or system/evidence records with no scope). Suggestions
+are inspectable and copied only by an explicit user action; never auto-fill a
+placement, protected workload, deployment ID or successful restore.
+
+Evidence lists only actual protected evidence records. Backup documentation tasks
+separately call out protected workloads, configuration/retention, restore results
+and responsibility review; presence of a file is not evidence sufficiency.
+Recovery targets must quote explicit selected-source RPO/RTO statements and explain
+maximum data-loss/time-to-restore targets, with results not verified.
+System scope is independent from accepted inheritance, implemented controls,
+monitoring connectivity and authorization. Final documentation uses the retained
+reviewed design; working previews identify draft scope. External issue creation
+and user acceptance remain pending approval.
+
+### October 1 merged responsibility review integration
+
+The task-oriented applied-capability panel uses the responsibility first-pass
+workflow merged in #1062, not a competing draft or approval lifecycle.
+Users select the control and optional recorded provider scope, correct source/
+system/AI-proposed fields, compare refreshed suggestions without losing their
+edits, save drafts and explicitly confirm through the existing authorized
+upstream lifecycle. Source references, versions and history remain canonical.
+Scope/component association does not imply provider coverage, deployed
+configuration, monitoring connectivity, control satisfaction or authorization.
+
 ### September 30: governed System design
 
 #### Rules-first automatic architecture assembly
