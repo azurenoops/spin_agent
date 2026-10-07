@@ -10,7 +10,7 @@ export default function OverviewAiHelp({ systemId, runId, group, edits, onClose 
   systemId: string; runId: string; group: OverviewWorkGroup; edits: Map<string, OverviewAiEdit>; onClose: () => void;
 }) {
   const cached = edits.get(`${systemId}:${runId}:${group.id}`);
-  const [content, setContent] = useState(cached?.content ?? '');
+  const [content, setWorkingExplanation] = useState(cached?.content ?? '');
   const [proposal, setProposal] = useState<OverviewExplanation | null>(cached?.proposal ?? null);
   const [scopeId, setScopeId] = useState<string | null>(cached?.scopeId ?? null);
   const [explainedScopeId, setExplainedScopeId] = useState<string | null>(cached?.explainedScopeId ?? null);
@@ -47,7 +47,7 @@ export default function OverviewAiHelp({ systemId, runId, group, edits, onClose 
         ...(nextMode === 'Explain' ? {} : { mode: nextMode }) }, controller.signal);
       if (controller.signal.aborted) return;
       if (edited.current) setSuggestion(result);
-      else { setContent(result.content); setProposal(result); setSuggestion(null); }
+      else { setWorkingExplanation(result.content); setProposal(result); setSuggestion(null); }
       setExplainedScopeId(scopeId);
     } catch (reason) {
       if (!controller.signal.aborted) setError(overviewError(reason));
@@ -101,7 +101,7 @@ export default function OverviewAiHelp({ systemId, runId, group, edits, onClose 
       <p className="whitespace-pre-wrap text-sm">{proposal.content}</p>
       <label className="grid gap-1 text-sm">Your working explanation
         <textarea className={`${inputClass} min-h-28`} value={content} maxLength={8000}
-          onChange={event => { edited.current = true; setContent(event.target.value); }} /></label>
+          onChange={event => { edited.current = true; setWorkingExplanation(event.target.value); }} /></label>
       <p className="text-xs">Your corrections stay in this page&apos;s working view. Save any actual responses through the existing authorized workflow.</p>
       {proposal.questions.map(question => <p key={question} className="text-sm text-amber-900 dark:text-amber-200">{question}</p>)}
       <details><summary className="cursor-pointer text-sm text-indigo-700 dark:text-indigo-300">First-pass sources and versions</summary>
@@ -117,7 +117,7 @@ export default function OverviewAiHelp({ systemId, runId, group, edits, onClose 
       <h3 className="text-sm font-semibold">Your corrections have not been replaced</h3>
       <p className="whitespace-pre-wrap text-sm">{suggestion.content}</p>
       <button type="button" className={systemSecondaryAction} onClick={() => {
-        setContent(suggestion.content); setProposal(suggestion); setSuggestion(null); edited.current = false;
+        setWorkingExplanation(suggestion.content); setProposal(suggestion); setSuggestion(null); edited.current = false;
       }}>Use refreshed explanation</button>
     </section>}
     <button type="button" className={systemSecondaryAction} disabled={busy || !!contextError}

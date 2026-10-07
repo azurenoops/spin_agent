@@ -138,6 +138,46 @@ and the source-worktree verification limits remain available. Current assignment
 revalidation excludes revoked/replaced/ambiguous owners from personal work;
 role suggestions are not assignments. AI help never writes accepted records.
 
+### October 7 PR 1064 CI correction
+
+Run `37626797528` targets HEAD
+`61d36e15e8b2c6b738c9a12eca14246c08eef126`. Full failed-step logs identify
+two failures, not the previously recorded browser walkthrough failures:
+
+- Grounding Port Guard, job `112810530581`: three `setContent` calls in
+  `OverviewAiHelp` collide with the document-mutation API scanner. They update
+  only React working-view state; no accepted document or claim is inserted.
+  Rename the setter to describe that state, preserving the guard and provenance.
+  The exact scan reproduces all three failures locally.
+- Build + Unit Tests, job `112810530533`: build succeeded; 8228 tests passed and
+  `Semantic_TimeoutIsExplicitAndCallerCancellationPropagates` failed its
+  exception assertion. Independent 25 ms caller and 50 ms model timers do not
+  establish caller cancellation before the analyzer returns an explicit model
+  timeout. The test passes alone locally. Separate model timeout from caller
+  cancellation and cancel synchronously at provider entry (also test cancellation
+  before entry), without changing production timeout budgets or error handling.
+
+- [x] CI01 — Clarify the local explanation setter and run the unchanged grounding
+  guard tests/scan, overview regression tests and Dashboard typecheck/build.
+- [x] CI02 — Replace timer-order-dependent cancellation setup, run the analyzer
+  selection and the CI Release unit suite; retain explicit timeout assertions.
+
+Local verification: all six grounding guard tests and the repository scan passed;
+29 overview tests passed with `OverviewAiHelp` coverage of 99.22% lines/statements,
+90.14% branches and 88.88% functions. Dashboard `tsc --noEmit -p tsconfig.json`,
+production build and citation-boundary scan passed. The combined analyzer
+selection passed 262 tests; the Release solution build passed with zero errors
+and ten existing integration-test warnings, and the full Release unit suite
+passed 8231 tests with zero failures/skips. The two extra cases are deterministic
+caller cancellation before analysis and at provider entry. Build output also
+retains existing Dashboard dependency/chunk warnings; no warning suppression,
+dependency or lockfile changes were made.
+
+All other checks in that completed run passed or were skipped; none were pending
+or cancelled. Local verification is not a remote green run. Manual overview
+acceptance remains under OV06. Preserve the excluded generated Playwright report
+and unrelated untracked agent file; no commit, push or workflow rerun is authorized.
+
 PR review follow-up: Context must use effective boundary disposition when
 collapsing membership; SharedService/SeparatelyAuthorized ownership remains
 external even when raw disposition is Undetermined. Boundary SVG authorization

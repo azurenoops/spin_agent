@@ -125,6 +125,12 @@ Overview route through normal authorized sign-in.
 
 ### 4. Source-supported AI help
 
+CI correction (October 7, PR 1064): the working-explanation React setter must
+be named for local working state, not the document editor's `setContent` API.
+The grounding guard remains unchanged; this is not an exemption for inserting
+ungrounded claims. The following correction/refresh checks remain the local
+manual acceptance path, not evidence of accepted document changes.
+
 1. Open **Explain next action with AI** or **Explain this group with AI**.
    The explanation endpoint uses retained findings and a read-only source context;
    it does not expose mutation tools or write drafts, phases or approvals.
