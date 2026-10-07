@@ -2,7 +2,7 @@
 
 ## October 7 local PR #1064 conflict resolution
 
-The PR branch is being rebased onto `origin/main` at `f0e46d45`.
+The PR branch was locally rebased onto `origin/main` at `f0e46d45`.
 The inherited capability-review changes overlap upstream's canonical
 responsibility draft APIs and independently reviewed component service-use scope.
 Retain upstream's draft fixtures, scope decisions, component drawer and deployment
@@ -11,8 +11,47 @@ raw placement as reviewed service use. Preserve the later Mission, Overview and
 system-definition improvements while adapting them to the current contracts.
 This is a local integration only: no containers are replaced, no package is
 submitted and no remote branch is updated. Historical test totals below are not
-verification of this rebase; fresh targeted validation and manual acceptance are
-still required.
+verification of this rebase. Fresh targeted validation is recorded below;
+manual acceptance remains open.
+
+The first focused browser run passed 54 scenarios and failed three applied
+capability scenarios at the retired `Manage system placement` assertion.
+Their fixture omitted the current component drawer's governed design and
+placement reads, producing an explicit 404. Adapt this regression to supply
+the canonical read contracts, verify the service-use scope editor, and inspect
+immediate infrastructure placement only through its separate disclosure.
+Do not restore the retired button or bypass current scope permissions.
+
+Fresh verification on the merged branch:
+
+- 378 focused Dashboard tests in 20 files passed, including reviewed component
+  scope, placement, shared drawer, first-pass, Environment, profile, journey and
+  System design behavior.
+- Strict Dashboard `tsc --noEmit`, project type-check and production build passed.
+- 284 focused backend unit tests and 146 integration tests passed, with no skipped
+  or failed tests. These include canonical responsibility review, tenant/source
+  fencing, profile governance, design service-use scope, immutable approved
+  outputs and synthetic SSP/OSCAL/DOCX/PDF/package paths.
+- The final combined Chromium run on explicit
+  `PLAYWRIGHT_BASE_URL=http://127.0.0.1:4196` passed all 57 scenarios. It covers
+  component scope, applied capabilities at 1440/390/320 pixels, six design views,
+  provider offerings with zero/one/many capabilities, failed writes, keyboard
+  focus, independent profile drafts and the Overview journey. Fixture writes
+  remain synthetic; no shared service was replaced or live package submitted.
+- Compilation emitted 136 warning messages during the unit build and 10 during
+  the integration build (nullable, obsolete API and analyzer diagnostics).
+  Frontend warnings included stale Browserslist data, SignalR annotations,
+  mixed static/dynamic imports and bundle size. No warning was suppressed.
+- No full-suite or modified-path coverage claim is made. Earlier walkthrough
+  failures/totals are historical, not a fresh full-suite result.
+
+For local human acceptance, use the current 4196 preview and review the component
+drawer's System scope and separate infrastructure-placement disclosure, the
+Overview journey, Mission/Users/Data records, provider review and all six design
+views. Saving is still separate from independent review and authorization.
+No push or PR body update has occurred; publishing the rebased branch requires
+explicit approval of the exact force-with-lease command and remote head.
+
 ## Focused provider offering review contracts
 
 The Environment drawer reads canonical relationship permissions and complete

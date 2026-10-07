@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
 import { installWorkspaceFixture } from '../fixtures/workspace-shell';
 import { appliedResponsibilityContext } from '../fixtures/applied-responsibility';
+import { componentDesignFixture } from '../../src/__tests__/fixtures/componentReview';
 
 const systemRoot = '/workspaces/organizations/org-a/systems/system-a';
 const access = {
@@ -148,6 +149,17 @@ for (const width of [1440, 390, 320]) {
         },
       },
     }));
+    await page.route('**/api/dashboard/systems/system-a/design', route =>
+      route.fulfill({ json: componentDesignFixture('org-a', 'system-a') }));
+    await page.route('**/api/dashboard/systems/system-a/design/approved', route =>
+      route.fulfill({ json: null }));
+    await page.route('**/security-capabilities/provider/component/component-a/placements', route =>
+      route.fulfill({ json: { status: 'success', data: {
+        source: component.source, recordId: component.recordId, sourceRevision: component.sourceRevision,
+        relationshipRevision: 'relationship-1', canAssignBoundary: true, assignBlockedReason: null,
+        boundaries: [{ id: 'boundary-a', name: 'Operations boundary' }],
+        placements: [{ ...placement, canUnassign: true, unassignBlockedReason: null }],
+      } } }));
     let preparedDraft: ReturnType<typeof appliedResponsibilityContext>['draft'] = null;
     await page.route('**/api/dashboard/systems/system-a/capability-subscriptions/drafts/**', route => {
       const context = appliedResponsibilityContext('system-a', 'AU-2');
@@ -271,7 +283,13 @@ for (const width of [1440, 390, 320]) {
     await reviewDrawer.getByRole('button', { name: 'Change location for Provider collector' }).click();
     const componentDrawer = page.getByRole('dialog', { name: 'Component details' });
     await expect(componentDrawer).toBeVisible();
-    await expect(componentDrawer.getByRole('button', { name: 'Manage system placement' })).toBeEnabled();
+    await componentDrawer.getByRole('button', { name: 'Review system scope' }).click();
+    await expect(componentDrawer.getByRole('radio', { name: 'Needs confirmation', exact: true })).toBeChecked();
+    await expect(componentDrawer.getByRole('textbox', { name: 'How it is used', exact: true })).toBeEditable();
+    await expect(componentDrawer.getByRole('button', { name: 'Save scope draft', exact: true })).toBeEnabled();
+    await componentDrawer.getByText('Existing infrastructure placements', { exact: true }).click();
+    await expect(componentDrawer.getByRole('button', { name: 'Remove from Operations boundary', exact: true })).toBeEnabled();
+    await expect(componentDrawer.getByRole('alert')).toHaveCount(0);
     await componentDrawer.getByRole('button', { name: 'Close dialog' }).click();
 
     await page.getByRole('button', { name: 'Add organization capability' }).click();
