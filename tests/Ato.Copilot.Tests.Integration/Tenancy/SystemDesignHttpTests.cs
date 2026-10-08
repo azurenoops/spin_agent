@@ -2,10 +2,15 @@ using System.Net;
 using System.Net.Http.Json;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.SystemDesign;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -47,6 +52,76 @@ public sealed class SystemDesignHttpTests(MultiTenantWebApplicationFactory<McpPr
         denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         factory.GetActiveContext().TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
         (await client.GetAsync(path + "/layout/" + view)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ComponentServiceUse_DraftEndpointRetainsProviderSourceAndEnforcesAreaVersionAndTenant()
+    {
+        // Arrange
+        var id = await SeedAsync(OrganizationRole.SystemOwner);
+        var tenant = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
+        var component = Guid.NewGuid();
+        var area = Guid.NewGuid().ToString();
+        string revision;
+        int deploymentProfileCount;
+        CspProfile? hostingProfile;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            var profile = await db.CspProfiles.SingleAsync();
+            db.CspInheritedComponents.Add(new() { Id = component, CspProfileId = profile.Id, Name = "Azure Backup",
+                Description = "Synthetic provider-owned backup source; recovery results not verified.",
+                Status = Ato.Copilot.Core.Models.Tenancy.CspInheritedComponentStatus.Published });
+            db.AuthorizationBoundaryDefinitions.Add(new() { Id = area, TenantId = tenant, RegisteredSystemId = id, Name = "Mission API" });
+            await db.SaveChangesAsync();
+            deploymentProfileCount = await db.CspProfiles.CountAsync();
+            scope.ServiceProvider.GetRequiredService<IMemoryCache>().Remove(CspProfileService.CacheKey);
+            hostingProfile = await scope.ServiceProvider.GetRequiredService<ICspProfileService>().GetAsync();
+            var options = await scope.ServiceProvider.GetRequiredService<Ato.Copilot.Core.Interfaces.Workspaces.IWorkspaceOperationsService>()
+                .GetSystemComponentPlacementsAsync(tenant, id, "provider", component.ToString(),
+                    new(true, false, false, false, false, false), default);
+            revision = options.SourceRevision;
+        }
+        using var client = factory.CreateClient();
+        var path = $"/api/dashboard/systems/{id}/design";
+        var request = new SaveComponentScopeRequest(0, "provider", component.ToString(), revision, "Included", area, "Recorded use; no restore result implied.");
+        // Act
+        var invalidArea = await client.PutAsJsonAsync(path + "/component-scope", request with { BoundaryId = "foreign-area" });
+        var saved = await client.PutAsJsonAsync(path + "/component-scope", request);
+        var stale = await client.PutAsJsonAsync(path + "/component-scope", request);
+        // Assert
+        deploymentProfileCount.Should().Be(1, "provider components must reuse the singleton deployment profile");
+        hostingProfile.Should().NotBeNull();
+        hostingProfile!.OnboardingState.Should().Be(OnboardingState.Active,
+            "provider-source arrangement must not block later shared-fixture requests after cache expiry");
+        invalidArea.StatusCode.Should().Be(HttpStatusCode.BadRequest, await invalidArea.Content.ReadAsStringAsync());
+        saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var graph = await client.GetFromJsonAsync<SystemDesignGraph>(path);
+        graph!.ComponentScopes.Single().BoundaryName.Should().Be("Mission API");
+        graph.GovernanceStatus.Should().Be("Draft");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            (await db.CspInheritedComponents.FindAsync(component))!.Description.Should().Be("Synthetic provider-owned backup source; recovery results not verified.");
+            db.BoundaryComponentAssignments.Any(x => x.CspInheritedComponentId == component).Should().BeFalse();
+        }
+        factory.GetActiveContext().TenantId = MultiTenantWebApplicationFactory<McpProgram>.TenantBId;
+        var foreign = await client.PutAsJsonAsync(path + "/component-scope", request with { ExpectedRevision = 1 });
+        foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ComponentScope_AssessorCannotCreateDraft()
+    {
+        // Arrange
+        var id = await SeedAsync(OrganizationRole.Assessor);
+        using var client = factory.CreateClient();
+        // Act
+        var result = await client.PutAsJsonAsync($"/api/dashboard/systems/{id}/design/component-scope",
+            new SaveComponentScopeRequest(0, "local", "unreadable", "source", "Excluded", null, "No permission"));
+        // Assert
+        result.StatusCode.Should().Be(HttpStatusCode.Forbidden, await result.Content.ReadAsStringAsync());
     }
 
     [Fact]
