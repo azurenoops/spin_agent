@@ -16,6 +16,44 @@
 
 ## .NET Unit Tests
 
+### Shared tenancy integration fixture
+
+`MultiTenantWebApplicationFactory` seeds one active deployment `CspProfile`.
+Tests in the shared `Tenancy` collection must reference that existing profile
+when adding provider components; they must not create a second provider identity.
+The production profile service selects the singleton by GUID and caches it for
+30 seconds, so an extra default-Pending row can produce order-dependent
+`CSP_ONBOARDING_INCOMPLETE` responses after cache expiry.
+
+PR 1064's integration run `37629906616` exposed this in
+`SystemDesignHttpTests.ComponentServiceUse_DraftEndpointRetainsProviderSourceAndEnforcesAreaVersionAndTenant`:
+111 failures received HTTP 503, one asserted a Pending hosting profile, and one
+read a property absent from an error response. The test created an additional
+Pending profile while the deployment fixture already had an Active profile.
+The deterministic regression failed with two profiles before the repair and
+passed afterward. The local hard-fail tenancy run passed all 724 cases, including
+all 113 cases that failed in the original CI artifact, with no skipped cases.
+
+The regression must assert that provider-source arrangement retains exactly one
+deployment profile and that a fresh, uncached profile lookup remains Active.
+Onboarding tests that deliberately remove/reset the profile belong in the
+dedicated onboarding collection or must restore the shared fixture reliably.
+Do not disable the production onboarding gate or broadly activate all profile
+rows to hide an invalid test setup.
+
+Local reproduction/verification:
+
+```bash
+env -u ATO_TEST_SQLSERVER_CONNSTRING \
+  dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  -c Release \
+  --filter FullyQualifiedName~SystemDesignHttpTests.ComponentServiceUse_DraftEndpointRetainsProviderSourceAndEnforcesAreaVersionAndTenant
+
+env -u ATO_TEST_SQLSERVER_CONNSTRING ATO_REQUIRE_DOCKER_TESTS=1 \
+  dotnet test tests/Ato.Copilot.Tests.Integration/Ato.Copilot.Tests.Integration.csproj \
+  -c Release --no-build --filter FullyQualifiedName~Tenancy
+```
+
 ### Naming Convention
 
 ```

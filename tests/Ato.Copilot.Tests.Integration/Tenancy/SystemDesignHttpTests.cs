@@ -2,10 +2,15 @@ using System.Net;
 using System.Net.Http.Json;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Dtos.SystemDesign;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Models.Onboarding;
+using Ato.Copilot.Core.Models.Tenancy;
+using Ato.Copilot.Core.Services.Tenancy;
 using Ato.Copilot.Mcp;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -55,19 +60,23 @@ public sealed class SystemDesignHttpTests(MultiTenantWebApplicationFactory<McpPr
         // Arrange
         var id = await SeedAsync(OrganizationRole.SystemOwner);
         var tenant = MultiTenantWebApplicationFactory<McpProgram>.TenantAId;
-        var profile = Guid.NewGuid();
         var component = Guid.NewGuid();
         var area = Guid.NewGuid().ToString();
         string revision;
+        int deploymentProfileCount;
+        CspProfile? hostingProfile;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
-            db.CspProfiles.Add(new() { Id = profile, DisplayName = "Synthetic Flankspeed" });
-            db.CspInheritedComponents.Add(new() { Id = component, CspProfileId = profile, Name = "Azure Backup",
+            var profile = await db.CspProfiles.SingleAsync();
+            db.CspInheritedComponents.Add(new() { Id = component, CspProfileId = profile.Id, Name = "Azure Backup",
                 Description = "Synthetic provider-owned backup source; recovery results not verified.",
                 Status = Ato.Copilot.Core.Models.Tenancy.CspInheritedComponentStatus.Published });
             db.AuthorizationBoundaryDefinitions.Add(new() { Id = area, TenantId = tenant, RegisteredSystemId = id, Name = "Mission API" });
             await db.SaveChangesAsync();
+            deploymentProfileCount = await db.CspProfiles.CountAsync();
+            scope.ServiceProvider.GetRequiredService<IMemoryCache>().Remove(CspProfileService.CacheKey);
+            hostingProfile = await scope.ServiceProvider.GetRequiredService<ICspProfileService>().GetAsync();
             var options = await scope.ServiceProvider.GetRequiredService<Ato.Copilot.Core.Interfaces.Workspaces.IWorkspaceOperationsService>()
                 .GetSystemComponentPlacementsAsync(tenant, id, "provider", component.ToString(),
                     new(true, false, false, false, false, false), default);
@@ -81,6 +90,10 @@ public sealed class SystemDesignHttpTests(MultiTenantWebApplicationFactory<McpPr
         var saved = await client.PutAsJsonAsync(path + "/component-scope", request);
         var stale = await client.PutAsJsonAsync(path + "/component-scope", request);
         // Assert
+        deploymentProfileCount.Should().Be(1, "provider components must reuse the singleton deployment profile");
+        hostingProfile.Should().NotBeNull();
+        hostingProfile!.OnboardingState.Should().Be(OnboardingState.Active,
+            "provider-source arrangement must not block later shared-fixture requests after cache expiry");
         invalidArea.StatusCode.Should().Be(HttpStatusCode.BadRequest, await invalidArea.Content.ReadAsStringAsync());
         saved.StatusCode.Should().Be(HttpStatusCode.OK, await saved.Content.ReadAsStringAsync());
         stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
