@@ -11,10 +11,10 @@ const actor = '33333333-3333-4333-8333-333333333333';
 const intentId = '44444444-4444-4444-8444-444444444444';
 const source = Buffer.from('Synthetic provider source. No real authorization or sensitive content.');
 const headings: Record<ProviderScreen, string> = {
-  'p-details': 'Identify your provider', 'p-access': 'Confirm provider access',
-  'p-offering': 'Add your first service offering', 'p-sources': 'Add source material',
-  'p-uncertain': 'Check the package receipt', 'p-review': 'Review provider setup',
-  'p-ready': 'Your provider workspace is ready',
+  'p-details': 'Confirm provider identity', 'p-access': 'Confirm access and contacts',
+  'p-offering': 'Add the first offering', 'p-authorization': 'Choose authorization starting point',
+  'p-sources': 'Add available records', 'p-uncertain': 'Check the package receipt',
+  'p-review': 'Review and finish setup', 'p-ready': 'Provider setup complete',
 };
 function fixtureState(screen: ProviderScreen): SetupState {
   const state = setupState(screen);
@@ -80,6 +80,23 @@ async function installProvider(context: BrowserContext, baseURL: string, initial
       current.draft!.revision++;
       return success(setupResult(current));
     }
+    if (path.endsWith('/commits')) {
+      current.draft!.revision++;
+      return success(setupResult(current));
+    }
+    if (path.endsWith('/completion')) {
+      current.profile.onboardingState = 'Active';
+      current.profile.currentStep = 'Complete';
+      current.draft!.completion = {
+        completedAt: '2026-10-08T12:00:00Z',
+        profileRevision: current.profileRevision,
+        draftRevision: current.draft!.revision,
+      };
+      current.draft!.fields.currentScreen = 'p-ready';
+      current.draft!.currentScreen = 'p-ready';
+      current.draft!.revision++;
+      return success(setupResult(current));
+    }
     if (path.endsWith('/upload-intents')) {
       expect(body.intent.associationMode).toBe('Unassociated');
       expect(body.intent.context).toBeNull();
@@ -114,7 +131,7 @@ async function installProvider(context: BrowserContext, baseURL: string, initial
 }
 
 for (const width of [1440, 390]) {
-  test(`all seven provider mock states retain hierarchy and responsive layout at ${width}px`, async ({ page, context, baseURL }, info) => {
+  test(`all provider onboarding states retain hierarchy and responsive layout at ${width}px`, async ({ page, context, baseURL }, info) => {
     // Arrange
     const fixture = await installProvider(context, baseURL!, 'p-details');
     await page.setViewportSize({ width, height: 1000 });
@@ -127,10 +144,14 @@ for (const width of [1440, 390]) {
       await expect(page.getByRole('button', { name: 'Save & finish later' })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: info.outputPath(`${id}-${width}.png`), fullPage: true });
-      const primary = id === 'p-ready' ? 'Open provider review queue' : id === 'p-review' ? 'Finish provider setup'
+      const primary = id === 'p-ready' ? 'Return to setup overview' : id === 'p-review' ? 'Finish provider setup'
         : id === 'p-uncertain' ? 'Check existing receipt' : id === 'p-sources' ? 'Continue to setup review' : 'Save & continue';
       await page.getByRole('button', { name: primary, exact: true }).scrollIntoViewIfNeeded();
       await expect(page.getByRole('button', { name: primary, exact: true })).toBeVisible();
+      if (id === 'p-ready') {
+        await expect(page.getByRole('link', { name: 'Open provider workspace', exact: true }))
+          .toHaveAttribute('href', '/workspaces/csp/authorizations');
+      }
       await page.screenshot({ path: info.outputPath(`${id}-${width}-footer.png`), fullPage: true });
     }
     expect(fixture.writes).toEqual([]);
@@ -176,6 +197,60 @@ test('unknown receipt is reconciled after real SPA reload without duplicate uplo
   await page.screenshot({ path: info.outputPath('provider-receipt-recovered.png'), fullPage: true });
 });
 
+test('existing authorization accepts an eMASS package through canonical intake without recording a decision', async ({ page, context, baseURL }) => {
+  // Arrange
+  const fixture = await installProvider(context, baseURL!, 'p-authorization');
+  await page.goto('/workspaces/csp/onboarding/csp?reentry=resume');
+  await page.getByLabel('We have an existing authorization').check();
+  await page.getByLabel('Decision reference').fill('ATO-2025-017');
+  await page.getByLabel('System or boundary name').fill('Flank Speed Azure as stated');
+  await page.getByLabel('Package name', { exact: true }).fill('Synthetic eMASS package');
+  await page.getByLabel('Select source files', { exact: true }).setInputFiles({
+    name: 'flank-speed-emass.zip', mimeType: 'application/zip', buffer: source,
+  });
+  await page.getByLabel('Declared source classification').selectOption('Unclassified');
+  await page.getByLabel('These files contain only synthetic data.').check();
+
+  // Act
+  await page.getByRole('button', { name: 'Upload package', exact: true }).click();
+
+  // Assert
+  await expect(page.getByRole('alert')).toBeVisible();
+  expect(fixture.state().draft!.fields.authorization).toMatchObject({
+    choice: 'ExistingAuthorization',
+    decisionReference: 'ATO-2025-017',
+    systemOrBoundaryName: 'Flank Speed Azure as stated',
+  });
+  expect(fixture.writes.some(write => /decisions|boundary-revisions|approval|publish/.test(write.path))).toBe(false);
+  expect(fixture.writes.filter(write => write.path.endsWith('/atos/upload'))).toHaveLength(1);
+});
+
+test('initial authorization completes the six-stage production flow and exposes the workspace link only on summary', async ({ page, context, baseURL }) => {
+  // Arrange
+  const fixture = await installProvider(context, baseURL!, 'p-details');
+  await page.goto('/workspaces/csp/onboarding/csp?reentry=resume');
+
+  // Act
+  await page.getByRole('button', { name: 'Save & continue' }).click();
+  await page.getByRole('button', { name: 'Save & continue' }).click();
+  await page.getByRole('button', { name: 'I will add an offering later' }).click();
+  await page.getByRole('button', { name: 'Save & continue' }).click();
+  await page.getByLabel('We are preparing for initial authorization').check();
+  await page.getByRole('button', { name: 'Save & continue' }).click();
+  await page.getByRole('button', { name: 'Skip sources for now' }).click();
+  await page.getByRole('button', { name: 'Continue to setup review' }).click();
+  await page.getByLabel('Confirm this provider setup.').check();
+  await page.getByRole('button', { name: 'Finish provider setup' }).click();
+
+  // Assert
+  await expect(page.getByRole('heading', { name: 'Provider setup complete' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recorded onboarding facts' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open provider workspace' }))
+    .toHaveAttribute('href', '/workspaces/csp/authorizations');
+  expect(fixture.writes.filter(write => write.path.endsWith('/completion'))).toHaveLength(1);
+  expect(fixture.writes.some(write => /decisions|boundary-revisions|approval|publish/.test(write.path))).toBe(false);
+});
+
 test('failed save and denied setup do not show fabricated success or provider-private fields', async ({ page, context, baseURL }, info) => {
   // Arrange
   const fixture = await installProvider(context, baseURL!, 'p-details');
@@ -207,7 +282,7 @@ test('unknown handling policy permits draft work and deferral but disables sourc
   await page.goto('/workspaces/csp/onboarding/csp?reentry=resume');
   // Act
   await expect(page.getByText('Deployment handling policy is unknown or expired. Uploads are unavailable.')).toBeVisible();
-  await page.getByRole('button', { name: '4 Source package · optional', exact: true }).click();
+  await page.getByRole('button', { name: '5 Add available records', exact: true }).click();
   // Assert
   await expect(page.getByLabel('Select source files', { exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Upload package', exact: true })).toBeDisabled();

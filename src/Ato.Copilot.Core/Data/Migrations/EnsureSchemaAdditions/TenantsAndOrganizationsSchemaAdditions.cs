@@ -44,6 +44,12 @@ public static class TenantsAndOrganizationsSchemaAdditions
                 if (!columns.Contains("SetupRevision", StringComparer.OrdinalIgnoreCase))
                     await db.Database.ExecuteSqlRawAsync(
                         "ALTER TABLE CspProfiles ADD COLUMN SetupRevision INTEGER NOT NULL DEFAULT 1", cancellationToken);
+                if (!columns.Contains("DodComponent", StringComparer.OrdinalIgnoreCase))
+                    await db.Database.ExecuteSqlRawAsync(
+                        "ALTER TABLE CspProfiles ADD COLUMN DodComponent TEXT NULL", cancellationToken);
+                if (!columns.Contains("TimeZoneId", StringComparer.OrdinalIgnoreCase))
+                    await db.Database.ExecuteSqlRawAsync(
+                        "ALTER TABLE CspProfiles ADD COLUMN TimeZoneId TEXT NULL", cancellationToken);
             }
             else
             {
@@ -148,6 +154,8 @@ public static class TenantsAndOrganizationsSchemaAdditions
                 LogoUrl NVARCHAR(2048) NULL,
                 PrimarySupportEmail NVARCHAR(254) NULL,
                 SupportPhone NVARCHAR(40) NULL,
+                DodComponent NVARCHAR(128) NULL,
+                TimeZoneId NVARCHAR(128) NULL,
                 DefaultClassificationFloor INT NOT NULL,
                 OnboardingState INT NOT NULL,
                 OnboardingCompletedAt DATETIMEOFFSET NULL,
@@ -164,6 +172,10 @@ public static class TenantsAndOrganizationsSchemaAdditions
         END;
         IF COL_LENGTH(N'dbo.CspProfiles', N'SetupRevision') IS NULL
             ALTER TABLE dbo.CspProfiles ADD SetupRevision BIGINT NOT NULL DEFAULT 1;
+        IF COL_LENGTH(N'dbo.CspProfiles', N'DodComponent') IS NULL
+            ALTER TABLE dbo.CspProfiles ADD DodComponent NVARCHAR(128) NULL;
+        IF COL_LENGTH(N'dbo.CspProfiles', N'TimeZoneId') IS NULL
+            ALTER TABLE dbo.CspProfiles ADD TimeZoneId NVARCHAR(128) NULL;
         """;
 
     // ─── SQLite (development) ────────────────────────────────────────────────
@@ -177,6 +189,8 @@ public static class TenantsAndOrganizationsSchemaAdditions
             LogoUrl TEXT NULL,
             PrimarySupportEmail TEXT NULL,
             SupportPhone TEXT NULL,
+            DodComponent TEXT NULL,
+            TimeZoneId TEXT NULL,
             DefaultClassificationFloor INTEGER NOT NULL,
             OnboardingState INTEGER NOT NULL,
             OnboardingCompletedAt TEXT NULL,

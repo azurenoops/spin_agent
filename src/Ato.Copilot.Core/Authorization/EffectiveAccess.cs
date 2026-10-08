@@ -54,7 +54,8 @@ public sealed record EffectiveAccessSubject(
     string DisplayName,
     Guid TenantId,
     bool IsCspAdmin,
-    Guid? DirectoryTenantId = null);
+    Guid? DirectoryTenantId = null,
+    string? Email = null);
 
 public sealed record AccessBadge(string Label, string Source);
 
@@ -73,7 +74,15 @@ public sealed record EffectiveAccessResult(
     DateTimeOffset GeneratedAt,
     EffectiveAccessSubject Subject,
     string? DefaultDestinationId,
-    IReadOnlyList<EffectiveAccessDestination> Destinations);
+    IReadOnlyList<EffectiveAccessDestination> Destinations,
+    EffectiveAccessEntryRoute? EntryRoute = null);
+
+public sealed record EffectiveAccessEntryRoute(
+    string Kind,
+    string ReasonCode,
+    string Destination,
+    string? SetupId = null,
+    string? InvitationId = null);
 
 public interface IEffectiveAccessService
 {

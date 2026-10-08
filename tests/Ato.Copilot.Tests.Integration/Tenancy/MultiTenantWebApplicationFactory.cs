@@ -303,7 +303,13 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
             if (Request.Headers["X-Test-Anonymous"] == "true")
                 return Task.FromResult(AuthenticateResult.NoResult());
             var identity = new ClaimsIdentity(
-                [new Claim(ClaimTypes.NameIdentifier, "multi-tenant-test-user")],
+                [
+                    new Claim(ClaimTypes.NameIdentifier, "multi-tenant-test-user"),
+                    new Claim("oid", "33333333-3333-4333-8333-333333333333"),
+                    new Claim("tid", "44444444-4444-4444-8444-444444444444"),
+                    new Claim("name", "Synthetic provider user"),
+                    new Claim("preferred_username", "provider-user@example.invalid")
+                ],
                 TestAuthScheme);
             var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), TestAuthScheme);
             return Task.FromResult(AuthenticateResult.Success(ticket));

@@ -6,6 +6,32 @@
 
 Tests are mandatory, despite the older template's optional-test wording.
 
+## October 8: approved provider first-login onboarding
+
+These tasks are pending unless explicitly checked later with verified evidence.
+They are dependency ordered; documentation approval is not implementation
+completion. `PF` tasks must preserve existing Feature 079 behavior and the
+current prototype's onboarding-only stopping point.
+
+| ID | Dependency | Task and acceptance |
+|---|---|---|
+| PF001 | None | **Freeze contracts and red tests.** Record the platform-operator authority grant, entry-route result codes, provider actions, `Assessor`/`SCA` mapping, invitation lifecycle, setup schema-v2 normalization, and non-claims. **Accept:** failing tests cover every first-login branch and permission-matrix denial; no production code is changed before the failures are retained. |
+| PF002 | PF001 | **Implement provider access persistence.** Add provider principal/directory match, membership, scoped role assignment, invitation, access request, and audit records with additive SQLite/SQL Server schema handling. **Accept:** tenant/provider isolation, repeat upgrade, revocation, expiry, concurrency, and retained-data tests pass; no membership is created from login order. |
+| PF003 | PF002 | **Implement platform-operator authority and access service.** Add the authorized operator grant path, shared provider action checks, and temporary deployment-claim compatibility adapter without treating the adapter as reviewed authority. **Accept:** only an authorized platform operator can establish initial setup authority; portal administrator alone is denied assessor/security-review/AO actions. |
+| PF004 | PF002,PF003 | **Implement invitation and access-request APIs.** Store only hashed invitation tokens and support create/read/accept/revoke, expiry, identity binding, single use, and approved scoped grants. **Accept:** mismatch, expiry, revoke, replay, cross-provider, and changed-grant requests fail closed; API tests pass without asserting email, Teams, Graph, notification, or any delivery channel. |
+| PF005 | PF003 | **Extend effective access and first-login routing.** Return one server-owned route for new/resuming setup admin, invited member, established member, no access, or conflicting/revoked/expired access. **Accept:** deep links are reauthorized, established/invited members never enter provider registration, and no-access responses expose no provider data. |
+| PF006 | PF002 | **Add portfolio, authorization-intent, boundary-association, and work-item records.** Enforce one active primary portfolio per offering and retain history; keep intent distinct from decisions/boundaries; make reviewer/due date optional. **Accept:** concurrency cannot create two active primaries; deferrals persist with acceptance criteria and owner or explicit Unassigned; no record auto-creates a boundary or decision. |
+| PF007 | PF004,PF005,PF006 | **Upgrade setup service to schema v2.** Normalize old drafts additively and add identity/contact, portfolio/offering, authorization starting point, available-record, and completion commands using existing revisions/idempotency. **Accept:** schema-v1 drafts resume without source rewrite until explicit save; lost responses and uncertain receipts reconcile without duplicates; existing identifiers/history remain unchanged. |
+| PF008 | PF007 | **Implement the onboarding-only UI.** Adapt entry/status routes and the six stages to the current prototype, including invitation confirmation, no-access request, save/resume, errors, review, and completion. Completion retains the onboarding summary and provides an explicit user-initiated **Open provider workspace** link. **Accept:** 1440px/390px, keyboard, failure, back/edit, save/resume, and all scenario tests pass; no completion path auto-redirects, preloads, or embeds a provider workspace screen. |
+| PF009 | PF006,PF007 | **Integrate available records and external decisions.** Reuse canonical upload/receipt/extraction/review/package APIs and restrict provider AO action to recording a previously issued external decision. **Accept:** receipt, extraction, proposed facts, reviewed source, exact scope, recorded external decision, posture, and customer coverage remain distinct; admin/setup paths receive 403 for decision recording. |
+| PF010 | PF008,PF009 | **Verify handoff and compatibility.** Test the completion link's separately owned, server-authorized destination without extending the prototype; run targeted .NET, SQL Server schema, Dashboard type/build/unit, and Playwright suites. **Accept:** navigation occurs only after explicit link activation, old routes/drafts/commands/receipts remain compatible, scoped destinations authorize correctly, modified-path coverage meets policy, and exact results/limits are recorded. |
+| PF011 | PF010 | **Offer local manual acceptance and update release evidence.** Provide synthetic walkthroughs for every branch, permission denial, save/resume, invitation acceptance, and uncertain receipt. **Accept:** user acceptance, deployment, and invitation delivery remain explicitly unverified until separately observed; Feature 079 is not marked complete from automated checks. |
+
+Task dependencies are intentional: UI work waits for persisted server authority
+and setup contracts; external-decision integration waits for intent/work records;
+release evidence waits for both onboarding completion and separate route handoff.
+Live invitation delivery is not a hidden dependency because it is not in scope.
+
 ### Focused offering drawer follow-up
 
 - [x] FD01: Verify checkout/reference/contracts and preserve staged fingerprint;

@@ -691,6 +691,7 @@ async Task RunHttpModeAsync(string[] args)
     // Feature 048 (T163 [US7]): CSP-Admin onboarding wizard.
     app.MapCspOnboardingEndpoints();
     app.MapProviderSetupEndpoints();
+    app.MapProviderAccessEndpoints();
     app.MapSystemSetupEndpoints();
     // Feature 048 (T208 [US9]): CSP-inherited components management surface
     // — read-only across tenants, write-gated to CSP-Admin (FR-104..FR-106).
@@ -1377,6 +1378,8 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.DataTypeHandlingSchemaAdditions
         .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderSetupSchemaAdditions
+        .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ProviderAccessSchemaAdditions
         .ApplyAsync(db, logger, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.WorkspaceOperationsSchemaAdditions
         .ApplyAsync(db, logger, ct);

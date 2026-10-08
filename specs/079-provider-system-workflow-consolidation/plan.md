@@ -6,6 +6,66 @@
 
 ## Summary
 
+### October 8 approved provider first-login onboarding slice
+
+This plan authorizes implementation planning for provider first login; it does
+not claim the application changes, verification, user acceptance, deployment, or
+invitation delivery are complete. Preserve the existing provider setup draft,
+command replay, receipt, package, offering, authorization, effective-access, and
+workspace services. Add only provider-scoped access records, the missing setup
+facts, durable follow-up, and compatibility projections required by the approved
+contract in `spec.md`.
+
+Authority and vocabulary are now resolved:
+
+- A platform-operator workflow establishes initial provider setup authority.
+  There is no first-login or first-person bootstrap.
+- Invitation-token persistence and create/read/accept/revoke APIs are in the
+  implementation scope. Tokens are hashed, expiring, and single-use. No delivery
+  provider or message channel is in scope or may be presented as operational.
+- Persist `Assessor`; display `SCA` in provider UI.
+- Enforce one active primary service portfolio per offering while retaining
+  membership history.
+- Provider AO functionality records only a previously issued external decision;
+  it does not issue a native decision.
+- Follow-up reviewer and due date are nullable unless a later approved policy
+  makes either mandatory for a named work type.
+
+The prototype is a bounded onboarding interaction reference. Its scenario
+switcher, entry/status screens, six stages, save/resume, failure/receipt recovery,
+review, and completion guide the implementation. Its current completion screen
+is the end of prototype scope and retains the onboarding summary. Add one explicit
+**Open provider workspace** link whose activation by the user navigates to the
+already-owned, server-authorized destination. Do not auto-redirect, preload, or
+embed provider workspace screens to prove onboarding fidelity. Verify that
+handoff separately.
+
+Implementation sequence:
+
+1. Add failing authorization/entry-route contract tests and document the
+   platform-operator grant and compatibility adapter boundaries.
+2. Add provider principal, directory match, membership, role, invitation, access
+   request, and audit persistence; then implement scoped access policies and
+   effective-access routing.
+3. Add service portfolio/history, authorization intent, offering-boundary
+   association history, and durable setup work items.
+4. Upgrade setup draft normalization and server commands before changing the
+   six-stage UI; preserve all old IDs, revisions, replay, and receipt recovery.
+5. Implement invitation confirmation, access-required, save/resume, setup, and
+   completion/status UI to the onboarding-only prototype. Completion retains the
+   summary and offers a user-initiated provider-workspace link; it does not
+   auto-redirect or embed the workspace.
+6. Integrate existing-authorization source intake and external-decision recording
+   through the existing package/decision services, without a second workflow.
+7. Verify migrations, concurrency, isolation, permissions, compatibility,
+   onboarding browser states, and the separate authorized destination handoff;
+   then offer local manual acceptance.
+
+Slice exit requires every acceptance criterion in the October 8 spec section,
+including exact denial cells and non-claims. It does not require live email or
+other invitation delivery, workspace-screen mock fidelity, live Azure/Entra/eMASS
+connectivity, or an authorization decision. Feature 079 remains acceptance-pending.
+
 ### October 4 proposed cross-artifact package completeness
 
 The [eMASS package completeness implementation plan](../../docs/design/emass-package-completeness-implementation-plan.md)
@@ -865,7 +925,9 @@ A rebuilt page must still call the canonical services.
 - Mock suites may omit production edge states. Preserve the design and seek
   focused approval for necessary additions, not an agent-invented redesign.
 - The copied design archive includes an onboarding companion that appeared
-  after the initial inventory. Copying does not authorize its full redesign.
+  after the initial inventory. The October 8 provider first-login slice is now
+  authorized only to the bounded onboarding completion/status contract; copying
+  still does not authorize a provider-workspace or broader onboarding redesign.
 - Legacy-data collisions must be inspected on a safe copy before migration.
 
 ## Complexity tracking

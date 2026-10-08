@@ -108,6 +108,14 @@ public sealed class ProviderSetupRelationalTests
         draft.Revision.Should().Be(saved.CommittedOutcome!.CommittedDraftRevision);
         (await db.Set<ProviderSetupCommand>().SingleAsync()).OutcomeJson.Should().Contain(saved.CommittedOutcome.CommandId.ToString());
         (await db.CspPackages.CountAsync()).Should().Be(0);
+        foreach (var table in new[]
+                 {
+                     "ServicePortfolios", "ServicePortfolioOfferingRevisions",
+                     "ProviderOfferingAuthorizationIntentRevisions", "ProviderSetupWorkItems"
+                 })
+            (await db.Database.SqlQueryRaw<long>(
+                    $"SELECT COUNT(*) AS Value FROM sqlite_master WHERE type='table' AND name='{table}'").SingleAsync())
+                .Should().Be(1);
     }
 
     [Fact]
@@ -132,6 +140,145 @@ public sealed class ProviderSetupRelationalTests
         await using var verify = fixture.Factory.CreateDbContext();
         (await verify.Set<ProviderSetupCommand>().CountAsync()).Should().Be(1);
         (await verify.Set<ProviderSetupDraft>().SingleAsync()).DraftJson.Should().Be("{invalid-json");
+    }
+
+    [Fact]
+    public async Task LegacySchemaOneRead_NormalizesToSchemaTwoWithoutRewritingStoredDraft()
+    {
+        // Arrange
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.Service().SaveAsync(new(0, Draft()), Guid.NewGuid().ToString(), Actor, default);
+        string storedJson;
+        await using (var db = fixture.Factory.CreateDbContext())
+        {
+            var draft = await db.Set<ProviderSetupDraft>().SingleAsync();
+            draft.SchemaVersion = 1;
+            draft.DraftJson = JsonSerializer.Serialize(new
+            {
+                currentScreen = "documents",
+                providerDetails = new
+                {
+                    displayName = "Legacy provider", legalEntityName = "Legacy operator",
+                    serviceContactEmail = "legacy@example.invalid"
+                },
+                contacts = new { choice = "Deferred", deferral = new { reason = "Legacy reviewer later" } },
+                offering = new { choice = "Deferred", deferral = new { reason = "Legacy offering later" } },
+                documents = new
+                {
+                    choice = "Deferred", intentIds = Array.Empty<Guid>(),
+                    deferral = new { reason = "Legacy documents later" }
+                }
+            });
+            await db.SaveChangesAsync();
+            storedJson = draft.DraftJson;
+            draft.SchemaVersion.Should().Be(1);
+        }
+
+        // Act
+        var state = JsonSerializer.SerializeToElement(
+            await fixture.Service().StateAsync(Actor, default),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        // Assert
+        var projected = state.GetProperty("draft");
+        projected.GetProperty("schemaVersion").GetInt32().Should().Be(2);
+        projected.GetProperty("storedSchemaVersion").GetInt32().Should().Be(1);
+        projected.GetProperty("currentScreen").GetString().Should().Be("p-sources");
+        projected.GetProperty("fields").GetProperty("details").GetProperty("displayName")
+            .GetString().Should().Be("Legacy provider");
+        projected.GetProperty("fields").GetProperty("portfolio").GetProperty("choice").GetString().Should().Be("Unspecified");
+        projected.GetProperty("fields").GetProperty("authorizationStartingPoint").GetProperty("choice")
+            .GetString().Should().Be("DetermineLater");
+        await using var verify = fixture.Factory.CreateDbContext();
+        var retained = await verify.Set<ProviderSetupDraft>().SingleAsync();
+        retained.SchemaVersion.Should().Be(1);
+        retained.DraftJson.Should().Be(storedJson);
+    }
+
+    [Fact]
+    public async Task PortfolioAndIntentCommits_ReuseCanonicalRowsAndCreateNoAuthorizationFacts()
+    {
+        // Arrange
+        await using var fixture = await Fixture.CreateAsync();
+        var saved = await fixture.Service().SaveAsync(new(0, SchemaTwoDraft()), Guid.NewGuid().ToString(), Actor, default);
+        var portfolioCommit = new CommitProviderSetup(saved.CommittedOutcome!.CommittedDraftRevision,
+            "PortfolioAndOffering", saved.CommittedOutcome.CommittedProfileRevision);
+        var committedPortfolio = await fixture.Service().CommitAsync(portfolioCommit, Guid.NewGuid().ToString(), Actor, default);
+        var intentCommit = new CommitProviderSetup(committedPortfolio.CommittedOutcome!.CommittedDraftRevision,
+            "AuthorizationStartingPoint", committedPortfolio.CommittedOutcome.CommittedProfileRevision);
+
+        // Act
+        await fixture.Service().CommitAsync(intentCommit, Guid.NewGuid().ToString(), Actor, default);
+        var state = JsonSerializer.SerializeToElement(
+            await fixture.Service().StateAsync(Actor, default),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        state.GetProperty("portfolios").GetArrayLength().Should().Be(1);
+        state.GetProperty("primaryPortfolioMemberships").GetArrayLength().Should().Be(1);
+        state.GetProperty("authorizationIntent").GetProperty("startingPoint").GetString()
+            .Should().Be("InitialAuthorization");
+        var replaySelection = state.GetProperty("draft").GetProperty("fields").Clone();
+        var resaved = await fixture.Service().SaveAsync(
+            new(state.GetProperty("draft").GetProperty("revision").GetInt64(), replaySelection),
+            Guid.NewGuid().ToString(), Actor, default);
+        await fixture.Service().CommitAsync(
+            new(resaved.CommittedOutcome!.CommittedDraftRevision, "PortfolioAndOffering",
+                resaved.CommittedOutcome.CommittedProfileRevision,
+                state.GetProperty("draft").GetProperty("fields").GetProperty("firstOffering")
+                    .GetProperty("expectedRevision").GetInt64(),
+                state.GetProperty("draft").GetProperty("fields").GetProperty("portfolio")
+                    .GetProperty("expectedRevision").GetInt64()),
+            Guid.NewGuid().ToString(), Actor, default);
+
+        // Assert
+        await using var db = fixture.Factory.CreateDbContext();
+        (await db.Set<ServicePortfolio>().CountAsync()).Should().Be(1);
+        (await db.Set<ServicePortfolioOfferingRevision>().CountAsync()).Should().Be(1);
+        (await db.Set<ProviderOfferingAuthorizationIntentRevision>().CountAsync()).Should().Be(1);
+        (await db.Set<ProviderOffering>().CountAsync()).Should().Be(1);
+        (await db.Set<ProviderBoundaryRevision>().CountAsync()).Should().Be(0);
+        (await db.Set<ProviderAuthorizationRecord>().CountAsync()).Should().Be(0);
+        (await db.Set<ProviderAuthorizationRevision>().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeferredCompletion_CreatesIdempotentDurableWorkWithoutInventingAuthorizationState()
+    {
+        // Arrange
+        await using var fixture = await Fixture.CreateAsync();
+        var saved = await fixture.Service().SaveAsync(new(0, SchemaTwoDraft(deferred: true)),
+            Guid.NewGuid().ToString(), Actor, default);
+        var details = await fixture.Service().CommitAsync(
+            new(saved.CommittedOutcome!.CommittedDraftRevision, "Details",
+                saved.CommittedOutcome.CommittedProfileRevision),
+            Guid.NewGuid().ToString(), Actor, default);
+        var contacts = await fixture.Service().CommitAsync(
+            new(details.CommittedOutcome!.CommittedDraftRevision, "Contacts",
+                details.CommittedOutcome.CommittedProfileRevision),
+            Guid.NewGuid().ToString(), Actor, default);
+        var request = new CompleteProviderSetup(contacts.CommittedOutcome!.CommittedDraftRevision,
+            contacts.CommittedOutcome.CommittedProfileRevision, true, []);
+        var key = Guid.NewGuid().ToString();
+
+        // Act
+        var completed = await fixture.Service().CompleteAsync(request, key, Actor, default);
+        await fixture.Service().CompleteAsync(request, key, Actor, default);
+
+        // Assert
+        await using var db = fixture.Factory.CreateDbContext();
+        var work = await db.Set<ProviderSetupWorkItem>().OrderBy(x => x.Type).ToListAsync();
+        work.Select(x => x.Type).Should().Contain([
+            "DeferredOperationalContact", "DeferredSecurityContact", "DeferredOffering",
+            "DeferredSources", "DetermineAuthorizationScope"
+        ]);
+        work.Select(x => x.IdempotencyKey).Should().OnlyHaveUniqueItems();
+        work.Should().OnlyContain(x => x.SetupId == completed.CommittedOutcome!.DraftId && x.State == "Open");
+        var profile = await db.CspProfiles.SingleAsync();
+        profile.DodComponent.Should().Be("Department of the Navy");
+        profile.TimeZoneId.Should().Be("America/New_York");
+        profile.SupportCompletedAt.Should().BeNull();
+        (await db.Set<ProviderBoundaryRevision>().CountAsync()).Should().Be(0);
+        (await db.Set<ProviderAuthorizationRecord>().CountAsync()).Should().Be(0);
+        (await db.Set<ProviderAuthorizationRevision>().CountAsync()).Should().Be(0);
     }
 
     [Fact]
@@ -239,6 +386,62 @@ public sealed class ProviderSetupRelationalTests
             environments = Array.Empty<string>(), serviceDescription = new { environmentKind = "Other", environmentLabel = "Manual SaaS", serviceModel = "Software" } }
             : new { choice = "Deferred", deferral = new { reason = "Offering later", ownerRole = "CSP.Admin" } },
         sources = new { choice = "Deferred", intentIds = Array.Empty<Guid>(), deferral = new { reason = "Sources later", ownerRole = "CSP.Admin" } }
+    });
+
+    private static JsonElement SchemaTwoDraft(bool deferred = false) => JsonSerializer.SerializeToElement(new
+    {
+        schemaVersion = 2,
+        currentScreen = deferred ? "p-review" : "p-authorization",
+        details = new
+        {
+            displayName = "Synthetic provider", legalEntityName = "Synthetic operator",
+            serviceContactName = "Synthetic operations", serviceContactEmail = "synthetic@example.invalid",
+            dodComponent = "Department of the Navy", timeZoneId = "America/New_York",
+            confirmLegacyClassificationDefault = true, legacyClassificationDefault = "Unclassified"
+        },
+        operationalContact = deferred
+            ? (object)new
+            {
+                choice = "Deferred",
+                deferral = new { reason = "Operations contact later", ownerRole = "CSP.Admin" }
+            }
+            : new
+            {
+                choice = "ContactOnly", displayName = "Synthetic operations",
+                email = "synthetic@example.invalid"
+            },
+        securityContact = new
+        {
+            choice = "Deferred",
+            deferral = new { reason = "Reviewer later", ownerRole = "CSP.Admin" }
+        },
+        portfolio = deferred
+            ? (object)new { choice = "Deferred", deferral = new { reason = "Portfolio later", ownerRole = "CSP.Admin" } }
+            : new { choice = "New", name = "Synthetic portfolio", description = "Synthetic launch portfolio" },
+        firstOffering = deferred
+            ? (object)new { choice = "Deferred", deferral = new { reason = "Offering later", ownerRole = "CSP.Admin" } }
+            : new
+            {
+                choice = "New", name = "Synthetic SaaS", description = "Synthetic only",
+                environments = Array.Empty<string>(),
+                serviceDescription = new
+                {
+                    environmentKind = "Other", environmentLabel = "Manual SaaS",
+                    serviceModel = "Software", managedBy = "Provider"
+                }
+            },
+        authorizationStartingPoint = new
+        {
+            choice = deferred ? "DetermineLater" : "InitialAuthorization",
+            existingDecision = new { confirmed = false },
+            unresolvedFields = Array.Empty<string>()
+        },
+        sources = new
+        {
+            choice = "Deferred", intentIds = Array.Empty<Guid>(),
+            deferral = new { reason = "Sources later", ownerRole = "CSP.Admin" }
+        },
+        review = new { confirmed = false }
     });
 
     private sealed class FailCommandSave : SaveChangesInterceptor

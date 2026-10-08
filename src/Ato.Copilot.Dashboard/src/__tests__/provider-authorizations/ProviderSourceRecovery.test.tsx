@@ -35,7 +35,7 @@ beforeEach(() => {
   });
 });
 async function beginUpload() {
-  await screen.findByRole('heading', { name: 'Add source material' });
+  await screen.findByRole('heading', { name: 'Add available records' });
   fireEvent.change(screen.getByLabelText('Package name'), { target: { value: 'Synthetic package' } });
   fireEvent.change(screen.getByLabelText('Select source files'), {
     target: { files: [new File(['synthetic source'], 'synthetic.txt', { type: 'text/plain' })] },

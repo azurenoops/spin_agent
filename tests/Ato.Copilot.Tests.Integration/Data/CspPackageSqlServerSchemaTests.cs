@@ -20,6 +20,39 @@ public sealed class CspPackageSqlServerSchemaTests(BoundarySchemaSqlServerFixtur
     : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableFact]
+    public async Task ProviderAccessSchema_ReplaysWithoutReplacingRows()
+    {
+        // Arrange
+        Skip.IfNot(fixture.Available, fixture.UnavailableReason);
+        await using var db = await fixture.CreateDatabaseAsync();
+        await db.Database.EnsureCreatedAsync();
+        await ProviderSetupSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        await ProviderAccessSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        var provider = new CspProfile
+        {
+            DisplayName = "Retained provider", LegalEntityName = "Retained provider"
+        };
+        db.Add(provider);
+        var request = new ProviderAccessRequest
+        {
+            ProviderId = provider.Id, DirectoryTenantId = Guid.NewGuid(),
+            ObjectId = Guid.NewGuid(), Justification = "Retained SQL request"
+        };
+        db.Add(request);
+        await db.SaveChangesAsync();
+
+        // Act
+        await ProviderAccessSchemaAdditions.ApplyAsync(db, NullLogger.Instance);
+        db.ChangeTracker.Clear();
+        var retained = await db.ProviderAccessRequests.IgnoreQueryFilters().SingleAsync();
+
+        // Assert
+        retained.Id.Should().Be(request.Id);
+        retained.Justification.Should().Be("Retained SQL request");
+        retained.Status.Should().Be("Pending");
+    }
+
+    [SkippableFact]
     public async Task CatalogSchema_PreservesReviewedRows_AndUsesDatabaseRowVersions()
     {
         // Arrange

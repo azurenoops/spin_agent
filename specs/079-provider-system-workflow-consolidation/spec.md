@@ -9,6 +9,93 @@
 
 ## Product outcome and scope
 
+### October 8: approved provider first-login onboarding implementation
+
+This is an approved implementation slice of Feature 079, but it is not documented
+as implemented, tested, accepted, or released yet. It extends the retained provider
+setup and access contracts; it does not authorize a second identity system or a
+provider-workspace redesign.
+
+The current prototype under
+`src/Ato.Copilot.Dashboard/src/features/csp-onboarding/prototype` is the interaction
+reference for **onboarding only**. It covers first-entry routing, invitation
+confirmation, access-required handling, the six setup stages, save/resume,
+truthful source-receipt states, review, and completion. Every prototype branch
+stops at onboarding completion or an onboarding status. Provider offering,
+readiness, assessment, decision, evidence, and other workspace screens remain
+owned by their existing Feature 079 workflows and are not demonstrated by this
+mock. Completion may identify the authorized next destination, but acceptance
+must not require this prototype to render that destination. The completion
+screen displays the onboarding summary and an explicit **Open provider
+workspace** link. Only the user's activation of that link may navigate to the
+server-authorized destination; onboarding must not auto-redirect or embed any
+provider workspace screen.
+
+The approved implementation assumptions are:
+
+- The **platform-operator workflow** is the initial source of provider setup
+  authority. First login, login order, a contact record, and an unreviewed
+  deployment claim do not bootstrap provider authority.
+- Durable, hashed, expiring, single-use invitation-token persistence and
+  invitation create/read/accept/revoke API behavior are included in the
+  implementation. No email, Teams, Graph, notification, or other token-delivery
+  channel is claimed by this slice.
+- The canonical serialized provider assessment role is **Assessor**. Provider
+  UI may display **SCA** as its label; it is not a second role or grant.
+- Each offering has at most **one active primary service portfolio**. Historical
+  memberships are retained; future non-primary membership is outside this slice.
+- Provider AO action is limited to **recording a previously issued external
+  authorization decision** with exact source, scope, actor, and revision
+  provenance. The application does not issue a native provider authorization.
+- Follow-up due dates and reviewers are optional. They become required only if a
+  later approved policy names the applicable work type; missing optional values
+  do not block onboarding completion.
+
+Provider first-login routing is server-owned and mutually exclusive: authorized
+new/resuming setup administrator, invited member, established member, no access,
+or conflicting/expired/revoked access. Deep links remain subject to server
+authorization. Established members do not repeat provider registration, invited
+members do not become setup administrators, and unauthorized identities see no
+provider data.
+
+The six setup stages are provider identity; access and contacts; first offering
+and optional primary portfolio; authorization starting point; optional available
+records; and review/completion. Authorization intent, uploaded or referenced
+sources, extraction candidates, boundary association, recorded external decision,
+current posture, customer coverage, monitoring health, and authorization remain
+separate states. Completion means onboarding is recorded and a usable workspace
+may be entered through the existing authorized routing; it does not prove any of
+those downstream outcomes.
+
+Acceptance criteria:
+
+1. The platform operator can grant initial setup authority without relying on
+   login order, and every route outcome is derived from current server records.
+2. Invitation tokens are stored hashed, expire, are single-use, reject identity
+   mismatch/revocation/replay, and grant only approved membership/role/scope.
+   API verification must not claim that an invitation was delivered.
+3. `Assessor` remains the only persisted canonical value while provider screens
+   consistently display `SCA`; permissions match the assessor action matrix.
+4. Concurrent writes cannot leave two active primary portfolio memberships for
+   one offering; prior memberships remain readable.
+5. A provider AO can record an exact, previously issued external decision only
+   for assigned scope. Setup, intent, source receipt, extraction, or admin role
+   cannot issue or synthesize a decision.
+6. Follow-up items persist with acceptance criteria and an accountable principal
+   or explicit Unassigned state. Reviewer and due date may be absent.
+7. Schema-v1 drafts, command keys, receipts, provider/offering identifiers, and
+   active-profile behavior remain compatible through save, resume, retry, and
+   completion.
+8. Desktop, mobile, keyboard, failure, save/resume, uncertain-receipt, invitation,
+   existing-member, and no-access checks end at onboarding completion/status.
+   The completion screen retains its summary and exposes a keyboard-accessible
+   user-initiated provider-workspace link. It does not auto-redirect or embed the
+   destination. Separate workspace tests verify that link's authorized target
+   without expanding this mock.
+9. Automated implementation evidence, manual local acceptance, deployment, and
+   live invitation delivery are reported separately; none is inferred from these
+   documentation changes.
+
 ### October 2: task-oriented Component details
 
 The component panel follows `docs/design/workspace-ui-mocks/component-review-simple.html`:
@@ -537,8 +624,9 @@ maintaining two active implementations.
   verified contracts and approval.
 - Deleting historical source, review, release, evidence, decision, or package data.
 - Expanding to every historical mock merely because it is copied into the design
-  archive. The newly encountered onboarding companion is retained as reference;
-  broad organization/system onboarding redesign requires separate scope review.
+  archive. The October 8 approved provider first-login onboarding slice above is
+  the only newly authorized onboarding expansion; broad organization/system
+  onboarding redesign still requires separate scope review.
 
 ## User stories and independent acceptance
 
