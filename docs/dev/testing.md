@@ -342,3 +342,18 @@ Use [tool-validation.md](../persona-test-cases/tool-validation.md) to verify ind
 ### Test Report
 
 Record pass/fail results in [test-report.md](../persona-test-cases/test-report.md) using the results template format.
+
+## Narrative-library HTTP fixture identity
+
+The legacy narrative-library endpoints resolve the authenticated `oid` before
+`NameIdentifier`. `MultiTenantWebApplicationFactory.TestActorObjectId` is the
+canonical object identity exposed by that fixture. Seed narrative-library RMF
+assignments against that value and assert persisted attribution against it.
+Other legacy endpoints may use `NameIdentifier`; do not change their unrelated
+fixtures or production identity policy to compensate.
+
+PR #1064 integration failures in the two Issue1001 HTTP tests reproduced as
+403 responses because their assignments used `multi-tenant-test-user` while
+the endpoint authorized the fixture's `oid`. Correct the test bindings, not
+the backend permission checks. Preserve negative identity, self-review,
+revocation, stale-review and cross-tenant coverage.

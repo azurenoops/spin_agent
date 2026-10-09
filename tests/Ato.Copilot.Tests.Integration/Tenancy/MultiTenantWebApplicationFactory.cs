@@ -42,6 +42,7 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
 
     /// <summary>Stable id of seeded Tenant B.</summary>
     public static readonly Guid TenantBId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    public static readonly Guid TestActorObjectId = Guid.Parse("33333333-3333-4333-8333-333333333333");
 
     // Use the production TenantContext type so the middleware's downcast
     // (var ctx = (TenantContext)tenantContext;) succeeds. The class exposes
@@ -305,7 +306,7 @@ public class MultiTenantWebApplicationFactory<TStartup> : WebApplicationFactory<
             var identity = new ClaimsIdentity(
                 [
                     new Claim(ClaimTypes.NameIdentifier, "multi-tenant-test-user"),
-                    new Claim("oid", "33333333-3333-4333-8333-333333333333"),
+                    new Claim("oid", TestActorObjectId.ToString()),
                     new Claim("tid", "44444444-4444-4444-8444-444444444444"),
                     new Claim("name", "Synthetic provider user"),
                     new Claim("preferred_username", "provider-user@example.invalid")
