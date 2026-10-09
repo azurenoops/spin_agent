@@ -74,6 +74,14 @@ public static class ProviderAuthorizationEndpoints
             .Produces(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status404NotFound);
+        group.MapPost("/{id:guid}/missions/{assignmentId:guid}/correction", (Guid id, Guid assignmentId,
+            RequestDeclaredUseCorrectionRequest body, HttpContext http, IProviderAuthorizationService service, CancellationToken ct) =>
+            ExecuteAsync(http, () => service.RequestCorrectionAsync(id, assignmentId, body.Message, Actor(http), ct)))
+            .WithName("RequestDeclaredUseCorrection")
+            .WithSummary("Ask the Mission Owner to resubmit declared use. Does not change access, scope fit, or SSP body.")
+            .Produces(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound);
         group.MapPost("/{id:guid}/missions/{assignmentId:guid}/scope-fit", (Guid id, Guid assignmentId,
             RecordScopeFitRequest body, HttpContext http, IProviderAuthorizationService service, CancellationToken ct) =>
             ExecuteAsync(http, () => service.RecordScopeFitAsync(id, assignmentId, body, Actor(http), ct)))

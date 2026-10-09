@@ -185,3 +185,11 @@ export function requestOfferingAccess(systemId: string, data: {
     method: 'POST', url: `${systemPath(systemId)}/offering-access`, data,
   });
 }
+
+export function resubmitDeclaredUse(systemId: string, data: {
+  offeringId: string; authPath: string; environmentLane: string; impactLevel: string; dataTypes: string; interconnect: string;
+}) {
+  return request<OfferingAccessRequest>({
+    method: 'POST', url: `${systemPath(systemId)}/offering-access/resubmit`, data,
+  });
+}

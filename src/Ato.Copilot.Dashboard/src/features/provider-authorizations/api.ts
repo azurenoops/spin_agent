@@ -28,6 +28,7 @@ export async function listOfferingAccessRequests(id: string, signal?: AbortSigna
         requestId: string; offeringId: string; offeringName: string; systemId: string; systemName?: string | null;
         status: string; authPath: string; environmentLane: string; impactLevel: string; dataTypes: string;
         interconnect: string; estimateResult: string; estimateRationale: string;
+        correctionStatus?: string; correctionMessage?: string;
       }>>({ url: `${offeringPath(id)}/access-requests`, signal }),
       unavailable: false,
     };
@@ -46,6 +47,11 @@ export const decideOfferingAccess = (id: string, requestId: string, decision: 'A
   packageRequest<unknown>({
     method: 'POST', url: `${offeringPath(id)}/access-requests/${encodeURIComponent(requestId)}/decide`,
     data: { decision },
+  });
+export const requestDeclaredUseCorrection = (id: string, assignmentId: string, message: string) =>
+  packageRequest<unknown>({
+    method: 'POST', url: `${offeringPath(id)}/missions/${encodeURIComponent(assignmentId)}/correction`,
+    data: { message },
   });
 export const getOffering = (id: string, signal?: AbortSignal) =>
   packageRequest<Offering>({ url: offeringPath(id), signal });

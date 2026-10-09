@@ -1,3 +1,5 @@
+using Ato.Copilot.Core.Models.ProviderAuthorizations;
+
 namespace Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
 
 /// <summary>
@@ -6,6 +8,39 @@ namespace Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
 /// </summary>
 public static class OfferingAccessFacts
 {
+    public const string CorrectionNone = "None";
+    public const string CorrectionRequested = "Requested";
+    public const string CorrectionResubmitted = "Resubmitted";
+
+    public static void ApplyCorrectionRequest(ProviderOfferingAccessRequest row, string message)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (!row.Status.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Declared-use correction requires approved offering access. Access is not revoked.");
+        row.CorrectionStatus = CorrectionRequested;
+        row.CorrectionMessage = Bound(message, "correction message", 2000);
+    }
+
+    public static void ApplyResubmit(ProviderOfferingAccessRequest row, RequestOfferingAccessRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(request);
+        if (!row.Status.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Resubmitting declared use does not reopen or revoke offering access.");
+        if (!row.CorrectionStatus.Equals(CorrectionRequested, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Declared use can be resubmitted only after the CSP requests a correction.");
+        var estimate = Estimate(request.AuthPath, request.EnvironmentLane, request.ImpactLevel,
+            request.DataTypes, request.Interconnect);
+        row.AuthPath = Bound(request.AuthPath, "authorization path", 16);
+        row.EnvironmentLane = Bound(request.EnvironmentLane, "environment lane", 16);
+        row.ImpactLevel = Bound(request.ImpactLevel, "impact level", 16);
+        row.DataTypes = Bound(request.DataTypes, "data types", 256, required: false);
+        row.Interconnect = Bound(request.Interconnect, "interconnect", 256, required: false);
+        row.EstimateResult = estimate.Result;
+        row.EstimateRationale = estimate.Rationale;
+        row.CorrectionStatus = CorrectionResubmitted;
+    }
+
     public static ScopeFitResponse Estimate(
         string authPath, string environmentLane, string impactLevel, string dataTypes, string interconnect)
     {
@@ -34,4 +69,14 @@ public static class OfferingAccessFacts
 
     private static ScopeFitResponse Fit(string result, string declared, string rationale) =>
         new(result, declared, "", "", null, null, rationale);
+
+    private static string Bound(string? value, string field, int max, bool required = true)
+    {
+        var text = (value ?? "").Trim();
+        if (required && text.Length == 0)
+            throw new ArgumentException($"{field} is required.");
+        if (text.Length > max)
+            throw new ArgumentException($"{field} exceeds {max} characters.");
+        return text;
+    }
 }

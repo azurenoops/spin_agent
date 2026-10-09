@@ -96,9 +96,11 @@ public sealed record RequestableOfferingResponse(Guid OfferingId, string Name);
 public sealed record DecideOfferingAccessRequest(string Decision);
 public sealed record RequestOfferingAccessRequest(Guid OfferingId, string AuthPath, string EnvironmentLane,
     string ImpactLevel, string DataTypes, string Interconnect);
+public sealed record RequestDeclaredUseCorrectionRequest(string Message);
 public sealed record OfferingAccessResponse(Guid RequestId, Guid OfferingId, string OfferingName, Guid TargetTenantId,
     string SystemId, string? SystemName, string Status, string AuthPath, string EnvironmentLane, string ImpactLevel,
-    string DataTypes, string Interconnect, string EstimateResult, string EstimateRationale);
+    string DataTypes, string Interconnect, string EstimateResult, string EstimateRationale,
+    string CorrectionStatus = "None", string CorrectionMessage = "");
 /// <summary>Exact adopted release metadata, with the newest retained revision linked to the same offering and capability.</summary>
 public sealed record OfferingMissionRelease(Guid CapabilityId, string CapabilityName, Guid ReleaseId,
     long Revision, long? CurrentReleaseRevision, bool UpdateAvailable);
@@ -245,6 +247,7 @@ public interface IProviderAuthorizationService
     Task<PagedResult<OfferingAccessResponse>> AccessRequestsAsync(Guid id, int page, int pageSize, CancellationToken ct);
     Task<ScopeFitResponse> EstimateAccessAsync(Guid id, Guid requestId, CancellationToken ct);
     Task<OfferingAccessResponse> DecideAccessAsync(Guid id, Guid requestId, string decision, string actor, CancellationToken ct);
+    Task<OfferingAccessResponse> RequestCorrectionAsync(Guid id, Guid assignmentId, string message, string actor, CancellationToken ct);
     Task<ProviderOfferingResponse> CreateAsync(CreateProviderOfferingRequest request, string key, string actor, CancellationToken ct);
     Task<ProviderOfferingResponse> UpdateAsync(Guid id, UpdateProviderOfferingRequest request, string actor, CancellationToken ct);
     Task<ProviderBoundaryResponse> CreateBoundaryAsync(Guid id, CreateProviderBoundaryRequest request, string key, string actor, CancellationToken ct);

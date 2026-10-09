@@ -52,6 +52,11 @@ public static class ProviderMissionEndpoints
             ExecuteProjectionAsync(http, () => service.RequestAccessAsync(systemId, body, Actor(http), ct)))
             .WithName("RequestOfferingAccess").WithSummary("Request offering access with declared use. Not allocate, associate, or inherit.")
             .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(409).Produces(503);
+        group.MapPost("/offering-access/resubmit", (string systemId, RequestOfferingAccessRequest body,
+            HttpContext http, IProviderMissionService service, CancellationToken ct) =>
+            ExecuteProjectionAsync(http, () => service.ResubmitDeclaredUseAsync(systemId, body, Actor(http), ct)))
+            .WithName("ResubmitDeclaredUse").WithSummary("Resubmit declared use after a CSP correction request. Access and recorded scope fit do not flip.")
+            .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(409).Produces(503);
         group.MapPost("/provider-capability-adoptions", (string systemId, AdoptProviderCapabilityRequest body,
             HttpContext http, IProviderMissionService service, CancellationToken ct) =>
             ExecuteProjectionAsync(http, () => service.AdoptAsync(systemId, body, Actor(http), ct, Key(http))))

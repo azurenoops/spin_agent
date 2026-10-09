@@ -14,18 +14,32 @@ export default function OfferingAccessPanel({ systemId }: { systemId: string }) 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const latest = requests.data?.items[0];
+  const declared = () => ({
+    offeringId: offeringId || latest?.offeringId || catalog.data?.[0]?.offeringId || '',
+    authPath, environmentLane: env, impactLevel: il, dataTypes: data, interconnect: path,
+  });
   const send = async () => {
-    const id = offeringId || catalog.data?.[0]?.offeringId;
-    if (!id) { setNotice('No active offering is available to request.'); return; }
+    const payload = declared();
+    if (!payload.offeringId) { setNotice('No active offering is available to request.'); return; }
     setBusy(true); setNotice('');
     try {
-      await api.requestOfferingAccess(systemId, {
-        offeringId: id, authPath, environmentLane: env, impactLevel: il, dataTypes: data, interconnect: path,
-      });
+      await api.requestOfferingAccess(systemId, payload);
       setNotice('Sent to the CSP. Access, allocation, and inheritance did not change.');
       requests.retry();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to send the access request.');
+    } finally { setBusy(false); }
+  };
+  const resubmit = async () => {
+    const payload = declared();
+    if (!payload.offeringId) { setNotice('No offering access record exists to resubmit.'); return; }
+    setBusy(true); setNotice('');
+    try {
+      await api.resubmitDeclaredUse(systemId, payload);
+      setNotice('Declared use resubmitted. Offering access and recorded scope fit did not change.');
+      requests.retry();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to resubmit declared use.');
     } finally { setBusy(false); }
   };
   return <section className="space-y-4 rounded border border-slate-300 p-4" aria-labelledby="offering-access">
@@ -35,6 +49,10 @@ export default function OfferingAccessPanel({ systemId }: { systemId: string }) 
     {latest && <p role="status">{latest.offeringName || 'Offering'} · {latest.status} · {latest.authPath} · {latest.environmentLane}
       {latest.status === 'Requested' ? ' · Waiting on CSP what-if' : ''}
       {latest.status === 'Approved' ? ' · Access approved. CSP must still assign hosting scope, then you associate. Not inherited.' : ''}
+    </p>}
+    {latest?.correctionStatus === 'Requested' && <p role="status" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+      CSP requested a declared-use correction. Access and recorded scope fit stay as they are until they re-score.
+      {latest.correctionMessage ? ` ${latest.correctionMessage}` : ''}
     </p>}
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="text-sm">Offering
@@ -68,7 +86,9 @@ export default function OfferingAccessPanel({ systemId }: { systemId: string }) 
       </label>
     </div>
     {notice && <p role="status">{notice}</p>}
-    <button type="button" className={buttonClass} disabled={busy} onClick={() => void send()}>Send to CSP</button>
+    {latest?.correctionStatus === 'Requested'
+      ? <button type="button" className={buttonClass} disabled={busy} onClick={() => void resubmit()}>Resubmit declared use</button>
+      : <button type="button" className={buttonClass} disabled={busy} onClick={() => void send()}>Send to CSP</button>}
     {latest?.status === 'Approved' && <p>
       <button type="button" className={secondaryButtonClass} onClick={() => window.location.assign(`/systems/${encodeURIComponent(systemId)}/provider-relationships/setup`)}>
         Continue to associate existing hosting

@@ -3,7 +3,7 @@ import { Link } from '../workspaces/workspaceNavigation';
 import { Pager, Status, useQueryState, useRemote } from '../workspace-operations/workspaceUi';
 import { ProviderBadge, ProviderFact, ProviderPanel } from './ProviderPresentation';
 import { HostingContextSummary, HostingScopeIdentity } from './HostingContextSummary';
-import { authorizationHref, changeImpactHref, getBoundaryOverview } from './api';
+import { authorizationHref, changeImpactHref, getBoundaryOverview, requestDeclaredUseCorrection } from './api';
 import { getHostingAssignment, getHostingScope } from './hostingApi';
 import type { Offering, OfferingBoundaryOverview } from './types';
 import type { HostingAssignment } from './hostingTypes';
@@ -49,6 +49,9 @@ async function relationshipProjection(offeringId: string, assignment: HostingAss
 export function ProviderRelationshipDetail({ offering, assignmentId }: { offering: Offering; assignmentId: string }) {
   const [handoff, setHandoff] = useState<HandoffStep | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionMessage, setCorrectionMessage] = useState('Resubmit declared use against the cited CRM. Do not paste SSP body.');
+  const [correctionNotice, setCorrectionNotice] = useState('');
   const [pending, setPending] = useState(false);
   const { params: query, set } = useQueryState();
   const page = (key: string) => {
@@ -145,6 +148,7 @@ export function ProviderRelationshipDetail({ offering, assignmentId }: { offerin
     <ProviderPanel title="Provider actions">
       <div className="grid gap-3">
         <button type="button" className="provider-secondary" onClick={() => setAssignOpen(true)}>Assign another service scope</button>
+        <button type="button" className="provider-secondary" onClick={() => { setCorrectionNotice(''); setCorrectionOpen(true); }}>Request correction</button>
         <Link className="provider-text" to={`/provider-changes?offeringId=${encodeURIComponent(offering.offeringId)}&offeringPage=${offeringPage}`}>View offering impact reviews →</Link>
       </div>
     </ProviderPanel>
@@ -157,6 +161,24 @@ export function ProviderRelationshipDetail({ offering, assignmentId }: { offerin
   {assignOpen && <SetupDialog title="Assign service scope" busy={pending} onClose={() => setAssignOpen(false)}
     description="Select the customer and permitted scope. Existing relationships are not replaced.">
     <ProviderAllocationForm offering={offering} onPendingChange={setPending} onSaved={() => { setAssignOpen(false); refresh(); }} />
+  </SetupDialog>}
+  {correctionOpen && <SetupDialog title="Request declared-use correction" busy={pending} onClose={() => setCorrectionOpen(false)}
+    description="The Mission Owner resubmits declared use on Provider hosting. Access, recorded scope fit, and SSP body do not change.">
+    <label className="block text-sm">What to correct
+      <textarea className="mt-1 block w-full rounded border p-2" rows={4} value={correctionMessage}
+        onChange={event => setCorrectionMessage(event.target.value)} />
+    </label>
+    {correctionNotice && <p role="status" className="mt-3 text-sm">{correctionNotice}</p>}
+    <button type="button" className="provider-primary mt-4" disabled={pending} onClick={() => {
+      setPending(true); setCorrectionNotice('');
+      void requestDeclaredUseCorrection(offering.offeringId, assignmentId, correctionMessage)
+        .then(() => {
+          setCorrectionNotice('Correction requested. Access and recorded scope fit did not change.');
+          refresh();
+        })
+        .catch(error => setCorrectionNotice(error instanceof Error ? error.message : 'Unable to request correction.'))
+        .finally(() => setPending(false));
+    }}>Send to Mission Owner</button>
   </SetupDialog>}
   </>;
 }

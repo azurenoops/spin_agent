@@ -21,7 +21,8 @@ public sealed partial class ProviderMissionService
         return new(rows.Items.Select(row => new OfferingAccessResponse(row.Id, row.OfferingId,
             names.GetValueOrDefault(row.OfferingId) ?? "", row.TargetTenantId, row.SystemId, null, row.Status,
             row.AuthPath, row.EnvironmentLane, row.ImpactLevel, row.DataTypes, row.Interconnect,
-            row.EstimateResult, row.EstimateRationale)).ToArray(), page, pageSize, rows.Total);
+            row.EstimateResult, row.EstimateRationale, row.CorrectionStatus, row.CorrectionMessage)).ToArray(),
+            page, pageSize, rows.Total);
     }
 
     public async Task<OfferingAccessResponse> RequestAccessAsync(string systemId, RequestOfferingAccessRequest request,
@@ -57,8 +58,25 @@ public sealed partial class ProviderMissionService
         row.Interconnect = Text(request.Interconnect, "interconnect", 256, false);
         row.EstimateResult = estimate.Result;
         row.EstimateRationale = estimate.Rationale;
+        row.CorrectionStatus = OfferingAccessFacts.CorrectionNone;
+        row.CorrectionMessage = "";
         row.DecidedBy = null;
         row.DecidedAt = null;
+        row.Revision++;
+        await db.SaveChangesAsync(ct);
+        return await MapAccessAsync(row, ct);
+    }
+
+    public async Task<OfferingAccessResponse> ResubmitDeclaredUseAsync(string systemId,
+        RequestOfferingAccessRequest request, string actor, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await AuthorizeAsync(systemId, true, false, ct);
+        var row = await db.Set<ProviderOfferingAccessRequest>().IgnoreQueryFilters()
+            .SingleOrDefaultAsync(x => x.OfferingId == request.OfferingId && x.TargetTenantId == TenantId
+                && x.SystemId == systemId, ct)
+            ?? throw new KeyNotFoundException("No offering access record exists to resubmit.");
+        OfferingAccessFacts.ApplyResubmit(row, request);
         row.Revision++;
         await db.SaveChangesAsync(ct);
         return await MapAccessAsync(row, ct);
@@ -79,10 +97,7 @@ public sealed partial class ProviderMissionService
         var name = await db.Set<ProviderOffering>().IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.Id == row.OfferingId).Select(x => x.Name).FirstOrDefaultAsync(ct) ?? "";
         return new(row.Id, row.OfferingId, name, row.TargetTenantId, row.SystemId, null, row.Status, row.AuthPath,
-            row.EnvironmentLane, row.ImpactLevel, row.DataTypes, row.Interconnect, row.EstimateResult, row.EstimateRationale);
+            row.EnvironmentLane, row.ImpactLevel, row.DataTypes, row.Interconnect, row.EstimateResult, row.EstimateRationale,
+            row.CorrectionStatus, row.CorrectionMessage);
     }
-
-    private OfferingAccessResponse MapAccess(ProviderOfferingAccessRequest row) =>
-        new(row.Id, row.OfferingId, "", row.TargetTenantId, row.SystemId, null, row.Status, row.AuthPath,
-            row.EnvironmentLane, row.ImpactLevel, row.DataTypes, row.Interconnect, row.EstimateResult, row.EstimateRationale);
 }

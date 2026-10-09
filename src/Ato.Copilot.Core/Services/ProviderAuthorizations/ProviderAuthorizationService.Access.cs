@@ -31,6 +31,34 @@ public sealed partial class ProviderAuthorizationService
         return OfferingAccessFacts.Estimate(row.AuthPath, row.EnvironmentLane, row.ImpactLevel, row.DataTypes, row.Interconnect);
     }
 
+    public Task<OfferingAccessResponse> RequestCorrectionAsync(Guid id, Guid assignmentId, string message, string actor, CancellationToken ct) =>
+        store.WriteAsync(id, $"CorrectionRequested:{assignmentId:D}", null, new { assignmentId }, actor, async (db, _, offering) =>
+        {
+            var assignment = await db.Set<ProviderHostingAssignment>()
+                .FirstOrDefaultAsync(x => x.ProviderId == offering!.ProviderId && x.OfferingId == offering.Id
+                    && x.Id == assignmentId, ct)
+                ?? throw new KeyNotFoundException("Hosting assignment was not found on this offering.");
+            var row = await db.Set<ProviderOfferingAccessRequest>().IgnoreQueryFilters()
+                .SingleOrDefaultAsync(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id
+                    && x.TargetTenantId == assignment.TargetTenantId && x.SystemId == assignment.SystemId, ct);
+            if (row is null)
+            {
+                row = new ProviderOfferingAccessRequest
+                {
+                    ProviderId = offering.ProviderId,
+                    OfferingId = offering.Id,
+                    TargetTenantId = assignment.TargetTenantId,
+                    SystemId = assignment.SystemId,
+                    Status = "Approved",
+                    CreatedBy = actor
+                };
+                db.Set<ProviderOfferingAccessRequest>().Add(row);
+            }
+            OfferingAccessFacts.ApplyCorrectionRequest(row, message);
+            row.Revision++;
+            return MapAccess(row, offering.Name, null);
+        }, ct);
+
     public Task<OfferingAccessResponse> DecideAccessAsync(Guid id, Guid requestId, string decision, string actor, CancellationToken ct) =>
         store.WriteAsync(id, $"AccessDecided:{requestId:D}", null, new { requestId, decision }, actor, async (db, _, offering) =>
         {
@@ -50,13 +78,14 @@ public sealed partial class ProviderAuthorizationService
             return MapAccess(row, offering!.Name, null);
         }, ct);
 
+    private static OfferingAccessResponse MapAccess(ProviderOfferingAccessRequest row, string offeringName, string? systemName) =>
+        new(row.Id, row.OfferingId, offeringName, row.TargetTenantId, row.SystemId, systemName, row.Status, row.AuthPath,
+            row.EnvironmentLane, row.ImpactLevel, row.DataTypes, row.Interconnect, row.EstimateResult, row.EstimateRationale,
+            row.CorrectionStatus, row.CorrectionMessage);
+
     private static async Task<ProviderOfferingAccessRequest> RequireAccessAsync(
         Ato.Copilot.Core.Data.Context.AtoCopilotContext db, ProviderOffering offering, Guid requestId, CancellationToken ct) =>
         await db.Set<ProviderOfferingAccessRequest>().IgnoreQueryFilters()
             .SingleOrDefaultAsync(x => x.Id == requestId && x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id, ct)
         ?? throw new KeyNotFoundException("Access request was not found on this offering.");
-
-    private static OfferingAccessResponse MapAccess(ProviderOfferingAccessRequest row, string offeringName, string? systemName) =>
-        new(row.Id, row.OfferingId, offeringName, row.TargetTenantId, row.SystemId, systemName, row.Status, row.AuthPath,
-            row.EnvironmentLane, row.ImpactLevel, row.DataTypes, row.Interconnect, row.EstimateResult, row.EstimateRationale);
 }

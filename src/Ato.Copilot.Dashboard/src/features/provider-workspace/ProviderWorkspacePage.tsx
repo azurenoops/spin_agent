@@ -148,6 +148,8 @@ function MissionSystems({ offering, offeringPage, refresh }: { offering: Offerin
     {accessNotice && <p role="status" className="mb-3 text-sm">{accessNotice}</p>}
     <Status loading={access.loading} error={access.error} retry={access.retry} />
     {access.data?.unavailable && <p className="text-sm text-slate-500">This API host does not include offering access requests yet. Pending MO requests cannot be loaded here.</p>}
+    {access.data && !access.data.unavailable && access.data.items.some(item => item.correctionStatus === 'Resubmitted') &&
+      <p className="mb-3 text-sm text-slate-500">Declared use was resubmitted. Re-score scope fit on the relationship. Access did not change.</p>}
     {access.data && !access.data.unavailable && (access.data.items.filter(item => item.status === 'Requested').length === 0
       ? <p className="text-sm text-slate-500">No pending requests on this offering.</p>
       : <ul className="space-y-3">{access.data.items.filter(item => item.status === 'Requested').map(item =>

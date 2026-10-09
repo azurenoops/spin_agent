@@ -32,6 +32,7 @@ export interface OfferingAccessRequest {
   requestId: string; offeringId: string; offeringName: string; systemId: string; systemName?: string | null;
   status: string; authPath: string; environmentLane: string; impactLevel: string; dataTypes: string;
   interconnect: string; estimateResult: string; estimateRationale: string;
+  correctionStatus?: string; correctionMessage?: string;
 }
 export interface RequestableOffering { offeringId: string; name: string }
 export interface AssociateRelationshipInput {

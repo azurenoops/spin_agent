@@ -28,6 +28,12 @@ public static class ProviderAuthorizationSchemaAdditions
             foreach (var (name, _) in IdentityColumns)
                 if (!columns.Contains(name, StringComparer.OrdinalIgnoreCase))
                     await db.Database.ExecuteSqlRawAsync($"ALTER TABLE ProviderOfferings ADD COLUMN [{name}] TEXT NULL", ct);
+            var accessColumns = await db.Database.SqlQueryRaw<string>(
+                "SELECT name AS Value FROM pragma_table_info('ProviderOfferingAccessRequests')").ToListAsync(ct);
+            if (accessColumns.Count > 0 && !accessColumns.Contains("CorrectionStatus", StringComparer.OrdinalIgnoreCase))
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProviderOfferingAccessRequests ADD COLUMN [CorrectionStatus] TEXT NOT NULL DEFAULT 'None'", ct);
+            if (accessColumns.Count > 0 && !accessColumns.Contains("CorrectionMessage", StringComparer.OrdinalIgnoreCase))
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE ProviderOfferingAccessRequests ADD COLUMN [CorrectionMessage] TEXT NOT NULL DEFAULT ''", ct);
         }
         logger.LogInformation("Verified additive provider authorization schema for {Provider}", db.Database.ProviderName);
     }
@@ -172,6 +178,7 @@ public static class ProviderAuthorizationSchemaAdditions
                 DataTypes {Short(256)} NOT NULL, Interconnect {Short(256)} NOT NULL,
                 EstimateResult {Short(32)} NOT NULL, EstimateRationale {Short(2000)} NOT NULL,
                 DecidedBy {Short(254)} NULL, DecidedAt {date} NULL,
+                CorrectionStatus {Short(32)} NOT NULL, CorrectionMessage {Short(2000)} NOT NULL,
                 {Reference("TargetTenantId", "Tenants")}
                 """,
             ["ProviderScopeFitRecords"] = $"""
@@ -242,8 +249,12 @@ public static class ProviderAuthorizationSchemaAdditions
         Index("ProviderClaimReviews", "CandidateId");
         Index("ProviderPackageEnrichments", "PackageId");
         if (sqlServer)
+        {
             foreach (var (name, length) in IdentityColumns)
                 scripts.Add($"IF COL_LENGTH(N'dbo.ProviderOfferings', N'{name}') IS NULL ALTER TABLE dbo.ProviderOfferings ADD [{name}] nvarchar({length}) NULL;");
+            scripts.Add("IF OBJECT_ID(N'dbo.ProviderOfferingAccessRequests', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.ProviderOfferingAccessRequests', N'CorrectionStatus') IS NULL ALTER TABLE dbo.ProviderOfferingAccessRequests ADD [CorrectionStatus] nvarchar(32) NOT NULL CONSTRAINT [DF_ProviderOfferingAccessRequests_CorrectionStatus] DEFAULT N'None';");
+            scripts.Add("IF OBJECT_ID(N'dbo.ProviderOfferingAccessRequests', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.ProviderOfferingAccessRequests', N'CorrectionMessage') IS NULL ALTER TABLE dbo.ProviderOfferingAccessRequests ADD [CorrectionMessage] nvarchar(2000) NOT NULL CONSTRAINT [DF_ProviderOfferingAccessRequests_CorrectionMessage] DEFAULT N'';");
+        }
         return scripts;
 
         void Index(string table, string fields, bool unique = false)

@@ -145,6 +145,8 @@ public sealed class ProviderOfferingAccessRequest : ProviderOwnedRow
     [MaxLength(2000)] public string EstimateRationale { get; set; } = "";
     [MaxLength(254)] public string? DecidedBy { get; set; }
     public DateTimeOffset? DecidedAt { get; set; }
+    [MaxLength(32)] public string CorrectionStatus { get; set; } = "None";
+    [MaxLength(2000)] public string CorrectionMessage { get; set; } = "";
 }
 
 /// <summary>Declared-use scope fit for one assignment. Not an impact-review disposition and not an ATO.</summary>
