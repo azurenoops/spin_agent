@@ -14,6 +14,9 @@ vi.mock('../../features/provider-relationships/api', async importOriginal => ({
   listSystemHostingAllocations: vi.fn(), listApplicableProviderCapabilities: vi.fn(),
   listAllSystemHostingAllocations: vi.fn(),
   associateProviderRelationship: vi.fn(), proposeProviderCapabilityAdoption: vi.fn(),
+  listOfferingAccess: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })),
+  listRequestableOfferings: vi.fn(async () => []),
+  requestOfferingAccess: vi.fn(),
 }));
 vi.mock('../../features/workspace-operations/api', () => ({ listSetupSystems: vi.fn(), getSetupSystem: vi.fn() }));
 vi.mock('../../features/provider-relationships/adoptionPreparation', async importOriginal => ({

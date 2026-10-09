@@ -1,0 +1,53 @@
+#toast.show{display:block}
+.statusline{display:flex;justify-content:space-between;align-items:center;padding:12px 17px;border:1px solid #dedaf5;border-radius:8px;background:#f1effc;margin-bottom:22px;gap:12px;font-size:12px}
+.workspace-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:25px;align-items:start}
+.support-col{border-left:2px solid #d9d3f9;padding-left:18px}
+.support-col h3{margin:0 0 8px;font-size:13px}
+.support-col p{font-size:12px}
+.drawer-backdrop{position:fixed;inset:0;background:#20223970;z-index:40}
+.drawer{position:fixed;top:0;right:0;z-index:41;display:flex;flex-direction:column;width:min(32rem,100%);height:100vh;background:#fff;border-left:1px solid #dfe4ed}
+.drawer[hidden],.drawer-backdrop[hidden]{display:none}
+.drawer header{display:flex;justify-content:space-between;gap:12px;padding:18px 20px 12px;border-bottom:1px solid #dfe4ed}
+.drawer header h2{font-size:16px;margin:4px 0 6px}
+.drawer-body{flex:1;overflow:auto;padding:18px 20px}
+.drawer-actions{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid #dfe4ed}
+.drawer .fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.drawer .field.full,.fields .full{grid-column:1/-1}
+.sd-gov{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px;margin-bottom:16px;padding:16px 18px;border:1px solid #dfe4ed;border-radius:10px;background:#fff}
+.sd-gov h3{margin:0 0 8px;font-size:15px}
+.sd-gov .metrics{margin:0}
+.sd-canvas{display:flex;flex-wrap:wrap;gap:12px;min-height:160px;padding:18px;border:1px dashed #c9c2f3;border-radius:10px;background:#faf9ff;margin:12px 0}
+.sd-node{display:flex;flex-direction:column;align-items:flex-start;min-width:140px;background:#fff;border:1px solid #dfe4ed;border-radius:9px;padding:12px 14px;text-align:left}
+.sd-node b{font-size:13px}
+.sd-node small{color:#68748c;margin-top:4px}
+.sd-node.active{border-color:#c9c2f3;background:#eeebff;color:#5143d7}
+.rmf-journey{min-height:0}
+@media (max-width:1050px){.workspace-grid,.sd-gov{grid-template-columns:1fr}}
+
+.workspace-strip{background:#f0effb;padding:12px 24px;display:flex;justify-content:space-between;border-bottom:1px solid #dedcf1;font-size:13px}
+.workspace-strip span{color:#68748c}
+.topbar.org-topbar{height:auto;min-height:65px;padding:15px 24px;gap:27px}
+.orgtops{display:flex;align-items:center;gap:27px;font-size:13px}
+.orgtops button{border:0;background:transparent;color:#68748c;padding:0;font-size:13px;font-weight:400}
+.orgtops button.active{color:#5143d7;font-weight:650}
+.layout{grid-template-columns:220px minmax(0,1fr)}
+aside{padding:23px 12px}
+aside small{font-size:10px;letter-spacing:1.3px;color:#79849a;margin:12px;display:block;text-transform:uppercase}
+aside button{display:block;width:100%;border:0;text-align:left;background:none;margin:5px 0;padding:12px;color:#33405b;border-radius:7px}
+aside button.active{background:#eeebff;color:#5143d7;font-weight:650}
+aside button:hover{background:#f4f2ff}
+#tabs{display:flex;overflow:auto;gap:20px;border-bottom:1px solid #dfe4ed;margin-bottom:25px}
+#tabs:empty{display:none}
+#tabs button{border:0;border-radius:0;background:transparent;padding:11px 0 13px;white-space:nowrap;color:#69748c;font-size:12px;font-weight:400}
+#tabs button.active{color:#5143d7;border-bottom:2px solid #5143d7}
+.mode-attached td:first-child{box-shadow:inset 3px 0 0 var(--purple)}
+.mode-imported td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+.fact.warn{background:#fbf4e8}
+.duty-inherited{opacity:.72}
+body.org-home .layout{grid-template-columns:1fr}
+body.org-home aside{display:none}
+@media (max-width:800px){
+  .facts,.compare,.metrics{grid-template-columns:1fr}
+  body:not(.org-home) .layout{grid-template-columns:220px minmax(0,1fr)}
+  body:not(.org-home) aside{display:block}
+}

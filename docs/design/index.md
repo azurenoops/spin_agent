@@ -10,6 +10,8 @@ Any intentional deviation needs explicit user approval.
 | Suite | Interactive design | Gallery | Interpretation |
 |---|---|---|---|
 | Provider workspace and mission handoff | [Open provider](provider-workspace-mock/index.html) | [Provider gallery](provider-workspace-mock/gallery.html) | 36 screens, including eight Systems companions |
+| CSP home + impact IA (proposed overlay) | [Open home/impact mock](csp-home-impact-mock/index.html) | — | Interactive Home, Tenant impact, Per-MO impact, What-if. Not a Feature 079 required target yet |
+| MO / Org portal IA (proposed overlay) | [Open MO/Org mock](mo-org-portal-mock/index.html) | — | Interactive portfolio, create, eMASS import, adopt, residual, narratives, package, ConMon. Not a Feature 079 required target yet |
 | Systems workspace | [Open Systems](system-overview-mock/pages.html) | [Systems gallery](system-overview-mock/gallery.html) | 30 pages plus [overview scenarios](system-overview-mock/index.html) |
 
 All mock records, permissions, dates, counts, cloud behavior and interactions are
@@ -39,6 +41,8 @@ rendered site guides.
 ## Research and implementation plan
 
 - [Provider product validation](csp-product-validation-2026-09-26.md)
+- [CSP portal product brief overlay](csp-portal-product-brief.md) ([clickable IA](csp-portal-product-brief.html)) — product intent mapped onto the live provider workspace, including RMF bounds and CSP value; does not replace the required mocks
+- [MO / Org portal product brief](mo-org-portal-product-brief.md) ([clickable IA](mo-org-portal-product-brief.html), [interactive mock](mo-org-portal-mock/index.html)) — standalone vs CSP-attached, eMASS import, residual work against pinned inheritance; overlay of `/workspaces/organizations/{tenantId}`; does not replace the required Systems mock
 - [System product-goal audit](system-product-goal-audit-2026-09-26.md)
 - [Feature 079 specification](../../specs/079-provider-system-workflow-consolidation/spec.md)
 - [Implementation sequence](../../specs/079-provider-system-workflow-consolidation/plan.md)

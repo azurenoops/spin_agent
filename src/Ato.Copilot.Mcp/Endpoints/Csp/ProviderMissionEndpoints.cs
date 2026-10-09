@@ -37,6 +37,21 @@ public static class ProviderMissionEndpoints
                 assignmentId, offeringId, environment, capabilityId, releaseId, ct)))
             .WithName("ListApplicableProviderCapabilities").WithSummary("Read exact published offering capabilities for this system's allocations.")
             .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(503);
+        group.MapGet("/offering-access", (string systemId, int? page, int? pageSize, HttpContext http,
+            IProviderMissionService service, CancellationToken ct) =>
+            ExecuteProjectionAsync(http, () => service.AccessRequestsAsync(systemId, page ?? 1, pageSize ?? 25, ct)))
+            .WithName("ListMissionOfferingAccess").WithSummary("Read this system's offering access requests. Not inheritance.")
+            .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(503);
+        group.MapGet("/requestable-offerings", (string systemId, HttpContext http,
+            IProviderMissionService service, CancellationToken ct) =>
+            ExecuteProjectionAsync(http, () => service.RequestableOfferingsAsync(systemId, ct)))
+            .WithName("ListRequestableOfferings").WithSummary("Active offerings this system may request access to.")
+            .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(503);
+        group.MapPost("/offering-access", (string systemId, RequestOfferingAccessRequest body,
+            HttpContext http, IProviderMissionService service, CancellationToken ct) =>
+            ExecuteProjectionAsync(http, () => service.RequestAccessAsync(systemId, body, Actor(http), ct)))
+            .WithName("RequestOfferingAccess").WithSummary("Request offering access with declared use. Not allocate, associate, or inherit.")
+            .Produces(200).Produces(400).Produces(401).Produces(403).Produces(404).Produces(409).Produces(503);
         group.MapPost("/provider-capability-adoptions", (string systemId, AdoptProviderCapabilityRequest body,
             HttpContext http, IProviderMissionService service, CancellationToken ct) =>
             ExecuteProjectionAsync(http, () => service.AdoptAsync(systemId, body, Actor(http), ct, Key(http))))

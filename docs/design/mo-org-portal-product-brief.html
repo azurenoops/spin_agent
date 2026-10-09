@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MO / Org portal product brief</title>
+  <style>
+    :root {
+      --text: #17263c; --muted: #526277; --faint: #7a8796; --line: #d7dee8;
+      --bg: #f6f8fb; --surface: #ffffff; --accent: #2457a7; --accent-soft: #e8f0fb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; color: var(--text); background: var(--bg); }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 24px 64px; }
+    h1 { font-size: 28px; line-height: 1.2; font-weight: 650; margin: 0 0 8px; }
+    h2 { font-size: 18px; margin: 0 0 10px; font-weight: 650; }
+    h3 { font-size: 14px; margin: 16px 0 8px; font-weight: 650; }
+    p { margin: 0 0 10px; }
+    .muted { color: var(--muted); }
+    .kicker { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin-bottom: 16px; }
+    nav.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 24px; }
+    nav.tabs button, .pill, .btn {
+      border: 1px solid var(--line); background: var(--surface); color: var(--text);
+      border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
+    }
+    nav.tabs button.active, .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+    .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+    .stat strong { display: block; font-size: 18px; }
+    .stat span { color: var(--muted); font-size: 12px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13px; }
+    th { font-size: 12px; color: var(--muted); font-weight: 600; background: #eef2f7; }
+    tr:last-child td { border-bottom: 0; }
+    .callout { border: 1px solid var(--line); background: var(--accent-soft); border-radius: 8px; padding: 12px 14px; margin: 16px 0; }
+    .callout.warn { background: #fbf4e8; }
+    .ia { display: grid; grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.4fr); gap: 24px; align-items: start; }
+    .screen { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+    .group { margin-bottom: 12px; }
+    .group-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); margin-bottom: 6px; }
+    .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    pre { white-space: pre-wrap; font: 13px/1.45 ui-monospace, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+    @media (max-width: 800px) { .stats, .split, .ia { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">MO / Org portal · product brief · source of truth · 2026-10-09 · counterpart to CSP brief</div>
+    <nav class="tabs" id="tabs">
+      <button class="active" data-tab="overview">Overview</button>
+      <button data-tab="modes">Standalone vs attached</button>
+      <button data-tab="emass">eMASS import</button>
+      <button data-tab="residual">Residual work</button>
+      <button data-tab="rmf">RMF functions</button>
+      <button data-tab="definition">System definition</button>
+      <button data-tab="personas">Personas</button>
+      <button data-tab="epics">Epics</button>
+      <button data-tab="live">Live routes</button>
+      <button data-tab="ia">Clickable IA</button>
+    </nav>
+
+    <section class="panel active" id="overview">
+      <h1>MO / Org portal product brief</h1>
+      <p>Where a mission creates or imports a system and drives it to a documented package. It can run <strong>standalone</strong> or <strong>attach</strong> to a CSP offering and adopt a <strong>pinned inheritance release</strong> the CSP portal published.</p>
+      <p class="muted">Not a second app — overlay <code>/workspaces/organizations/{tenantId}</code>. Saving a form is not an ATO. Export is not eMASS receipt. Attachment is not accepted inheritance.</p>
+      <div class="stats">
+        <div class="stat"><strong>Standalone</strong><span>Full baseline; no cloud offering</span></div>
+        <div class="stat"><strong>CSP-attached</strong><span>Adopt a pinned release; residual work remains</span></div>
+        <div class="stat"><strong>eMASS import</strong><span>Working copy; eMASS stays system of record where required</span></div>
+      </div>
+      <div class="callout"><strong>Job to be done.</strong> Make the next residual documentation task obvious, reuse what the CSP published where it is valid, and keep package facts honest.</div>
+      <p><a href="csp-portal-product-brief.html">CSP portal brief</a> · <a href="system-overview-mock/pages.html">Systems mock (079 required)</a> · <a href="mo-org-portal-mock/index.html">Interactive MO/Org mock</a>. Current map: <strong>Live routes</strong> and <strong>RMF functions</strong> (narratives stay on this system).</p>
+    </section>
+
+    <section class="panel" id="modes">
+      <h1>Standalone vs CSP-attached</h1>
+      <p>Same system record. Attachment is optional and reversible. An organization can complete ATO with no CSP (#1023).</p>
+      <table>
+        <thead><tr><th></th><th>Standalone</th><th>CSP-attached</th></tr></thead>
+        <tbody>
+          <tr><td>Inheritance</td><td>None from a cloud offering</td><td>Adopt a pinned CSP inheritance release</td></tr>
+          <tr><td>Control work</td><td>Full selected baseline</td><td>Residual: customer + remaining shared</td></tr>
+          <tr><td>Evidence</td><td>All local</td><td>Local + permitted CSP summaries</td></tr>
+          <tr><td>CSP change</td><td>N/A</td><td>Adopted release drifts; not auto-upgraded</td></tr>
+        </tbody>
+      </table>
+      <h2>Attach sequence (keep distinct)</h2>
+      <p>1. Subscribe / access (CSP what-if) — not inheritance.<br>
+         2. Associate system to offering — not inheritance.<br>
+         3. <strong>Adopt pinned release</strong> — this is inheritance.<br>
+         4. Confirm residual duties remain open.<br>
+         5. Declare use (IL, data, connections) for CSP scope-fit — not an SSP body share.</p>
+      <div class="callout warn">Pick the offering that matches the authorization you need. FedRAMP Moderate does not cover an IL5 mission. A CMMC contractor still owns 800-171 on their environment.</div>
+    </section>
+
+    <section class="panel" id="emass">
+      <h1>eMASS import</h1>
+      <p>eMASS remains the DoD system of record where required. This portal is the working layer.</p>
+      <p>Import package metadata as source-backed records with provenance. Do not fabricate missing authorization metadata. Re-import keeps conflicts explicit. Export/stage is package preparation — not submission receipt, not the AO decision.</p>
+      <p class="muted">An imported “Authorized” status is a recorded external fact, not something this portal issued. Import does not create inheritance. Attach after import still requires adopt + residual confirmation.</p>
+    </section>
+
+    <section class="panel" id="residual">
+      <h1>Residual package work</h1>
+      <p>After a pinned release is adopted, the MO package is not empty.</p>
+      <table>
+        <thead><tr><th>Residual</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Customer-implemented</td><td>Still implement, evidence, assess</td></tr>
+          <tr><td>Shared duties</td><td>Confirm the customer half; link permitted CSP evidence</td></tr>
+          <tr><td>Inherited</td><td>Cite the adopted release; do not re-collect CSP evidence</td></tr>
+          <tr><td>Drift</td><td>CSP published r3; you are on r2 — review, then adopt or stay with rationale</td></tr>
+          <tr><td>Out of scope (CSP view)</td><td>Correct declaration, detach, or wait for a CSP significant change. Do not edit their CRM</td></tr>
+        </tbody>
+      </table>
+      <h2>Four package facts (never collapse)</h2>
+      <p>1. Preparation / readiness · 2. Export · 3. eMASS submission / receipt · 4. AO decision. A ready form is not 2–4.</p>
+    </section>
+
+    <section class="panel" id="rmf">
+      <h1>RMF functions</h1>
+      <p>The thin IA is the primary path. Narratives and the other RMF jobs stay on existing Systems screens. They do not move to the CSP portal.</p>
+      <table>
+        <thead><tr><th>RMF job</th><th>Brief slot</th><th>Live route</th><th>Standalone</th><th>CSP-attached</th></tr></thead>
+        <tbody>
+          <tr><td>Categorize</td><td>Create / import, then definition</td><td><code>profile/…</code>, <code>boundaries</code></td><td>Full local boundary</td><td>Same, plus declared use for CSP scope-fit</td></tr>
+          <tr><td>Select</td><td>Residual after adopt, or full baseline</td><td><code>baseline</code>, <code>security-capabilities</code></td><td>Full selected baseline</td><td>Subtract adopted pinned release only after adopt</td></tr>
+          <tr><td>Implement</td><td>Residual duties + evidence</td><td><code>inheritance/subscriptions</code>, <strong><code>narratives</code></strong>, <code>evidence</code>, <code>legal</code></td><td>All narratives are ours</td><td>Inherited cite the pinned release. Residual narratives stay here</td></tr>
+          <tr><td>Assess</td><td>This portal (no extra IA tile)</td><td><code>assessments</code>, <code>remediation</code></td><td>This system’s SAP/SAR</td><td>Assess residual set. CSP SAR is not yours</td></tr>
+          <tr><td>Authorize</td><td>Package four facts</td><td><code>documents</code>, <code>emass/status</code>, <code>authorize</code></td><td>Record AO / external decision</td><td>Same. Adopt is not an MO ATO</td></tr>
+          <tr><td>Monitor</td><td>System ConMon</td><td><code>conmon</code></td><td>This system’s recorded resources</td><td>Still this system only</td></tr>
+        </tbody>
+      </table>
+      <h2>Narratives</h2>
+      <p><code>/systems/:id/narratives</code> — Controls &amp; evidence. Standalone: author every statement here. Attached: inherited cite the adopted release; residual still get MO narratives. Do not pull the CSP SSP body. eMASS source review today is identity-only; imported narratives later stay working copies, not a replacement of eMASS.</p>
+      <p class="muted">Supporting, not a seventh phase: <code>poam</code>, <code>deviations</code>, <code>roles</code>, <code>history</code>.</p>
+      <div class="callout warn">CSP ISSM may see declared use on the CSP portal. They must not read this SSP/SAR/POA&amp;M from that portal. This portal does not run CSP offering ConMon.</div>
+      <h2>Out of bounds</h2>
+      <div class="split">
+        <div>
+          <p>Issuing the MO or CSP ATO.</p>
+          <p>Inheritance from attach or allocation.</p>
+          <p>Silent upgrade to newest CSP release.</p>
+          <p>FedRAMP Moderate as IL5 coverage.</p>
+        </div>
+        <div>
+          <p>CMMC certificate because the cloud is FedRAMP.</p>
+          <p>eMASS import as replacing eMASS.</p>
+          <p>cATO from a green scan.</p>
+          <p>CSP reading this package as oversight.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="definition">
+      <h1>System definition tabs</h1>
+      <p>RMF Categorize and the SSP system description. Overlay of live System definition. A saved draft is not an approved SSP and not an ATO. Provider hosting is an extra tab on Environment only — not a left-nav item.</p>
+      <table>
+        <thead><tr><th>Tab</th><th>Live route</th><th>On this screen</th><th>Never</th></tr></thead>
+        <tbody>
+          <tr><td>Mission</td><td><code>profile/MissionAndPurpose</code></td><td>Name, purpose, who depends</td><td>Mission saved = ATO</td></tr>
+          <tr><td>Users</td><td><code>profile/UsersAndAccess</code></td><td>Populations and access needs</td><td>Granting Entra/CAC or ISSM roles</td></tr>
+          <tr><td>Environment &amp; hosting</td><td><code>profile/EnvironmentAndDeployment</code></td><td>Where it runs; org-managed vs allocated offering</td><td>Association = inheritance</td></tr>
+          <tr><td>Provider hosting (extra)</td><td><code>provider-relationships</code></td><td>Request, declare use, CSP what-if status. CSP declared-use corrections land here</td><td>Inheritance; SSP body share; correction ≠ revoke / ATO</td></tr>
+          <tr><td>Data</td><td><code>profile/DataTypes</code></td><td>CUI / PII candidates as categorization inputs</td><td>Approving FIPS 199 or a PTA/PIA</td></tr>
+          <tr><td>Components &amp; system scope</td><td><code>boundaries</code></td><td>Inclusion decisions; save scope draft ≠ approved baseline</td><td>Whole CSP cloud inside this boundary because of attach</td></tr>
+          <tr><td>Ports &amp; interconnections</td><td><code>profile/PortsProtocolsAndServices</code></td><td>Permitted flows and external systems</td><td>Port row = authorization to connect</td></tr>
+          <tr><td>System design</td><td><code>profile/SystemDesign</code></td><td>Six views; build from recorded tabs; save draft / submit for review</td><td>Canvas = authorized design; completeness % = ATO</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">Standalone: hosting deferred is valid (#1023). Attached: association records where it runs; adopt a pinned release is Controls &amp; evidence. ConMon later binds only to recorded in-scope resources.</p>
+      <h2>Overview</h2>
+      <p>Left nav: Readiness. Tabs: <strong>Package preparation</strong> · <strong>Monitoring &amp; follow-up</strong>. RMF journey browse does not record phase. A check does not approve, inherit, submit eMASS, or authorize. Four package milestones stay separate. CSP three-fact validity is the provider workspace.</p>
+      <h2>Controls &amp; evidence</h2>
+      <p>Select, then implement. Extra tab <strong>Control inheritance summary</strong> only on Applied capabilities / Responsibilities.</p>
+      <table>
+        <thead><tr><th>Tab</th><th>Live route</th><th>Never</th></tr></thead>
+        <tbody>
+          <tr><td>Categorization &amp; baseline</td><td><code>baseline</code></td><td>Selecting baseline = implemented; save = ATO</td></tr>
+          <tr><td>Applied capabilities</td><td><code>security-capabilities</code></td><td>Provider capability = inherited</td></tr>
+          <tr><td>Responsibilities</td><td><code>inheritance/subscriptions</code></td><td>Inherited = unimplemented; attach = CRM</td></tr>
+          <tr><td>Control inheritance summary</td><td><code>inheritance</code></td><td>Silent upgrade; association = inheritance</td></tr>
+          <tr><td>Narratives</td><td><code>narratives</code></td><td>Pulling CSP SSP/SAR</td></tr>
+          <tr><td>Evidence</td><td><code>evidence</code></td><td>Silent CSP files; unavailable = healthy</td></tr>
+          <tr><td>Policies</td><td><code>legal</code></td><td>Policy reference = ATO</td></tr>
+        </tbody>
+      </table>
+      <h2>Assessment &amp; risk</h2>
+      <p>SAP/SAR for <strong>this</strong> system. Extra tab <strong>Assessment environment</strong> only on plan/results. CSP SAR is not yours. Findings are not POA&amp;Ms. Submitted exceptions are not AO decisions.</p>
+      <table>
+        <thead><tr><th>Tab</th><th>Live route</th><th>Never</th></tr></thead>
+        <tbody>
+          <tr><td>Assessment plan</td><td><code>assessments?tab=plan</code></td><td>SAP save = executed; CSP SAR is yours</td></tr>
+          <tr><td>Assessments &amp; results</td><td><code>assessments</code></td><td>Collection = AO decision</td></tr>
+          <tr><td>Assessment environment</td><td><code>assessments/environment</code></td><td>Attachment = monitoring feed</td></tr>
+          <tr><td>Findings &amp; remediation</td><td><code>remediation</code></td><td>Finding = POA&amp;M or ATO</td></tr>
+          <tr><td>POA&amp;M</td><td><code>poam</code></td><td>Overdue = withdrawn ATO; export = eMASS receipt</td></tr>
+          <tr><td>Exceptions</td><td><code>deviations</code></td><td>Submission = AO decision</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" id="personas">
+      <h1>Personas</h1>
+      <table>
+        <thead><tr><th>Persona</th><th>Primary job</th><th>Must not</th></tr></thead>
+        <tbody>
+          <tr><td>Mission Owner</td><td>Create/import system, declare use, residual authoring</td><td>Treat attach as inheritance or ATO</td></tr>
+          <tr><td>ISSM</td><td>Review residual package, readiness, drift</td><td>Collapse export / submission / AO</td></tr>
+          <tr><td>ISSO</td><td>Customer evidence, local ConMon, POA&amp;Ms</td><td>Pull CSP private attachments</td></tr>
+          <tr><td>SCA</td><td>Assess residual set</td><td>Treat inherited as unimplemented without cause</td></tr>
+          <tr><td>AO</td><td>Record authorization decision</td><td>Be told the portal decided</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">CSP operators are counterparts, not users of this portal.</p>
+    </section>
+
+    <section class="panel" id="epics">
+      <h1>Epics</h1>
+      <table>
+        <thead><tr><th>ID</th><th>Epic</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td>M-E1</td><td>Create system</td><td>MVP</td></tr>
+          <tr><td>M-E2</td><td>eMASS import as working copy</td><td>MVP; provenance required</td></tr>
+          <tr><td>M-E3</td><td>Standalone = full baseline</td><td>MVP</td></tr>
+          <tr><td>M-E4</td><td>Adopt pinned CSP release</td><td>MVP with #1023 / #957</td></tr>
+          <tr><td>M-E5</td><td>Residual CRM / duties / evidence</td><td>MVP</td></tr>
+          <tr><td>M-E6</td><td>Drift when CSP publishes</td><td>With CSP C5</td></tr>
+          <tr><td>M-E7</td><td>Export vs submission vs AO</td><td>Track M1</td></tr>
+          <tr><td>M-E8</td><td>MO system ConMon (this system only)</td><td>Track M2</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" id="live">
+      <h1>Live Systems routes</h1>
+      <p>Walked this worktree’s route table and page copy, 2026-10-09. Not a signed-in session. Prefix <code>/workspaces/organizations/{tenantId}/…</code>. Overlay these routes; do not fork <code>MoPortal</code>.</p>
+      <table>
+        <thead><tr><th>IA screen</th><th>Live route</th><th>Today</th><th>Fit</th></tr></thead>
+        <tbody>
+          <tr><td>Org portfolio</td><td><code>/</code> and <code>/systems</code></td><td>Two homes. Coverage %, compliance, ATO counts. Add System on the list</td><td>Gap — not mode + residual task + drift</td></tr>
+          <tr><td>Create system</td><td><code>/systems/new</code> → SystemSetupJourney</td><td>Identity, source, hosting deferred. Not authorization or eMASS submission</td><td>Close — standalone by default</td></tr>
+          <tr><td>eMASS import</td><td>Setup sources + SystemSourceReview. Bulk org Step3. Later <code>/emass/status</code></td><td>Identity fields only (≤ 4 MiB). Status is round-trip vs export, not intake</td><td>Partial — not a full working-copy package</td></tr>
+          <tr><td>System overview</td><td><code>/systems/:id</code> Readiness</td><td>Next-actions. Readiness ≠ AO / eMASS. No adopted release or drift banner</td><td>Partial</td></tr>
+          <tr><td>Request offering access</td><td><code>/provider-relationships</code></td><td>Association is not allocation or subscription. CSP workspace cannot run this</td><td>Close for associate</td></tr>
+          <tr><td>Adopt pinned release</td><td>Wizard + <code>/inheritance</code> + <code>/inheritance/subscriptions</code></td><td>Per-capability adopt, not one CRM + evidence + recorded-authorization cite</td><td>Gap</td></tr>
+          <tr><td>Residual duties</td><td><code>/inheritance/subscriptions</code></td><td>Customer/shared confirm after allocation. Can go PendingReview</td><td>Close as workbench</td></tr>
+          <tr><td>Evidence</td><td><code>/evidence</code></td><td>All / System / Provider shared</td><td>Close</td></tr>
+          <tr><td>Package</td><td>ATO Readiness: documents, preview, exports, emass/status, authorize</td><td>Four facts already split. <strong>Issue Authorization</strong> still sits beside Record external decision</td><td>Close, with authorize conflict</td></tr>
+          <tr><td>System ConMon</td><td><code>/conmon</code></td><td>This system’s recorded resources</td><td>Close — watch Healthy vs Unavailable</td></tr>
+        </tbody>
+      </table>
+      <h2>Already aligned</h2>
+      <p>Org workspace overlay. Create does not claim an ATO. Association ≠ inheritance. eMASS source review does not overwrite AO facts. Package screens are separate. Evidence has provider-shared. ConMon is this system only.</p>
+      <h2>Track M gaps</h2>
+      <p>1. One portfolio language — not dual score homes.<br>
+         2. eMASS import as working copy — not identity-only plus later recon.<br>
+         3. One adopt-pinned-release step.<br>
+         4. Overview drift / residual banner.<br>
+         5. Authorize: keep record-external; Issue Authorization is out of bounds unless AO-in-product is an explicit exception.</p>
+    </section>
+
+    <section class="panel" id="ia">
+      <h1>Clickable information architecture</h1>
+      <p>Select a screen, then follow actions. IA, not production UI. Overlay existing Systems routes.</p>
+      <div class="ia">
+        <div id="sitemap"></div>
+        <div class="screen" id="screen"></div>
+      </div>
+      <h2>Primary paths</h2>
+      <table>
+        <thead><tr><th>Path</th><th>Done when</th></tr></thead>
+        <tbody>
+          <tr><td>Standalone to package</td><td>Readiness is honest; export is not called submission</td></tr>
+          <tr><td>Attach and inherit</td><td>Inherited controls cite the pinned release; customer work remains open</td></tr>
+          <tr><td>CSP published r3</td><td>Drift shown; adopt or stay with rationale; never silent upgrade</td></tr>
+          <tr><td>ConMon this system</td><td>Rules on recorded resources; unavailable ≠ no findings</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+  <script>
+    const screens = [
+      { id: "home", name: "Org portfolio", group: "Operate", live: "/ and /systems — two score homes (gap)", purpose: "Systems in this organization: standalone, attached, imported. Next residual task, not a compliance score.", sees: ["System name, mode (standalone / attached / imported)", "Adopted release vs drifted", "Package fact: prep / export / submitted / AO — separate"], actions: [{ label: "Create system", to: "create" }, { label: "Import from eMASS", to: "import" }, { label: "Open a system", to: "overview" }] },
+      { id: "create", name: "Create system", group: "Intake", live: "/systems/new → SystemSetupJourney (close)", purpose: "New authorization boundary. Does not attach a CSP or issue an ATO.", sees: ["Mission, categorization, boundary sketch", "Standalone by default"], actions: [{ label: "Save draft", to: "overview" }, { label: "Attach a CSP offering", to: "attach" }] },
+      { id: "import", name: "eMASS import", group: "Intake", live: "Setup sources + /emass/status recon (partial)", purpose: "Working copy of an existing eMASS package. eMASS stays system of record where required.", sees: ["What imported vs unreadable vs missing", "Recorded external authorization as fact, not issued here"], actions: [{ label: "Review imported system", to: "overview" }] },
+      { id: "overview", name: "System overview", group: "Operate", live: "/systems/:id Readiness (partial — no drift)", purpose: "Next documentation task. Four package facts never collapsed.", sees: ["Standalone or attached + adopted release", "Residual open duties", "Drift banner if CSP published newer"], actions: [{ label: "Residual duties", to: "residual" }, { label: "Adopt / review inheritance", to: "adopt" }, { label: "Package", to: "package" }] },
+      { id: "attach", name: "Request offering access", group: "Inheritance", live: "/provider-relationships (close for associate)", purpose: "Ask the CSP to subscribe. Not inheritance. CSP may run what-if on declared use.", sees: ["Offering, IL, declared data types", "Access: requested / approved / refused"], actions: [{ label: "After CSP approves, associate", to: "adopt" }] },
+      { id: "adopt", name: "Adopt pinned release", group: "Inheritance", live: "Wizard + /inheritance + /subscriptions (gap)", purpose: "This is inheritance: exact CRM + evidence summary + recorded offering authorization cites.", sees: ["Release r2 vs current r3 (drift)", "Inherited vs customer vs shared counts"], actions: [{ label: "Adopt r2", to: "residual" }, { label: "See residual work", to: "residual" }] },
+      { id: "residual", name: "Residual duties", group: "Package", live: "/inheritance/subscriptions + /narratives + /evidence (close as workbench)", purpose: "Customer and remaining shared work. Inherited stay cited, not re-implemented. Narratives stay on this system.", sees: ["Control list filtered to residual", "MO narratives for residual controls; inherited cite the pinned release", "Permitted CSP evidence summaries", "Open POA&Ms that are ours"], actions: [{ label: "Evidence", to: "evidence" }, { label: "Package readiness", to: "package" }] },
+      { id: "evidence", name: "Evidence", group: "Package", live: "/evidence — All / System / Provider shared (close)", purpose: "Local customer evidence plus shares the CSP allowed. No silent CSP private files.", sees: ["Local artifacts", "Shared summaries with age", "Unavailable share ≠ healthy"], actions: [{ label: "Back to residual", to: "residual" }] },
+      { id: "package", name: "Package", group: "Package", live: "ATO Readiness screens (close; Issue Authorization conflict)", purpose: "Preparation, export, submission, AO decision as four facts.", sees: ["Readiness gaps on residual set", "Export is not receipt", "Imported AO status is recorded, not issued"], actions: [{ label: "ConMon this system", to: "conmon" }] },
+      { id: "conmon", name: "System ConMon", group: "Sustain", live: "/conmon (close — this system only)", purpose: "This system’s recorded resources only. Not CSP offering ConMon.", sees: ["Rules, last collection, gaps", "Unavailable telemetry is not zero findings"], actions: [{ label: "Back to overview", to: "overview" }] }
+    ];
+    const byId = Object.fromEntries(screens.map(s => [s.id, s]));
+    const groups = [
+      { name: "Operate", ids: ["home", "overview"] },
+      { name: "Intake", ids: ["create", "import"] },
+      { name: "Inheritance", ids: ["attach", "adopt"] },
+      { name: "Package", ids: ["residual", "evidence", "package"] },
+      { name: "Sustain", ids: ["conmon"] }
+    ];
+    function render(id) {
+      const s = byId[id];
+      document.getElementById("sitemap").innerHTML = groups.map(g =>
+        `<div class="group"><div class="group-label">${g.name}</div><div class="pills">${g.ids.map(sid =>
+          `<button class="pill ${sid === id ? "active" : ""}" data-screen="${sid}">${byId[sid].name}</button>`).join("")}</div></div>`).join("");
+      document.getElementById("screen").innerHTML =
+        `<div class="group-label">${s.group}</div><h2>${s.name}</h2><p>${s.purpose}</p>
+         <p class="muted">Live: ${s.live}</p>
+         <h3>On this screen</h3>${s.sees.map(i => `<p class="muted">${i}</p>`).join("")}
+         <h3>Actions</h3><div class="actions">${s.actions.map(a =>
+           `<button class="${a.to ? "btn primary" : "btn"}" ${a.to ? `data-screen="${a.to}"` : ""}>${a.label}</button>`).join("")}</div>`;
+    }
+    document.getElementById("ia").addEventListener("click", e => {
+      const t = e.target.closest("[data-screen]");
+      if (t) render(t.getAttribute("data-screen"));
+    });
+    document.getElementById("tabs").addEventListener("click", e => {
+      const btn = e.target.closest("button[data-tab]");
+      if (!btn) return;
+      document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === btn.dataset.tab));
+    });
+    render("home");
+  </script>
+</body>
+</html>

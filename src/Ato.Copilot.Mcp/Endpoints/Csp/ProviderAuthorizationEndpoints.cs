@@ -50,6 +50,30 @@ public static class ProviderAuthorizationEndpoints
             .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status404NotFound).Produces(StatusCodes.Status503ServiceUnavailable)
             .WithMetadata(new ProviderOnboardingPreparation());
+        group.MapGet("/{id:guid}/access-requests", (Guid id, HttpContext http, IProviderAuthorizationService service,
+            int? page, int? pageSize, CancellationToken ct) =>
+            ExecuteAsync(http, () => service.AccessRequestsAsync(id, page ?? 1, pageSize ?? 25, ct)))
+            .WithName("ListOfferingAccessRequests")
+            .WithSummary("CSP inbox for offering access requests originated by Mission Owners.")
+            .Produces(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound);
+        group.MapPost("/{id:guid}/access-requests/{requestId:guid}/estimate", (Guid id, Guid requestId,
+            HttpContext http, IProviderAuthorizationService service, CancellationToken ct) =>
+            ExecuteAsync(http, () => service.EstimateAccessAsync(id, requestId, ct)))
+            .WithName("EstimateOfferingAccess")
+            .WithSummary("Estimate declared-use scope fit. Not an authorization decision.")
+            .Produces(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound);
+        group.MapPost("/{id:guid}/access-requests/{requestId:guid}/decide", (Guid id, Guid requestId,
+            DecideOfferingAccessRequest body, HttpContext http, IProviderAuthorizationService service, CancellationToken ct) =>
+            ExecuteAsync(http, () => service.DecideAccessAsync(id, requestId, body.Decision, Actor(http), ct)))
+            .WithName("DecideOfferingAccess")
+            .WithSummary("Approve or refuse offering access. Approve is not allocate, associate, or inherit.")
+            .Produces(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound);
         group.MapPost("/{id:guid}/missions/{assignmentId:guid}/scope-fit", (Guid id, Guid assignmentId,
             RecordScopeFitRequest body, HttpContext http, IProviderAuthorizationService service, CancellationToken ct) =>
             ExecuteAsync(http, () => service.RecordScopeFitAsync(id, assignmentId, body, Actor(http), ct)))

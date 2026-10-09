@@ -46,6 +46,9 @@ public interface IProviderMissionService
 {
     Task AuthorizeAsync(string systemId, bool manage, bool covered, CancellationToken ct);
     Task<PagedResult<MissionProviderRelationshipResponse>> RelationshipsAsync(string systemId, int page, int pageSize, CancellationToken ct);
+    Task<PagedResult<OfferingAccessResponse>> AccessRequestsAsync(string systemId, int page, int pageSize, CancellationToken ct);
+    Task<OfferingAccessResponse> RequestAccessAsync(string systemId, RequestOfferingAccessRequest request, string actor, CancellationToken ct);
+    Task<IReadOnlyList<RequestableOfferingResponse>> RequestableOfferingsAsync(string systemId, CancellationToken ct);
     Task<MissionProviderRelationshipResponse> AssociateAsync(string systemId, CreateMissionProviderRelationshipRequest request,
         string actor, CancellationToken ct, string? key = null);
     Task<MissionProviderRelationshipPreviewResponse> PreviewAsync(string systemId, Guid relationshipId,

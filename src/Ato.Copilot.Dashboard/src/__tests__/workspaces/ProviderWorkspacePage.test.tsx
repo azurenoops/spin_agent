@@ -26,6 +26,8 @@ vi.mock('../../features/workspace-operations/api', async original => ({
 
 vi.mock('../../features/provider-authorizations/api', () => ({
   listOfferings: vi.fn(), getOfferingOverview: vi.fn(), listImpactReviews: vi.fn(), getBoundaryOverview: vi.fn(),
+  listOfferingAccessRequests: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })),
+  estimateOfferingAccess: vi.fn(), decideOfferingAccess: vi.fn(),
   listFindings: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 25 })), listFindingEvidence: vi.fn(),
   authorizationHref: (id?: string, part?: string) => `/authorizations${id ? `/offerings/${id}` : ''}${part ? `/${part}` : ''}`,
 }));

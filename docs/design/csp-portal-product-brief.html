@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CSP portal product brief</title>
+  <style>
+    :root {
+      --text: #17263c;
+      --muted: #526277;
+      --faint: #7a8796;
+      --line: #d7dee8;
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --accent: #2457a7;
+      --accent-soft: #e8f0fb;
+      --warn: #8a5a12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 24px 64px; }
+    h1 { font-size: 28px; line-height: 1.2; font-weight: 650; margin: 0 0 8px; }
+    h2 { font-size: 18px; margin: 0 0 10px; font-weight: 650; }
+    h3 { font-size: 14px; margin: 16px 0 8px; font-weight: 650; }
+    p { margin: 0 0 10px; }
+    .muted { color: var(--muted); }
+    .kicker { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin-bottom: 16px; }
+    nav.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 24px; }
+    nav.tabs button, .pill, .btn {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    nav.tabs button.active, .pill.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+    .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+    .stat strong { display: block; font-size: 18px; }
+    .stat span { color: var(--muted); font-size: 12px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13px; }
+    th { font-size: 12px; color: var(--muted); font-weight: 600; background: #eef2f7; }
+    tr:last-child td { border-bottom: 0; }
+    .callout { border: 1px solid var(--line); background: var(--accent-soft); border-radius: 8px; padding: 12px 14px; margin: 16px 0; }
+    .callout.warn { background: #fbf4e8; }
+    .ia { display: grid; grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.4fr); gap: 24px; align-items: start; }
+    .screen {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .group { margin-bottom: 12px; }
+    .group-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); margin-bottom: 6px; }
+    .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .sketch { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+    .sketch-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); margin-bottom: 10px; }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+    .metric { border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: var(--bg); }
+    .metric b { display: block; font-size: 16px; }
+    .metric small { color: var(--muted); font-size: 11px; display: block; margin-top: 4px; }
+    .metric.warn { background: #fbf4e8; }
+    .metric.danger { background: #f8ecec; }
+    .facts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .fact { border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+    .fact strong { display: block; font-size: 13px; }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .box { border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: var(--bg); }
+    .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); margin-right: 4px; }
+    .tag.danger { background: #f8ecec; }
+    .tag.warn { background: #fbf4e8; }
+    .tag.ok { background: #e8f4ea; }
+    .screen table { margin: 10px 0 4px; }
+    .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+    @media (max-width: 800px) {
+      .stats, .split, .ia, .metrics, .facts, .compare { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">CSP portal · product brief · source of truth · Fed/Civ · DoD · CMMC · 2026-10-09</div>
+    <nav class="tabs" id="tabs">
+      <button class="active" data-tab="overview">Overview</button>
+      <button data-tab="rmf">RMF bounds</button>
+      <button data-tab="markets">Fed/Civ · DoD · CMMC</button>
+      <button data-tab="personas">Personas</button>
+      <button data-tab="epics">Epics</button>
+      <button data-tab="model">Data model</button>
+      <button data-tab="waves">Waves</button>
+      <button data-tab="ia">Clickable IA</button>
+    </nav>
+
+    <section class="panel active" id="overview">
+      <h1>CSP portal product brief</h1>
+      <p>The CSP portal is the provider workspace for a tenant: productize offerings, keep the <strong>recorded</strong> parent authorization defensible, and show whether each Mission Owner’s declared use is still inside that authorization’s scope.</p>
+      <p class="muted">It does not run the MO package. It does not issue, extend, or withdraw an ATO. Attachment is not inheritance. A subscription in the CSP tenant is hosting, not inheritance. A recorded decision is not package readiness or monitoring health.</p>
+      <div class="stats">
+        <div class="stat"><strong>Offerings</strong><span>What MOs can attach to</span></div>
+        <div class="stat"><strong>Parent ATO</strong><span>Recorded authorization the tenant rests on</span></div>
+        <div class="stat"><strong>Scope fit</strong><span>In-scope, exception, or out of authorized scope</span></div>
+      </div>
+      <div class="callout"><strong>Job to be done.</strong> Prove that real tenant use still matches the authorized offering — to the AO, 3PAO, and the CSP ISSM — without reading every MO system package.</div>
+      <p><a href="mo-org-portal-product-brief.html">MO / Org portal brief</a> — standalone vs attached, eMASS import, residual work against pinned inheritance.</p>
+      <div class="split">
+        <div>
+          <h2>In scope</h2>
+          <p>Create, version, publish, deprecate, and retire offerings.</p>
+          <p>Maintain offering ATO facts, CSP evidence, and CSP POA&amp;Ms.</p>
+          <p>Publish CRM and pinned inheritance releases.</p>
+          <p>Approve offering access (from MO Provider hosting) and see per-MO plus aggregate scope fit.</p>
+          <p>What-if attach, significant change, and ConMon of the parent ATO.</p>
+        </div>
+        <div>
+          <h2>Out of scope here</h2>
+          <p>MO system creation, eMASS import, and residual control work — MO portal.</p>
+          <p>Issuing the MO authorization decision — MO AO, not CSP admin.</p>
+          <p>Broad read of MO SSP / assessment content as a shortcut to oversight.</p>
+          <p>Cloud telemetry product (scans, SIEM). Reuse facts; do not become the sensor.</p>
+        </div>
+      </div>
+      <h2>Success</h2>
+      <table>
+        <thead><tr><th>Measure</th><th>Means we succeeded</th></tr></thead>
+        <tbody>
+          <tr><td>Time to onboard an offering</td><td>CSP can publish boundary, CRM, and inheritance without a side PDF pack</td></tr>
+          <tr><td>Inheritance without rework</td><td>MOs adopt a pinned release; CSP evidence is not re-collected per tenant</td></tr>
+          <tr><td>Honest parent ATO</td><td>Dashboard separates validity, package readiness, and monitoring health</td></tr>
+          <tr><td>Impact is visible</td><td>Every attached MO has a scored effect; high-impact use is queued before it is silent</td></tr>
+          <tr><td>Change is downstream-aware</td><td>A new offering version shows which MOs must re-inherit</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" id="rmf">
+      <h1>RMF bounds and CSP value</h1>
+      <p>Expert review, 2026-10-09. The CSP portal is <strong>in RMF bounds and useful</strong> if it helps the CSP maintain <em>their</em> authorized offering and prove who inherited <em>what</em>. It is <strong>out of bounds</strong> the moment it issues, withdraws, or “scores” an ATO as if the portal were the Authorizing Official.</p>
+      <h2>Frozen wording</h2>
+      <table>
+        <thead><tr><th>Say</th><th>Mean</th><th>Never say</th></tr></thead>
+        <tbody>
+          <tr><td>Recorded authorization</td><td>The AO’s decision as recorded</td><td>We issued / manage / score the ATO</td></tr>
+          <tr><td>Pinned release</td><td>CRM + evidence summary + ATO cites at a version</td><td>The current ATO; inherited by attachment</td></tr>
+          <tr><td>In scope</td><td>Declared use inside published boundary, IL, and CRM</td><td>Healthy; authorized; green ATO</td></tr>
+          <tr><td>Exception</td><td>Still at IL; extra path, overlay, or skipped shared duty</td><td>Minor; ignore</td></tr>
+          <tr><td>Out of scope</td><td>Declared use is not covered by the recorded authorization</td><td>Invalidates / withdraws the ATO</td></tr>
+          <tr><td>Drifted</td><td>Adopted release ≠ current publication</td><td>Noncompliant; unauthorized</td></tr>
+          <tr><td>Scope fit</td><td>Whether declared use is inside the recorded authorization</td><td>Impact score; how the MO affects your ATO</td></tr>
+          <tr><td>Offering ConMon</td><td>Freshness of CSP-owned evidence and recorded decision dates</td><td>Monitoring all MO systems; cATO</td></tr>
+          <tr><td>MO system ConMon</td><td>That mission’s resources and customer-control evidence</td><td>CSP oversight feed; implied by attachment</td></tr>
+          <tr><td>Offering access</td><td>Approved to associate this system with the published offering</td><td>Inherited the ATO; allocated a sub</td></tr>
+          <tr><td>Azure allocation</td><td>Bound subscription / RG as hosting</td><td>Offering access; inheritance; monitoring feed</td></tr>
+          <tr><td>Associated</td><td>System recorded as running on the offering</td><td>Inherited; authorized; they have a sub</td></tr>
+          <tr><td>Adopt</td><td>Pinned inheritance release accepted</td><td>Attach; allocation; capability listed</td></tr>
+          <tr><td>IATT</td><td>Interim Authorization to Test: time-bounded test in a named env</td><td>ATO-lite; junior ATO; automatically becomes ATO</td></tr>
+          <tr><td>ATO</td><td>Authorization to Operate: operational use of mission data</td><td>IATT that graduated; three envs = three ATOs</td></tr>
+          <tr><td>Dev / Test / Prod</td><td>Hosting lanes the CSP allocated</td><td>Authorization decisions; IATT; ATO</td></tr>
+          <tr><td>Shared evidence summary</td><td>MO-permitted excerpt for a named shared duty</td><td>Raw MO subscription telemetry</td></tr>
+          <tr><td>FedRAMP authorization</td><td>Recorded civilian cloud authorization as stated</td><td>DoD ATO; IL4; CMMC certificate</td></tr>
+          <tr><td>DoD offering authorization</td><td>Recorded IL / PA / eMASS decision for that offering</td><td>FedRAMP Moderate counts as IL5</td></tr>
+          <tr><td>CMMC cloud eligibility</td><td>Recorded DFARS/FedRAMP Moderate or equivalency as stated</td><td>CMMC Authorized; we issued CMMC</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong>Sell this.</strong> We show which consumers are still inside the authorization we already have. <strong>Do not sell</strong> “we score how each MO affects your ATO” — AOs will hear that the tool makes authorization decisions.</div>
+      <h2>What the CSP is on the hook for</h2>
+      <p class="muted">NIST RMF / DoD RMF (same pattern in FedRAMP): the CSP owns the offering as a system. Mission Owners run their own RMF and leverage the CSP authorization only for in-scope services, at the authorized IL, on a specific release.</p>
+      <table>
+        <thead><tr><th>RMF job</th><th>CSP portal should</th></tr></thead>
+        <tbody>
+          <tr><td>Categorize / bound</td><td>Impact level, data types, services in/out of boundary</td></tr>
+          <tr><td>Select / implement</td><td>Provider-implemented controls + CRM (inherited / shared / customer)</td></tr>
+          <tr><td>Assess</td><td>CSP evidence for the <em>offering</em>, not the MO package</td></tr>
+          <tr><td>Authorize</td><td><strong>Record</strong> the AO’s decision. Do not issue it</td></tr>
+          <tr><td>Monitor</td><td>Offering ConMon only. Not MO-sub telemetry</td></tr>
+        </tbody>
+      </table>
+      <h2>Access, hosting, and inheritance (three yeses)</h2>
+      <p><strong>Finding, 2026-10-09 mock walk.</strong> “MO under a CSP” collapses three approvals. The CSP Access requests queue is <strong>offering access</strong>, not Azure RBAC and not leveraged authorization. The MO requests it on that system’s <strong>Provider hosting</strong> tab — not the CSP catalog.</p>
+      <table>
+        <thead><tr><th>Yes</th><th>Means</th><th>Where MO asks</th><th>Where CSP acts</th><th>Inherits offering ATO?</th></tr></thead>
+        <tbody>
+          <tr><td>Offering access</td><td>May be a consumer of the published offering</td><td>Provider hosting → Request, then declare use</td><td>Mission systems → Access requests → what-if → approve / refuse</td><td>No</td></tr>
+          <tr><td>Azure hosting</td><td>Where the system runs (sub / RG in the CSP tenant, or MO tenant)</td><td>Environment &amp; hosting; allocate after approve</td><td>Allocate / bind scope. Not the what-if screen</td><td>No</td></tr>
+          <tr><td>Pinned inheritance</td><td>Cite CRM + evidence + recorded authorization at a release</td><td>Control inheritance summary → adopt</td><td>Publish inheritance releases; show drift</td><td>Only after adopt</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong>Chicken or egg.</strong> A subscription in the CSP tenant often exists first. That is environment, not inheritance. Inheritance is never first. Order: system record → request access → declare use → CSP what-if → approve → allocate Azure → associate hosting → adopt pinned release → residual MO package. Out-of-scope declared use can sit in a CSP sub and remain out of authorized scope.</div>
+      <p class="muted">Request correction (per-MO impact) returns to Provider hosting to fix declared use. Access stays. Scope fit stays until resubmit + CSP re-score. Not Administration, not the MO SSP. Never: they have a sub, so they inherited our ATO. Never: Access requests = adopters. Never: approve = allocate = adopt.</p>
+      <p class="muted"><strong>Walk in the mocks:</strong> MO Systems → ISR Ground Station → Provider hosting → Request → Declare use (IATT + Dev; switch to Test for exception) → Send to CSP → CSP Access requests / what-if → approve → MO Allocate → Associate → Control inheritance summary → Adopt r2. Mission Planning stays pre-attached for correction and drift.</p>
+      <h2>IATT vs ATO (two authorization paths)</h2>
+      <p>Conversation shorthand “ITT” is <strong>IATT</strong> (Interim Authorization to Test). IATT and ATO are two AO decisions. Evidence from an IATT may feed an ATO package. The IATT decision does not become the ATO.</p>
+      <table>
+        <thead><tr><th></th><th>IATT</th><th>ATO</th></tr></thead>
+        <tbody>
+          <tr><td>AO question</td><td>May this be <em>tested</em>, in this env, for this window?</td><td>May this <em>operate</em>, with this data, for this mission?</td></tr>
+          <tr><td>Typical env</td><td>Dev / isolated test</td><td>Prod</td></tr>
+          <tr><td>Data</td><td>Test / synthetic</td><td>Mission data</td></tr>
+          <tr><td>Inheritance</td><td>Test CRM/release if recorded</td><td>Operational inheritance release</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong>Dev / Test / Prod are hosting.</strong> Three subscriptions (Flank Speed–style) are allocate/associate — not three ATOs. IATT scoped to Dev but executed in Test because Dev is locked is declared-use drift: IATT+Dev in scope (env); IATT+Test exception; IATT+Prod out of scope. A test inheritance release is not the prod release.</div>
+      <h2>How the CSP monitors inheritors (not MO systems)</h2>
+      <p>This brief is the source of truth. Specs and UI must not imply a CSP sensor on every Mission Owner subscription. Workload and customer-control evidence live on each MO’s subscriptions and in that MO’s package. Attachment does not create monitoring connectivity.</p>
+      <table>
+        <thead><tr><th>Job</th><th>Whose boundary</th><th>Where evidence lives</th><th>CSP portal</th></tr></thead>
+        <tbody>
+          <tr><td>Offering ConMon</td><td>CSP offering</td><td>CSP-owned evidence, CSP POA&amp;Ms, recorded decision dates</td><td>Yes — expiry, withdrawal, provider evidence age, release change</td></tr>
+          <tr><td>Scope fit</td><td>Recorded offering authorization</td><td>MO declaration + published CRM / IL / boundary</td><td>Yes — in scope / exception / out of scope. Not scans</td></tr>
+          <tr><td>MO system ConMon</td><td>Mission authorization</td><td>That system’s subs, logs, scans, customer-control evidence</td><td>No. MO workspace only</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong>Never imply MO-sub telemetry.</strong> Allocation or an approved subscription is not a monitoring feed, scan source, or complete evidence collection over the mission’s subscriptions. No share → unavailable, not “healthy, no findings.”</div>
+      <h2>In bounds and valuable (keep)</h2>
+      <table>
+        <thead><tr><th>#</th><th>What a CSP ISSM will pay for</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Defensible inheritance package — CRM + evidence summary + ATO cites, pinned as a release. Publishing CRM ≠ publishing inheritance ≠ authorization</td></tr>
+          <tr><td>2</td><td>Who is on which release, and drift after a change. Subscriber count is not risk</td></tr>
+          <tr><td>3</td><td>Out-of-scope use queued before the annual review (declared use vs published authorized use)</td></tr>
+          <tr><td>4</td><td>What-if at onboarding: does declared use fit the published boundary/CRM/IL — not “may they have an ATO?”</td></tr>
+          <tr><td>5</td><td>Offering ConMon + CSP POA&amp;Ms tied to releases</td></tr>
+          <tr><td>6</td><td>Three facts, never one light: validity vs package readiness vs monitoring health</td></tr>
+          <tr><td>7</td><td>Significant change → drifted adopters, no silent upgrade</td></tr>
+        </tbody>
+      </table>
+      <h2>Scope-fit language (keep the screens, change the claim)</h2>
+      <p class="muted">Fits / Exception / Invalidating is not a NIST control. There is no official score for “this customer invalidates us.” The ISSM question is: is declared use still inside the authorized scope we recorded?</p>
+      <table>
+        <thead><tr><th>UI label</th><th>RMF claim</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Fits</td><td>In-scope declared use</td><td>Eligible to inherit the pinned release</td></tr>
+          <tr><td>Exception</td><td>CRM / boundary exception</td><td>Still at IL; extra path, overlay, or skipped shared duty. Residual risk; needs a human</td></tr>
+          <tr><td>Invalidating</td><td>Out of authorized scope</td><td>Use exceeds IL, data type, or boundary. The recorded decision no longer covers that use. The ATO is not automatically void</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong>Non-negotiable.</strong> Out-of-scope use does not auto-withdraw the parent ATO. Input is declared use + published authorized use, both pinned to a version/release — not the MO SSP, scans, or a peek at the mission package.</div>
+      <h2>Out of bounds (drop or never imply)</h2>
+      <div class="split">
+        <div>
+          <p>Issuing, extending, or revoking the offering ATO from this portal.</p>
+          <p>Issuing the Mission Owner ATO.</p>
+          <p>Association, allocation, a CSP-tenant subscription, or a published capability treated as accepted inheritance.</p>
+          <p>Access requests queue treated as inheritance adoption, or MO requesting offering access from the CSP catalog.</p>
+          <p>One green “ATO health” tile.</p>
+          <p>IATT treated as ATO-lite, or as a decision that automatically becomes an ATO.</p>
+          <p>Dev / Test / Prod allocations treated as IATT or ATO. IATT in Test/Prod treated as in-scope because Dev was locked down.</p>
+        </div>
+        <div>
+          <p>Silent CRM edit to make a bad customer “fit.”</p>
+          <p>Cloud telemetry as proof of cATO.</p>
+          <p>Implied MO-sub telemetry — attached subscriptions as a CSP monitoring feed.</p>
+          <p>FedRAMP Moderate as a DoD IL authorization, or a FedRAMP date as a CMMC certificate.</p>
+          <p>One offering covering Fed/Civ, DoD, and CMMC without separate recorded decisions.</p>
+          <p>Broad read of MO narratives, SAR, or MO AO memos as “oversight.”</p>
+          <p>MO-package ATO counts as the CSP home.</p>
+        </div>
+      </div>
+      <h2>Build without a second system</h2>
+      <p>Engineering source of truth is the markdown brief. Overlay <code>/workspaces/csp</code>. E2 is a projection (no health table). E6 is one additive <code>ScopeFitRecord</code>. Do not fork a CSP app, overload change-impact, rebuild CRM in this slice, or leave two Overviews. Each PR names reuse, additive types, and duals closed or bounded.</p>
+      <h2>Verdict</h2>
+      <table>
+        <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+        <tbody>
+          <tr><td>In RMF bounds?</td><td>Yes as offering RMF + leveraged-auth operations. No as an ATO engine</td></tr>
+          <tr><td>Useful to a CSP?</td><td>Yes — CRM / inheritance / drift / out-of-scope queue is the gap PDFs do not fill</td></tr>
+          <tr><td>Provides value?</td><td>High, if recording vs issuing, attachment vs inheritance, and impact as scope fit not authorization stay intact</td></tr>
+          <tr>          <td>Cut?</td><td>Auto-withdraw, MO package body, one green light, implied MO-sub telemetry, FedRAMP-as-DoD-ATO, CMMC badge from a FedRAMP date</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" id="markets">
+      <h1>Fed/Civ, DoD, and CMMC</h1>
+      <p>Shorthand “CCMC” is treated as <strong>CMMC</strong> (Cybersecurity Maturity Model Certification) unless a named office or contract is specified. A CSP does not get one authorization for the government. Three programs reuse NIST controls but different AOs, packages, and customers.</p>
+      <div class="callout"><strong>Product rule.</strong> Model offerings per recorded authorization, not “the company is FedRAMP” as one ATO. Scope-fit is against that offering’s pinned release.</div>
+      <pre style="white-space:pre-wrap;font:13px/1.45 ui-monospace,monospace;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;">CSP offering (commercial product)
+ ├── Fed/Civ: FedRAMP (P-ATO or agency ATO) — NIST SP 800-53 Low/Moderate/High
+ ├── DoD: IL-authorized PA/ATO (IL2–IL6, SRG, often eMASS)
+ └── CMMC: not a CSP ATO — DIB contractors must use a qualifying cloud if they process CUI there</pre>
+      <table>
+        <thead><tr><th>Who</th><th>Need from the CSP</th><th>They still own</th></tr></thead>
+        <tbody>
+          <tr><td>Civilian agency (Fed/Civ)</td><td>FedRAMP-authorized offering + CRM</td><td>Agency system ATO</td></tr>
+          <tr><td>DoD mission</td><td>IL-authorized offering + DoD CRM/overlays</td><td>Mission ATO (eMASS)</td></tr>
+          <tr><td>DIB contractor (CMMC)</td><td>Cloud that meets FedRAMP Moderate or recorded equivalency</td><td>CMMC / NIST 800-171 on their environment</td></tr>
+        </tbody>
+      </table>
+      <h2>Fed/Civ</h2>
+      <p>JAB P-ATO or agency ATO is the <strong>offering</strong> authorization. The agency still ATOs its system. Inheritance is the FedRAMP CRM. Offering ConMon is FedRAMP ConMon, not every agency tenant’s subscriptions.</p>
+      <h2>DoD</h2>
+      <p>The same commercial product is usually a different boundary, overlay, and AO. FedRAMP Moderate <strong>does not equal</strong> IL4/IL5. DoD may leverage FedRAMP as evidence; that does not replace a DoD authorization decision. Missions inherit only in-scope services at the authorized IL.</p>
+      <h2>CMMC</h2>
+      <p>Certifies the <strong>contractor’s</strong> CUI environment, not the CSP’s 800-53 package. If the contractor uses a CSP for CUI, DFARS 252.204-7012 requires FedRAMP Moderate or DoD-defined FedRAMP equivalency (third-party evidence, not a slide that says “equivalent”). Confirm current DoD policy before recording equivalency; SPIN must not invent it. The CSP package is environment qualification, not the contractor’s CMMC certificate.</p>
+      <h2>How to model it</h2>
+      <p>Offering A: FedRAMP Moderate, civilian CRM. Offering B: IL5 Azure Gov, DoD CRM. Optional recorded fact: DFARS/CMMC cloud eligibility <strong>as stated in source</strong>.</p>
+      <p>MOs adopt one pinned release. Never: “FedRAMP exists, so IL5 declared use is in scope.” Never: “CMMC Authorized” on CSP home because a FedRAMP date exists.</p>
+      <div class="callout warn"><strong>Equivalency</strong> is confirm against current DoD policy, not something this portal issues.</div>
+    </section>
+
+    <section class="panel" id="waves">
+      <h1>Implementation waves</h1>
+      <p class="muted">Two tracks in parallel. Do not merge CSP overlay with Mission Owner package work. Do not block E2/E6 on CRM, what-if, or MO ConMon. Mock-first for C6–C8 and M3–M4. Next GitHub child is C1+C2 only.</p>
+      <h2>Track C — CSP / provider</h2>
+      <table>
+        <thead><tr><th>Wave</th><th>Goal</th><th>Issues / tasks</th></tr></thead>
+        <tbody>
+          <tr><td>C0</td><td>Spec only</td><td>This brief + 079 US7/US8, SF01–SF06</td></tr>
+          <tr><td>C1</td><td>E2 three facts</td><td>Overlay /workspaces/csp. No MO ATO counts. No ATO-health tile</td></tr>
+          <tr><td>C2</td><td>E6 scope-fit</td><td>SCOPEFIT_ISSUE preview only. Distinct from #1028. Path/lane fields wait for C6</td></tr>
+          <tr><td>C3</td><td>079 provider mock UI</td><td>#1025–#1028. #1028 is offering change → missions</td></tr>
+          <tr><td>C4</td><td>Inheritor inventory</td><td>#1029–#1032. Access ≠ allocate ≠ adopt. Not a monitoring feed</td></tr>
+          <tr><td>C5</td><td>CRM / inheritance</td><td>#957, #1021, #1033–#1037. Test release ≠ prod release</td></tr>
+          <tr><td>C6</td><td>What-if attach</td><td>After C2. Pairs with M3. Origin is MO Provider hosting. Declare IATT vs ATO and Dev/Test/Prod. Approve is access only — not allocate, not adopt, not an issued IATT/ATO</td></tr>
+          <tr><td>C7</td><td>Declared-use correction</td><td>After C6. Per-MO impact → MO Provider hosting. Access stays. Scope fit stays until resubmit + re-score</td></tr>
+          <tr><td>C8</td><td>Three yeses on live IA</td><td>After C4+C6. Mock-first. Offering access ≠ Azure hosting ≠ pinned inheritance</td></tr>
+        </tbody>
+      </table>
+      <h2>Track M — Mission Owner package</h2>
+      <table>
+        <thead><tr><th>Wave</th><th>Goal</th><th>Issues</th></tr></thead>
+        <tbody>
+          <tr><td>M1</td><td>Truthful package / Overview</td><td>#1039, #1041–#1043, #1046, #1055–#1059</td></tr>
+          <tr><td>M2</td><td>That system’s ConMon</td><td>#1044, #1045, #1058. Not CSP telemetry of all inheritors</td></tr>
+          <tr><td>M3</td><td>Provider hosting walk</td><td>Pairs with C6. Request → declare (IATT/ATO + Dev/Test/Prod) → wait CSP → allocate lane → associate. Not inheritance</td></tr>
+          <tr><td>M4</td><td>IATT vs ATO on the system</td><td>After M1/M3. Separate facts. Evidence may feed the ATO package; the IATT decision does not become the ATO</td></tr>
+        </tbody>
+      </table>
+      <p>#1023 stays parent for CSP-backed and standalone ATO. Standalone work continues in M1 even if C2 is unfinished. Design mocks already walk C6–C8 and M3–M4; do not file those issues until C2 is decided.</p>
+    </section>
+
+    <section class="panel" id="personas">
+      <h1>Personas</h1>
+      <p class="muted">Primary users operate the tenant. Assessors and AOs are first-class readers. MO users appear only as requesters and impact subjects.</p>
+      <table>
+        <thead><tr><th>Persona</th><th>Primary job</th><th>Lives in</th><th>Must not</th></tr></thead>
+        <tbody>
+          <tr><td>CSP ISSM</td><td>Keep the parent ATO honest and decide impact</td><td>Home, ATO, impact, ConMon, changes</td><td>Treat a green offering as an authorization decision</td></tr>
+          <tr><td>Offering manager</td><td>Productize and version what MOs attach to</td><td>Catalog, offering, CRM, inheritance</td><td>Change control allocation without a published version</td></tr>
+          <tr><td>CSP ISSO</td><td>Evidence, POA&amp;Ms, and monitoring queue</td><td>ATO evidence, POA&amp;M, ConMon</td><td>Close a CSP POA&amp;M that still ships in an active release</td></tr>
+          <tr><td>CSP AO</td><td>Record or accept the offering authorization</td><td>Offering ATO, conditions, impact brief</td><td>Be asked to authorize an MO system from this portal</td></tr>
+          <tr><td>Tenant admin</td><td>Access, invites, and audit of publications</td><td>Tenant access, subscriber requests</td><td>Grant MOs CSP.Admin by default</td></tr>
+          <tr><td>3PAO / assessor</td><td>Read inheritance, CRM, and parent evidence</td><td>ATO package, CRM, published releases</td><td>Edit offerings or see unrelated MO packages</td></tr>
+        </tbody>
+      </table>
+      <h2>MO as a counterpart, not a user of this portal</h2>
+      <p>Mission Owners request offering access and consume inheritance in the MO portal. The CSP portal shows them as subscribers and impact records. CSP operators should see declared use, CRM exceptions, and inheritance release — not the MO’s residual control narratives.</p>
+    </section>
+
+    <section class="panel" id="epics">
+      <h1>Epics</h1>
+      <p class="muted">MVP is catalog + parent ATO facts + CRM publication + subscriber inventory + per-MO impact. What-if and significant-change orchestration can follow once impact is a stored object.</p>
+      <table>
+        <thead><tr><th>ID</th><th>Epic</th><th>Outcome</th><th>MVP</th></tr></thead>
+        <tbody>
+          <tr><td>E1</td><td>Offering catalog</td><td>Offerings are versioned products under the tenant, not folders of files</td><td>Yes</td></tr>
+          <tr><td>E2</td><td>Offering ATO</td><td>Validity, package readiness, and monitoring health are three visible facts</td><td>Yes</td></tr>
+          <tr><td>E3</td><td>Shared responsibility</td><td>Every in-scope control is inherited, shared, or customer-implemented</td><td>Yes</td></tr>
+          <tr><td>E4</td><td>Inheritance publication</td><td>MOs adopt a pinned release; drift from current is visible</td><td>Yes</td></tr>
+          <tr><td>E5</td><td>MO access</td><td>Invite, approve, revoke; attachment is explicit and audited</td><td>Yes</td></tr>
+          <tr><td>E6</td><td>MO impact on parent ATO</td><td>Per-MO and aggregate consumption scored against authorized use</td><td>Yes</td></tr>
+          <tr><td>E7</td><td>What-if attach</td><td>Approval can be refused because it would break the parent ATO</td><td>Next</td></tr>
+          <tr><td>E8</td><td>Significant change</td><td>Offering change classifies reauth vs notify and lists downstream MOs</td><td>Next</td></tr>
+          <tr><td>E9</td><td>CSP POA&amp;M + ConMon</td><td>Provider weaknesses and evidence age stay on the offering, not the MO</td><td>Yes</td></tr>
+          <tr><td>E10</td><td>Tenant access &amp; audit</td><td>CSP roles and publication/access grants are administered here</td><td>Yes</td></tr>
+          <tr><td>E11</td><td>Export packages</td><td>Inheritance letter, CRM, OSCAL/eMASS-aligned export for the MO portal</td><td>Next</td></tr>
+        </tbody>
+      </table>
+      <h2>Epic 6 — the CSP-specific value</h2>
+      <p>Inventory is not enough. Each attached MO must produce an impact record: extra data types, higher impact level, extra interconnections, overlays, and customer configs outside the published CRM. Aggregate those records so the ISSM can see boundary creep before an annual review does.</p>
+      <div class="split">
+        <div class="callout"><strong>Store — impact record.</strong> MO system, offering version, inherited release, declared use, exceptions, severity, and whether use still fits authorized scope.</div>
+        <div class="callout warn"><strong>Do not store — MO package body.</strong> Residual implementation statements, MO assessment results, and MO AO decision artifacts stay in the MO portal unless explicitly shared.</div>
+      </div>
+    </section>
+
+    <section class="panel" id="model">
+      <h1>Data model</h1>
+      <p class="muted">CSP-owned objects. MO system is a reference plus an impact record, not a copy of the MO authorization package.</p>
+      <table>
+        <thead><tr><th>Entity</th><th>Purpose</th><th>Key relationships</th></tr></thead>
+        <tbody>
+          <tr><td>Tenant</td><td>CSP workspace boundary</td><td>Has many offerings, members, orgs</td></tr>
+          <tr><td>Offering</td><td>Product MOs attach to</td><td>Belongs to tenant; has versions</td></tr>
+          <tr><td>OfferingVersion</td><td>Immutable product snapshot</td><td>Boundary, impact level, overlays</td></tr>
+          <tr><td>ControlAllocation</td><td>Inherited / shared / customer</td><td>Pinned to a version</td></tr>
+          <tr><td>OfferingATO</td><td>Parent authorization facts</td><td>Decision, scope, conditions, dates</td></tr>
+          <tr><td>PackageReadiness</td><td>Whether the CSP package is complete</td><td>Not the same as ATO validity</td></tr>
+          <tr><td>MonitoringHealth</td><td>Evidence age, expiry, withdrawal</td><td>Not the same as ATO validity</td></tr>
+          <tr><td>InheritanceRelease</td><td>Pinned package MOs may adopt</td><td>CRM + evidence summary + ATO cites</td></tr>
+          <tr><td>Subscription</td><td>MO access to an offering</td><td>Invite / approve / revoke</td></tr>
+          <tr><td>MoSystemRef</td><td>Pointer to an MO system</td><td>No SSP body by default</td></tr>
+          <tr><td>ImpactRecord</td><td>How this MO changes the parent ATO</td><td>Subscription + declared use + severity</td></tr>
+          <tr><td>CspPoam</td><td>Weakness owned by the offering</td><td>May notify releases/subscribers</td></tr>
+          <tr><td>SignificantChange</td><td>Delta that may require reauth</td><td>Affects versions and downstream MOs</td></tr>
+          <tr><td>Artifact</td><td>CSP evidence with provenance</td><td>Linked to version, ATO, or POA&amp;M</td></tr>
+        </tbody>
+      </table>
+      <h2>State dimensions (keep separate)</h2>
+      <table>
+        <thead><tr><th>Dimension</th><th>Example values</th><th>Common failure if collapsed</th></tr></thead>
+        <tbody>
+          <tr><td>Offering publication</td><td>Draft / published / deprecated / retired</td><td>Deprecated offering still looks attachable</td></tr>
+          <tr><td>ATO validity</td><td>Effective / expired / withdrawn / conditional</td><td>Green ConMon mistaken for an authorization</td></tr>
+          <tr><td>Package readiness</td><td>Incomplete / ready / submitted</td><td>Ready package treated as authorized</td></tr>
+          <tr><td>Monitoring health</td><td>Current / stale / failed</td><td>Stale evidence hidden behind a valid date</td></tr>
+          <tr><td>Inheritance adoption</td><td>None / pinned release / drifted</td><td>Associated capability treated as inherited</td></tr>
+          <tr><td>Scope fit</td><td>In-scope / CRM or boundary exception / out of authorized scope</td><td>Subscriber count treated as risk, or “invalidating” treated as auto-withdrawing the ATO</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong>Provenance rule.</strong> CRM allocation, inheritance adoption, and impact severity must each cite a version or release. Never let “newest offering” silently replace what an MO actually adopted.</div>
+    </section>
+
+    <section class="panel" id="ia">
+      <h1>Clickable information architecture</h1>
+      <p>Select a screen in the sitemap, then follow primary actions. Tenant home, Tenant impact, and Per-MO impact include detailed sketches (synthetic specimen). This is IA, not production UI.</p>
+      <div class="ia">
+        <div id="sitemap"></div>
+        <div class="screen" id="screen"></div>
+      </div>
+      <h2>Primary user paths</h2>
+      <table>
+        <thead><tr><th>Path</th><th>Screens</th><th>Done when</th></tr></thead>
+        <tbody>
+          <tr><td>Publish an offering</td><td>Catalog → overview → CRM → ATO → inheritance release</td><td>MOs can request access to a pinned release</td></tr>
+          <tr><td>Approve an MO</td><td>Subscribers → what-if → per-MO impact → approve</td><td>Subscription is audited; impact record exists</td></tr>
+          <tr><td>Defend the parent ATO</td><td>Home → tenant impact → ConMon → POA&amp;M / changes</td><td>Invalidating use and stale evidence are queued</td></tr>
+          <tr><td>Ship a breaking version</td><td>Significant change → new version → inheritance update</td><td>Downstream MOs are listed as drifted, not silently upgraded</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+  <script>
+    const screens = [
+      { id: "home", name: "Tenant home", group: "Operate", purpose: "Daily posture of the tenant: offering health, ATO dates, attached MOs, and impact that needs a human.", sees: ["Offerings in production vs draft vs deprecated", "Parent ATO effective / expiry / conditions", "MO count by offering and by impact severity", "Open CSP POA&Ms and stale evidence"], actions: [{ label: "Open offerings", to: "offerings" }, { label: "Review tenant impact", to: "impact" }, { label: "Work ConMon queue", to: "conmon" }] },
+      { id: "offerings", name: "Offering catalog", group: "Offerings", purpose: "Inventory of products the CSP supplies to MOs under this tenant.", sees: ["Name, version, impact level, publication state", "Attached MO count and highest consumer impact", "ATO standing of the current published version"], actions: [{ label: "Create offering" }, { label: "Open Secure Enclave IL4", to: "offering" }] },
+      { id: "offering", name: "Offering overview", group: "Offerings", purpose: "One offering as a product: boundary, authorized use, versions, and who consumes it.", sees: ["Boundary, data types, impact level, overlays", "Current vs previous published version", "Subscriber list and pending access requests"], actions: [{ label: "Edit shared responsibility", to: "crm" }, { label: "Manage offering ATO", to: "ato" }, { label: "See subscribers", to: "subscribers" }] },
+      { id: "crm", name: "Shared responsibility", group: "Offerings", purpose: "Make inherited / shared / customer-implemented controls operational data, not a PDF.", sees: ["Control allocation by family", "Customer responsibility matrix for the published version", "Gaps where allocation is unassigned"], actions: [{ label: "Publish CRM version" }, { label: "Build inheritance package", to: "inherit" }] },
+      { id: "ato", name: "Offering ATO", group: "Authorization", purpose: "Maintain the parent authorization that every attached MO inherits from.", sees: ["Recorded decision, issuer, scope, conditions", "Package readiness vs authorization validity vs monitoring health — three separate facts", "CSP-owned implementation and assessment evidence"], actions: [{ label: "Record external decision" }, { label: "Open CSP POA&Ms", to: "poam" }, { label: "Log significant change", to: "changes" }] },
+      { id: "inherit", name: "Inheritance packages", group: "Authorization", purpose: "Issue a pinned snapshot MOs can adopt without re-collecting CSP evidence.", sees: ["Published releases and what each contains", "Which MOs adopted which release", "Drift: adopted release vs current publication"], actions: [{ label: "Publish inheritance release" }, { label: "See adopters", to: "subscribers" }] },
+      { id: "subscribers", name: "MO subscribers", group: "Consumers", purpose: "CSP inbox for offering access plus who is already associated, on which pinned release. Access requests originate on MO Provider hosting — not this catalog. Approve is not allocate Azure and not adopt.", sees: ["Pending access requests from Provider hosting", "MO / system / offering version / inherited release", "Access state: requested, approved, revoked", "Whether declared use is inside published CRM"], actions: [{ label: "Run what-if", to: "whatif" }, { label: "Open MO impact", to: "mo-impact" }] },
+      { id: "impact", name: "Tenant impact", group: "Consumers", purpose: "Aggregate how all MO use stretches or still fits the current parent ATO.", sees: ["Boundary creep, overlay stacking, unapproved configurations", "Combined residual risk vs original authorization", "MOs that would invalidate the ATO if left unaddressed"], actions: [{ label: "Filter high-impact MOs", to: "mo-impact" }, { label: "Run what-if", to: "whatif" }] },
+      { id: "mo-impact", name: "Per-MO impact", group: "Consumers", purpose: "One consumer's effect on the parent ATO: data types, impact level, connections, overlays, CRM exceptions.", sees: ["Declared use vs published authorized use", "Inherited controls they rely on", "Exceptions and compensating claims"], actions: [{ label: "Request MO correction" }, { label: "Back to tenant impact", to: "impact" }] },
+      { id: "whatif", name: "What-if attach", group: "Consumers", purpose: "CSP side of offering access: does declared use fit the recorded offering authorization? Not a sub grant and not inheritance.", sees: ["Declared IL, data types, extra paths", "Estimated scope fit vs published boundary/CRM", "Whether approval would require a significant change"], actions: [{ label: "Approve access", to: "subscribers" }, { label: "Refuse attach" }] },
+      { id: "conmon", name: "Continuous monitoring", group: "Sustain", purpose: "Keep the parent ATO honest after authorization day: evidence age, expiry, and offering-version drift.", sees: ["Evidence freshness by control family", "Expiry and withdrawal facts", "Queued impact reviews from offering changes"], actions: [{ label: "Open significant changes", to: "changes" }, { label: "Export monitoring brief" }] },
+      { id: "poam", name: "CSP POA&Ms", group: "Sustain", purpose: "Weaknesses that belong to the offering, not to any MO package.", sees: ["Open items, due dates, residual risk", "Which inheritance releases still expose the weakness", "MO notifications required when a CSP POA&M changes inherited posture"], actions: [{ label: "Create POA&M" }, { label: "Notify affected MOs", to: "subscribers" }] },
+      { id: "changes", name: "Significant changes", group: "Sustain", purpose: "New region, new service, boundary expansion — and whether reauthorization is required.", sees: ["Change record, affected offering version, decision needed", "Downstream MOs on the old inheritance release", "Reauthorization vs delta assessment vs notify-only"], actions: [{ label: "Start new offering version", to: "offering" }, { label: "Push inheritance update", to: "inherit" }] },
+      { id: "access", name: "Tenant access", group: "Admin", purpose: "Who may administer the tenant, publish offerings, and see MO impact — without reading MO package content by default.", sees: ["CSP roles: admin, offering manager, ISSM, ISSO, AO, assessor", "MO access requests to offerings", "Audit of publication and access grants"], actions: [{ label: "Invite CSP operator" }, { label: "Review MO requests", to: "subscribers" }] }
+    ];
+    const byId = Object.fromEntries(screens.map(s => [s.id, s]));
+    const groups = [
+      { name: "Operate", ids: ["home"] },
+      { name: "Offerings", ids: ["offerings", "offering", "crm"] },
+      { name: "Authorization", ids: ["ato", "inherit"] },
+      { name: "Consumers", ids: ["subscribers", "impact", "mo-impact", "whatif"] },
+      { name: "Sustain", ids: ["conmon", "poam", "changes"] },
+      { name: "Admin", ids: ["access"] }
+    ];
+    const sketches = {
+      home: `
+        <div class="sketch">
+          <div class="sketch-label">Detailed sketch · synthetic specimen · not live data</div>
+          <p class="note">Question this page answers: does the parent ATO still match real tenant use? Not: how many MO packages are authorized.</p>
+          <div class="metrics">
+            <div class="metric"><b>4 offerings</b><small>3 published · 1 draft · 0 deprecated</small></div>
+            <div class="metric"><b>Effective</b><small>Earliest parent ATO expiry 11 Mar 2027 · 1 conditional</small></div>
+            <div class="metric warn"><b>24 MOs</b><small>18 fit · 4 exception · 2 invalidating</small></div>
+            <div class="metric danger"><b>3 need a human</b><small>1 invalidating use · 1 stale evidence · 1 drifted release</small></div>
+          </div>
+          <h3>Three facts (tenant roll-up — never one green light)</h3>
+          <div class="facts">
+            <div class="fact"><span class="tag ok">ATO validity</span><strong>3 effective · 1 conditional</strong><p class="note">Recorded decision dates. Not package completeness.</p></div>
+            <div class="fact"><span class="tag warn">Package readiness</span><strong>2 ready · 2 incomplete</strong><p class="note">CSP evidence/package. Not an authorization.</p></div>
+            <div class="fact"><span class="tag danger">Monitoring health</span><strong>1 stale · AU evidence 41 days</strong><p class="note">Freshness. A valid date can still be stale.</p></div>
+          </div>
+          <h3>Needs a human</h3>
+          <table>
+            <thead><tr><th>Item</th><th>Why it is here</th><th>Severity</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>14th CSW / Mission Planning<br><span class="muted">on Secure Enclave IL4</span></td><td>Declared IL5 CUI on an IL4 offering</td><td><span class="tag danger">Invalidating</span></td><td><button class="btn primary" data-screen="mo-impact">Open impact</button></td></tr>
+              <tr><td>Secure Enclave IL4 evidence</td><td>AU family evidence older than rule (41 days)</td><td><span class="tag warn">Stale</span></td><td><button class="btn primary" data-screen="conmon">ConMon</button></td></tr>
+              <tr><td>3 MOs on Gov SaaS IL2</td><td>Adopted inheritance r3; current publication is r4</td><td><span class="tag warn">Drifted</span></td><td><button class="btn primary" data-screen="subscribers">Adopters</button></td></tr>
+            </tbody>
+          </table>
+          <h3>Offerings</h3>
+          <table>
+            <thead><tr><th>Offering</th><th>Publication</th><th>Parent ATO</th><th>MOs</th><th>Worst impact</th></tr></thead>
+            <tbody>
+              <tr><td>Secure Enclave IL4</td><td>Published v2.1</td><td>Effective · exp 11 Mar 2027</td><td>11</td><td><span class="tag danger">Invalidating</span></td></tr>
+              <tr><td>Gov SaaS IL2</td><td>Published v4</td><td>Conditional · CRM gap AC-2</td><td>9</td><td><span class="tag warn">Exception</span></td></tr>
+              <tr><td>Boundary Connect</td><td>Published v1</td><td>Effective</td><td>4</td><td><span class="tag ok">Fits</span></td></tr>
+              <tr><td>IL6 Pilot</td><td>Draft</td><td>Not recorded</td><td>0</td><td>—</td></tr>
+            </tbody>
+          </table>
+          <p class="note">Do not show MO-package ATO counts, org totals, or “authorized systems” here. Subscriber count is not risk — Worst impact is.</p>
+        </div>`,
+      impact: `
+        <div class="sketch">
+          <div class="sketch-label">Detailed sketch · consumption of the parent ATO · not change fan-out</div>
+          <p class="note">Question: how does attached MO use stretch the current parent ATO? Provider-change → affected missions stays on Significant changes.</p>
+          <p><span class="tag">Offering: Secure Enclave IL4</span> <span class="tag">Version v2.1</span> <span class="tag">Inheritance r2</span></p>
+          <div class="metrics">
+            <div class="metric"><b>11 attached</b><small>Approved subscriptions on this version</small></div>
+            <div class="metric"><b>8 fit</b><small>Declared use inside published CRM and IL</small></div>
+            <div class="metric warn"><b>2 exception</b><small>Overlay or connection outside CRM; still inside IL</small></div>
+            <div class="metric danger"><b>1 invalidating</b><small>Would make the recorded authorization indefensible</small></div>
+          </div>
+          <h3>What is driving impact</h3>
+          <table>
+            <thead><tr><th>Driver</th><th>Authorized (v2.1)</th><th>Observed in MO declarations</th><th>MOs</th></tr></thead>
+            <tbody>
+              <tr><td>Impact level / data</td><td>IL4 CUI</td><td>1 MO declared IL5 / classified handling</td><td>1 invalidating</td></tr>
+              <tr><td>Boundary / connections</td><td>Enclave + peering to CSP hub</td><td>2 extra mission-to-mission paths</td><td>2 exception</td></tr>
+              <tr><td>Overlays</td><td>CNSSI 1253 + DISA STIG as published</td><td>1 extra agency overlay stacked</td><td>1 exception</td></tr>
+              <tr><td>CRM exceptions</td><td>Inherited AU, SC; customer AC, IA</td><td>1 MO skipped shared AC-2 config</td><td>1 exception</td></tr>
+            </tbody>
+          </table>
+          <h3>MO consumption</h3>
+          <table>
+            <thead><tr><th>MO / system</th><th>Adopted release</th><th>Declared vs authorized</th><th>Severity</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>14th CSW / Mission Planning</td><td>r2 (current)</td><td>IL5 data on IL4 offering</td><td><span class="tag danger">Invalidating</span></td><td><button class="btn primary" data-screen="mo-impact">Open</button></td></tr>
+              <tr><td>AETC / Training Cloud</td><td>r2</td><td>Extra interconnection to sister system</td><td><span class="tag warn">Exception</span></td><td><button class="btn" data-screen="mo-impact">Open</button></td></tr>
+              <tr><td>AFRL / Lab Enclave</td><td>r1 <span class="tag warn">Drifted</span></td><td>Use fits r1; current is r2</td><td><span class="tag warn">Exception</span></td><td><button class="btn" data-screen="subscribers">Release</button></td></tr>
+              <tr><td>NGB / Portal</td><td>r2</td><td>Inside CRM and IL</td><td><span class="tag ok">Fits</span></td><td><button class="btn" data-screen="mo-impact">Open</button></td></tr>
+            </tbody>
+          </table>
+          <h3>ISSM decision strip</h3>
+          <div class="box">
+            <p><strong>Parent ATO is not automatically withdrawn.</strong> Invalidating use is queued for human action: request MO correction, refuse/revoke subscription, or log a significant change if the offering must expand.</p>
+            <p class="note">This screen does not load MO SSP narratives, assessment results, or the MO AO decision.</p>
+          </div>
+        </div>`,
+      "mo-impact": `
+        <div class="sketch">
+          <div class="sketch-label">Detailed sketch · one impact record · 14th CSW / Mission Planning</div>
+          <p><span class="tag danger">Invalidating</span> <span class="tag">Secure Enclave IL4 v2.1</span> <span class="tag">Adopted inheritance r2</span> <span class="tag">Access: approved</span></p>
+          <h3>Declared use vs authorized use</h3>
+          <div class="compare">
+            <div class="box">
+              <p><strong>Published authorized use</strong></p>
+              <p>IL4 CUI · enclave compute/storage · peering to CSP hub only</p>
+              <p class="note">Pinned to offering v2.1 and CRM r2. Not “whatever is newest.”</p>
+            </div>
+            <div class="box">
+              <p><strong>This MO’s declared use</strong></p>
+              <p>IL5 mission data · same enclave · additional path to a sister IL5 system</p>
+              <p class="note">From the subscription declaration / what-if. Not inferred from the MO SSP.</p>
+            </div>
+          </div>
+          <h3>Why invalidating</h3>
+          <table>
+            <thead><tr><th>Check</th><th>Result</th><th>Cite</th></tr></thead>
+            <tbody>
+              <tr><td>Impact level</td><td>Declared IL5 exceeds offering IL4</td><td>OfferingVersion.impactLevel</td></tr>
+              <tr><td>Data types</td><td>Mission data class not in authorized set</td><td>OfferingVersion.dataTypes</td></tr>
+              <tr><td>Interconnections</td><td>Sister-system path not in published boundary</td><td>OfferingVersion.boundary</td></tr>
+              <tr><td>CRM</td><td>Still inheriting AU/SC as if in-scope</td><td>InheritanceRelease r2</td></tr>
+            </tbody>
+          </table>
+          <h3>What this record stores — and does not</h3>
+          <div class="compare">
+            <div class="box">
+              <p><strong>Store</strong></p>
+              <p>MO system ref, offering version, inherited release, declared use, exceptions, severity, last evaluated, evaluator.</p>
+            </div>
+            <div class="box">
+              <p><strong>Do not store</strong></p>
+              <p>MO implementation statements, SAR results, MO POA&amp;M body, MO AO memo.</p>
+            </div>
+          </div>
+          <p class="note">Request correction sends a task to that system’s Provider hosting tab in the MO/Org workspace. Declared use only — not Administration, email, or the MO SSP. Subscription stays approved. Scope fit stays until the MO resubmits and the CSP re-scores. Revoke is a separate access action. Expanding the offering is a significant change, not a silent CRM edit.</p>
+        </div>`
+    };
+    let current = "home";
+    function render(id) {
+      current = id;
+      const s = byId[id];
+      document.getElementById("sitemap").innerHTML = groups.map(g => `
+        <div class="group">
+          <div class="group-label">${g.name}</div>
+          <div class="pills">${g.ids.map(sid => `<button class="pill ${sid === id ? "active" : ""}" data-screen="${sid}">${byId[sid].name}</button>`).join("")}</div>
+        </div>`).join("");
+      document.getElementById("screen").innerHTML = `
+        <div class="group-label">${s.group}</div>
+        <h2>${s.name}</h2>
+        <p>${s.purpose}</p>
+        <h3>On this screen</h3>
+        ${s.sees.map(item => `<p class="muted">${item}</p>`).join("")}
+        <h3>Actions</h3>
+        <div class="actions">${s.actions.map(a => `<button class="${a.to ? "btn primary" : "btn"}" ${a.to ? `data-screen="${a.to}"` : ""}>${a.label}</button>`).join("")}</div>
+        ${sketches[id] || ""}`;
+    }
+    document.getElementById("ia").addEventListener("click", (e) => {
+      const t = e.target.closest("[data-screen]");
+      if (t) render(t.getAttribute("data-screen"));
+    });
+    document.getElementById("tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-tab]");
+      if (!btn) return;
+      document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === btn.dataset.tab));
+    });
+    render("home");
+  </script>
+</body>
+</html>

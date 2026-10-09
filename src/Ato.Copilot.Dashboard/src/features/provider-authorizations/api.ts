@@ -21,6 +21,32 @@ const keyHeader = (key: string) => ({ 'Idempotency-Key': key });
 
 export const listOfferings = (page = 1, search = '', signal?: AbortSignal) =>
   packageRequest<Page<Offering>>({ url: root, params: { ...params(page), search }, signal });
+export async function listOfferingAccessRequests(id: string, signal?: AbortSignal) {
+  try {
+    return {
+      ...await packageRequest<Page<{
+        requestId: string; offeringId: string; offeringName: string; systemId: string; systemName?: string | null;
+        status: string; authPath: string; environmentLane: string; impactLevel: string; dataTypes: string;
+        interconnect: string; estimateResult: string; estimateRationale: string;
+      }>>({ url: `${offeringPath(id)}/access-requests`, signal }),
+      unavailable: false,
+    };
+  } catch (error) {
+    if (error instanceof PackageImportError && error.status === 404) {
+      return { items: [], total: 0, page: 1, pageSize: 25, unavailable: true };
+    }
+    throw error;
+  }
+}
+export const estimateOfferingAccess = (id: string, requestId: string) =>
+  packageRequest<{ result: string; rationale: string }>({
+    method: 'POST', url: `${offeringPath(id)}/access-requests/${encodeURIComponent(requestId)}/estimate`,
+  });
+export const decideOfferingAccess = (id: string, requestId: string, decision: 'Approved' | 'Refused') =>
+  packageRequest<unknown>({
+    method: 'POST', url: `${offeringPath(id)}/access-requests/${encodeURIComponent(requestId)}/decide`,
+    data: { decision },
+  });
 export const getOffering = (id: string, signal?: AbortSignal) =>
   packageRequest<Offering>({ url: offeringPath(id), signal });
 export async function getOfferingOverview(id: string, authorizationPage = 1, packagePage = 1, signal?: AbortSignal) {

@@ -1,0 +1,13 @@
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:22px}
+.fact{background:#fff;border:1px solid var(--line);border-radius:9px;padding:14px 16px}
+.fact p{margin:6px 0 0;font-size:12px}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+.filterchips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.filterchips button.active{background:var(--soft);border-color:#c9c2f3;color:var(--purple)}
+.severity-invalidating td:first-child{box-shadow:inset 3px 0 0 #a14040}
+.severity-exception td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+@media (max-width:800px){
+  .facts,.compare,.metrics{grid-template-columns:1fr}
+  .layout{grid-template-columns:1fr}
+  aside{display:none}
+}

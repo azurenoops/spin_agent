@@ -130,6 +130,8 @@ function MissionSystems({ offering, offeringPage, refresh }: { offering: Offerin
   });
   const [query, setQuery] = useState('');
   const [handoff, setHandoff] = useState<OfferingBoundaryMission | null>(null);
+  const access = useRemote(signal => api.listOfferingAccessRequests(offering.offeringId, signal), [offering.offeringId, refresh]);
+  const [accessNotice, setAccessNotice] = useState('');
   const data = useRemote(async signal => {
     const first = (await api.getBoundaryOverview(offering.offeringId, 1, page, signal)).missionSystems;
     if (!query.trim()) return first;
@@ -140,6 +142,30 @@ function MissionSystems({ offering, offeringPage, refresh }: { offering: Offerin
   const needle = query.trim().toLocaleLowerCase();
   const items = data.data?.items.filter(item => !needle || `${item.systemName ?? item.systemId} ${item.targetTenantName ?? ''}`.toLocaleLowerCase().includes(needle)) ?? [];
   return <>
+  <section className="provider-panel mb-5">
+    <h2 className="mb-2 font-semibold">Access requests</h2>
+    <p className="mb-3 text-sm text-slate-500">Requests originate on Mission Owner Provider hosting. Approve is not allocate, associate, inherit, IATT, or ATO.</p>
+    {accessNotice && <p role="status" className="mb-3 text-sm">{accessNotice}</p>}
+    <Status loading={access.loading} error={access.error} retry={access.retry} />
+    {access.data?.unavailable && <p className="text-sm text-slate-500">This API host does not include offering access requests yet. Pending MO requests cannot be loaded here.</p>}
+    {access.data && !access.data.unavailable && (access.data.items.filter(item => item.status === 'Requested').length === 0
+      ? <p className="text-sm text-slate-500">No pending requests on this offering.</p>
+      : <ul className="space-y-3">{access.data.items.filter(item => item.status === 'Requested').map(item =>
+        <li key={item.requestId} className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-200 p-3">
+          <span>{item.systemName ?? item.systemId} · {item.authPath} · {item.environmentLane} · {item.estimateResult}</span>
+          <span className="flex gap-2">
+            <button type="button" className={action} onClick={() => void api.estimateOfferingAccess(offering.offeringId, item.requestId)
+              .then(estimate => setAccessNotice(`${estimate.result}: ${estimate.rationale}`))
+              .catch(error => setAccessNotice(error instanceof Error ? error.message : 'Estimate failed.'))}>Run what-if</button>
+            <button type="button" className={primary} onClick={() => void api.decideOfferingAccess(offering.offeringId, item.requestId, 'Approved')
+              .then(() => { setAccessNotice('Offering access approved. Not Azure allocation. Not inheritance.'); access.retry(); })
+              .catch(error => setAccessNotice(error instanceof Error ? error.message : 'Approve failed.'))}>Approve access</button>
+            <button type="button" className={action} onClick={() => void api.decideOfferingAccess(offering.offeringId, item.requestId, 'Refused')
+              .then(() => { setAccessNotice('Access refused. No allocation or inheritance.'); access.retry(); })
+              .catch(error => setAccessNotice(error instanceof Error ? error.message : 'Refuse failed.'))}>Refuse</button>
+          </span>
+        </li>)}</ul>)}
+  </section>
   <section className="provider-panel">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <h2 className="font-semibold">Customer service relationships</h2>

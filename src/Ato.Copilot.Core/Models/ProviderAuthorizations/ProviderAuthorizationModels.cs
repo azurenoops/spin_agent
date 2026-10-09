@@ -129,6 +129,24 @@ public sealed class ProviderHostingAssignment : ProviderOwnedRow
     public string ReferencesJson { get; set; } = "[]";
 }
 
+/// <summary>MO-originated offering access request. Approve is not allocate, associate, inherit, IATT, or ATO.</summary>
+[ProviderScoped]
+public sealed class ProviderOfferingAccessRequest : ProviderOwnedRow
+{
+    public Guid TargetTenantId { get; set; }
+    [MaxLength(36)] public string SystemId { get; set; } = "";
+    [MaxLength(32)] public string Status { get; set; } = "Requested";
+    [MaxLength(16)] public string AuthPath { get; set; } = "IATT";
+    [MaxLength(16)] public string EnvironmentLane { get; set; } = "Dev";
+    [MaxLength(16)] public string ImpactLevel { get; set; } = "IL4";
+    [MaxLength(256)] public string DataTypes { get; set; } = "";
+    [MaxLength(256)] public string Interconnect { get; set; } = "None";
+    [MaxLength(32)] public string EstimateResult { get; set; } = "Unevaluated";
+    [MaxLength(2000)] public string EstimateRationale { get; set; } = "";
+    [MaxLength(254)] public string? DecidedBy { get; set; }
+    public DateTimeOffset? DecidedAt { get; set; }
+}
+
 /// <summary>Declared-use scope fit for one assignment. Not an impact-review disposition and not an ATO.</summary>
 [ProviderScoped]
 public sealed class ProviderScopeFitRecord : ProviderOwnedRow

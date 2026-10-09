@@ -166,6 +166,14 @@ public static class ProviderAuthorizationSchemaAdditions
                 State {Short(32)} NOT NULL, ErrorCode {text} NULL, Message {text} NULL,
                 {Reference("PackageId", "CspPackages")}
                 """,
+            ["ProviderOfferingAccessRequests"] = $"""
+                TargetTenantId {guid} NOT NULL, SystemId {Short(36)} NOT NULL, Status {Short(32)} NOT NULL,
+                AuthPath {Short(16)} NOT NULL, EnvironmentLane {Short(16)} NOT NULL, ImpactLevel {Short(16)} NOT NULL,
+                DataTypes {Short(256)} NOT NULL, Interconnect {Short(256)} NOT NULL,
+                EstimateResult {Short(32)} NOT NULL, EstimateRationale {Short(2000)} NOT NULL,
+                DecidedBy {Short(254)} NULL, DecidedAt {date} NULL,
+                {Reference("TargetTenantId", "Tenants")}
+                """,
             ["ProviderScopeFitRecords"] = $"""
                 AssignmentId {guid} NOT NULL, Result {Short(32)} NOT NULL, DeclaredUse {Short(2000)} NOT NULL,
                 CitedOfferingVersion {Short(256)} NOT NULL, CitedAdoptedRelease {Short(256)} NOT NULL,
@@ -202,6 +210,7 @@ public static class ProviderAuthorizationSchemaAdditions
         Index("ProviderAuthorizationImpactReviews", "PreviewId", true);
         Index("ProviderClaimReviews", "ProviderId,OfferingId,CandidateId,CandidateRevision");
         Index("ProviderPackageEnrichments", "ProviderId,OfferingId,PackageId,TargetProfileVersion");
+        Index("ProviderOfferingAccessRequests", "ProviderId,OfferingId,TargetTenantId,SystemId", true);
         Index("ProviderScopeFitRecords", "ProviderId,OfferingId,AssignmentId", true);
         Index("MissionProviderRelationshipReviews", "TenantId,SystemId");
         Index("CapabilityAdoptionSnapshots", "TenantId,SystemId");
@@ -226,6 +235,7 @@ public static class ProviderAuthorizationSchemaAdditions
         })
             Index(table, $"ProviderId,OfferingId,{column}");
         Index("ProviderHostingAssignments", "TargetTenantId");
+        Index("ProviderOfferingAccessRequests", "TargetTenantId");
         Index("MissionProviderRelationshipReviews", "ProviderId,OfferingId,TenantId,SystemId,AssignmentId");
         Index("CapabilityAdoptionSnapshots", "ProviderId,OfferingId,TenantId,SystemId,AssignmentId");
         Index("ProviderClaimReviews", "PackageId");

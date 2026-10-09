@@ -4,6 +4,7 @@ import type {
   ApplicableCapabilitiesQuery, AssociatedRelationship, AssociateRelationshipInput,
   CapabilityAdoption, CapabilityAdoptionInput, RelationshipPreview, RelationshipPreviewInput,
   RelationshipReviewInput, SystemHostingAllocation, ProviderRelationship,
+  PagedResult, OfferingAccessRequest, RequestableOffering,
 } from './types';
 import { capabilityPage, relationshipPage } from './validation';
 
@@ -163,4 +164,24 @@ export async function proposeProviderCapabilityAdoption(systemId: string, data: 
     throw new ProviderRelationshipError('The capability adoption was not confirmed by a valid response. Retry the same operation.');
   }
   return result;
+}
+
+export function listOfferingAccess(systemId: string, signal?: AbortSignal) {
+  return request<PagedResult<OfferingAccessRequest>>({
+    method: 'GET', url: `${systemPath(systemId)}/offering-access`, params: { page: 1, pageSize: 25 }, signal,
+  });
+}
+
+export function listRequestableOfferings(systemId: string, signal?: AbortSignal) {
+  return request<RequestableOffering[]>({
+    method: 'GET', url: `${systemPath(systemId)}/requestable-offerings`, signal,
+  });
+}
+
+export function requestOfferingAccess(systemId: string, data: {
+  offeringId: string; authPath: string; environmentLane: string; impactLevel: string; dataTypes: string; interconnect: string;
+}) {
+  return request<OfferingAccessRequest>({
+    method: 'POST', url: `${systemPath(systemId)}/offering-access`, data,
+  });
 }

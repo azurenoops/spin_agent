@@ -28,6 +28,12 @@ export type RelationshipState =
   | 'SeparateBoundaryConsumer'
   | 'ExplicitlyCoveredByRecordedScope';
 
+export interface OfferingAccessRequest {
+  requestId: string; offeringId: string; offeringName: string; systemId: string; systemName?: string | null;
+  status: string; authPath: string; environmentLane: string; impactLevel: string; dataTypes: string;
+  interconnect: string; estimateResult: string; estimateRationale: string;
+}
+export interface RequestableOffering { offeringId: string; name: string }
 export interface AssociateRelationshipInput {
   assignmentId: string;
   expectedAssignmentRevision: number;

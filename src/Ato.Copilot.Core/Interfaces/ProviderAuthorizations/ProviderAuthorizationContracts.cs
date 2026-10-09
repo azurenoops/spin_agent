@@ -91,6 +91,14 @@ public sealed record ScopeFitResponse(string Result, string DeclaredUse, string 
 /// <summary>Write declared-use scope fit. Does not issue, withdraw, or rewrite the recorded authorization.</summary>
 public sealed record RecordScopeFitRequest(string Result, string DeclaredUse, string CitedOfferingVersion,
     string CitedAdoptedRelease, string Rationale);
+/// <summary>MO-stated offering access request. Not an allocation, association, inheritance, IATT, or ATO.</summary>
+public sealed record RequestableOfferingResponse(Guid OfferingId, string Name);
+public sealed record DecideOfferingAccessRequest(string Decision);
+public sealed record RequestOfferingAccessRequest(Guid OfferingId, string AuthPath, string EnvironmentLane,
+    string ImpactLevel, string DataTypes, string Interconnect);
+public sealed record OfferingAccessResponse(Guid RequestId, Guid OfferingId, string OfferingName, Guid TargetTenantId,
+    string SystemId, string? SystemName, string Status, string AuthPath, string EnvironmentLane, string ImpactLevel,
+    string DataTypes, string Interconnect, string EstimateResult, string EstimateRationale);
 /// <summary>Exact adopted release metadata, with the newest retained revision linked to the same offering and capability.</summary>
 public sealed record OfferingMissionRelease(Guid CapabilityId, string CapabilityName, Guid ReleaseId,
     long Revision, long? CurrentReleaseRevision, bool UpdateAvailable);
@@ -234,6 +242,9 @@ public interface IProviderAuthorizationService
     Task<OfferingBoundaryOverview> BoundaryOverviewAsync(Guid id, int capabilityPage, int missionPage, int pageSize, CancellationToken ct);
     Task<OfferingOverview> OverviewAsync(Guid id, int authorizationPage, int packagePage, int pageSize, CancellationToken ct);
     Task<ScopeFitResponse> RecordScopeFitAsync(Guid id, Guid assignmentId, RecordScopeFitRequest request, string actor, CancellationToken ct);
+    Task<PagedResult<OfferingAccessResponse>> AccessRequestsAsync(Guid id, int page, int pageSize, CancellationToken ct);
+    Task<ScopeFitResponse> EstimateAccessAsync(Guid id, Guid requestId, CancellationToken ct);
+    Task<OfferingAccessResponse> DecideAccessAsync(Guid id, Guid requestId, string decision, string actor, CancellationToken ct);
     Task<ProviderOfferingResponse> CreateAsync(CreateProviderOfferingRequest request, string key, string actor, CancellationToken ct);
     Task<ProviderOfferingResponse> UpdateAsync(Guid id, UpdateProviderOfferingRequest request, string actor, CancellationToken ct);
     Task<ProviderBoundaryResponse> CreateBoundaryAsync(Guid id, CreateProviderBoundaryRequest request, string key, string actor, CancellationToken ct);

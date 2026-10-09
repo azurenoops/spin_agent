@@ -75,6 +75,10 @@ public static class ProviderAuthorizationModelConfiguration
 
         modelBuilder.Entity<ProviderHostingAssignment>().HasOne<Tenant>().WithMany()
             .HasForeignKey(x => x.TargetTenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ProviderOfferingAccessRequest>().HasOne<Tenant>().WithMany()
+            .HasForeignKey(x => x.TargetTenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ProviderOfferingAccessRequest>()
+            .HasIndex(x => new { x.ProviderId, x.OfferingId, x.TargetTenantId, x.SystemId }).IsUnique();
         foreach (var type in new[] { typeof(MissionProviderRelationshipReview), typeof(CapabilityAdoptionSnapshot) })
         {
             var entity = modelBuilder.Entity(type);

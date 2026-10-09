@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from '../workspaces/workspaceNavigation'
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
 import { buttonClass, secondaryButtonClass, errorClass, useRemote, message } from '../workspace-operations/workspaceUi';
 import MissionSystemPicker from './MissionSystemPicker';
+import OfferingAccessPanel from './OfferingAccessPanel';
 import { capabilityName, CapabilityResponsibilities, ReadStatus, ScopeDetails, TaskFrame } from './MissionTaskPresentation';
 import * as api from './api';
 import { canPlanAdoption, MissionReviewRequiredError, prepareAdoption } from './adoptionPreparation';
@@ -32,6 +33,7 @@ export default function MissionAssociationWizard({ hostingOnly = false, environm
         <p>Choose an existing hosting allocation, inspect published capabilities and duties, and confirm the hosting association.
           An authorized ISSM/ISSO must separately confirm capability subscriptions after a fresh review.</p>
         <p>Opening this task creates no allocations, access grants, subscriptions or responsibility acceptances.</p>
+        <OfferingAccessPanel systemId={id} />
         <Link to={`/systems/${encodeURIComponent(id)}/provider-relationships/setup`} className={`inline-block ${buttonClass}`}>
           Start guided association
         </Link>
@@ -80,6 +82,7 @@ function AssociationTask({ systemId, hostingOnly, environmentEntry }: { systemId
     {step > 0 && <p className="text-lg font-semibold">{systemName}{allocation ? ` · ${allocation.offeringName}` : ''}</p>}
     {plan?.reviewPending && <p role="status">Hosting relationship retained. Previously recorded capabilities:
       {' '}{plan.capabilities.map(item => item.name).join(', ') || 'none'}. Review only the remaining work.</p>}
+    {step === 0 && systemId && (hostingOnly || environmentEntry) && <OfferingAccessPanel systemId={systemId} />}
     {step === 0 && <MissionSystemPicker systemId={systemId} onContinue={chooseHosting} locked={hostingOnly || environmentEntry}
       autoContinue={environmentEntry || (!systemName && location.state?.chooseHosting === true)} />}
     {step === 1 && systemId && <HostingChoices systemId={systemId} selected={allocation} hostingOnly={hostingOnly} providerFirst={environmentEntry}

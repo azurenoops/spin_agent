@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SPIN — CSP home and impact (IA mock)</title>
+  <link rel="stylesheet" href="../provider-workspace-mock/style.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body>
+  <div class="designbar">
+    <span><b>DESIGN PREVIEW</b> · Home + impact IA · Synthetic records · No live connections</span>
+    <div>
+      <label class="sr" for="screen">Choose mock screen</label>
+      <select id="screen"></select>
+      <label class="sr" for="state">Preview state</label>
+      <select id="state">
+        <option value="ready">Populated</option>
+        <option value="empty">Empty</option>
+        <option value="error">Unavailable</option>
+        <option value="restricted">Restricted</option>
+      </select>
+      <a href="../csp-portal-product-brief.html">Product brief ↗</a>
+      <a href="../provider-workspace-mock/index.html">079 provider mock ↗</a>
+    </div>
+  </div>
+  <header class="topbar">
+    <a class="brand" href="#home">SPIN<span>AGENT</span></a>
+    <div class="workspace"><b>Provider workspace</b><span>Demo tenant · parent ATO overlay</span></div>
+    <div class="topactions"><span class="caption">ISSM · synthetic</span><span class="avatar">JD</span></div>
+  </header>
+  <div class="layout">
+    <aside id="sidebar"></aside>
+    <main id="main" tabindex="-1">
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="pagehead">
+        <div>
+          <div class="eyebrow" id="eyebrow"></div>
+          <h1 id="title"></h1>
+          <p id="description"></p>
+        </div>
+        <div class="actions" id="actions"></div>
+      </div>
+      <div id="content"></div>
+    </main>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialogTitle">
+    <div class="dialoghead"><span class="eyebrow">DESIGN SIMULATION</span><button id="close" aria-label="Close dialog">×</button></div>
+    <h2 id="dialogTitle"></h2>
+    <div id="dialogBody"></div>
+    <div class="dialogactions" id="dialogActions"></div>
+  </dialog>
+  <div role="status" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
