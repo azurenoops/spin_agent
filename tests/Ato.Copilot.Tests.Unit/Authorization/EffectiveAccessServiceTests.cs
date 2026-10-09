@@ -14,6 +14,70 @@ namespace Ato.Copilot.Tests.Unit.Authorization;
 
 public class EffectiveAccessServiceTests
 {
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public async Task Canonical_membership_resolves_unlinked_person_without_cross_directory_or_revoked_access(bool revoked, bool wrongDirectory, bool disabledTenant)
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var directory = Guid.NewGuid();
+        var oid = Guid.NewGuid();
+        var factory = CreateFactory();
+        var person = await SeedPersonAsync(factory, tenantId, Guid.NewGuid());
+        await SeedOrgRoleAsync(factory, tenantId, person.Id, OrganizationRole.Issm);
+        await SeedSystemAsync(factory, tenantId, "member-system", "Member system");
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var row = await db.Persons.IgnoreQueryFilters().SingleAsync(p => p.Id == person.Id);
+            row.EntraObjectId = null;
+            row.IsLinkedToDirectory = false;
+            if (disabledTenant)
+                (await db.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == tenantId)).Status = TenantStatus.Disabled;
+            db.OrganizationMemberships.Add(new() { TenantId = tenantId, PersonId = person.Id,
+                DirectoryTenantId = wrongDirectory ? Guid.NewGuid() : directory, ObjectId = oid,
+                GrantedBy = "test", RevokedAt = revoked ? DateTimeOffset.UtcNow : null });
+            await db.SaveChangesAsync();
+        }
+        var service = new EffectiveAccessService(factory);
+        // Act
+        var result = await service.ResolveAsync(
+            new EffectiveAccessSubject(oid, "Membership user", tenantId, false, DirectoryTenantId: directory));
+        // Assert
+        if (revoked || wrongDirectory || disabledTenant) result.Destinations.Should().BeEmpty();
+        else result.Destinations.Should().Contain(destination =>
+            destination.Workspace == WorkspaceKind.System && destination.ScopeId == "member-system"
+            && destination.Actions.Contains(AdminPortalActions.SystemView));
+    }
+
+    [Fact]
+    public async Task Canonical_membership_cannot_bind_a_person_from_another_tenant()
+    {
+        // Arrange
+        var tenantId = Guid.NewGuid();
+        var otherTenant = Guid.NewGuid();
+        var directory = Guid.NewGuid();
+        var oid = Guid.NewGuid();
+        var factory = CreateFactory();
+        await SeedPersonAsync(factory, tenantId, Guid.NewGuid());
+        var foreign = await SeedPersonAsync(factory, otherTenant, Guid.NewGuid());
+        await SeedOrgRoleAsync(factory, otherTenant, foreign.Id, OrganizationRole.Issm);
+        await SeedSystemAsync(factory, otherTenant, "foreign-system", "Foreign system");
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            db.OrganizationMemberships.Add(new() { TenantId = tenantId, PersonId = foreign.Id,
+                DirectoryTenantId = directory, ObjectId = oid, GrantedBy = "test" });
+            await db.SaveChangesAsync();
+        }
+        var service = new EffectiveAccessService(factory);
+        // Act
+        var result = await service.ResolveAsync(new EffectiveAccessSubject(oid, "Membership user", tenantId, false, directory));
+        // Assert
+        result.Destinations.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Administrator_without_rmf_role_has_only_organization_administration()
     {

@@ -1,5 +1,49 @@
 # Requirement coverage and parent/enhancement navigation
 
+## AI-assisted requirement first pass (October 5)
+
+Requirement prose is source OSCAL, not user-facing template code. Render named
+organization-defined values inline using recorded assignments, with a readable
+"not recorded" placeholder otherwise; keep original prose/IDs/definitions in
+source disclosure. Parameter inputs use source labels and retain exact IDs for
+storage, review and OSCAL set-parameters.
+
+Automatically prepare a first-pass suggestion when an authorized author opens
+an existing selected-control draft with missing responses/parameters, once per
+system/control/kind/revision. Also allow explicit regeneration. Use the existing
+single IControlNarrativeService/NarrativeTemplateService AI client, not another
+model pipeline. Capture scoped narrative grounding, entered Mission/profile/
+information data, retained system policy references, and recorded parameter
+values. Source state/version/hash accompanies suggestions; no provider-wide
+catalog, unrelated tenant/system, credential/configuration secrets or source
+instructions are used as authority.
+
+AI returns per-statement response drafts and parameter suggestions with source
+IDs/explanations, plus questions/conflicts. Parameter values must be extractive
+from declared source values, not invented legal authority or thresholds.
+Authority parameters may cite only a retained policy or existing recorded
+assignment, not a generic framework/regulation tag. Unknown values remain
+questions. Evidence metadata is not proof of implementation; no evidence pins,
+baseline additions, legal approvals or "satisfied" status are generated.
+
+Generation is non-persistent and reauthorizes/rechecks source context after the
+model returns. User can inspect and apply suggestions only into empty fields;
+never overwrite saved/unsaved author text. Save remains an explicit revision-
+checked unreviewed mutation, and existing independent review/approval is
+unchanged. Server-protected generation proof binds tenant/person/system/control/
+kind/version/source context and expires after 24 hours; save rejects tampered
+or stale AI provenance and retains verified source metadata in the existing
+coverage snapshot/version history. No new table/migration or role grants.
+
+AI disabled/unavailable, invalid model shapes/source IDs, and context changes
+must be explicit errors with retry/manual authoring, not success-shaped template
+fallbacks. Selection changes/abort/unmount cannot apply another control's result.
+Native output retains the reviewed mappings/parameter values and AI-assistance
+provenance; subsequent drafts cannot rewrite approved snapshots.
+Policy and Technical assistance can be retained together in the same explicit
+save. Provenance records a verified generation/source basis, not a claim that
+the final human-edited response is verbatim model output or legally approved.
+
 **Status:** implementation present on the feature branch; final validation and
 real-user manual acceptance pending.
 **Traceability gate:** explicit GitHub-write approval is unavailable. No proposed

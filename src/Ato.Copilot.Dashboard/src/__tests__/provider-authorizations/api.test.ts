@@ -6,6 +6,26 @@ import { receipt } from './testData';
 vi.mock('axios', () => ({ default: { request: vi.fn(), isAxiosError: vi.fn(() => false) } }));
 beforeEach(() => vi.clearAllMocks());
 describe('offering intake exact transport contract', () => {
+  it.each([
+    ['identity', () => api.getOffering('offering-1'), '/api/csp/offerings/offering-1'],
+    ['boundary history', () => api.listBoundaries('offering-1', 2), '/api/csp/offerings/offering-1/boundary-revisions'],
+    ['source versions', () => api.listPackageVersions('offering-1', 2), '/api/csp/offerings/offering-1/package-versions'],
+    ['authorization history', () => api.listDecisionHistory('offering-1', 'record-1', 2), '/api/csp/offerings/offering-1/authorization-records/record-1/revisions'],
+    ['findings', () => api.listFindings('offering-1', 2), '/api/csp/offerings/offering-1/findings'],
+    ['provider remediation', () => api.listPoamItems('offering-1', 2), '/api/csp/offerings/offering-1/poam-items'],
+    ['impact reviews', () => api.listImpactReviews('offering-1', 2), '/api/csp/offerings/offering-1/impact-reviews'],
+    ['selected impact', () => api.getImpactReview('offering-1', 'review-1'), '/api/csp/offerings/offering-1/impact-reviews/review-1'],
+    ['affected customers', () => api.listImpactTargets('offering-1', 'review-1', 2), '/api/csp/offerings/offering-1/impact-reviews/review-1/affected-targets'],
+  ] as const)('preserves the existing offering-scoped %s handoff through the protected client', async (_name, read, url) => {
+    // Arrange
+    const data = { items: [], total: 0, page: 2, pageSize: 25 };
+    vi.mocked(axios.request).mockResolvedValue({ status: 200, data: { status: 'success', data } });
+    // Act
+    await read();
+    // Assert
+    expect(axios.request).toHaveBeenCalledWith(expect.objectContaining({ url }));
+    expect(vi.mocked(axios.request).mock.calls[0]?.[0].method).toBeUndefined();
+  });
   it('reads the exact current external decision using its existing individual endpoint', async () => {
     // Arrange
     const data = { offeringId: 'offering-1', recordId: 'decision-1', revisionId: 'revision-1', revision: 2, snapshotHash: 'retained-hash' };
@@ -68,7 +88,7 @@ describe('offering intake exact transport contract', () => {
   });
   it('pages linked capabilities and hosting records independently using the existing protected client', async () => {
     // Arrange
-    vi.mocked(axios.request).mockResolvedValue({ status: 200, data: { status: 'success', data: { offeringId: 'offering-1' } } });
+    vi.mocked(axios.request).mockResolvedValue({ status: 200, data: { status: 'success', data: { offeringId: 'offering-1', offeringRevision: 1 } } });
     const signal = new AbortController().signal;
     // Act
     await api.getBoundaryOverview('offering-1', 2, 3, signal);

@@ -2,14 +2,18 @@ import type { ReactNode } from 'react';
 import type { BoundaryDefinitionDto } from '../../types/dashboard';
 import { systemPanel } from './SystemTaskPresentation';
 
-export default function SystemBoundaryInventory({ boundaries, onOpenBoundary, emptyAction }: {
+export default function SystemBoundaryInventory({ boundaries, onOpenBoundary, action }: {
   boundaries: BoundaryDefinitionDto[];
   onOpenBoundary: (boundaryId: string) => void;
-  emptyAction?: ReactNode;
+  action?: ReactNode;
 }) {
   return <section className={`${systemPanel} boundary-inventory-card`} aria-label="Recorded boundary inventory">
-    <h2 className="mb-3 text-lg font-semibold">Mission system boundary</h2>
-    <p className="mb-4 text-sm text-slate-500">Recorded boundaries define the system scope. Open a boundary to manage its components.</p>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <h2 className="mb-3 text-lg font-semibold">Recorded boundary definitions</h2>
+      {action}
+    </div>
+    <p className="mb-4 text-sm text-slate-500">Inspect recorded names, types and source placements. Physical, Logical and Hybrid types do not identify authorization scope or internal system areas. Opening a record does not select a scope for any component.</p>
+    <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">Canonical definition and placement changes take effect immediately. They are separate from Save scope draft and do not approve the design or authorize the system.</p>
     <div className="overflow-x-auto">
       <table className="w-full text-left text-xs">
         <thead><tr>
@@ -21,7 +25,6 @@ export default function SystemBoundaryInventory({ boundaries, onOpenBoundary, em
         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
           {boundaries.length === 0 && <tr><td colSpan={5} className="px-2.5 py-[15px] text-sm text-slate-500">
             <p>No boundaries defined yet.</p>
-            {emptyAction && <div className="mt-3">{emptyAction}</div>}
           </td></tr>}
           {boundaries.map(boundary => <tr key={boundary.id}>
             <td className="px-2.5 py-[15px] font-semibold">{boundary.name}</td>

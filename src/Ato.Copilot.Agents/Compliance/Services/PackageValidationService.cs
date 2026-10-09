@@ -92,8 +92,19 @@ public class PackageValidationService : IPackageValidationService
             coverage.Gaps.Count == 0 ? "Selected source requirements have reviewed responses and pinned evidence. This is preparation, not eMASS acceptance."
                 : string.Join("\n", coverage.Gaps),
             "Reconcile the catalog, responses, parameters, evidence and independent mapping review.", "Issm"));
-        findings.AddRange(coverage.Gaps.Select(gap => Error("requirement-coverage", "ssp", gap,
-            "Resolve requirement coverage gaps before new submission preparation; working previews remain available.")));
+        var controlGapCount = coverage.Controls.Sum(x => x.Gaps.Count);
+        findings.AddRange(coverage.Gaps.Take(coverage.Gaps.Count - controlGapCount).Select(gap =>
+            Error("requirement-coverage", "ssp", gap,
+                "Resolve requirement coverage gaps before new submission preparation; working previews remain available.")));
+        foreach (var control in coverage.Controls)
+            foreach (var gap in control.Gaps)
+            {
+                var finding = Error("requirement-coverage", "ssp", $"{control.SelectedId}: {gap}",
+                    "Resolve requirement coverage gaps before new submission preparation; working previews remain available.");
+                finding.ControlId = control.SelectedId;
+                finding.RecordId = control.Implementation?.Id;
+                findings.Add(finding);
+            }
         var providerGaps = new List<string>();
         await ProviderDocumentProvenance.ResolveAsync(db, system, providerGaps, cancellationToken);
         checks.Add(Check("provider-authorization", "Provider authorization provenance",
@@ -148,7 +159,7 @@ public class PackageValidationService : IPackageValidationService
         // ─── 3. SSP Section Completeness ────────────────────────────────────
         var sspSections = await db.SspSections
             .Where(s => s.RegisteredSystemId == systemId)
-            .Select(s => new { s.SectionNumber, s.SectionTitle, s.Status })
+            .Select(s => new { s.Id, s.SectionNumber, s.SectionTitle, s.Status })
             .ToListAsync(cancellationToken);
 
         if (purpose == PackagePurpose.InitialSubmission)
@@ -158,7 +169,7 @@ public class PackageValidationService : IPackageValidationService
                 checks.Add(Check($"ssp-section-{number}", $"SSP section {number}", "Blocking", true,
                     "Required initial-submission SSP section is missing.", "Author and review the SSP section.", "Issm", "ssp"));
                 findings.Add(Error("ssp", "ssp", $"Required SSP section §{number} is missing.",
-                    $"Author and approve SSP section §{number} before preparing the initial submission."));
+                    $"Author and approve SSP section §{number} before preparing the initial submission.", checkId: $"ssp-section-{number}"));
             }
         }
         checks.Add(Check("ssp", "SSP section records", sspSections.Count > 0 ? "Passed" : "Blocking", true,
@@ -182,7 +193,8 @@ public class PackageValidationService : IPackageValidationService
             {
                 findings.Add(Error("ssp", "ssp",
                     $"SSP section §{section.SectionNumber} ({section.SectionTitle}) is '{section.Status}' — must be Approved.",
-                    $"Go to Narratives and submit section §{section.SectionNumber} for review, then approve it."));
+                    $"Go to Narratives and submit section §{section.SectionNumber} for review, then approve it.",
+                    recordId: section.Id, checkId: $"ssp-section-{section.SectionNumber}"));
             }
         }
 
@@ -205,7 +217,7 @@ public class PackageValidationService : IPackageValidationService
         {
             findings.Add(Error("sar", "sar",
                 $"SAR is '{sar.Status}' — must be Approved before package generation.",
-                "Go to Assessments and complete the SAR review/approval workflow."));
+                "Go to Assessments and complete the SAR review/approval workflow.", recordId: sar.Id));
         }
 
         // ─── 5. SAP Status ──────────────────────────────────────────────────
@@ -227,7 +239,7 @@ public class PackageValidationService : IPackageValidationService
         {
             findings.Add(Error("sap", "assessment-plan",
                 $"SAP is '{sap.Status}' — must be Finalized before package generation.",
-                "Go to Assessments and finalize the SAP to lock its contents and integrity hash."));
+                "Go to Assessments and finalize the SAP to lock its contents and integrity hash.", recordId: sap.Id));
         }
 
         // ─── 6. POA&M Items Exist ───────────────────────────────────────────
@@ -268,7 +280,7 @@ public class PackageValidationService : IPackageValidationService
         {
             findings.Add(Warning("cross-reference", "poam",
                 $"POA&M references control '{controlId}' which is not in the SSP control implementations.",
-                $"Go to POA&M and verify that '{controlId}' is the correct control ID, or add it to the SSP via Gap Analysis."));
+                $"Go to POA&M and verify that '{controlId}' is the correct control ID, or add it to the SSP via Gap Analysis.", controlId: controlId));
         }
 
         // ─── 8. OSCAL Schema Validation ─────────────────────────────────────
@@ -298,7 +310,7 @@ public class PackageValidationService : IPackageValidationService
                     };
                     findings.Add(Error("schema", model,
                         $"OSCAL {model} schema validation failed with {schemaResult.Violations.Count} violation(s): {violationSummary}",
-                        schemaHint));
+                        schemaHint, checkId: $"schema-{model}"));
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -312,7 +324,8 @@ public class PackageValidationService : IPackageValidationService
                     "Schema evaluation could not be completed.", "Restore the source document/schema service and retry.", null, "schema"));
                 findings.Add(Error("schema", model,
                     $"OSCAL {model} schema validation could not be completed: {ex.Message}",
-                    $"Ensure the {model} data exists. Check the relevant page (Narratives for SSP, POA&M, or Assessments) and verify data can be exported."));
+                    $"Ensure the {model} data exists. Check the relevant page (Narratives for SSP, POA&M, or Assessments) and verify data can be exported.",
+                    checkId: $"schema-{model}"));
             }
         }
 
@@ -356,7 +369,7 @@ public class PackageValidationService : IPackageValidationService
                 : !piaRequired ? "The recorded PTA does not require a PIA." : $"Required PIA status: {pia?.Status.ToString() ?? "Not recorded"}.",
             "Use the privacy assessment and independent review workflow.", "Issm", "privacy"));
         foreach (var check in checks.Where(x => x.Category == "privacy" && (x.Outcome == "Blocking" || x.Required && x.Outcome == "Unavailable")))
-            findings.Add(Error("privacy", null, check.Why, check.NextSteps[0]));
+            findings.Add(Error("privacy", null, check.Why, check.NextSteps[0], checkId: check.Id));
 
         var agreements = await scope.ServiceProvider.GetRequiredService<IInterconnectionService>().ValidateAgreementsAsync(systemId, cancellationToken);
         checks.Add(Check("interconnection-agreements", "Active interconnection agreements",
@@ -383,7 +396,8 @@ public class PackageValidationService : IPackageValidationService
                 actual == null ? "Required evidence bytes are unavailable." : outcome == "Passed" ? "Evidence bytes match their recorded hash."
                     : "Evidence bytes do not match the recorded hash.", "Restore the retained evidence or upload a reviewed replacement.", "Isso", "evidence");
             checks.Add(check);
-            if (outcome != "Passed") findings.Add(Error("evidence", null, check.Why, check.NextSteps[0]));
+            if (outcome != "Passed") findings.Add(Error("evidence", null, check.Why, check.NextSteps[0],
+                recordId: evidence.Id, checkId: check.Id));
         }
         if (!await db.CapabilitySubscriptions.AnyAsync(x => x.RegisteredSystemId == systemId && x.IsActive, cancellationToken))
             checks.Add(Check("responsibility", "Inherited responsibility review", "NotApplicable", false,
@@ -408,9 +422,9 @@ public class PackageValidationService : IPackageValidationService
         {
             checks.Add(inventoryCheck);
             if (inventoryCheck.Outcome is "Blocking" || inventoryCheck.Outcome == "Unavailable" && inventoryCheck.Required)
-                findings.Add(Error("inventory", "ssp", inventoryCheck.Why, inventoryCheck.NextSteps[0]));
+                findings.Add(Error("inventory", "ssp", inventoryCheck.Why, inventoryCheck.NextSteps[0], checkId: inventoryCheck.Id));
             else if (inventoryCheck.Outcome is "FollowUp" or "Unavailable")
-                findings.Add(Warning("inventory", "ssp", inventoryCheck.Why, inventoryCheck.NextSteps[0]));
+                findings.Add(Warning("inventory", "ssp", inventoryCheck.Why, inventoryCheck.NextSteps[0], checkId: inventoryCheck.Id));
         }
 
         // ─── Build Result ───────────────────────────────────────────────────
@@ -437,23 +451,31 @@ public class PackageValidationService : IPackageValidationService
             outcome is "Passed" or "NotApplicable" ? [] : [next], role, null,
             new(false, false, null, null, "Current source access must be resolved for this caller."));
 
-    private static ValidationFinding Error(string category, string? artifactType, string description, string remediation) =>
+    private static ValidationFinding Error(string category, string? artifactType, string description, string remediation,
+        string? controlId = null, string? recordId = null, string? checkId = null) =>
         new()
         {
             Severity = ValidationSeverity.Error,
             Category = category,
             ArtifactType = artifactType,
             Description = description,
-            Remediation = remediation
+            Remediation = remediation,
+            ControlId = controlId,
+            RecordId = recordId,
+            ReadinessCheckId = checkId
         };
 
-    private static ValidationFinding Warning(string category, string? artifactType, string description, string remediation) =>
+    private static ValidationFinding Warning(string category, string? artifactType, string description, string remediation,
+        string? controlId = null, string? recordId = null, string? checkId = null) =>
         new()
         {
             Severity = ValidationSeverity.Warning,
             Category = category,
             ArtifactType = artifactType,
             Description = description,
-            Remediation = remediation
+            Remediation = remediation,
+            ControlId = controlId,
+            RecordId = recordId,
+            ReadinessCheckId = checkId
         };
 }

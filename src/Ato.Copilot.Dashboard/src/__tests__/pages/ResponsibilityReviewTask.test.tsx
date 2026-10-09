@@ -55,11 +55,21 @@ it('starts unconfirmed with a concise provider summary and separate saved state'
   expect(within(drawer).getByText('Decide what the provider covers and what your team must do.')).toBeVisible();
   expect(within(drawer).getByRole('radio', { name: /I need more information/ })).toBeChecked();
   expect(within(drawer).queryByRole('combobox')).not.toBeInTheDocument();
-  expect(within(drawer).getByText('Last verified saved allocation: Not confirmed')).toBeVisible();
+  expect(within(drawer).getByText('Current responsibility · Not confirmed')).toBeVisible();
   expect(within(drawer).getByText('Review provider scope & evidence')).toBeVisible();
-  expect(within(drawer).getByText('Published provider access controls.')).not.toBeVisible();
+  expect(within(drawer).getAllByText('Published provider access controls.')[0]).toBeVisible();
   expect(within(drawer).getByText('source-1')).not.toBeVisible();
   expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
+});
+
+it('uses the simple mock hierarchy with a compact source card, task outcome and fixed footer', async () => {
+  // Arrange / Act
+  const drawer = await open();
+  // Assert
+  expect(drawer).toHaveClass('control-responsibility-dialog');
+  expect(within(drawer).getByRole('region', { name: 'Provider contribution' })).toHaveClass('rr-provider');
+  expect(within(drawer).getByRole('heading', { name: 'What happens next' })).toBeVisible();
+  expect(within(drawer).getByText('Current responsibility · Not confirmed')).toBeVisible();
 });
 
 it('offers a first pass when the API supports persisted responsibility drafts', async () => {
@@ -70,7 +80,7 @@ it('offers a first pass when the API supports persisted responsibility drafts', 
   // Act
   const drawer = await open();
   // Assert
-  expect(within(drawer).getByText('Prepared first pass')).toBeVisible();
+  expect(within(drawer).getByRole('region', { name: 'Prepared first pass', hidden: true })).toBeInTheDocument();
 });
 
 it('keeps system-only gaps visible and opens review without inventing a provider row', async () => {
@@ -148,7 +158,7 @@ it('keeps an information gap local without overwriting an existing allocation', 
   fill(drawer, 'Information needed', 'Verify scope first.');
   fireEvent.click(within(drawer).getByRole('button', { name: 'Review information gap' }));
   // Assert
-  expect(within(drawer).getByText('Last verified saved allocation: Customer')).toBeVisible();
+  expect(within(drawer).getByText('Current responsibility · Customer')).toBeVisible();
   expect(within(drawer).getByText(/No server draft or proposal is saved/)).toBeVisible();
   expect(within(drawer).queryByRole('button', { name: 'Confirm responsibility' })).not.toBeInTheDocument();
   expect(api.confirmCapabilityResponsibilities).not.toHaveBeenCalled();
@@ -191,7 +201,7 @@ it('preserves the draft and last verified allocation when recovery loading fails
   fireEvent.click(within(drawer).getByRole('button', { name: 'Refresh saved state' }));
   // Assert
   expect(await within(drawer).findByRole('alert')).toHaveTextContent(/Preview refresh failed.*Preview offline/);
-  expect(within(drawer).getByText('Last verified saved allocation: Not confirmed')).toBeVisible();
+  expect(within(drawer).getByText('Current responsibility · Not confirmed')).toBeVisible();
   expect(screen.getAllByRole('alert')).toHaveLength(1);
   fireEvent.click(within(drawer).getByRole('button', { name: 'Back to edit' }));
   expect(within(drawer).getByRole('textbox', { name: 'Customer duties' })).toHaveValue('Review local retention.');
@@ -258,6 +268,7 @@ it('keeps stale, missing evidence and explicitly synthetic source cautions visib
   const drawer = await open();
   // Assert
   expect(within(drawer).getByText(/source has changed since the saved review/)).toBeVisible();
+  fireEvent.click(within(drawer).getByText('Review provider scope & evidence'));
   expect(within(drawer).getByText(/Source text describes synthetic/)).toBeVisible();
   expect(within(drawer).getByText(/System scope and evidence sufficiency/)).toBeVisible();
 });

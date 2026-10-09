@@ -17,6 +17,17 @@ export default function HomeResolver() {
     );
   }
 
+  const entryRoute = access?.entryRoute;
+  if (entryRoute) {
+    const allowed = entryRoute.destination === '/access-required'
+      || entryRoute.destination.startsWith('/access/invitations/')
+      || entryRoute.destination.startsWith('/workspaces/csp/');
+    if (!allowed) {
+      return <Navigate to="/access-required" replace state={{ reasonCode: 'ENTRY_ROUTE_INVALID' }} />;
+    }
+    return <Navigate to={entryRoute.destination} replace state={{ reasonCode: entryRoute.reasonCode }} />;
+  }
+
   const destinations = access?.destinations ?? [];
   if (destinations.length === 0) return <Navigate to="/access-required" replace />;
   if (destinations.length > 1) return <Navigate to="/workspace" replace />;

@@ -157,6 +157,14 @@ export async function installSystemCapabilityFixture(context: BrowserContext, ba
     expect(request.headers()['x-workspace-kind']).toBe('organization');
     expect(request.headers()['x-workspace-tenant-id']).toBe('org-a');
     if (request.method() !== 'GET') writes.push({ path, body: request.postDataJSON() });
+    const draftMatch = path.match(/\/(local|provider)\/capability\/([^/]+)\/responsibilities\/([^/]+)\/draft$/);
+    if (request.method() === 'GET' && draftMatch) return success({
+      systemId: 'system-a', source: draftMatch[1], capabilityId: draftMatch[2], controlId: draftMatch[3],
+      canSave: !options.denied, saved: null, isStale: false,
+      prepared: { controlId: draftMatch[3], contextRevision: 'd'.repeat(64), allocation: null, allocationOrigin: 'From system records',
+        providerResponsibility: '', providerOrigin: 'From system records', customerResponsibility: 'Configure workload log sources',
+        customerOrigin: 'From system records', aiSummary: null, flags: ['Verify recorded system applicability'], references: [] },
+    });
     if (path.endsWith('/responsibilities/confirm')) {
       const body = request.postDataJSON();
       expect(body.providerCoverageVerified).toBe(true);

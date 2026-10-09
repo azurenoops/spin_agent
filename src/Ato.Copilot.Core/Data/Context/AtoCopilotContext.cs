@@ -32,6 +32,21 @@ public class AtoCopilotContext : DbContext
     public DbSet<CspPackageCandidate> CspPackageCandidates => Set<CspPackageCandidate>();
     public DbSet<CspPackageApproval> CspPackageApprovals => Set<CspPackageApproval>();
     public DbSet<CspPackageAudit> CspPackageAudits => Set<CspPackageAudit>();
+    public DbSet<ProviderSetupDraft> ProviderSetupDrafts => Set<ProviderSetupDraft>();
+    public DbSet<ProviderSetupCommand> ProviderSetupCommands => Set<ProviderSetupCommand>();
+    public DbSet<CspPackageUploadIntent> CspPackageUploadIntents => Set<CspPackageUploadIntent>();
+    public DbSet<ServicePortfolio> ServicePortfolios => Set<ServicePortfolio>();
+    public DbSet<ServicePortfolioOfferingRevision> ServicePortfolioOfferingRevisions => Set<ServicePortfolioOfferingRevision>();
+    public DbSet<ProviderOfferingAuthorizationIntentRevision> ProviderOfferingAuthorizationIntentRevisions =>
+        Set<ProviderOfferingAuthorizationIntentRevision>();
+    public DbSet<ProviderSetupWorkItem> ProviderSetupWorkItems => Set<ProviderSetupWorkItem>();
+    public DbSet<ProviderPrincipal> ProviderPrincipals => Set<ProviderPrincipal>();
+    public DbSet<ProviderDirectoryMatch> ProviderDirectoryMatches => Set<ProviderDirectoryMatch>();
+    public DbSet<ProviderMembership> ProviderMemberships => Set<ProviderMembership>();
+    public DbSet<ProviderRoleAssignment> ProviderRoleAssignments => Set<ProviderRoleAssignment>();
+    public DbSet<ProviderInvitation> ProviderInvitations => Set<ProviderInvitation>();
+    public DbSet<ProviderAccessRequest> ProviderAccessRequests => Set<ProviderAccessRequest>();
+    public DbSet<ProviderContact> ProviderContacts => Set<ProviderContact>();
     /// <summary>
     /// Optional ambient tenant accessor used to apply tenant query filters at
     /// runtime (Feature 048 T042). Null when the context is constructed without
@@ -3473,6 +3488,7 @@ public class AtoCopilotContext : DbContext
         Ato.Copilot.Core.Data.Configurations.ScopedMonitoringModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.ProviderEvidenceSharingConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.ProviderSetupModelConfiguration.Configure(modelBuilder);
+        Ato.Copilot.Core.Data.Configurations.ProviderAccessModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.OrganizationOnboardingModelConfiguration.Configure(modelBuilder);
         Ato.Copilot.Core.Data.Configurations.SystemSetupModelConfiguration.Configure(modelBuilder);
 

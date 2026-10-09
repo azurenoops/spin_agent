@@ -7,7 +7,7 @@ const pages = [
   ['Users', 'profile/UsersAndAccess', 'Users & access'],
   ['Environment & hosting', 'profile/EnvironmentAndDeployment', 'Environment & hosting'],
   ['Data', 'profile/DataTypes', 'Data types & sensitivity'],
-  ['Inventory & boundary', 'boundaries', 'Inventory & system boundary'],
+  ['Components & system scope', 'boundaries', 'Components & system scope'],
   ['Ports & interconnections', 'profile/PortsProtocolsAndServices', 'Ports & interconnections'],
 ];
 
@@ -59,6 +59,10 @@ for (const width of [1440, 390]) {
       await expect(page).toHaveURL(`${baseURL}${root}/${path}`);
       const heading = page.getByRole('heading', { name: title, exact: true });
       await expect(heading).toBeVisible();
+      if (label === 'Environment & hosting') {
+        await expect(page.getByRole('button', { name: 'Submit for Review', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Save Draft', exact: true })).toBeVisible();
+      }
       await expect(navigation.getByRole('link')).toHaveCount(7);
       await expect(navigation.locator('[aria-current="page"]')).toHaveText(label);
       expect((await heading.boundingBox())!.y).toBeLessThan((await navigation.boundingBox())!.y);
@@ -82,11 +86,11 @@ for (const width of [1440, 390]) {
     await expect(page.getByLabel('System owner', { exact: true })).toHaveValue('Recorded Owner');
     await expect(page.getByRole('link', { name: 'Preview contribution', exact: true })).toHaveAttribute('href', `${root}/documents/preview?contribution=MissionAndPurpose`);
     await expect(page.getByRole('link', { name: 'View package readiness', exact: true })).toHaveAttribute('href', `${root}/documents?purpose=InitialSubmission`);
-    await page.getByLabel('Mission Statement', { exact: false }).fill('Updated mission.');
+    await page.getByLabel('Mission statement', { exact: false }).fill('Updated mission.');
     await expect(page.getByRole('button', { name: 'Submit for Review', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
     await expect(page.getByText('Refresh permission before retrying.', { exact: true })).toBeVisible();
-    await expect(page.getByLabel('Mission Statement', { exact: false })).toHaveValue('Updated mission.');
+    await expect(page.getByLabel('Mission statement', { exact: false })).toHaveValue('Updated mission.');
     rejectSave = false;
     await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
     await expect(page.getByText('Section saved as Draft.', { exact: true })).toBeVisible();

@@ -40,6 +40,13 @@ export interface EffectiveAccess {
   };
   defaultDestinationId: string | null;
   destinations: EffectiveAccessDestination[];
+  entryRoute?: {
+    kind: 'ProviderSetup' | 'ProviderSetupResume' | 'ProviderInvitation' | 'ProviderMember' | 'AccessRequired' | 'Blocked';
+    reasonCode: string;
+    destination: string;
+    setupId?: string | null;
+    invitationId?: string | null;
+  } | null;
 }
 
 interface AccessContextValue {

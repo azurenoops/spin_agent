@@ -19,6 +19,33 @@ namespace Ato.Copilot.Tests.Integration;
 
 public sealed partial class CapabilityResponsibilityTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EnvironmentContext_UsesRecordedControlScope_NotListOrder(bool removed)
+    {
+        // Arrange
+        await AddBaselineAsync();
+        var correct = Guid.NewGuid();
+        ProviderScopeCapabilityDuties Duty(string control) => new(_capability, "Recorded capability", "Recorded statement",
+            Guid.NewGuid(), 1, "release", "content", Guid.NewGuid(), [], [control], []);
+        SystemProviderScope Scope(Guid id, string control, string state = "Active") => new(id, 1, null,
+            Guid.NewGuid(), "Recorded offering", "Recorded provider", Guid.NewGuid(), "Recorded scope",
+            state, "Undetermined", false, [], 1) { PublishedDuties = new("Available", [Duty(control)], null) };
+        _draftEnvironments.Setup(x => x.ListAsync(_system, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SystemEnvironmentsResponse(_system, 1, new(false, false, false, false, false), [], [])
+                { ProviderScopes = [Scope(Guid.NewGuid(), "AC-2"), Scope(correct, "AU-6", removed ? "Removed" : "Active")] });
+        _draftEnvironments.Setup(x => x.ProviderScopeChoicesAsync(_system, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SystemProviderScopeChoicesResponse(_system, 1, false, []));
+        // Act
+        var response = await _client.GetAsync($"{Route}/drafts/AU-6?useEnvironment=true");
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = (await response.Content.ReadFromJsonAsync<ResponsibilityDraftContext>())!;
+        result.ScopeId.Should().Be(removed ? null : correct);
+        if (!removed) result.SourceValues["allocation"].Value.Should().Be("Shared");
+    }
+
     private void DraftAi(string allocation = "Customer", string customer = "Review local audit retention.")
     {
         _draftGenerator.Setup(x => x.GenerateAsync(It.IsAny<string>(),
@@ -29,6 +56,61 @@ public sealed partial class CapabilityResponsibilityTests
                 ["customer"] = new(customer, "AI proposed", ["technical"]),
                 ["basis"] = new("Review scoped source evidence.", "AI proposed", ["policy"]),
             }, [], []));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EnvironmentContext_RequiresUniqueRecordedApplicability_AndHonorsCapability(bool identifyCapability)
+    {
+        // Arrange
+        await AddBaselineAsync();
+        SystemProviderScope Scope(Guid capability) => new(Guid.NewGuid(), 1, null, Guid.NewGuid(),
+            "Offering", "Provider", Guid.NewGuid(), "Recorded scope", "Active", "Undetermined", false, [], 1)
+            { PublishedDuties = new("Available", [new(capability, "Capability", "Published statement", Guid.NewGuid(),
+                1, "release", "content", Guid.NewGuid(), [], ["AU-6"], [])], null) };
+        var intended = Scope(_capability);
+        _draftEnvironments.Setup(x => x.ListAsync(_system, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SystemEnvironmentsResponse(_system, 1, new(false, false, false, false, false), [], [])
+                { ProviderScopes = [Scope(Guid.NewGuid()), intended] });
+        _draftEnvironments.Setup(x => x.ProviderScopeChoicesAsync(_system, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SystemProviderScopeChoicesResponse(_system, 1, false, []));
+        // Act
+        var result = await _client.GetFromJsonAsync<ResponsibilityDraftContext>(
+            $"{Route}/drafts/AU-6?useEnvironment=true{(identifyCapability ? $"&capabilityId={_capability}" : "")}");
+        // Assert
+        result!.ScopeId.Should().Be(identifyCapability ? intended.AssignmentId : null);
+        if (identifyCapability) result.EnvironmentScopeIssue.Should().BeNull();
+        else result.EnvironmentScopeIssue.Should().Contain("Several");
+        _draftGenerator.Verify(x => x.GenerateAsync(It.IsAny<string>(),
+            It.IsAny<IReadOnlyList<ResponsibilityDraftSource>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task WholeControlFirstPass_WithRecordedProviderContributions_DoesNotReplaceTheirSplitWithAiCustomerOwnership()
+    {
+        // Arrange
+        await AddBaselineAsync();
+        DraftAi("Customer");
+        await using (var db = new AtoCopilotContext(_options))
+        {
+            db.ControlImplementations.Add(new() { TenantId = _tenant, RegisteredSystemId = _system,
+                ControlId = "AU-6", Narrative = "Recorded local audit operating duties." });
+            await db.SaveChangesAsync();
+        }
+        var scope = new SystemProviderScope(Guid.NewGuid(), 1, null, Guid.NewGuid(), "Offering", "Provider",
+            Guid.NewGuid(), "Recorded scope", "Active", "Undetermined", false, [], 1)
+            { PublishedDuties = new("Available", [new(_capability, "Capability", "Published source", Guid.NewGuid(),
+                1, "release", "content", Guid.NewGuid(), [], ["AU-6"], [])], null) };
+        _draftEnvironments.Setup(x => x.ListAsync(_system, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SystemEnvironmentsResponse(_system, 1, new(false, false, false, false, false), [], [])
+                { ProviderScopes = [scope, scope with { AssignmentId = Guid.NewGuid() }] });
+        // Act
+        var result = await PrepareDraft();
+        // Assert
+        result.Draft!.Values["allocation"].Value.Should().Be("NeedsConfirmation");
+        result.Draft.Values["provider"].Value.Should().BeEmpty();
+        result.Draft.Values["customer"].Value.Should().Be("Review local audit retention.");
     }
     private async Task<ResponsibilityDraftContext> PrepareDraft(Guid? scope = null, long revision = 0)
     {

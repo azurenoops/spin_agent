@@ -6,10 +6,12 @@ import { FindingsPage } from '../../features/provider-authorizations/FindingsPag
 import * as api from '../../features/provider-authorizations/api';
 import * as catalogApi from '../../features/workspace-operations/api';
 import { offering } from './testData';
-import { page } from '../package-imports/fixtures';
+import { candidate, page } from '../package-imports/fixtures';
 import type { OfferingBoundaryCapability } from '../../features/provider-authorizations/types';
 import { PackageImportError } from '../../features/package-imports/request';
+import * as packageApi from '../../features/package-imports/api';
 import '../helpers/dialog';
+import { WorkspaceNavigationProvider } from '../../features/workspaces/workspaceNavigation';
 
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getBoundaryOverview: vi.fn(), listFindings: vi.fn(), listFindingEvidence: vi.fn(),
@@ -17,6 +19,9 @@ vi.mock('../../features/provider-authorizations/api', async original => ({
 }));
 vi.mock('../../features/workspace-operations/api', async original => ({
   ...await original<typeof catalogApi>(), getProviderCapability: vi.fn(),
+}));
+vi.mock('../../features/package-imports/api', async original => ({
+  ...await original<typeof packageApi>(), getPackageCandidates: vi.fn(),
 }));
 
 const capabilities: OfferingBoundaryCapability[] = ['Azure Backup', 'Azure Key Vault'].map((name, index) => ({
@@ -28,6 +33,7 @@ const finding = { findingId: 'finding-1', offeringId: offering.offeringId, revis
   citations: [], workflowState: 'Open', createdAt: '2026-09-26T12:00:00Z' };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(packageApi.getPackageCandidates).mockReset();
   vi.mocked(api.getBoundaryOverview).mockImplementation(async (_id, next = 1) => ({
     offeringId: offering.offeringId, offeringRevision: offering.revision,
     capabilities: { items: capabilities.slice(next - 1, next), page: next, pageSize: 1, total: 2, published: 2, awaitingReview: 0 },
@@ -48,6 +54,195 @@ beforeEach(() => {
     fileName: 'retained-assessment.pdf', mediaType: 'application/pdf', byteLength: 120, sha256: 'test-hash',
     description: 'Retained assessment', state: 'PendingReview', createdAt: finding.createdAt, latestReview: null,
   }]));
+});
+
+it('filters and sorts the approved capability list and opens retained context in a drawer', async () => {
+  // Arrange
+  render(<MemoryRouter><OfferingCapabilities offering={offering} /></MemoryRouter>);
+  await screen.findByRole('table', { name: 'Service implementations' });
+  // Act
+  fireEvent.change(screen.getByRole('combobox', { name: 'Sort by name' }), { target: { value: 'desc' } });
+  // Assert
+  const rows = within(screen.getByRole('table', { name: 'Service implementations' })).getAllByRole('row');
+  expect(rows[1]).toHaveTextContent('Azure Key Vault');
+  // Act
+  fireEvent.change(screen.getByRole('combobox', { name: 'Release state' }), { target: { value: 'pending' } });
+  // Assert
+  expect(screen.getByText('No capabilities match this search.')).toBeInTheDocument();
+  // Act
+  fireEvent.change(screen.getByRole('combobox', { name: 'Release state' }), { target: { value: 'all' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Azure Key Vault' }));
+  // Assert
+  const drawer = screen.getByRole('dialog', { name: 'Azure Key Vault' });
+  expect(drawer).toHaveTextContent('Revision 3');
+  expect(drawer).toHaveTextContent('Boundary context');
+  expect(drawer).toHaveTextContent('not an immutable release payload');
+  expect(within(drawer).getByRole('link', { name: 'Open capability workflow' })).toHaveAttribute('href', '/security-capabilities/capability-1');
+  // Act
+  fireEvent.keyDown(drawer, { key: 'Escape' });
+  // Assert
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('presents the offering implementation drawer with readable sections, exact duty groups and scoped real actions', async () => {
+  // Arrange
+  const name = 'An independently operated protection with a deliberately long capability name';
+  const description = 'First source paragraph.\n\nSecond source paragraph with the complete retained implementation.';
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({
+    offeringId: offering.offeringId, offeringRevision: offering.revision,
+    capabilities: { ...page([{ ...capabilities[0]!, name, candidateId: 'candidate-7', packageId: 'package-7' }]), published: 1, awaitingReview: 0 },
+    missionSystems: page([]),
+  });
+  vi.mocked(packageApi.getPackageCandidates).mockResolvedValue(page([candidate({
+    candidateId: 'candidate-7', description, controlDuties: { 'CP-9': 'Shared', 'CP-10': 'Shared', 'SC-12': 'Customer manages recorded keys.' },
+    revision: 7,
+  })]));
+  render(<MemoryRouter><WorkspaceNavigationProvider workspace={{ kind: 'csp' }}>
+    <OfferingCapabilities offering={offering} />
+  </WorkspaceNavigationProvider></MemoryRouter>);
+  await screen.findByRole('table', { name: 'Service implementations' });
+  // Act
+  fireEvent.click(screen.getByRole('button', { name }));
+  // Assert
+  const drawer = screen.getByRole('dialog', { name });
+  expect(drawer).toHaveClass('offering-implementation-drawer');
+  expect(within(drawer).getByText(offering.name, { exact: true })).toBeInTheDocument();
+  expect(within(drawer).getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([
+    'Service implementation', 'Control-duty references', 'Who does what?', 'Scope & applicability', 'Evidence & provenance',
+  ]);
+  expect(drawer.querySelector('.offering-implementation-statement')?.textContent).toBe(description);
+  const group = within(drawer).getByRole('group', { name: 'Shared' });
+  expect(group).toHaveTextContent('CP-9');
+  expect(group).toHaveTextContent('CP-10');
+  expect(within(drawer).getByRole('group', { name: 'Customer manages recorded keys.' })).toHaveTextContent('SC-12');
+  expect(within(drawer).getByText('Source and release identities').closest('details')).not.toHaveAttribute('open');
+  expect(within(drawer).getByRole('link', { name: 'Open capability workflow' })).toHaveAttribute('href', '/workspaces/csp/security-capabilities/capability-0');
+  expect(within(drawer).getByRole('link', { name: 'Review retained source' })).toHaveAttribute('href',
+    `/workspaces/csp/authorizations/offerings/${offering.offeringId}/packages/package-7/candidates/candidate-7`);
+  expect(within(drawer).queryByRole('textbox')).not.toBeInTheDocument();
+  expect(drawer).toHaveTextContent('not an immutable release payload');
+  expect(drawer).not.toHaveTextContent('Owns the listed shared-service operations');
+});
+
+it('keeps unavailable duties explicit for a draft catalog-only implementation, with no fabricated published revision', async () => {
+  // Arrange
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({
+    offeringId: offering.offeringId, offeringRevision: offering.revision,
+    capabilities: { ...page([{ ...capabilities[0]!, publicationState: 'Draft', releaseRevision: null, boundaryRevisionId: null }]), published: 0, awaitingReview: 1 },
+    missionSystems: page([]),
+  });
+  render(<MemoryRouter><OfferingCapabilities offering={offering} /></MemoryRouter>);
+  await screen.findByRole('table', { name: 'Service implementations' });
+  // Act
+  screen.getByRole('button', { name: 'Azure Backup' }).focus();
+  fireEvent.click(screen.getByRole('button', { name: 'Azure Backup' }));
+  // Assert
+  const drawer = screen.getByRole('dialog', { name: 'Azure Backup' });
+  expect(within(drawer).getByRole('heading', { name: 'Who does what?' })).toBeInTheDocument();
+  expect(drawer).toHaveTextContent('Pinned published duties are not supplied');
+  expect(drawer).toHaveTextContent('Release version not reported');
+  expect(drawer).toHaveTextContent('Current catalog context');
+  expect(within(drawer).queryByRole('group', { name: 'Shared' })).not.toBeInTheDocument();
+  expect(within(drawer).queryByRole('link', { name: 'Review retained source' })).not.toBeInTheDocument();
+});
+
+it('retains the exact selected implementation context on source failure and retries without inventing duties', async () => {
+  // Arrange
+  vi.mocked(packageApi.getPackageCandidates).mockRejectedValueOnce(new Error('Retained implementation is restricted'));
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({
+    offeringId: offering.offeringId, offeringRevision: offering.revision,
+    capabilities: { ...page([{ ...capabilities[0]!, candidateId: 'candidate-7', packageId: 'package-7' }]), published: 1, awaitingReview: 0 },
+    missionSystems: page([]),
+  });
+  render(<MemoryRouter><OfferingCapabilities offering={offering} /></MemoryRouter>);
+  await screen.findByRole('table', { name: 'Service implementations' });
+  // Act
+  fireEvent.click(screen.getByRole('button', { name: 'Azure Backup' }));
+  // Assert
+  const drawer = screen.getByRole('dialog', { name: 'Azure Backup' });
+  expect(within(drawer).getByRole('alert')).toHaveTextContent('Retained implementation is restricted');
+  expect(drawer).toHaveTextContent('Implementation summary unavailable.');
+  expect(drawer).toHaveTextContent('Source control references not reported.');
+  expect(within(drawer).getByRole('link', { name: 'Review retained source' })).toHaveAttribute('href',
+    api.authorizationHref(offering.offeringId, 'packages/package-7/candidates/candidate-7'));
+  // Act
+  vi.mocked(packageApi.getPackageCandidates).mockResolvedValue(page([candidate({
+    candidateId: 'candidate-7', description: 'Recovered retained implementation', controlDuties: {},
+  })]));
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Retry implementation details' }));
+  // Assert
+  await waitFor(() => expect(drawer).toHaveTextContent('Recovered retained implementation'));
+  expect(within(drawer).queryByRole('alert')).not.toBeInTheDocument();
+  expect(drawer).toHaveTextContent('Pinned published duties are not supplied');
+  expect(catalogApi.getProviderCapability).not.toHaveBeenCalled();
+  // Act
+  fireEvent.keyDown(drawer, { key: 'Escape' });
+  // Assert
+  expect(screen.getByRole('button', { name: 'Azure Backup' })).toHaveFocus();
+});
+
+it('rejects a mixed offering revision across capability pages instead of showing a partial baseline', async () => {
+  // Arrange
+  vi.mocked(api.getBoundaryOverview).mockImplementation(async (_id, next = 1) => ({
+    offeringId: offering.offeringId, offeringRevision: offering.revision + next - 1,
+    capabilities: { items: capabilities.slice(next - 1, next), page: next, pageSize: 1, total: 2, published: 2, awaitingReview: 0 },
+    missionSystems: page([]),
+  }));
+  // Act
+  render(<MemoryRouter><OfferingCapabilities offering={offering} /></MemoryRouter>);
+  // Assert
+  expect(await screen.findByRole('alert')).toHaveTextContent('Offering changed while capability pages were loading');
+  expect(screen.queryByRole('table', { name: 'Service implementations' })).not.toBeInTheDocument();
+});
+
+it('uses available retained-source duty/version contracts even when the row also has a canonical capability', async () => {
+  // Arrange
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({
+    offeringId: offering.offeringId, offeringRevision: offering.revision,
+    capabilities: { ...page([{ ...capabilities[0]!, candidateId: 'source-candidate', packageId: 'source-package' }]), published: 1, awaitingReview: 0 },
+    missionSystems: page([]),
+  });
+  vi.mocked(packageApi.getPackageCandidates).mockResolvedValue(page([{
+    candidateId: 'source-candidate', name: 'Retained protection', description: 'Exact retained source description',
+    type: 'Capability', componentType: 'Service', classification: '', serviceCategory: '', controlDuties: { 'CP-9': 'Shared' },
+    contributorIds: [], citations: [], duplicateMatches: [], duplicateResolution: null, rationale: null,
+    reviewState: 'Published', revision: 7, confidence: null, publishedRecordId: 'capability-0',
+  }]));
+  // Act
+  render(<MemoryRouter><OfferingCapabilities offering={offering} /></MemoryRouter>);
+  await screen.findByText('Exact retained source description');
+  fireEvent.click(screen.getByRole('button', { name: 'Azure Backup' }));
+  // Assert
+  const drawer = screen.getByRole('dialog', { name: 'Azure Backup' });
+  expect(drawer).toHaveTextContent('Retained source proposal revision 7');
+  expect(drawer).toHaveTextContent('Shared');
+  expect(drawer).toHaveTextContent('Revision 3');
+  expect(catalogApi.getProviderCapability).not.toHaveBeenCalled();
+});
+
+it('exposes source-version changes in an open read-only drawer without replacing its retained release', async () => {
+  // Arrange
+  const row = { ...capabilities[0]!, candidateId: 'source-candidate', packageId: 'source-package' };
+  const response = { offeringId: offering.offeringId, offeringRevision: offering.revision,
+    capabilities: { ...page([row]), published: 1, awaitingReview: 0 }, missionSystems: page([]) };
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue(response);
+  let sourceRevision = 7;
+  vi.mocked(packageApi.getPackageCandidates).mockImplementation(async () => page([
+    candidate({ candidateId: 'source-candidate', revision: sourceRevision, description: 'Retained source',
+      controlDuties: { 'CP-9': 'Shared' } }),
+  ]));
+  const view = render(<MemoryRouter><OfferingCapabilities offering={offering} /></MemoryRouter>);
+  await screen.findByText('Retained source');
+  fireEvent.click(screen.getByRole('button', { name: 'Azure Backup' }));
+  // Act
+  sourceRevision = 8;
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({ ...response, offeringRevision: offering.revision + 1 });
+  view.rerender(<MemoryRouter><OfferingCapabilities offering={{ ...offering, revision: offering.revision + 1 }} /></MemoryRouter>);
+  // Assert
+  const drawer = screen.getByRole('dialog', { name: 'Azure Backup' });
+  await within(drawer).findByText(/Retained source proposal revision 8/);
+  expect(within(drawer).getByRole('alert')).toHaveTextContent('Source version changed since this drawer opened');
+  expect(drawer).toHaveTextContent('Revision 3');
 });
 
 it('matches the capability toolbar and support actions using all pages and actual published revision 3', async () => {
@@ -108,8 +303,8 @@ it('bounds realistic long table notes without discarding their text or exact ret
   const capabilityTable = await screen.findByRole('table', { name: 'Service implementations' });
   const evidenceTable = await screen.findByRole('table', { name: 'Evidence library' });
   // Assert
-  expect(capabilityTable).toHaveClass('table-fixed', 'min-w-[1040px]');
-  expect([...capabilityTable.querySelectorAll('col')].map(col => col.style.width)).toEqual(['35%', '17%', '25%', '15%', '8%']);
+  expect(capabilityTable).toHaveClass('table-fixed', 'offering-capability-table');
+  expect([...capabilityTable.querySelectorAll('col')].map(col => col.style.width)).toEqual(['50%', '28%', '22%']);
   expect(evidenceTable).toHaveClass('table-fixed', 'min-w-[700px]');
   expect([...evidenceTable.querySelectorAll('col')].map(col => col.style.width)).toEqual(['42%', '24%', '22%', '12%']);
   for (const note of screen.getAllByText(description)) expect(note).toHaveClass('line-clamp-2');
@@ -129,7 +324,7 @@ it('keeps failed capability metadata visible and permits retry even when a contr
   // Act
   fireEvent.change(screen.getByRole('textbox', { name: 'Search capabilities' }), { target: { value: 'CP-9' } });
   // Assert
-  expect(screen.getByRole('status')).toHaveTextContent('Search is incomplete');
+  expect(screen.getAllByRole('status').some(status => status.textContent?.includes('Search is incomplete'))).toBe(true);
   expect(screen.queryByText('No capabilities match this search.')).not.toBeInTheDocument();
   // Act
   fireEvent.click(screen.getByRole('button', { name: 'Retry capability search' }));

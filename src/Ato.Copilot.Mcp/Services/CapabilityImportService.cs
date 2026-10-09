@@ -856,9 +856,7 @@ public class CapabilityImportService
             })
             .First();
 
-        var controlCount = await _db.NistControls
-            .Where(n => n.Baselines.Contains(highestLevel))
-            .CountAsync(ct);
+        var controlCount = await CountBaselineControlsAsync(highestLevel, ct);
 
         return new BaselineInfo(highestLevel, controlCount);
     }
@@ -872,11 +870,16 @@ public class CapabilityImportService
 
         if (baseline?.BaselineLevel is null) return null;
 
-        var controlCount = await _db.NistControls
-            .Where(n => n.Baselines.Contains(baseline.BaselineLevel))
-            .CountAsync(ct);
+        var controlCount = await CountBaselineControlsAsync(baseline.BaselineLevel, ct);
 
         return new BaselineInfo(baseline.BaselineLevel, controlCount);
+    }
+
+    private async Task<int> CountBaselineControlsAsync(string level, CancellationToken ct)
+    {
+        var baselineLists = await _db.NistControls.AsNoTracking()
+            .Select(control => control.Baselines).ToListAsync(ct);
+        return baselineLists.Count(baselines => baselines.Contains(level));
     }
 
     private static string ExtractFamilyCode(string controlId)

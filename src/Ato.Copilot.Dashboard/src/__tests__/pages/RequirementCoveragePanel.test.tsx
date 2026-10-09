@@ -9,6 +9,7 @@ vi.mock('../../api/requirementCoverage', () => ({
   getRequirementCoverage: vi.fn(), saveRequirementResponses: vi.fn(),
   reviewRequirementResponses: vi.fn(), proposeEnhancement: vi.fn(), acceptEnhancement: vi.fn(), returnEnhancement: vi.fn(),
   getRequirementCatalogs: vi.fn(), bindRequirementCatalog: vi.fn(),
+  generateRequirementFirstPass: vi.fn(),
 }));
 vi.mock('../../api/evidence', () => ({ listEvidence: vi.fn().mockResolvedValue({ items: [], totalCount: 0 }) }));
 
@@ -23,6 +24,11 @@ const detail = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.getRequirementCoverage).mockResolvedValue(detail);
+  vi.mocked(api.generateRequirementFirstPass).mockImplementation(async (systemId, controlId, input) => ({
+    systemId, controlId, kind: input.kind, expectedVersion: input.expectedVersion, contextHash: 'synthetic-hash',
+    token: 'synthetic-proof', generatedAt: '2026-10-05T18:00:00Z', sources: [], responses: [], parameters: [],
+    questions: ['Synthetic source context has no first-pass suggestion.'], conflicts: [],
+  }));
 });
 
 describe('Requirement coverage', () => {
@@ -161,7 +167,7 @@ describe('Requirement coverage', () => {
     fireEvent.change(await screen.findByLabelText('Policy response for a.'), { target: { value: 'Draft' } });
 
     // Act
-    fireEvent.change(screen.getByLabelText('Recorded value for period'), { target: { value: 'Synthetic recorded value' } });
+    fireEvent.change(screen.getByLabelText('Recorded value: Period (parameter 1)'), { target: { value: 'Synthetic recorded value' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Find evidence' })); });
     fireEvent.change(screen.getByLabelText('Supporting evidence for a.'), { target: { value: 'artifact-a' } });
     fireEvent.click(screen.getByRole('button', { name: 'Remove evidence association' }));

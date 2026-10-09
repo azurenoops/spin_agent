@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { installWorkspaceFixture } from '../fixtures/workspace-shell';
+import { installSystemOverviewFixture } from '../fixtures/system-overview';
 import { systemDetail } from '../../src/__tests__/fixtures/assessmentEnvironment';
 
 const root = '/workspaces/organizations/org-a/systems/system-a';
@@ -15,7 +15,7 @@ for (const width of [1440, 390]) {
     test.setTimeout(90000);
     // Arrange: fixture responses exercise the actual SPA, not production persistence.
     await page.setViewportSize({ width, height: 1000 });
-    await installWorkspaceFixture(context, baseURL!);
+    await installSystemOverviewFixture(context, baseURL!);
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await context.route('**/api/dashboard/systems/system-a', route => route.fulfill({ json: {
@@ -132,7 +132,7 @@ for (const width of [1440, 390]) {
       ['profile/UsersAndAccess', 'Users & access'],
       ['profile/DataTypes', 'Data types & sensitivity'],
       ['profile/PortsProtocolsAndServices', 'Ports & interconnections'],
-      ['boundaries', 'Inventory & system boundary'],
+      ['boundaries', 'Components & system scope'],
       ['baseline', 'Categorization & control baseline'],
       ['legal', 'Applicable policies & references'],
       ['evidence', 'Evidence for control assessment'],
@@ -148,7 +148,7 @@ for (const width of [1440, 390]) {
       if (path === 'profile/PortsProtocolsAndServices') await expect(page.getByRole('button', { name: 'Add connection', exact: true })).toBeVisible();
       else if (path.startsWith('profile/')) await expect(page.getByRole('button', { name: 'Save Draft', exact: true })).toBeVisible();
       if (path === 'profile/MissionAndPurpose') {
-        await page.getByLabel('Mission Statement', { exact: false }).fill('Updated mission support purpose.');
+        await page.getByLabel('Mission statement', { exact: false }).fill('Updated mission support purpose.');
         const saved = page.waitForRequest(request => request.method() === 'PUT'
           && request.url().endsWith('/api/dashboard/systems/system-a/profile/MissionAndPurpose'));
         await page.getByRole('button', { name: 'Save Draft', exact: true }).click();
@@ -158,20 +158,20 @@ for (const width of [1440, 390]) {
       if (path === 'profile/PortsProtocolsAndServices') await expect(page.getByText('Partner system', { exact: true })).toBeVisible();
       if (path === '') {
         await page.screenshot({ path: info.outputPath(`readiness-initial-${width}.png`), fullPage: true });
-        await expect(page.getByText('Initial submission · Not checked', { exact: true })).toBeVisible();
-        await page.getByRole('button', { name: 'Check readiness', exact: true }).click();
-        await expect(page.getByText('Initial submission · 1 blocking requirement remains', { exact: true })).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Submit data profile for review.', exact: true })).toBeVisible();
+        await expect(page.getByText('5 returned findings', { exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Check again', exact: true }).click();
+        await expect(page.getByText('5 returned findings', { exact: true })).toBeVisible();
+        await expect(page.getByText('Review AC-1 requirement responses', { exact: true })).toBeVisible();
       }
       if (path === 'narratives') await expect(page.getByRole('heading', { name: 'Previous v2' })).toBeVisible();
       if (path === 'evidence') await expect(page.getByRole('button', { name: 'Review evidence Access review.pdf' })).toBeVisible();
       if (path === 'boundaries') {
         await expect(page.getByRole('cell', { name: 'Production boundary', exact: true })).toBeVisible();
-        await page.getByRole('button', { name: 'Review boundary', exact: true }).click();
+        await page.getByRole('button', { name: 'Open boundary Production boundary', exact: true }).click();
         await expect(page.getByRole('dialog', { name: 'Production boundary — Details' })).toBeVisible();
         await expect(page.getByRole('region', { name: 'Placement Mission application', exact: true })).toBeVisible();
         await page.keyboard.press('Escape');
-        await expect(page.getByRole('button', { name: 'Review boundary', exact: true })).toBeFocused();
+        await expect(page.getByRole('button', { name: 'Open boundary Production boundary', exact: true })).toBeFocused();
       }
       if (path === 'history') {
         await page.getByRole('button', { name: 'View record: Mission profile reviewed' }).click();

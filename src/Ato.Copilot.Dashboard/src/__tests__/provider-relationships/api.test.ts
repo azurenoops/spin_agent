@@ -10,14 +10,28 @@ import {
   previewProviderRelationship,
   proposeProviderCapabilityAdoption,
   reviewProviderRelationship,
+  collectProviderPages,
 } from '../../features/provider-relationships/api';
 import { allocation, allocationResponse, capability, adoption as adoptionResult } from './fixtures';
+import type { ApplicableProviderCapability } from '../../features/provider-relationships/types';
 
 vi.mock('../../api/client', () => ({ default: { request: vi.fn() } }));
 
 beforeEach(() => vi.resetAllMocks());
 
 describe('mission provider relationship transport', () => {
+  it('reads all applicability pages and rejects incomplete or cross-assignment records', async () => {
+    // Arrange
+    const read = vi.fn().mockResolvedValueOnce({ items: [capability], page: 1, pageSize: 25, total: 2 })
+      .mockResolvedValueOnce({ items: [{ ...capability, capabilityId: 'second' }], page: 2, pageSize: 25, total: 2 });
+    // Act
+    const result = await collectProviderPages<ApplicableProviderCapability>(read, entry => entry.capabilityId,
+      entry => entry.assignmentId === capability.assignmentId, 'Applicability records');
+    // Assert
+    expect(result).toHaveLength(2);
+    read.mockReset().mockResolvedValue({ items: [capability, capability], page: 1, pageSize: 25, total: 2 });
+    await expect(collectProviderPages<ApplicableProviderCapability>(read, entry => entry.capabilityId, () => true, 'Applicability records')).rejects.toThrow('incomplete');
+  });
   it('rejects malformed preview responses instead of enabling review confirmation', async () => {
     // Arrange
     vi.mocked(apiClient.request).mockResolvedValue({ data: { status: 'success', data: {} } });

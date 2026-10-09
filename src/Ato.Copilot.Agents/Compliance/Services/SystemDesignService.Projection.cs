@@ -38,7 +38,8 @@ public sealed partial class SystemDesignService
             return new() { ["legacySourceText"] = json, ["unmappedFields"] = "Legacy non-object profile content requires explicit source mapping." };
         string[] fields = type switch
         {
-            ProfileSectionType.MissionAndPurpose => ["missionStatement", "businessPurpose", "operationalJustification", "businessFunctions"],
+            ProfileSectionType.MissionAndPurpose => ["systemVersion", "responsibleOrganization", "programOffice",
+                "missionStatement", "businessPurpose", "operationalJustification", "businessFunctions"],
             ProfileSectionType.UsersAndAccess => ["accessOverview", "authenticationMethod"],
             ProfileSectionType.EnvironmentAndDeployment => ["hostingModel", "cloudProvider", "networkZones", "geographicLocations",
                 "availabilityTier", "disasterRecoveryPosture", "rtoRpo", "maintenanceWindows", "operatingSystem", "additionalDetails"],
@@ -66,7 +67,7 @@ public sealed partial class SystemDesignService
             contributions[section].Add(node);
         }
         var systemProperties = Fields(system, "Name", "Acronym", "Description", "SystemType", "OperationalStatus", "MissionCriticality",
-            "ImpactLevel", "Categorization", "ResponsibleOrganization", "SystemOwner");
+            "ImpactLevel", "Categorization", "ResponsibleOrganization", "SystemOwner", "EmassId", "DitprId");
         Add("Mission", new() { Id = $"system:{system.Id}", Label = system.Name, Kind = "System",
             Source = Source("RegisteredSystem", system.Id, systemProperties, Link(system.Id, "mission")),
             Properties = systemProperties, ProjectionStatus = "Canonical" });
@@ -103,6 +104,9 @@ public sealed partial class SystemDesignService
         await ProjectEnvironmentAsync(db, system.Id, Add, fingerprints, ct);
         await ProjectConnectionsAsync(db, system.Id, Add, edges, ct);
         await ProjectRelationshipsAsync(db, system.Id, nodes, edges, Add, fingerprints, ct);
+        await ProjectGovernanceAsync(db, system.Id, nodes, edges, Add, fingerprints, ct);
+        await ProjectBoundarySourcesAsync(db, system.Id, Add, fingerprints, ct);
+        await ProjectLogicalSourcesAsync(db, system.Id, nodes, edges, Add, fingerprints, ct);
         fingerprints.Add(Json(await ObservationsAsync(db, system.Id, ct)));
         var groups = ProjectedGroups(nodes);
         if (nodes.Count > 1000 || edges.Count > 3000 || groups.Count > 200)
@@ -183,8 +187,12 @@ public sealed partial class SystemDesignService
                 if (properties.GetValueOrDefault("PendingDeletion") is "True" or "true") continue;
                 string[] allowed = kind switch
                 {
-                    "ActorGroup" => ["CategoryName", "Description", "ApproximateCount", "AccessMethod", "DataSensitivityLevel"],
-                    "InformationType" => ["DataTypeName", "Description", "SensitivityClassification", "Source", "Destination", "ApplicableRegulations"],
+                    "ActorGroup" => ["CategoryName", "Description", "ApproximateCount", "AccessMethod", "DataSensitivityLevel",
+                        "IdentityType", "PrivilegeLevel", "Affiliation", "AuthenticationMethod", "ResponsibleOwner",
+                        "UserLocations", "PermittedEnvironments", "AuthorizedDataTypes"],
+                    "InformationType" => ["DataTypeName", "Description", "SensitivityClassification", "Source", "Destination", "ApplicableRegulations",
+                        "CuiCategory", "ConfidentialityImpact", "IntegrityImpact", "AvailabilityImpact", "PrivacyApplicability",
+                        "RetentionRule", "DisposalMethod", "CategorizationRationale", "CategorizationReference"],
                     "PpsEntry" => ["PortOrRange", "Protocol", "ServiceName", "Direction", "Justification"],
                     _ => ["ProviderName", "AuthorizationType", "AuthorizationDate", "CoveredControlFamilies"]
                 };
@@ -207,9 +215,14 @@ public sealed partial class SystemDesignService
         var assignments = await db.BoundaryComponentAssignments.AsNoTracking().Where(x => x.TenantId == TenantId &&
             db.AuthorizationBoundaryDefinitions.Any(b => b.TenantId == TenantId && b.Id == x.AuthorizationBoundaryDefinitionId && b.RegisteredSystemId == id))
             .OrderBy(x => x.Id).Take(1001).ToListAsync(ct);
+        var definitions = await db.AuthorizationBoundaryDefinitions.AsNoTracking()
+            .Where(b => b.TenantId == TenantId && b.RegisteredSystemId == id).ToDictionaryAsync(b => b.Id, ct);
         var components = await db.SystemComponents.AsNoTracking().Where(x => x.TenantId == TenantId &&
             (x.RegisteredSystemId == id || db.ComponentSystemAssignments.Any(a => a.TenantId == TenantId &&
-                a.SystemComponentId == x.Id && a.RegisteredSystemId == id) || assignments.Select(a => a.SystemComponentId).Contains(x.Id)))
+                a.SystemComponentId == x.Id && a.RegisteredSystemId == id) || assignments.Select(a => a.SystemComponentId).Contains(x.Id)
+                || x.ComponentType == ComponentType.Policy && db.ComponentCapabilityLinks.Any(link => link.TenantId == TenantId
+                    && link.SystemComponentId == x.Id && db.SystemCapabilityLinks.Any(scope => scope.TenantId == TenantId
+                        && scope.RegisteredSystemId == id && scope.SecurityCapabilityId == link.SecurityCapabilityId))))
             .OrderBy(x => x.Id).Take(1001).ToListAsync(ct);
         var inventory = await db.InventoryItems.AsNoTracking().Where(x => x.TenantId == TenantId && x.RegisteredSystemId == id)
             .OrderBy(x => x.Id).Take(1001).ToListAsync(ct);
@@ -220,11 +233,21 @@ public sealed partial class SystemDesignService
         fingerprints.Add(Json(systemAssignments.Select(Scalars)));
         foreach (var component in components)
         {
+            if (component.ComponentType == ComponentType.Policy)
+            {
+                ProjectPolicyReference(id, component, systemAssignments, add);
+                continue;
+            }
             var scope = assignments.Where(x => x.SystemComponentId == component.Id).ToArray();
             var properties = Fields(component, "Name", "ComponentType", "SubType", "Description", "Owner", "Status",
-                "AzureResourceId", "AzureResourceType", "AzureResourceGroup", "AzureLocation");
+                "AzureResourceId", "AzureResourceType", "AzureResourceGroup", "AzureLocation", "PersonName", "RmfRoleName");
             properties["boundaryAssignments"] = Json(scope.Select(x => new { x.Id, x.AuthorizationBoundaryDefinitionId,
-                sourceVersion = Hash(Json(Scalars(x))), x.IsInScope, x.ExclusionRationale }));
+                boundaryName = definitions[x.AuthorizationBoundaryDefinitionId].Name,
+                boundaryType = definitions[x.AuthorizationBoundaryDefinitionId].BoundaryType.ToString(),
+                sourceVersion = Hash(Json(new { assignment = Scalars(x), boundary = Scalars(definitions[x.AuthorizationBoundaryDefinitionId]) })),
+                x.IsInScope, x.ExclusionRationale }));
+            properties["boundaryId"] = scope.Length == 1 ? scope[0].AuthorizationBoundaryDefinitionId : null;
+            properties["recordedBoundaryName"] = scope.Length == 1 ? definitions[scope[0].AuthorizationBoundaryDefinitionId].Name : null;
             properties["recordedBoundaryDisposition"] = scope.Length == 0 || scope.Select(x => x.IsInScope).Distinct().Count() != 1
                 ? "Undetermined" : scope[0].IsInScope ? "InBoundary" : "OutOfBoundary";
             properties["boundarySourceReview"] = "Unreviewed: the canonical boundary record has no retained approval state";
@@ -245,10 +268,13 @@ public sealed partial class SystemDesignService
                 .SingleOrDefaultAsync(x => x.Id == assignment.CspInheritedComponentId, ct);
             add("InventoryBoundary", new() { Id = $"boundary:{assignment.Id}", Label = component?.Name ?? assignment.InheritanceProvider ?? "Provider component reference",
                 Kind = "ProviderReference", Source = Source("BoundaryComponentAssignment", assignment.Id,
-                    new { assignment = Scalars(assignment), component = component is null ? null : Scalars(component) }, Link(id, "inventory")),
+                    new { assignment = Scalars(assignment), boundary = Scalars(definitions[assignment.AuthorizationBoundaryDefinitionId]),
+                        component = component is null ? null : Scalars(component) }, Link(id, "inventory")),
                 BoundaryDisposition = "Undetermined",
                 Provider = assignment.InheritanceProvider,
                 Properties = new() { ["boundaryId"] = assignment.AuthorizationBoundaryDefinitionId,
+                    ["recordedBoundaryName"] = definitions[assignment.AuthorizationBoundaryDefinitionId].Name,
+                    ["ComponentType"] = component?.ComponentType.ToString(),
                     ["providerComponentId"] = assignment.CspInheritedComponentId?.ToString(),
                     ["recordedBoundaryDisposition"] = assignment.IsInScope ? "InBoundary" : "OutOfBoundary",
                     ["boundarySourceReview"] = "Unreviewed: the canonical boundary record has no retained approval state",

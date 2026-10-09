@@ -2,6 +2,189 @@
 
 Status: implementation decision for Feature 079, September 30, 2026.
 
+## Components & system scope presentation (October 6)
+
+The boundaries route now presents **Components & system scope**. The component
+question displays the recorded disposition, including unknown/conflicting values,
+rather than hiding a contradiction through the diagram's effective external
+grouping. The existing server rejects included SharedService/SeparatelyAuthorized
+records. Provider hosting alone does not require exclusion. Draft annotations use
+the same revision-fenced full graph and retain immutable canonical provenance.
+
+BoundaryDefinition name/type/primary properties do not establish a separate
+authorization scope or an internal system area. All options remain recorded
+definitions, with explicit purpose ambiguity. Internal groups are shown with
+their actual kind; no area taxonomy or enclosing boundary is created. Source
+definition/placement management remains immediate canonical writes, separate
+from scope draft saves and whole-design review. Native outputs continue to use
+the reviewed snapshot, not subsequent drafts.
+
+## SACA/SCCA-aware deployment delivery
+
+Azure deployment now uses a pure instance selector/resolver over system-scoped
+environment, provider and exact ARM sources plus explicit nullable SACA
+zone/role/ownership/evidence/security annotations. Seeded provider references
+remain undetermined without actual cloud/scope facts; they are not proof of
+Azure Government. Exact selected environment IDs and ARM subscriptions are
+validated, and only a unique source-owned Containment link may resolve a
+scope implicitly. No provider catalog/name matching or inferred route is added.
+
+The three zone groups represent recorded placement, not authorization boxes.
+TCCM is validated as a performer/business role, distinct from credential
+appliances; appointment remains unverified. Missing reference roles, actual
+security functions, ownership and scope evidence remain review gaps, not
+automatically implemented assets. Source-only links are dashed without
+traffic arrowheads; actual flows retain PPS/agreements/original endpoints.
+
+Recipe 10 and approved/working SSP/OSCAL/DOCX/PDF/package outputs share exact
+source and semantic meaning. Existing role grants, tenant boundaries, graph
+revisions, saved placements and approval/package bytes remain unchanged until
+authorized explicit actions. SACA references/IL labels do not certify SCCA
+compliance, inherited controls, monitoring health or an AO decision.
+
+## Network architecture delivery
+
+Network separates named design boundary/ownership from environment/zone/segment
+and distinguishes source-recorded technical interfaces from dashed source
+associations. Unconnected scoped
+computing assets remain visible. Hosting-only references and unconnected RMF
+performers are not computing devices; technical user endpoints have an explicit
+non-inventory group. Abstract DFD/logical interfaces that lack computing
+endpoints produce mapping gaps and stay retained in their owning views.
+
+October 5 presentation correction: Network also shows exact source-owned
+membership/service/attachment/containment/hosting/access associations between
+eligible displayed endpoints. The interactive overlay is default-on and
+switchable without a content/layout write. Associations are dashed without
+arrows and explicitly labeled not network traffic. Governance/logical
+associations remain excluded; source identities and technical-flow checks are
+unchanged. Recipe 9 and native narrative retain this distinction and state
+when no technical interfaces exist. No routes or traffic are invented.
+
+Nullable node role/segment/IP-CIDR/claimed-IL and edge protocol-stack/standards
+URL/media/control-reference annotations use the existing versioned JSON graph.
+Addresses, supported values and URLs are validated, canonical source properties
+stay immutable, and source/technical identities cannot be relabeled to evade
+PPS or interconnection checks. Existing inventory/selected provider scope
+supplies provenance; no CSP-wide catalog or name-derived topology is added.
+
+Recipe 8 and SSP/native outputs preserve same network meaning, original
+endpoints, source versions and independent review. Diagram inclusion, IL/DISN
+labels and standards/control citations are not authorization, accepted
+inheritance or formal DoDAF/StdV-1 conformance. Saved placement and retained
+approval/package bytes are unchanged until explicit user actions.
+
+## SV-4-aligned data flow delivery
+
+DFD uses explicit Function/DataStore/ExternalEntity annotations, named
+information-type references and lifecycle stages, with retention/disposal
+details in the reviewed graph. DataFlowElement is source-only outside the DFD:
+it describes functional behavior, not a newly authorized computing component.
+Only an explicitly annotated logical Activity may become a technical function
+endpoint. Profile/PPS/policy/goal records cannot acquire transport semantics.
+
+The pure selector preserves actual technical traffic and unmapped legacy
+endpoints, while retaining isolated explicit functional records as gaps.
+Browser and recipe-7 SVG use function boxes/open store rectangles/external
+boxes, named scope groups and direction/data/security labels. SSP approved/
+working narratives and native document/package artifacts retain the same
+handling/lifecycle/source facts. Canonical interface identities remain fixed;
+CSP links and source/destination names do not create a flow or accepted
+inheritance. Saved presentation and immutable approvals remain unchanged.
+
+## Authorization boundary delivery
+
+Boundary grouping now resolves recorded named definitions while keeping included
+technical resources, external/shared/separately authorized systems, unknown
+membership, people and hosting-scope references distinct. CSP and non-CSP assets
+use the same rules. Source assignments are versioned references; their existence
+does not automatically move a component into accepted design scope.
+
+Boundary ID, rationale, security responsibility, ownership relationship and
+external source reference are nullable governed graph annotations. They do not
+modify canonical assignments or issue authorization. Selected IDs must be in
+the same system/tenant; unsafe URLs and contradictory shared/separate inclusion
+are rejected. Old serialized nodes remain compatible.
+
+Decision references are source-only records with explicit currency and terms.
+System-level decisions do not directly pin component/named-boundary coverage;
+the view/artifacts state this missing evidence rather than rendering design
+approval as ATO. No cATO evaluation or monitoring health is inferred.
+Recipe 5 preserves named grouping, legend, responsibility and recorded technical
+interfaces in the existing document/package consumers and retained history.
+
+## ATO context projection
+
+Context is now a centered high-level abstraction, not another rendering of every
+component box. It maps internal endpoints to the single registered system for
+presentation only and excludes internal-only traffic. Original graph/source IDs
+and original endpoints remain in structured records, inspectors, SSP trace text
+and static artifacts. Unresolved external candidates remain visible rather than
+being connected by matching names. CSP and non-CSP peers use the same rules.
+
+Assigned RMF performers come from the unified role precedence reader. Their
+GovernanceAssignment relationships are source-owned associations, not transport
+or authority decisions. Direct retained and indirect/legacy policy references
+remain contextual source records, not computing systems. Applicability and source
+retention gaps are explicit. Manual context descriptions do not grant app roles.
+
+GovernanceInteraction and ConstraintReference have separate endpoint/purpose
+rules; source-bearing or existing technical flows cannot be reclassified into
+them to evade PPS/protection/agreement validation. ServiceFlow and ResourceFlow
+remain technical and use those existing checks. Existing Data fields that name
+source/destination without bound identities are readable mapping warnings, not
+automatically inferred flow endpoints.
+
+Artifact recipe 4 carries equivalent context meaning into SSP/OSCAL and package
+consumers. This supports an SV-1-aligned overview, not formal DoDAF certification.
+Old saved placement is retained until an explicit Automatic layout/Save
+presentation action; new governance/policy source changes follow reconciliation
+and independent review rather than overwriting retained approvals.
+
+## October 3 local rendering extension
+
+Six views now share the authorized graph: Context, Boundary, Logical, DataFlows,
+Network and AzureDeployment. Logical now includes actual performers,
+information/data, rules, goals, capabilities, services, projects, activities
+and supporting scope references in DM2-aligned clusters (recipe 6);
+AzureDeployment uses exact recorded ARM identities and attachments with explicit
+adjacent relationships, never name matching. DataFlows excludes structural
+associations and unrelated isolated elements in both browser and SVG output.
+The original layout keys remain stable and the two added keys are independent.
+
+Logical is a system-instance view, not the generic DM2 schema or a verified PES
+interchange. `Realizes` records explicit refinement/reification. Other predicates
+(`Performs`, `Provides`, `Supports`, `Governs`, `Enables`, `Produces`, `Consumes`)
+have validated endpoint types and are not network traffic. Source associations
+remain exact recorded facts; technical flows retain transport/readiness checks.
+Existing technical/canonical IDs cannot be relabeled as logical to evade review.
+
+Organization capabilities require exact system links. CSP details require
+active subscriptions and an explicitly selected scoped adoption/exact release;
+missing details are gaps, not a latest-release/catalog fallback. Compliance
+roadmaps are system-specific improvement projects, not inferred upgrades.
+Abstract records are stored as source-only LogicalConstruct nodes, with governed
+type/layer/description/conditions/effects/reference fields. Their source-owned
+versions and properties remain immutable; reviewed SSP and native export paths
+retain the same logical meaning and original provenance.
+
+Browser cards show recorded platform/access/sensitivity, boundary disposition
+and source review. Boundary frames now have a visible label and working/approved
+revision; their React Flow group renderer is explicit rather than relying on a
+default group node that does not render `data.label`. Initial zoom preserves
+legible card widths; pan and Fit to view remain available for larger graphs.
+Static recipe 3 carries the same technical detail into six SVG resources and
+preserves immutable historical exports. Existing graph/node/edge budgets,
+source precedence, authorization, review and stale-source gates are unchanged.
+
+Projection now retains release, organization, program office, eMASS/DITPR
+identifiers and readable exact-resource scope metadata. Existing saved sources
+may become stale; use Build from recorded information/reconciliation and review
+the resulting proposals, rather than silently rewriting an approved baseline.
+This is a local implementation extension, not a claim that Docker or live Azure
+has been updated. Compliance workflow records remain context, not invented
+architecture elements or traffic.
+
 ## Context
 
 System definition currently owns six consolidated task tabs and reviewed
@@ -179,7 +362,7 @@ projected are not duplicated. A proposed external design element can be authored
 without fabricating a canonical source; it remains undetermined and cannot
 bypass the required canonical interconnection/agreement for boundary crossings.
 When no addition is staged, users create or correct the record in the existing
-Inventory & boundary or Ports & interconnections workflow, then reconcile.
+Components & system scope or Ports & interconnections workflow, then reconcile.
 The browser never creates an authoritative source identity from typed text.
 
 ## Clarified presentation contract

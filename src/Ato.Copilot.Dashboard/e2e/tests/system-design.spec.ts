@@ -68,6 +68,448 @@ async function installDesign(context: BrowserContext, baseURL: string, graph = d
 }
 
 for (const width of [1440, 390]) {
+  test(`Context keeps externally owned membership and its interfaces visible at ${width}px`, async ({ page, context, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    graph.nodes[1] = { ...graph.nodes[1]!, boundaryRelationship: 'SeparatelyAuthorized', boundaryDisposition: 'Undetermined' };
+    graph.edges.push({ ...graph.edges[0]!, id: 'membership', sourceNodeId: 'storage', targetNodeId: 'system',
+      relationshipType: 'Membership', source: { ...graph.nodes[0]!.source!, type: 'RecordedRelationship' } });
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=Context`);
+    const canvas = page.getByTestId('design-canvas');
+    await expect(canvas).toHaveAttribute('aria-busy', 'false');
+    // Assert
+    await expect(canvas.locator('[data-id="storage"]')).toHaveClass(/sd-boundary-outofboundary/);
+    await expect(canvas.locator('[data-id="storage"]')).toContainText('External');
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
+    expect(writes).toEqual([]);
+  });
+
+  test(`SACA deployment shows recorded zones cloud scope and TCCM performer with governed capture at ${width}px`, async ({ page, context, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    const template = graph.nodes[1]!;
+    graph.nodes.push(
+      { ...template, id: 'local', kind: 'ExternalSystem', label: 'Recorded mission network', sacaZone: 'OnPremisesDisn', boundaryDisposition: 'OutOfBoundary' },
+      { ...template, id: 'bcap', label: 'Recorded organization BCAP', sacaZone: 'SecureCloudAccessBoundary', sacaRole: 'BCAP',
+        deploymentOwner: 'Recorded boundary team', deploymentSecurityFunctions: 'Recorded filtering and inspection' },
+      { ...template, id: 'environment', kind: 'Environment', label: 'Recorded Government scope',
+        properties: { cloud: 'AzureUSGovernment', subscriptionId: 'sub-a', directoryTenantId: 'directory-a' } },
+      { ...template, id: 'vdss', label: 'Recorded provider VDSS', kind: 'ProviderReference', sacaRole: 'VDSS', sacaZone: 'AzureCloud',
+        deploymentScopeNodeId: 'environment', boundaryRelationship: 'SharedService', boundaryDisposition: 'OutOfBoundary' },
+      { ...template, id: 'workload', label: 'Recorded workload', sacaRole: 'Workload', deploymentScopeNodeId: 'environment',
+        properties: { resourceId: '/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.App/containerApps/workload' } },
+      { ...template, id: 'tccm', label: 'Recorded TCCM performer', kind: 'ActorGroup', sacaRole: 'TCCM' });
+    graph.edges = [
+      { ...graph.edges[0]!, id: 'edge-access', sourceNodeId: 'local', targetNodeId: 'bcap' },
+      { ...graph.edges[0]!, id: 'edge-inspect', sourceNodeId: 'bcap', targetNodeId: 'workload' },
+      { ...graph.edges[0]!, id: 'hosting', sourceNodeId: 'environment', targetNodeId: 'vdss', relationshipType: 'HostingAssociation',
+        source: { ...template.source!, type: 'RecordedRelationship' } },
+      { ...graph.edges[0]!, id: 'credential-governance', sourceNodeId: 'tccm', targetNodeId: 'workload', relationshipType: 'GovernanceInteraction' }];
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=AzureDeployment`);
+    const canvas = page.getByTestId('design-canvas');
+    await expect(canvas).toHaveAttribute('aria-busy', 'false');
+    // Assert
+    for (const text of ['01 On-premises / DISN', '02 Secure cloud access boundary', '03 Azure cloud',
+      'AzureUSGovernment', 'directory-a', '05 TCCM business role (not an appliance)'])
+      await expect(canvas).toContainText(text);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(4);
+    await expect(page.getByRole('region', { name: 'SACA deployment legend' })).toContainText('VDMS, CNAP');
+    // Act
+    await page.getByRole('button', { name: 'Add deployment component', exact: true }).click();
+    await page.getByLabel('Label', { exact: true }).fill('Recorded VDMS draft');
+    await page.getByLabel('SACA deployment zone').selectOption('AzureCloud');
+    await page.getByLabel('SACA / SCCA role').selectOption('VDMS');
+    await page.getByRole('combobox', { name: 'Recorded deployment scope', exact: true }).selectOption('environment');
+    await page.getByLabel('Deployment responsibility / owner').fill('Recorded mission service team');
+    await page.getByLabel('Deployment evidence reference URL').fill('https://example.invalid/vdms');
+    await page.getByLabel('Recorded deployment security functions').fill('Recorded host protection, isolation, IAM and monitoring');
+    await page.getByRole('button', { name: 'Apply to draft' }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await page.getByLabel('Reason', { exact: true }).fill('Synthetic recorded SACA responsibilities');
+    await page.getByRole('button', { name: 'Confirm save draft', exact: true }).click();
+    await page.reload();
+    // Assert
+    await expect(canvas).toContainText('Recorded VDMS draft');
+    expect(writes.find(w => w.path === endpoint)!.body.nodes).toEqual(expect.arrayContaining([expect.objectContaining({
+      sacaRole: 'VDMS', deploymentScopeNodeId: 'environment', deploymentEvidenceReference: 'https://example.invalid/vdms',
+    })]));
+    // Act
+    await page.getByRole('button', { name: 'Add TCCM performer reference', exact: true }).click();
+    // Assert
+    await expect(page.getByLabel('SACA / SCCA role')).toHaveValue('TCCM');
+    await expect(page.getByRole('dialog')).toContainText('not Key Vault');
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  });
+
+  test(`Recorded-only Network links remain visible as a nontraffic overlay at ${width}px`, async ({ page, context, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    graph.nodes.push({ ...graph.nodes[1]!, id: 'actor', kind: 'ActorGroup', label: 'Recorded users' });
+    const source = { ...graph.nodes[0]!.source!, type: 'RecordedRelationship' };
+    graph.edges = [{ ...graph.edges[0]!, id: 'membership', relationshipType: 'Membership', source },
+      { ...graph.edges[0]!, id: 'access', relationshipType: 'Access', source, sourceNodeId: 'actor', targetNodeId: 'system' }];
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=Network`);
+    const canvas = page.getByTestId('design-canvas');
+    await expect(canvas).toHaveAttribute('aria-busy', 'false');
+    // Assert
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
+    await expect(canvas).toContainText('not network traffic');
+    await expect(page.getByRole('region', { name: 'Network connection status' })).toContainText('No technical network interfaces are documented');
+    const paths = canvas.locator('.react-flow__edge-path');
+    await expect(paths.first()).not.toHaveAttribute('marker-end', /.+/);
+    // Act
+    await page.getByRole('checkbox', { name: 'Show recorded associations (not network traffic)' }).uncheck();
+    // Assert
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(0);
+    expect(writes).toEqual([]);
+    // Act
+    await page.getByRole('checkbox', { name: 'Show recorded associations (not network traffic)' }).check();
+    // Assert
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
+    expect(writes).toEqual([]);
+  });
+
+  test(`Network architecture separates named scope CSP and non-CSP segments and persists interfaces at ${width}px`, async ({ page, context, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    const template = graph.nodes[1]!;
+    graph.nodes.push(
+      { ...template, id: 'definition', kind: 'BoundaryDefinition', label: 'Recorded production scope', diagramRole: 'SourceRecord',
+        source: { ...template.source!, type: 'BoundaryDefinition', id: 'scope-a' } },
+      { ...template, id: 'local', kind: 'InventoryItem', label: 'Recorded non-CSP gateway', boundaryDisposition: 'InBoundary',
+        boundaryDefinitionId: 'scope-a', networkRole: 'VpnGateway', networkSegment: 'Recorded LAN', networkAddress: '10.40.0.1' },
+      { ...template, id: 'csp', kind: 'ProviderReference', label: 'Recorded shared CSP peer', boundaryDisposition: 'OutOfBoundary',
+        boundaryRelationship: 'SharedService', networkRole: 'ExternalSystem', networkSegment: 'Recorded provider edge' },
+      { ...template, id: 'hosting', kind: 'Environment', label: 'Recorded hosting reference' },
+      { ...template, id: 'governance', kind: 'ActorGroup', label: 'Recorded security manager' });
+    graph.edges = [
+      { ...graph.edges[0]!, id: 'interface', sourceNodeId: 'local', targetNodeId: 'csp', protocolStack: 'HTTPS / TLS 1.3 / TCP / IPv4',
+        standardsReference: 'https://example.invalid/standards', boundaryCrossing: 'Yes', interconnectionId: 'interface-source', agreementStatus: 'Signed' },
+      { ...graph.edges[0]!, id: 'hosting-association', sourceNodeId: 'local', targetNodeId: 'hosting', relationshipType: 'HostingAssociation',
+        source: { ...template.source!, type: 'RecordedRelationship' } }];
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=Network`);
+    const canvas = page.getByTestId('design-canvas');
+    await expect(canvas).toHaveAttribute('aria-busy', 'false');
+    // Assert
+    await expect(canvas).toContainText('Authorization boundary · Recorded production scope');
+    await expect(canvas).toContainText('Outside authorization boundary');
+    await expect(canvas).toContainText('10.40.0.1');
+    await expect(canvas.locator('[data-id="hosting"]')).toHaveCount(0);
+    await expect(canvas.locator('[data-id="governance"]')).toHaveCount(0);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Network architecture legend' })).toContainText('Recorded hosting reference');
+    // Act
+    await page.getByRole('button', { name: 'Add network component', exact: true }).click();
+    await page.getByLabel('Label', { exact: true }).fill('Recorded firewall draft');
+    await page.getByLabel('Network component role').selectOption('Firewall');
+    await page.getByLabel('Network segment / enclave').fill('Recorded DMZ');
+    await page.getByLabel('Network IP / CIDR address').fill('10.40.2.0/24');
+    await page.getByLabel('Claimed hosting impact level').selectOption('IL5');
+    await page.getByRole('button', { name: 'Apply to draft' }).click();
+    await page.getByRole('button', { name: 'Add network interface', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Source element', exact: true }).selectOption('local');
+    await page.getByRole('combobox', { name: 'Destination element', exact: true }).selectOption({ label: 'Recorded firewall draft' });
+    await page.getByLabel('Protocol stack', { exact: true }).fill('HTTPS / TLS 1.3 / TCP / IPv4');
+    await page.getByLabel('Standards profile reference URL').fill('https://example.invalid/standards');
+    await page.getByLabel('Connection medium').selectOption('Private');
+    await page.getByLabel('Security control references').fill('SC-7');
+    await page.getByRole('button', { name: 'Apply to draft' }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await page.getByLabel('Reason', { exact: true }).fill('Synthetic recorded network updates');
+    await page.getByRole('button', { name: 'Confirm save draft', exact: true }).click();
+    await page.reload();
+    // Assert
+    await expect(canvas).toContainText('Recorded firewall draft');
+    expect(writes.find(w => w.path === endpoint)!.body.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ connectionMedium: 'Private', securityControlReferences: 'SC-7' })]));
+  });
+
+  test(`DFD distinguishes CSP and non-CSP producers functions stores and captures lifecycle at ${width}px`, async ({ page, context, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    const template = graph.nodes[1]!;
+    graph.nodes.push(
+      { ...template, id: 'function', source: null, kind: 'DataFlowElement', label: 'Recorded processing',
+        dataFlowRole: 'Function', functionDescription: 'Transform recorded inputs', boundaryDisposition: 'InBoundary' },
+      { ...template, id: 'store', source: null, kind: 'DataFlowElement', label: 'Recorded mission repository',
+        dataFlowRole: 'DataStore', dataRetention: 'Recorded retention', disposalMethod: 'Recorded disposal', boundaryDisposition: 'InBoundary' },
+      { ...template, id: 'csp-producer', kind: 'ProviderReference', label: 'Recorded CSP producer',
+        dataFlowRole: 'ExternalEntity', boundaryDisposition: 'OutOfBoundary' },
+      { ...template, id: 'local-consumer', kind: 'ExternalSystem', label: 'Recorded non-CSP consumer', boundaryDisposition: 'OutOfBoundary' },
+      { ...template, id: 'data-reference', kind: 'InformationType', diagramRole: 'SourceRecord', label: 'Recorded data type',
+        source: { ...template.source!, id: 'data-ref', type: 'DataTypeEntry' },
+        properties: { DataTypeName: 'Recorded data type', SensitivityClassification: 'CUI' } });
+    graph.edges = [
+      { ...graph.edges[0]!, id: 'receive', sourceNodeId: 'csp-producer', targetNodeId: 'function', lifecycleStage: 'Receive', direction: 'Inbound' },
+      { ...graph.edges[0]!, id: 'store-flow', sourceNodeId: 'function', targetNodeId: 'store', lifecycleStage: 'Store' },
+      { ...graph.edges[0]!, id: 'distribute', sourceNodeId: 'function', targetNodeId: 'local-consumer', lifecycleStage: 'Distribute' },
+      { ...graph.edges[0]!, id: 'hosting-only', sourceNodeId: 'csp-producer', targetNodeId: 'store', relationshipType: 'HostingAssociation',
+        source: { ...template.source!, type: 'RecordedRelationship' } }];
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=DataFlows`);
+    const canvas = page.getByTestId('design-canvas');
+    await expect(canvas).toHaveAttribute('aria-busy', 'false');
+    // Assert
+    await expect(canvas.locator('[data-id="store"]')).toHaveClass(/sd-dfd-datastore/);
+    await expect(canvas.locator('[data-id="function"]')).toHaveClass(/sd-dfd-function/);
+    await expect(canvas.locator('[data-id="csp-producer"]')).toHaveClass(/sd-dfd-externalentity/);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(3);
+    await expect(page.getByRole('region', { name: 'Data flow legend' })).toBeVisible();
+    // Act
+    await page.getByRole('button', { name: 'Add function / data store', exact: true }).click();
+    await page.getByLabel('Label', { exact: true }).fill('Recorded disposal function');
+    await page.getByLabel('System function / transformation description').fill('Destroy recorded data under the retained policy');
+    await page.getByRole('button', { name: 'Apply to draft' }).click();
+    await page.getByRole('button', { name: 'Add data exchange', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Source element', exact: true }).selectOption('store');
+    await page.getByRole('combobox', { name: 'Destination element', exact: true }).selectOption({ label: 'Recorded disposal function' });
+    await page.getByRole('combobox', { name: 'Recorded information type', exact: true }).selectOption('data-ref');
+    await page.getByLabel('Data lifecycle stage').selectOption('Destroy');
+    await page.getByLabel('Purpose', { exact: true }).fill('Apply recorded disposal policy');
+    await page.getByRole('button', { name: 'Apply to draft' }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await page.getByLabel('Reason', { exact: true }).fill('Synthetic DFD lifecycle capture');
+    await page.getByRole('button', { name: 'Confirm save draft', exact: true }).click();
+    await page.reload();
+    // Assert
+    await expect(canvas).toContainText('Lifecycle: Destroy');
+    const saved = writes.find(w => w.path === endpoint)!;
+    expect(saved.body.edges).toEqual(expect.arrayContaining([expect.objectContaining({ informationTypeId: 'data-ref', lifecycleStage: 'Destroy' })]));
+  });
+
+  test(`Logical architecture captures and reloads a governed construct and typed relationship at ${width}px`, async ({ page, context, baseURL }) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=Logical`);
+    await expect(page.getByTestId('design-canvas')).toHaveAttribute('aria-busy', 'false');
+    await page.getByRole('button', { name: 'Add logical construct', exact: true }).click();
+    await page.getByLabel('Label', { exact: true }).fill('Recorded mission goal');
+    await page.getByLabel('Desired effects').fill('Recorded mission effect');
+    await page.getByRole('button', { name: 'Apply to draft' }).click();
+    await page.getByRole('button', { name: 'Add logical relationship', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Source element', exact: true }).selectOption('system');
+    const destination = await page.getByRole('combobox', { name: 'Destination element', exact: true }).locator('option').allTextContents();
+    expect(destination).toContain('Recorded mission goal');
+    await page.getByRole('combobox', { name: 'Destination element', exact: true }).selectOption({ label: 'Recorded mission goal' });
+    await page.getByLabel('Purpose', { exact: true }).fill('Supports the recorded mission effect');
+    await page.getByRole('button', { name: 'Apply to draft' }).click();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await page.getByLabel('Reason', { exact: true }).fill('Recorded logical relationships reviewed in synthetic test');
+    await page.getByRole('button', { name: 'Confirm save draft', exact: true }).click();
+    await page.reload();
+    // Assert
+    await expect(page.getByTestId('design-canvas')).toContainText('Recorded mission goal');
+    await expect(page.getByTestId('design-canvas')).toContainText('Supports');
+    expect(writes.filter(write => write.path === endpoint)).toHaveLength(1);
+  });
+
+  test(`DoD ABD keeps named CSP/non-CSP scope and separate authorizations distinct at ${width}px`, async ({ page, context, baseURL }, info) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    const template = graph.nodes[1]!;
+    const source = template.source!;
+    graph.nodes = [
+      graph.nodes[0]!,
+      { ...template, id: 'scope-a', kind: 'BoundaryDefinition', label: 'Mission production', diagramRole: 'SourceRecord',
+        source: { ...source, type: 'BoundaryDefinition', id: 'boundary-a' } },
+      { ...template, id: 'scope-b', kind: 'BoundaryDefinition', label: 'Mission test scope', diagramRole: 'SourceRecord',
+        source: { ...source, type: 'BoundaryDefinition', id: 'boundary-b' } },
+      { ...template, id: 'local', label: 'Organization-managed server', kind: 'InventoryItem', boundaryDisposition: 'InBoundary',
+        boundaryDefinitionId: 'boundary-a', securityResponsibility: 'Recorded operations team', boundaryRationale: 'Explicit local workload resource',
+        properties: { Type: 'Hardware', HardwareFunction: 'Server' } },
+      { ...template, id: 'csp', label: 'Recorded CSP workload resource', kind: 'ProviderReference', boundaryDisposition: 'InBoundary',
+        boundaryDefinitionId: 'boundary-a', securityResponsibility: 'Recorded system team', boundaryRationale: 'Reviewed workload-managed selection' },
+      { ...template, id: 'segment', label: 'Recorded internal network segment', kind: 'DesignComponent', boundaryDisposition: 'InBoundary',
+        boundaryDefinitionId: 'boundary-b', properties: { componentType: 'Network segment' } },
+      { ...template, id: 'peer', label: 'Separate authorization peer', kind: 'ExternalSystem', boundaryDisposition: 'OutOfBoundary',
+        boundaryRelationship: 'SeparatelyAuthorized', externalAuthorizationReference: 'https://example.invalid/decision' },
+      { ...template, id: 'authority', label: 'Recorded AO contact', kind: 'ActorGroup', boundaryDisposition: 'InBoundary' },
+      { ...template, id: 'decision', label: 'Recorded ATO · Expired', kind: 'AuthorizationScope', diagramRole: 'SourceRecord',
+        properties: { currency: 'Expired', componentCoverage: 'Not verified' } },
+    ];
+    graph.edges = [{ ...graph.edges[0]!, id: 'internal', sourceNodeId: 'local', targetNodeId: 'segment' },
+      { ...graph.edges[0]!, id: 'crossing', sourceNodeId: 'csp', targetNodeId: 'peer',
+        interconnectionId: 'recorded-interconnection', agreementStatus: 'Signed', relationshipType: 'Interconnection' }];
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=Boundary`);
+    const canvas = page.getByTestId('design-canvas');
+    await expect(canvas).toHaveAttribute('aria-busy', 'false');
+    // Assert
+    for (const name of ['Authorization boundary · Mission production', 'Authorization boundary · Mission test scope',
+      'Outside authorization boundary', 'External actors / governance (not components)'])
+      await expect(canvas.locator('.sd-graph-group').filter({ hasText: name })).toHaveCount(1);
+    await expect(canvas.locator('[data-id="scope-a"]')).toHaveCount(0);
+    await expect(canvas.locator('[data-id="decision"]')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Boundary scope and authorization' })).toContainText('Recorded ATO · Expired');
+    await expect(page.getByRole('list', { name: 'Authorization boundary legend' })).toBeVisible();
+    await expect(canvas).toContainText('CUI');
+    await expect(canvas).toContainText('Signed');
+    await page.getByRole('button', { name: 'Open Organization-managed server', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit selected record', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit design element' });
+    await expect(dialog.getByLabel('Named boundary scope')).toHaveValue('boundary-a');
+    await dialog.getByLabel('Security responsibility').fill('Explicitly reviewed local responsibility');
+    await dialog.getByLabel('Scope inclusion / exclusion rationale').fill('Explicit boundary scope rationale');
+    await dialog.getByRole('button', { name: 'Apply to draft', exact: true }).click();
+    expect(writes).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await canvas.screenshot({ path: info.outputPath(`abd-${width}.png`) });
+  });
+  test(`ATO context keeps CSP and non-CSP interfaces centered and captures missing context at ${width}px`, async ({ page, context, baseURL }, info) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    const template = graph.nodes[1]!;
+    graph.nodes = [
+      graph.nodes[0]!,
+      { ...template, id: 'app', label: 'Internal workload', kind: 'Application', boundaryDisposition: 'InBoundary' },
+      { ...template, id: 'csp', label: 'Recorded CSP support', kind: 'ProviderReference' },
+      { ...template, id: 'local', label: 'Organization-managed operational peer', kind: 'ExternalSystem', boundaryDisposition: 'OutOfBoundary' },
+      { ...template, id: 'board', label: 'Recorded security review board', kind: 'DesignComponent',
+        properties: { contextEntityClass: 'Performer', contextEntityCategory: 'SecurityCompliance', contextRole: 'Governance review' } },
+      { ...template, id: 'policy', label: 'Recorded governing standard', kind: 'PolicyReference', diagramRole: 'SourceRecord',
+        properties: { rationale: 'Recorded policy constraint', retention: 'Retained' } },
+    ];
+    const edge = graph.edges[0]!;
+    graph.edges = [
+      { ...edge, id: 'internal', sourceNodeId: 'system', targetNodeId: 'app' },
+      { ...edge, id: 'csp-call', sourceNodeId: 'app', targetNodeId: 'csp', relationshipType: 'ServiceFlow', purpose: 'Recorded service call' },
+      { ...edge, id: 'local-feed', sourceNodeId: 'local', targetNodeId: 'app', relationshipType: 'ResourceFlow', purpose: 'Recorded operational resource flow' },
+      { ...edge, id: 'governance', sourceNodeId: 'board', targetNodeId: 'system', relationshipType: 'GovernanceInteraction',
+        purpose: 'Recorded readiness review', port: null, protocol: null, encryptionState: null, service: null, protection: null },
+    ];
+    const { writes } = await installDesign(context, baseURL!, graph);
+    // Act
+    await page.goto(`${root}/profile/SystemDesign`);
+    const canvas = page.getByTestId('design-canvas');
+    await expect(canvas).toHaveAttribute('aria-busy', 'false');
+    // Assert
+    await expect(canvas.locator('[data-id="app"]')).toHaveCount(0);
+    await expect(canvas.locator('[data-id="internal"]')).toHaveCount(0);
+    await expect(canvas.locator('[data-id="system"]')).toHaveClass(/sd-context-center/);
+    await expect(canvas.locator('[data-id="csp"]')).toHaveCount(1);
+    await expect(canvas.locator('[data-id="local"]')).toHaveCount(1);
+    await expect(canvas.locator('[data-id="board"]')).toHaveCount(1);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(3);
+    await expect(page.getByRole('region', { name: 'Context constraints' })).toContainText('Recorded governing standard');
+    const center = (await canvas.locator('[data-id="system"]').boundingBox())!;
+    const local = (await canvas.locator('[data-id="local"]').boundingBox())!;
+    const provider = (await canvas.locator('[data-id="csp"]').boundingBox())!;
+    expect(local.x).toBeLessThan(center.x);
+    expect(provider.x).toBeGreaterThan(center.x);
+    await page.getByRole('button', { name: 'Add context entity', exact: true }).click();
+    const entity = page.getByRole('dialog', { name: 'Edit design element' });
+    await entity.getByLabel('Label', { exact: true }).fill('Recorded mission authority');
+    await entity.getByLabel('Context entity class').selectOption('Performer');
+    await entity.getByLabel('Context category').selectOption('SecurityCompliance');
+    await entity.getByLabel('Context role').fill('Mission governance');
+    await entity.getByLabel('Organization / authority').fill('Recorded organization');
+    await entity.getByRole('button', { name: 'Apply to draft', exact: true }).click();
+    await page.getByRole('button', { name: 'Add constraint reference', exact: true }).click();
+    const constraint = page.getByRole('dialog', { name: 'Edit design element' });
+    await constraint.getByLabel('Label', { exact: true }).fill('Additional recorded constraint');
+    await constraint.getByLabel('Reference type').selectOption('Standard');
+    await constraint.getByLabel('Source reference URL', { exact: true }).fill('https://example.invalid/recorded-standard');
+    await constraint.getByLabel('Applicability rationale').fill('Explicit system-specific reference');
+    await constraint.getByRole('button', { name: 'Apply to draft', exact: true }).click();
+    expect(writes).toEqual([]);
+    await expect(page.getByRole('region', { name: 'Context constraints' })).toContainText('Additional recorded constraint');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await canvas.screenshot({ path: info.outputPath(`ato-context-${width}.png`) });
+  });
+  test(`six detailed design views preserve source meaning at ${width}px`, async ({ page, context, baseURL }, info) => {
+    // Arrange
+    await page.setViewportSize({ width, height: 1100 });
+    const graph = designFixture();
+    const template = graph.nodes[1]!;
+    graph.nodes = [
+      { ...graph.nodes[0]!, id: 'system', label: 'Synthetic Mission System' },
+      { ...template, id: 'users', label: 'Mission users', kind: 'ActorGroup', boundaryDisposition: 'OutOfBoundary',
+        properties: { AccessMethod: 'CAC/PIV + MFA' } },
+      { ...template, id: 'app', label: 'Web application', kind: 'Application', boundaryDisposition: 'InBoundary',
+        properties: { SubType: 'Container App', AzureResourceId: '/subscriptions/sub-a/resourceGroups/mission/providers/Microsoft.App/containerApps/web' } },
+      { ...template, id: 'api', label: 'MCP API', kind: 'Application', boundaryDisposition: 'InBoundary', properties: { SubType: 'Container App' } },
+      { ...template, id: 'database', label: 'Mission records', kind: 'Database', boundaryDisposition: 'InBoundary', properties: { DataSensitivityLevel: 'CUI' } },
+      { ...template, id: 'provider', label: 'Recorded provider service', kind: 'ProviderReference', boundaryDisposition: 'Undetermined',
+        properties: { ComponentType: 'Provider service' } },
+      { ...template, id: 'environment', label: 'Attached mission scope', kind: 'Environment', properties: { subscriptionId: 'sub-a', resourceGroup: 'mission' } },
+      { ...template, id: 'data', label: 'Mission information type', kind: 'InformationType', diagramRole: 'SourceRecord' },
+    ];
+    const flow = graph.edges[0]!;
+    graph.edges = [
+      { ...flow, id: 'access', sourceNodeId: 'users', targetNodeId: 'app', protocol: 'HTTPS', protection: 'TLS' },
+      { ...flow, id: 'api-flow', sourceNodeId: 'app', targetNodeId: 'api', protocol: 'HTTPS', protection: 'mTLS' },
+      { ...flow, id: 'records-flow', sourceNodeId: 'api', targetNodeId: 'database', protocol: 'TCP', port: '1433', protection: 'TLS 1.3' },
+      { ...flow, id: 'provider-flow', sourceNodeId: 'api', targetNodeId: 'provider', protocol: 'HTTPS' },
+      { ...flow, id: 'scope', sourceNodeId: 'app', targetNodeId: 'environment', relationshipType: 'Containment',
+        source: { ...template.source!, type: 'RecordedRelationship' }, port: null, protocol: null, protection: null },
+    ];
+    const { writes } = await installDesign(context, baseURL!, graph);
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    // Act
+    await page.goto(`${root}/profile/SystemDesign?designView=Context`);
+    const selector = page.getByRole('group', { name: 'Diagram view' });
+    const canvas = page.getByTestId('design-canvas');
+    for (const [label, value] of [
+      ['System context', 'Context'], ['Authorization boundary', 'Boundary'], ['Logical architecture', 'Logical'],
+      ['Data flows', 'DataFlows'], ['Network architecture', 'Network'], ['Azure deployment', 'AzureDeployment'],
+    ]) {
+      await selector.getByRole('button', { name: label, exact: true }).click();
+      // Assert
+      await expect(page).toHaveURL(new RegExp(`designView=${value}`));
+      await expect(selector.getByRole('button', { name: label, exact: true })).toHaveAttribute('aria-pressed', 'true');
+      await expect(canvas).toHaveAttribute('aria-busy', 'false');
+      await expect(canvas.locator('[data-id="data"]')).toHaveCount(value === 'Logical' ? 1 : 0);
+      if (value === 'Boundary') {
+        for (const group of ['Authorization boundary · In boundary', 'Boundary undetermined',
+          'External actors / governance (not components)', 'Hosting scope references (not authorized components)'])
+          await expect(canvas.locator('.sd-graph-group').filter({ hasText: group })).toHaveCount(1);
+        await expect(canvas).toContainText('Container App');
+        await expect(canvas).toContainText('CAC/PIV + MFA');
+        await expect(canvas).toContainText('mTLS');
+        await expect(canvas).toContainText('TLS 1.3');
+        await expect(canvas.locator('[data-id="provider"]')).toHaveClass(/sd-boundary-undetermined/);
+        await expect(canvas.locator('.react-flow__edge')).toHaveCount(5);
+        expect((await canvas.locator('[data-id="app"]').boundingBox())!.width).toBeGreaterThanOrEqual(180);
+      }
+      if (value === 'Logical') {
+        await expect(canvas.locator('[data-id="users"]')).toHaveCount(1);
+        await expect(canvas.locator('[data-id="environment"]')).toHaveCount(1);
+        await expect(page.getByRole('region', { name: 'Logical architecture legend' })).toBeVisible();
+      }
+      if (value === 'DataFlows') await expect(canvas.locator('[data-id="scope"]')).toHaveCount(0);
+      if (value === 'AzureDeployment') {
+        await expect(canvas.locator('[data-id="app"]')).toHaveCount(1);
+        await expect(canvas.locator('[data-id="environment"]')).toHaveCount(1);
+        await expect(canvas.locator('[data-id="database"]')).toHaveCount(0);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`detailed-${value}-${width}.png`), fullPage: true });
+      await canvas.screenshot({ path: info.outputPath(`canvas-${value}-${width}.png`) });
+    }
+    expect(writes).toEqual([]);
+    expect(errors).toEqual([]);
+  });
   test(`recorded architecture is assembled without source-row boxes or false data flows at ${width}px`, async ({ page, context, baseURL }, info) => {
     // Arrange: exact server-projected facts, not client-side inference.
     await page.setViewportSize({ width, height: 1050 });
@@ -96,7 +538,9 @@ for (const width of [1440, 390]) {
     // Assert: known associations visible on entry, original source rows still inspectable.
     await expect(canvas.locator('.react-flow__node')).toHaveCount(4);
     await expect(canvas.locator('[data-id="profile"]')).toHaveCount(0);
-    await expect(canvas.locator('.react-flow__edge')).toHaveCount(3);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
+    await expect(canvas.locator('[data-id="storage"]')).toHaveCount(0);
+    await expect(canvas.locator('[data-id="membership"]')).toHaveCount(0);
     await expect(canvas).toContainText('Uses provider service');
     await expect(canvas).not.toContainText('PPS not recorded');
     await page.getByRole('button', { name: 'Source records (1)', exact: true }).click();
@@ -112,14 +556,14 @@ for (const width of [1440, 390]) {
     await expect(page.getByText(/No documented data flows are recorded/)).toBeVisible();
     await expect(canvas.locator('.react-flow__edge')).toHaveCount(0);
     await page.getByRole('button', { name: 'System context', exact: true }).click();
-    await expect(canvas.locator('.react-flow__edge')).toHaveCount(3);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
     await page.reload();
     await canvas.scrollIntoViewIfNeeded();
     await page.getByRole('button', { name: 'Fit to view', exact: true }).click();
-    await expect(canvas).toHaveAttribute('data-relationship-count', '3');
+    await expect(canvas).toHaveAttribute('data-relationship-count', '2');
     await expect(canvas).toHaveAttribute('data-measured-node-count', '4');
     await expect(canvas).toHaveAttribute('aria-busy', 'false');
-    await expect(canvas.locator('.react-flow__edge')).toHaveCount(3);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`automatic-architecture-${width}.png`), fullPage: true });
     await canvas.screenshot({ path: info.outputPath(`automatic-architecture-canvas-${width}.png`) });
@@ -234,7 +678,7 @@ for (const width of [1440, 390]) {
     // Act / Assert
     await expect(page.getByRole('heading', { name: 'System design', exact: true })).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'System task views' });
-    await expect(tabs.getByRole('link')).toHaveText(['Mission', 'Users', 'Environment & hosting', 'Data', 'Inventory & boundary', 'Ports & interconnections', 'System design']);
+    await expect(tabs.getByRole('link')).toHaveText(['Mission', 'Users', 'Environment & hosting', 'Data', 'Components & system scope', 'Ports & interconnections', 'System design']);
     await expect(tabs.locator('[aria-current="page"]')).toHaveText('System design');
     await expect(page.getByRole('navigation', { name: 'System navigation' }).getByRole('link', { name: 'System design', exact: true })).toHaveCount(0);
     await expect(page.getByTestId('design-canvas').locator('.react-flow__node').first()).toBeVisible();

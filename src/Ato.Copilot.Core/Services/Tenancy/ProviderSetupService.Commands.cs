@@ -15,51 +15,77 @@ namespace Ato.Copilot.Core.Services.Tenancy;
 
 public sealed partial class ProviderSetupService
 {
+    private sealed record SetupMutation(
+        Guid? OfferingId = null, long? OfferingRevision = null,
+        Guid? PortfolioId = null, long? PortfolioRevision = null,
+        Guid? AuthorizationIntentId = null, long? AuthorizationIntentRevision = null);
+
     public Task<ProviderSetupCommandResult> SaveAsync(SaveProviderSetupDraft request, string key, ProviderSetupActor actor, CancellationToken ct)
     {
-        ValidateDraft(request.Draft);
+        var normalized = NormalizeDraftForRead(request.Draft, Text(request.Draft, "schemaVersion") is null ? 1 : CurrentSchemaVersion);
+        ValidateDraft(normalized);
         return CommandAsync("SaveDraft", request.ExpectedRevision, request, key, actor, async (db, profile, draft) =>
         {
             var registered = await db.Set<CspPackageUploadIntent>().Where(x => x.ProviderId == profile.Id && x.DraftId == draft.Id).Select(x => x.Id).ToListAsync(ct);
-            var sources = Part(request.Draft, "sources");
+            var sources = Part(normalized, "sources");
             var ids = Part(sources, "intentIds");
             var selected = ids.ValueKind == JsonValueKind.Array ? ids.EnumerateArray().Select(x => x.GetGuid()).ToHashSet() : [];
             if (registered.Any(id => !selected.Contains(id)) || selected.Any(id => !registered.Contains(id)))
                 throw new DbUpdateConcurrencyException("Retain all registered upload attempts; receipt uncertainty cannot be silently removed.");
             if (registered.Count > 0 && Text(sources, "choice") != "Intents")
                 throw new DbUpdateConcurrencyException("Registered source attempts cannot be converted to deferral.");
-            draft.DraftJson = Canonical(request.Draft);
-            return (null, null);
+            draft.SchemaVersion = CurrentSchemaVersion;
+            draft.DraftJson = Canonical(normalized);
+            return new SetupMutation();
         }, ct);
     }
 
     public Task<ProviderSetupCommandResult> CommitAsync(CommitProviderSetup request, string key, ProviderSetupActor actor, CancellationToken ct)
     {
-        if (request.Section is not ("Details" or "Contacts" or "FirstOffering")) throw new ArgumentException("Unknown setup section.");
+        var section = request.Section switch
+        {
+            "ProviderDetails" => "Details",
+            "AccessAndContacts" => "Contacts",
+            "Offering" or "FirstOffering" or "PortfolioAndOffering" => "PortfolioAndOffering",
+            "AuthorizationIntent" or "AuthorizationStartingPoint" => "AuthorizationStartingPoint",
+            "Details" or "Contacts" => request.Section,
+            _ => throw new ArgumentException("Unknown setup section.")
+        };
         return CommandAsync($"Commit{request.Section}", request.ExpectedRevision, request, key, actor, async (db, profile, draft) =>
         {
-            var fields = Element(draft.DraftJson);
+            var fields = NormalizeDraftForRead(Element(draft.DraftJson), draft.SchemaVersion);
             if (profile.SetupRevision != request.ExpectedProfileRevision) throw new DbUpdateConcurrencyException("Provider profile revision changed.");
-            if (request.Section == "Details")
+            if (section == "Details")
             {
                 if (profile.OnboardingState == OnboardingState.Active) throw new CspAlreadyOnboardedException();
                 var details = Part(fields, "details");
                 CspProfileService.ApplyIdentity(profile, Text(details, "legalEntityName") ?? "", Text(details, "displayName") ?? "", Text(details, "logoUrl"));
-                CspProfileService.ApplySupport(profile, Text(details, "serviceContactEmail") ?? "", Text(details, "supportPhone"));
+                var operational = Part(fields, "operationalContact");
+                if (Text(operational, "choice") == "ContactOnly")
+                    CspProfileService.ApplySupport(profile, Text(operational, "email") ?? "", Text(operational, "phone"));
                 if (Part(details, "confirmLegacyClassificationDefault").ValueKind != JsonValueKind.True
                     || !Enum.TryParse<ClassificationLevel>(Text(details, "legacyClassificationDefault"), out var classification))
                     throw new ArgumentException("Explicitly confirm the deployment's legacy default; this does not authorize source handling.");
                 CspProfileService.ApplyClassification(profile, classification);
+                profile.DodComponent = Text(details, "dodComponent");
+                profile.TimeZoneId = Text(details, "timeZoneId");
                 profile.SetupRevision++;
                 profile.UpdatedAt = DateTimeOffset.UtcNow;
                 profile.UpdatedBy = actor.ObjectId;
                 profile.OnboardingState = OnboardingState.InWizard;
                 var metadata = JsonNode.Parse(draft.CommittedMetadataJson)!.AsObject();
-                metadata["serviceContactName"] = Text(details, "serviceContactName");
+                metadata["serviceContactName"] = Text(operational, "displayName");
+                metadata["operationalContact"] = JsonNode.Parse(operational.GetRawText());
                 draft.CommittedMetadataJson = metadata.ToJsonString();
             }
-            if (request.Section == "Contacts")
+            if (section == "Contacts")
             {
+                var operational = Part(fields, "operationalContact");
+                if (Text(operational, "choice") is not ("ContactOnly" or "Deferred"))
+                    throw new ArgumentException("Save an operational contact or explicitly defer it.");
+                if (Text(operational, "choice") == "ContactOnly"
+                    && Text(operational, "email")?.Contains('@') != true)
+                    throw new ArgumentException("Record an operational contact email, or explicitly defer.");
                 var contact = Part(fields, "securityContact");
                 if (Text(contact, "choice") is not ("ContactOnly" or "Deferred"))
                     throw new ArgumentException("Save a contact-only security reviewer or explicitly defer. Contact details do not establish access.");
@@ -67,38 +93,17 @@ public sealed partial class ProviderSetupService
                     && (string.IsNullOrWhiteSpace(Text(contact, "displayName")) || Text(contact, "email")?.Contains('@') != true))
                     throw new ArgumentException("Record the security review contact name and email, or explicitly defer.");
                 var metadata = JsonNode.Parse(draft.CommittedMetadataJson)!.AsObject();
+                metadata["operationalContact"] = JsonNode.Parse(operational.GetRawText());
                 metadata["securityContact"] = JsonNode.Parse(contact.GetRawText());
                 draft.CommittedMetadataJson = metadata.ToJsonString();
+                await UpsertContactAsync(db, profile.Id, "Operational", operational, actor.ObjectId, ct);
+                await UpsertContactAsync(db, profile.Id, "Security", contact, actor.ObjectId, ct);
             }
-            if (request.Section != "FirstOffering") return (null, null);
-            var offering = Part(fields, "firstOffering");
-            var choice = Text(offering, "choice");
-            if (choice == "Deferred") return (null, null);
-            ProviderOffering row;
-            if (choice == "Existing")
-            {
-                if (!Guid.TryParse(Text(offering, "offeringId"), out var id)) throw new ArgumentException("Select an existing offering.");
-                row = await db.Set<ProviderOffering>().SingleOrDefaultAsync(x => x.ProviderId == profile.Id && x.Id == id, ct)
-                    ?? throw new KeyNotFoundException("Offering was not found.");
-                ProviderAuthorizationStore.Expected(row, request.ExpectedOfferingRevision ?? 0);
-            }
-            else if (choice == "New")
-            {
-                var input = OfferingInput(offering);
-                row = ProviderAuthorizationService.CreateOfferingRow(profile.Id, input, actor.ObjectId);
-                db.Add(row);
-                ProviderAuthorizationStore.Audit(db, row, row.Id, "OfferingCreated", actor.ObjectId);
-            }
-            else throw new ArgumentException("Choose an offering or explicitly defer.");
-            var committed = JsonNode.Parse(draft.CommittedMetadataJson)!.AsObject();
-            committed["committedOfferingId"] = row.Id.ToString("D");
-            draft.CommittedMetadataJson = committed.ToJsonString();
-            var updated = JsonNode.Parse(draft.DraftJson)!.AsObject();
-            updated["firstOffering"]!["choice"] = "Existing";
-            updated["firstOffering"]!["offeringId"] = row.Id.ToString("D");
-            updated["firstOffering"]!["expectedRevision"] = row.Revision;
-            draft.DraftJson = updated.ToJsonString();
-            return (row.Id, row.Revision);
+            if (section == "PortfolioAndOffering")
+                return await CommitPortfolioAndOfferingAsync(db, profile, draft, fields, request, actor, ct);
+            if (section == "AuthorizationStartingPoint")
+                return await CommitAuthorizationIntentAsync(db, profile, draft, fields, request, actor, ct);
+            return new SetupMutation();
         }, ct);
     }
 
@@ -166,7 +171,7 @@ public sealed partial class ProviderSetupService
         {
             if (profile.SetupRevision != request.ExpectedProfileRevision) throw new DbUpdateConcurrencyException("Provider profile revision changed.");
             await RequireSourcesAsync(db, draft, request.AcknowledgedUnresolvedIntentIds ?? [], ct);
-            var fields = Element(draft.DraftJson);
+            var fields = NormalizeDraftForRead(Element(draft.DraftJson), draft.SchemaVersion);
             var contact = Part(fields, "securityContact");
             if (Text(contact, "choice") is not ("Deferred" or "ContactOnly")
                 || Text(contact, "choice") == "ContactOnly" && Part(Element(draft.CommittedMetadataJson), "securityContact").ValueKind != JsonValueKind.Object)
@@ -178,8 +183,12 @@ public sealed partial class ProviderSetupService
                     || !await db.Set<ProviderOffering>().AnyAsync(x => x.ProviderId == profile.Id && x.Id == offeringId, ct))
                     throw new ArgumentException("Save or select an existing offering, or explicitly defer it before completion.");
             }
-            if (profile.IdentityCompletedAt is null || profile.SupportCompletedAt is null || profile.ClassificationCompletedAt is null)
-                throw new ArgumentException("Save provider identity, support contact and explicit deployment default before completion.");
+            var operational = Part(fields, "operationalContact");
+            if (profile.IdentityCompletedAt is null || profile.ClassificationCompletedAt is null
+                || profile.SupportCompletedAt is null && Text(operational, "choice") != "Deferred")
+                throw new ArgumentException("Save provider identity, operational-contact disposition and explicit deployment default before completion.");
+            await EnsureCompletionWorkItemsAsync(db, profile, draft, fields,
+                request.AcknowledgedUnresolvedIntentIds ?? [], actor, ct);
             var now = DateTimeOffset.UtcNow;
             if (profile.OnboardingState != OnboardingState.Active)
             {
@@ -194,12 +203,14 @@ public sealed partial class ProviderSetupService
             var updated = JsonNode.Parse(draft.DraftJson)!.AsObject();
             updated["currentScreen"] = "p-ready";
             draft.DraftJson = updated.ToJsonString();
-            return (null, null);
+            return new SetupMutation();
         }, ct);
     }
 
     private async Task<ProviderSetupCommandResult> CommandAsync(string operation, long expectedRevision, object request,
-        string key, ProviderSetupActor actor, Func<AtoCopilotContext, CspProfile, ProviderSetupDraft, Task<(Guid?, long?)>> change, CancellationToken ct)
+        string key, ProviderSetupActor actor,
+        Func<AtoCopilotContext, CspProfile, ProviderSetupDraft, Task<SetupMutation>> change,
+        CancellationToken ct)
     {
         Authorize();
         if (!Guid.TryParseExact(key, "D", out _)) throw new ArgumentException("Use a stable UUID Idempotency-Key.");
@@ -233,7 +244,7 @@ public sealed partial class ProviderSetupService
                 draft = new ProviderSetupDraft { ProviderId = profile.Id, CreatedBy = actor.ObjectId, UpdatedBy = actor.ObjectId, Revision = 0 };
                 db.Add(draft);
             }
-            var (offeringId, offeringRevision) = await change(db, profile, draft);
+            var mutation = await change(db, profile, draft);
             draft.Revision++;
             draft.UpdatedAt = DateTimeOffset.UtcNow;
             draft.UpdatedBy = actor.ObjectId;
@@ -241,7 +252,10 @@ public sealed partial class ProviderSetupService
                 Operation = operation, IdempotencyKey = key, IntentHash = hash, RequestJson = requestJson,
                 CommittedDraftRevision = draft.Revision, CreatedBy = actor.ObjectId };
             command.OutcomeJson = Json(new ProviderSetupCommitOutcome(command.Id, profile.Id, draft.Id, operation,
-                command.CreatedAt, draft.Revision, profile.SetupRevision, offeringId, offeringRevision));
+                command.CreatedAt, draft.Revision, profile.SetupRevision,
+                mutation.OfferingId, mutation.OfferingRevision,
+                mutation.PortfolioId, mutation.PortfolioRevision,
+                mutation.AuthorizationIntentId, mutation.AuthorizationIntentRevision));
             command.HistoricalCommitSnapshotJson = Json(new { committedBy = actor,
                 factReferences = new[] { new { kind = "ProviderSetupDraft", id = draft.Id, revision = draft.Revision } } });
             db.Add(command);
@@ -295,7 +309,7 @@ public sealed partial class ProviderSetupService
 
     private static async Task RequireSourcesAsync(AtoCopilotContext db, ProviderSetupDraft draft, IReadOnlyList<Guid> acknowledged, CancellationToken ct)
     {
-        var sources = Part(Element(draft.DraftJson), "sources");
+        var sources = Part(NormalizeDraftForRead(Element(draft.DraftJson), draft.SchemaVersion), "sources");
         if (Text(sources, "choice") is not ("Deferred" or "Intents"))
             throw new ArgumentException("Explicitly defer sources or retain an upload intent before completion.");
         if (Part(sources, "selection").ValueKind == JsonValueKind.Object)
@@ -312,14 +326,20 @@ public sealed partial class ProviderSetupService
     private static void ValidateDraft(JsonElement draft)
     {
         if (draft.ValueKind != JsonValueKind.Object || draft.GetRawText().Length > 262144) throw new ArgumentException("Invalid or oversized setup draft.");
-        if (Text(draft, "currentScreen") is not ("p-details" or "p-access" or "p-offering" or "p-sources" or "p-uncertain" or "p-review" or "p-ready"))
+        if (Text(draft, "currentScreen") is not ("p-details" or "p-access" or "p-offering" or "p-authorization"
+            or "p-sources" or "p-uncertain" or "p-review" or "p-ready"))
             throw new ArgumentException("Select a provider setup screen.");
-        foreach (var section in new[] { "details", "securityContact", "firstOffering", "sources" })
+        foreach (var section in new[]
+                 {
+                     "details", "operationalContact", "securityContact", "portfolio", "firstOffering",
+                     "authorizationStartingPoint", "sources", "review"
+                 })
             if (Part(draft, section).ValueKind != JsonValueKind.Object) throw new ArgumentException($"The {section} section is required.");
         foreach (var (name, max) in new[] { ("displayName", 64), ("legalEntityName", 256), ("serviceContactName", 256),
-            ("serviceContactEmail", 254), ("supportPhone", 40), ("logoUrl", 2048) })
+            ("serviceContactEmail", 254), ("supportPhone", 40), ("logoUrl", 2048),
+            ("dodComponent", 128), ("timeZoneId", 128) })
             if (Text(Part(draft, "details"), name)?.Length > max) throw new ArgumentException($"{name} exceeds {max} characters.");
-        foreach (var section in new[] { "securityContact", "firstOffering", "sources" })
+        foreach (var section in new[] { "operationalContact", "securityContact", "portfolio", "firstOffering", "sources" })
         {
             var value = Part(draft, section);
             if (Text(value, "choice") == "Deferred")
@@ -327,17 +347,47 @@ public sealed partial class ProviderSetupService
                 var reason = Text(Part(value, "deferral"), "reason");
                 if (string.IsNullOrWhiteSpace(reason) || reason.Length > 2000) throw new ArgumentException("A bounded explicit deferral reason is required.");
             }
-            if (Text(Part(draft, "securityContact"), "choice") is not ("Unspecified" or "ContactOnly" or "Deferred" or "ExistingIdentity")
-                || Text(Part(draft, "firstOffering"), "choice") is not ("Unspecified" or "New" or "Existing" or "Deferred")
-                || Text(Part(draft, "sources"), "choice") is not ("Unspecified" or "Selected" or "Intents" or "Deferred"))
-                throw new ArgumentException("Invalid provider setup disposition.");
-            var intentIds = Part(Part(draft, "sources"), "intentIds");
-            if (intentIds.ValueKind != JsonValueKind.Array || intentIds.GetArrayLength() > 25
-                || intentIds.EnumerateArray().Any(value => value.ValueKind != JsonValueKind.String || !value.TryGetGuid(out _)))
-                throw new ArgumentException("Source intent IDs must be a bounded UUID array.");
-            var contact = Part(draft, "securityContact");
-            if (Text(contact, "displayName")?.Length > 256 || Text(contact, "email")?.Length > 254)
-                throw new ArgumentException("Security contact details exceed the allowed length.");
+        }
+        if (Text(Part(draft, "operationalContact"), "choice") is not ("Unspecified" or "ContactOnly" or "Deferred")
+            || Text(Part(draft, "securityContact"), "choice") is not ("Unspecified" or "ContactOnly" or "Deferred" or "ExistingIdentity")
+            || Text(Part(draft, "portfolio"), "choice") is not ("Unspecified" or "New" or "Existing" or "Deferred")
+            || Text(Part(draft, "firstOffering"), "choice") is not ("Unspecified" or "New" or "Existing" or "Deferred")
+            || Text(Part(draft, "authorizationStartingPoint"), "choice")
+                is not ("ExistingAuthorization" or "InitialAuthorization" or "DetermineLater")
+            || Text(Part(draft, "sources"), "choice") is not ("Unspecified" or "Selected" or "Intents" or "Deferred"))
+            throw new ArgumentException("Invalid provider setup disposition.");
+        var intentIds = Part(Part(draft, "sources"), "intentIds");
+        if (intentIds.ValueKind != JsonValueKind.Array || intentIds.GetArrayLength() > 25
+            || intentIds.EnumerateArray().Any(value => value.ValueKind != JsonValueKind.String || !value.TryGetGuid(out _)))
+            throw new ArgumentException("Source intent IDs must be a bounded UUID array.");
+        var contact = Part(draft, "securityContact");
+        if (Text(contact, "displayName")?.Length > 256 || Text(contact, "email")?.Length > 254)
+            throw new ArgumentException("Security contact details exceed the allowed length.");
+        var operationalContact = Part(draft, "operationalContact");
+        if (Text(operationalContact, "displayName")?.Length > 256
+            || Text(operationalContact, "email")?.Length > 254
+            || Text(operationalContact, "phone")?.Length > 40)
+            throw new ArgumentException("Operational contact details exceed the allowed length.");
+        var existingDecision = Part(Part(draft, "authorizationStartingPoint"), "existingDecision");
+        if (Part(existingDecision, "confirmed").ValueKind == JsonValueKind.True)
+            throw new ArgumentException("Provider setup may retain only unconfirmed existing-decision facts.");
+        var unresolvedFields = Part(Part(draft, "authorizationStartingPoint"), "unresolvedFields");
+        if (unresolvedFields.ValueKind != JsonValueKind.Array || unresolvedFields.GetArrayLength() > 20
+            || unresolvedFields.EnumerateArray().Any(value =>
+                value.ValueKind != JsonValueKind.String || value.GetString()!.Length > 32))
+            throw new ArgumentException("Authorization unresolved fields must be a bounded string array.");
+        var timeZoneId = Text(Part(draft, "details"), "timeZoneId");
+        if (!string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            try { _ = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId); }
+            catch (TimeZoneNotFoundException)
+            {
+                throw new ArgumentException("Use a recognized provider time zone.");
+            }
+            catch (InvalidTimeZoneException)
+            {
+                throw new ArgumentException("Use a recognized provider time zone.");
+            }
         }
         if (Text(Part(draft, "securityContact"), "choice") == "ExistingIdentity")
             throw new ArgumentException("Identity discovery must be verified by an authorized identity workflow; save contact-only details instead.");
@@ -353,5 +403,27 @@ public sealed partial class ProviderSetupService
             _ => value
         };
         return Json(Normalize(element));
+    }
+
+    private static async Task UpsertContactAsync(
+        AtoCopilotContext db, Guid providerId, string category, JsonElement input,
+        string actor, CancellationToken ct)
+    {
+        var row = await db.ProviderContacts.SingleOrDefaultAsync(x =>
+            x.ProviderId == providerId && x.Category == category && x.State != "Replaced", ct);
+        row ??= new ProviderContact
+        {
+            ProviderId = providerId,
+            Category = category,
+            CreatedBy = actor
+        };
+        if (db.Entry(row).State == EntityState.Detached) db.Add(row);
+        row.DisplayName = Text(input, "displayName");
+        row.Email = Text(input, "email");
+        row.Phone = Text(input, "phone");
+        row.State = Text(input, "choice") == "Deferred" ? "Deferred" : "Active";
+        row.UpdatedAt = DateTimeOffset.UtcNow;
+        row.UpdatedBy = actor;
+        if (row.Revision > 0 && db.Entry(row).State != EntityState.Added) row.Revision++;
     }
 }

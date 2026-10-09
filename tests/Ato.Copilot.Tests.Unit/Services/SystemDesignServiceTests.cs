@@ -103,6 +103,245 @@ public sealed partial class SystemDesignServiceTests : IAsyncLifetime
     private static SaveSystemDesignRequest Save(SystemDesignGraph graph) =>
         new(graph.Revision, graph.Nodes, graph.Edges, graph.Groups, "Synthetic reviewed architecture change");
 
+    [Theory]
+    [InlineData(false, false, "Inactive")]
+    [InlineData(true, true, "Future")]
+    [InlineData(true, false, "Denied")]
+    public async Task AuthorizationScope_DoesNotPromoteInactiveFutureOrDeniedDecisions(bool active, bool future, string currency)
+    {
+        // Arrange
+        await using var db = new AtoCopilotContext(_options);
+        db.AuthorizationDecisions.Add(new() { TenantId = _tenant, RegisteredSystemId = _system, IsActive = active,
+            DecisionType = future ? AuthorizationDecisionType.Ato : AuthorizationDecisionType.Dato,
+            DecisionDate = future ? DateTime.UtcNow.AddDays(1) : DateTime.UtcNow.AddDays(-1),
+            ExpirationDate = DateTime.UtcNow.AddDays(30), IssuedBy = "recorded-ao" });
+        await db.SaveChangesAsync();
+        // Act
+        var graph = await Service().GetAsync(_system);
+        // Assert
+        var decision = graph.Nodes.Single(n => n.Kind == "AuthorizationScope");
+        decision.Properties["currency"].Should().Be(currency);
+        decision.Properties["componentCoverage"].Should().Be("Not verified");
+        decision.DiagramRole.Should().Be("SourceRecord");
+    }
+    [Fact]
+    public async Task BoundaryAnnotations_RoundTripButCannotSelectForeignScopeOrIncludeSeparateAuthorization()
+    {
+        // Arrange
+        await using var db = new AtoCopilotContext(_options);
+        var boundary = new AuthorizationBoundaryDefinition { TenantId = _tenant, RegisteredSystemId = _system,
+            Name = "Recorded workload scope" };
+        db.AuthorizationBoundaryDefinitions.Add(boundary);
+        await db.SaveChangesAsync();
+        var service = Service();
+        var graph = await service.GetAsync(_system);
+        var asset = new DesignNode { Id = "owned-resource", Kind = "DesignComponent", Label = "Recorded workload VM",
+            BoundaryDisposition = "InBoundary", BoundaryDefinitionId = boundary.Id, BoundaryRelationship = "SystemManaged",
+            BoundaryRationale = "Workload-managed VM in the reviewed design scope",
+            SecurityResponsibility = "Recorded system operations team", ExternalAuthorizationReference = "https://example.invalid/source" };
+        // Act
+        var saved = await service.SaveAsync(_system, Save(graph) with { Nodes = [..graph.Nodes, asset] });
+        var loaded = (await service.GetAsync(_system)).Nodes.Single(n => n.Id == asset.Id);
+        // Assert
+        loaded.BoundaryDefinitionId.Should().Be(boundary.Id);
+        loaded.SecurityResponsibility.Should().Be(asset.SecurityResponsibility);
+        loaded.BoundaryRationale.Should().Be(asset.BoundaryRationale);
+        foreach (var invalid in new[] { asset with { BoundaryDefinitionId = "foreign-scope" },
+            asset with { BoundaryRelationship = "SeparatelyAuthorized" }, asset with { BoundaryRelationship = "SharedService" },
+            asset with { ExternalAuthorizationReference = "javascript:alert(1)" } })
+            await FluentActions.Awaiting(() => service.SaveAsync(_system, Save(saved) with
+                { Nodes = saved.Nodes.Where(n => n.Id != asset.Id).Append(invalid).ToArray() }))
+                .Should().ThrowAsync<ArgumentException>();
+    }
+    [Fact]
+    public async Task BoundarySources_KeepNamedScopeAndDecisionCurrency_WithoutClaimingComponentAuthorization()
+    {
+        // Arrange
+        await using var db = new AtoCopilotContext(_options);
+        var boundary = new AuthorizationBoundaryDefinition { TenantId = _tenant, RegisteredSystemId = _system,
+            Name = "Mission production", BoundaryType = BoundaryDefinitionType.Logical };
+        var component = new SystemComponent { TenantId = _tenant, RegisteredSystemId = _system, Name = "Recorded local server" };
+        db.AddRange(boundary, component);
+        db.BoundaryComponentAssignments.Add(new() { TenantId = _tenant, AuthorizationBoundaryDefinitionId = boundary.Id,
+            SystemComponentId = component.Id, IsInScope = true });
+        db.AuthorizationDecisions.Add(new() { TenantId = _tenant, RegisteredSystemId = _system,
+            DecisionType = AuthorizationDecisionType.Ato, DecisionDate = DateTime.UtcNow.AddDays(-20),
+            ExpirationDate = DateTime.UtcNow.AddDays(-1), IssuedBy = "recorded-ao", IssuedByName = "Recorded AO", IsActive = true });
+        await db.SaveChangesAsync();
+        // Act
+        var graph = await Service().GetAsync(_system);
+        // Assert
+        graph.Nodes.Should().ContainSingle(n => n.Kind == "BoundaryDefinition" && n.Label == "Mission production");
+        var asset = graph.Nodes.Single(n => n.Kind == "Component");
+        asset.Properties["boundaryId"].Should().Be(boundary.Id);
+        asset.Properties["recordedBoundaryName"].Should().Be("Mission production");
+        asset.BoundaryDisposition.Should().Be("Undetermined");
+        var decision = graph.Nodes.Single(n => n.Kind == "AuthorizationScope");
+        decision.Properties["currency"].Should().Be("Expired");
+        decision.Properties["componentCoverage"].Should().Be("Not verified");
+    }
+    [Fact]
+    public async Task LegacySystemPolicy_IsAnExplicitUnretainedConstraint_NotAnInfrastructureBox()
+    {
+        // Arrange
+        await using var db = new AtoCopilotContext(_options);
+        db.SystemComponents.Add(new() { TenantId = _tenant, RegisteredSystemId = _system,
+            ComponentType = ComponentType.Policy, Name = "Recorded legacy rule", Description = "Source-owned constraint" });
+        await db.SaveChangesAsync();
+        // Act
+        var graph = await Service().GetAsync(_system);
+        // Assert
+        var policy = graph.Nodes.Single(n => n.Kind == "PolicyReference");
+        policy.Label.Should().Be("Recorded legacy rule");
+        policy.DiagramRole.Should().Be("SourceRecord");
+        policy.Properties["retention"].Should().Be("LegacyUnretainedOrIndirect");
+        graph.Gaps.Should().Contain(g => g.RecordId == policy.Id && g.Id.StartsWith("ContextPolicyRetention:"));
+        graph.Edges.Should().NotContain(e => e.SourceNodeId == policy.Id || e.TargetNodeId == policy.Id);
+    }
+
+    [Fact]
+    public async Task ConstraintDraft_RetainsCitationAndRationale_WithoutBecomingInfrastructureOrNetworkTraffic()
+    {
+        // Arrange
+        var service = Service();
+        var graph = await service.GetAsync(_system);
+        var constraint = new DesignNode { Id = "constraint", Kind = "ContextConstraint", Label = "Recorded governing standard",
+            Properties = new() { ["referenceType"] = "Standard", ["referenceUrl"] = "https://example.invalid/standard",
+                ["contextOrganization"] = "Recorded authority", ["rationale"] = "Documented system constraint" } };
+        var reference = new DesignEdge { Id = "constraint-reference", RelationshipType = "ConstraintReference",
+            SourceNodeId = constraint.Id, TargetNodeId = graph.Nodes[0].Id, Purpose = "Recorded applicability context" };
+        // Act
+        var saved = await service.SaveAsync(_system, Save(graph) with { Nodes = [..graph.Nodes, constraint], Edges = [reference] });
+        var reloaded = await service.GetAsync(_system);
+        // Assert
+        reloaded.Nodes.Single(n => n.Id == constraint.Id).DiagramRole.Should().Be("SourceRecord");
+        reloaded.Nodes.Single(n => n.Id == constraint.Id).Properties["rationale"].Should().Be("Documented system constraint");
+        saved.Gaps.Should().NotContain(g => g.RecordId == reference.Id && g.Id.StartsWith("MissingPps:"));
+        var unsafeReference = constraint with { Properties = new(constraint.Properties) { ["referenceUrl"] = "javascript:alert(1)" } };
+        await FluentActions.Awaiting(() => service.SaveAsync(_system, Save(saved) with
+            { Nodes = saved.Nodes.Where(n => n.Id != constraint.Id).Append(unsafeReference).ToArray() }))
+            .Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ContextContacts_ExcludeRemovedAndForeignRoles_AndKeepOrgFallbackAttribution()
+    {
+        // Arrange
+        await using var db = new AtoCopilotContext(_options);
+        var person = new Ato.Copilot.Core.Models.Onboarding.Person
+            { Id = Guid.NewGuid(), TenantId = _tenant, DisplayName = "Recorded organizational AO" };
+        db.Persons.Add(person);
+        var fallback = new Ato.Copilot.Core.Models.Onboarding.OrganizationRoleAssignment
+            { TenantId = _tenant, PersonId = person.Id, Role = OrganizationRole.AuthorizingOfficial };
+        db.OrganizationRoleAssignments.Add(fallback);
+        db.SystemRoleAssignments.Add(new() { TenantId = _tenant, PersonId = person.Id, RegisteredSystemId = _system,
+            Role = OrganizationRole.Issm, RemovedAt = DateTime.UtcNow });
+        db.RmfRoleAssignments.Add(new() { TenantId = Guid.NewGuid(), RegisteredSystemId = _system,
+            RmfRole = RmfRole.Isso, UserId = "foreign", UserDisplayName = "Foreign contact" });
+        await db.SaveChangesAsync();
+        // Act
+        var graph = await Service().GetAsync(_system);
+        // Assert
+        var actor = graph.Nodes.Single(n => n.Source!.Type == "ResolvedRmfRole");
+        actor.Label.Should().Contain("Recorded organizational AO");
+        actor.Properties["assignmentSource"].Should().Be("OrgFallback");
+        actor.Properties["organizationRoleId"].Should().Be(fallback.Id.ToString());
+        graph.Nodes.Should().NotContain(n => n.Label.Contains("Foreign contact") || n.Label.StartsWith("ISSM"));
+    }
+
+    [Fact]
+    public async Task ExplicitGovernanceContext_PersistsWithoutInventedPps_AndCannotRelabelExistingTraffic()
+    {
+        // Arrange
+        var service = Service();
+        var graph = await service.GetAsync(_system);
+        var actor = new DesignNode { Id = "governance-contact", Kind = "DesignComponent", Label = "Recorded review board",
+            BoundaryDisposition = "OutOfBoundary", Properties = new()
+                { ["contextEntityClass"] = "Performer", ["contextEntityCategory"] = "SecurityCompliance" } };
+        var relation = new DesignEdge { Id = "governance-review", SourceNodeId = actor.Id,
+            TargetNodeId = graph.Nodes[0].Id, RelationshipType = "GovernanceInteraction", Purpose = "Review documented readiness" };
+        // Act
+        var saved = await service.SaveAsync(_system, Save(graph) with { Nodes = [..graph.Nodes, actor], Edges = [relation] });
+        // Assert
+        saved.Edges.Should().ContainSingle(e => e.Id == relation.Id);
+        saved.Gaps.Should().NotContain(g => g.RecordId == relation.Id && g.Id.StartsWith("MissingPps:"));
+        (await service.GetAsync(_system)).Nodes.Single(n => n.Id == actor.Id).Properties["contextEntityClass"].Should().Be("Performer");
+        var technical = relation with { Id = "technical-review", RelationshipType = "DataFlow", Protocol = "HTTPS", Port = "443" };
+        var withTraffic = await service.SaveAsync(_system, Save(saved) with { Edges = [relation, technical] });
+        var disguised = technical with { RelationshipType = "GovernanceInteraction", Protocol = null, Port = null };
+        await FluentActions.Awaiting(() => service.SaveAsync(_system, Save(withTraffic) with { Edges = [relation, disguised] }))
+            .Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ContextSources_UseAssignedRmfContactsAndRetainedPolicy_NotCatalogOrInventedTraffic()
+    {
+        // Arrange
+        await using var db = new AtoCopilotContext(_options);
+        var person = new Ato.Copilot.Core.Models.Onboarding.Person
+            { Id = Guid.NewGuid(), TenantId = _tenant, DisplayName = "Recorded security manager" };
+        db.Persons.Add(person);
+        db.SystemRoleAssignments.Add(new() { TenantId = _tenant, RegisteredSystemId = _system,
+            PersonId = person.Id, Role = OrganizationRole.Issm });
+        var policy = new SystemComponent { TenantId = _tenant, Name = "CURRENT policy library",
+            ComponentType = ComponentType.Policy };
+        db.SystemComponents.Add(policy);
+        db.ComponentSystemAssignments.Add(new() { TenantId = _tenant, RegisteredSystemId = _system, SystemComponentId = policy.Id,
+            PolicyRationale = "Recorded system applicability rationale", PolicySourceRevision = "retained-revision",
+            PolicySourceSnapshotJson = JsonSerializer.Serialize(new PolicySourceDto(policy.Id, "RETAINED policy source", null, "Standard",
+                "Active", null, "retained-revision", "Retained version 1", null, true, [])) });
+        db.SystemComponents.Add(new() { TenantId = _tenant, Name = "Unrelated policy", ComponentType = ComponentType.Policy });
+        await db.SaveChangesAsync();
+        // Act
+        var graph = await Service().GetAsync(_system);
+        // Assert
+        var contact = graph.Nodes.Single(n => n.Source!.Type == "ResolvedRmfRole");
+        contact.Label.Should().Contain("Recorded security manager");
+        contact.Properties["contextEntityClass"].Should().Be("Performer");
+        graph.Edges.Should().ContainSingle(e => e.RelationshipType == "GovernanceAssignment"
+            && e.SourceNodeId == contact.Id && e.Port == null && e.Protocol == null);
+        var constraint = graph.Nodes.Single(n => n.Kind == "PolicyReference");
+        constraint.Label.Should().Be("RETAINED policy source");
+        constraint.Properties["rationale"].Should().Be("Recorded system applicability rationale");
+        graph.Nodes.Should().NotContain(n => n.Label == "Unrelated policy");
+        graph.Edges.Should().NotContain(e => e.RelationshipType == "DataFlow" || e.RelationshipType == "ServiceFlow" || e.RelationshipType == "ResourceFlow");
+    }
+
+    [Fact]
+    public async Task Projection_RetainsAllMissionMetadataAndIdentifiers_WithNewIndependentLayouts()
+    {
+        // Arrange
+        await using var db = new AtoCopilotContext(_options);
+        var system = await db.RegisteredSystems.SingleAsync();
+        system.EmassId = "EMASS-SYN";
+        system.DitprId = "DITPR-SYN";
+        db.SystemProfileSections.Add(new() { TenantId = _tenant, RegisteredSystemId = _system,
+            SectionType = ProfileSectionType.MissionAndPurpose, DraftContent = """
+            {"systemVersion":"Release 4.2","responsibleOrganization":"Mission directorate","programOffice":"Operations division",
+             "missionStatement":"Recorded mission","businessPurpose":"Recorded purpose","operationalJustification":"Recorded need",
+             "businessFunctions":"Recorded functions","unknownSource":"Retain mapping gap"}
+            """ });
+        await db.SaveChangesAsync();
+        var service = Service();
+        // Act
+        var graph = await service.GetAsync(_system);
+        var logical = await service.GetLayoutAsync(_system, "Logical");
+        var azure = await service.GetLayoutAsync(_system, "AzureDeployment");
+        // Assert
+        var mission = graph.Nodes.Single(n => n.Kind == "ProfileSection");
+        mission.Properties.Should().ContainKey("systemVersion").WhoseValue.Should().Be("Release 4.2");
+        mission.Properties.Should().ContainKey("responsibleOrganization").WhoseValue.Should().Be("Mission directorate");
+        mission.Properties.Should().ContainKey("programOffice").WhoseValue.Should().Be("Operations division");
+        mission.Properties["unmappedFields"].Should().Be("[\"unknownSource\"]");
+        var identity = graph.Nodes.Single(n => n.Kind == "System");
+        identity.Properties["EmassId"].Should().Be("EMASS-SYN");
+        identity.Properties["DitprId"].Should().Be("DITPR-SYN");
+        logical.View.Should().Be("Logical");
+        azure.View.Should().Be("AzureDeployment");
+        logical.Version.Should().Be(0);
+        azure.Version.Should().Be(0);
+    }
+
     [Fact]
     public async Task Projection_ReportsSixSourcesAndMissingRecords_WithoutFabricatedFlows()
     {
@@ -230,17 +469,22 @@ public sealed partial class SystemDesignServiceTests : IAsyncLifetime
         await large.Should().ThrowAsync<ArgumentException>();
     }
 
-    [Fact]
-    public async Task Layout_PersistsSeparately_AndDoesNotChangeGraphRevision()
+    [Theory]
+    [InlineData("Context")]
+    [InlineData("Logical")]
+    [InlineData("AzureDeployment")]
+    public async Task Layout_PersistsSeparately_AndDoesNotChangeGraphRevision(string view)
     {
         // Arrange
         var service = Service();
         var graph = await service.SaveAsync(_system, Save(await service.GetAsync(_system)));
-        var layout = await service.GetLayoutAsync(_system, "Context");
+        var layout = await service.GetLayoutAsync(_system, view);
         // Act
         var saved = await service.SaveLayoutAsync(_system, new(layout.Version, layout with { Positions = new() { [graph.Nodes[0].Id] = new(25, 70) } }));
         // Assert
-        (await service.GetLayoutAsync(_system, "Context")).Positions.Should().BeEquivalentTo(saved.Positions);
+        (await service.GetLayoutAsync(_system, view)).Positions.Should().BeEquivalentTo(saved.Positions);
+        var otherView = view == "Context" ? "Logical" : "Context";
+        (await service.GetLayoutAsync(_system, otherView)).Version.Should().Be(0);
         (await service.GetAsync(_system)).Revision.Should().Be(graph.Revision);
         await FluentActions.Awaiting(() => service.SaveLayoutAsync(_system, new(0, layout))).Should().ThrowAsync<DbUpdateConcurrencyException>();
     }

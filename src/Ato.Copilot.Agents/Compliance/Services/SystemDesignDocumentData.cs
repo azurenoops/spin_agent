@@ -54,10 +54,13 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
             approved.SnapshotHash, approved.ApprovedAt, approved.ApprovedBy);
         var sections = new Dictionary<int, string>
         {
-            [5] = Narrative(approved, "System context", graph.Nodes, graph.Edges),
-            [6] = Narrative(approved, "Network architecture", graph.Nodes, graph.Edges),
-            [7] = Narrative(approved, "Data-flow description and interconnections", [], graph.Edges, dataFlowsOnly: true),
-            [11] = Narrative(approved, "Authorization boundary and system inventory", graph.Nodes, [])
+            [5] = ContextNarrative(approved) + Narrative(approved, "DM2-aligned logical architecture",
+                graph.Nodes.Where(n => SystemLogicalProjection.Type(n) is not null), graph.Edges) + LogicalReferences(graph),
+            [6] = NetworkNarrative(approved) + DeploymentNarrative(approved),
+            [7] = DataFlowNarrative(approved),
+            [11] = Narrative(approved, "Authorization boundary and system inventory", graph.Nodes,
+                graph.Edges.Where(SystemDesignSemantics.IsFlow))
+                + "\nIncluded scope is a reviewed design record, not verified component coverage by an AO decision. CSP association and diagrams do not establish ATO/cATO.\n"
         };
         return new(approved, sections, SystemDesignDiagramRenderer.Views.Select(view => SystemDesignDiagramRenderer.Render(source, view)).ToArray());
     }
@@ -67,13 +70,152 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
         new(graph.SystemId, graph.SystemName, snapshotId, revision, approvedAt, reviewer,
             graph.Nodes.Where(n => n.Kind == "System").Select(n => Value(n, "HandlingMarking", "classification")).FirstOrDefault(v => v != null),
             hash,
-            graph.Nodes.Select(n => new SystemDesignDiagramNode(n.Id, n.Label, n.BoundaryDisposition, n.Kind, n.Environment, n.NetworkZone, n.DiagramRole)).ToArray(),
+            graph.Nodes.Select(n => new SystemDesignDiagramNode(n.Id, n.Label, SystemBoundaryProjection.Disposition(n), n.Kind,
+                n.Environment, n.NetworkZone, n.DiagramRole, DiagramProperties(n, graph),
+                n.Source?.ReviewState ?? n.ReviewState, n.Provider, n.Source)).ToArray(),
             graph.Edges.Select(e => new SystemDesignDiagramEdge(e.Id, e.SourceNodeId, e.TargetNodeId,
                 e.Purpose ?? "Purpose not recorded", e.Protocol, e.Port, e.Protection,
                 $"{e.Origin}; {e.Source?.Provenance ?? "Explicit design decision"}" +
                     (SystemDesignSemantics.IsFlow(e) ? $"; PPS source: {e.PpsEntryId ?? "Not recorded"}" : ""),
-                e.RelationshipType, SystemDesignSemantics.IsFlow(e))).ToArray(),
+                e.RelationshipType, SystemDesignSemantics.IsFlow(e), e.Service, e.InformationType, e.Classification, e.Direction, e.Source,
+                e.InterconnectionId, e.AgreementStatus, e.LifecycleStage, e.InformationTypeId, e.BoundaryCrossing,
+                e.ProtocolStack, e.StandardsReference, e.ConnectionMedium, e.SecurityControlReferences)).ToArray(),
             reviewState);
+
+    private static Dictionary<string, string?> DiagramProperties(DesignNode node, SystemDesignGraph graph)
+    {
+        var nodes = graph.Nodes;
+        var scope = SystemAzureDeploymentProjection.Scope(node, nodes, graph.Edges);
+        return new(node.Properties)
+        {
+            ["diagramBoundaryGroup"] = SystemBoundaryProjection.GroupName(node, nodes),
+            ["designBoundaryDefinitionId"] = node.BoundaryDefinitionId,
+            ["designBoundaryRationale"] = node.BoundaryRationale,
+            ["securityResponsibility"] = node.SecurityResponsibility,
+            ["boundaryRelationship"] = node.BoundaryRelationship,
+            ["externalAuthorizationReference"] = node.ExternalAuthorizationReference,
+            ["dataFlowRole"] = node.DataFlowRole,
+            ["functionDescription"] = node.FunctionDescription,
+            ["dataRetention"] = node.DataRetention,
+            ["disposalMethod"] = node.DisposalMethod,
+            ["diagramDataFlowGroup"] = SystemDataFlowProjection.Group(node, nodes),
+            ["diagramNetworkGroup"] = SystemNetworkProjection.Group(node, nodes),
+            ["networkRole"] = node.NetworkRole,
+            ["networkSegment"] = node.NetworkSegment,
+            ["networkAddress"] = node.NetworkAddress,
+            ["hostingImpactLevel"] = node.HostingImpactLevel,
+            ["sacaZone"] = node.SacaZone,
+            ["sacaRole"] = node.SacaRole,
+            ["deploymentScopeNodeId"] = node.DeploymentScopeNodeId,
+            ["deploymentOwner"] = node.DeploymentOwner,
+            ["deploymentEvidenceReference"] = node.DeploymentEvidenceReference,
+            ["deploymentSecurityFunctions"] = node.DeploymentSecurityFunctions,
+            ["recordedDeploymentCloud"] = scope?.Properties.GetValueOrDefault("cloud"),
+            ["recordedDeploymentDirectoryId"] = scope?.Properties.GetValueOrDefault("directoryTenantId"),
+            ["recordedDeploymentSubscriptionId"] = scope?.Properties.GetValueOrDefault("subscriptionId"),
+            ["diagramDeploymentGroup"] = SystemAzureDeploymentProjection.Group(node, nodes, graph.Edges)
+        };
+    }
+
+    private static string DeploymentNarrative(ApprovedSystemDesign approved)
+    {
+        var deployment = SystemAzureDeploymentProjection.Project(approved.Graph.Nodes, approved.Graph.Edges);
+        return Narrative(approved, "SACA/SCCA-aware Azure deployment", deployment.Nodes, deployment.Edges)
+            + DeploymentReferences(approved.Graph, deployment);
+    }
+
+    private static string DeploymentReferences(SystemDesignGraph graph, SystemAzureDeploymentView deployment)
+    {
+        var text = new StringBuilder("\nSACA role/zone annotations describe recorded instance context, not SCCA compliance, Azure Government/IL accreditation, DISN connectivity, inherited responsibility or an AO decision. TCCM is a business performer, not a vault/appliance; AO appointment and credential-management plan are unverified.\n");
+        foreach (var node in deployment.Nodes)
+        {
+            var scope = SystemAzureDeploymentProjection.Scope(node, graph.Nodes, graph.Edges);
+            text.AppendLine($"Deployment record {node.Id}: {node.Label}; role {node.SacaRole ?? "Not recorded"}; group {SystemAzureDeploymentProjection.Group(node, graph.Nodes, graph.Edges)}.");
+            text.AppendLine($"Exact deployment scope: {scope?.Id ?? "Not recorded or ambiguous"}; cloud {scope?.Properties.GetValueOrDefault("cloud") ?? "Not recorded"}; source version {scope?.Source?.Version ?? "Not recorded"}.");
+        }
+        foreach (var role in SystemAzureDeploymentProjection.ReferenceRoles.Where(r => !deployment.Nodes.Any(n => n.SacaRole == r)))
+            text.AppendLine($"SACA applicability/source gap: {role} not recorded. No reference architecture component is automatically implemented.");
+        return text.ToString();
+    }
+
+    private static string NetworkNarrative(ApprovedSystemDesign approved)
+    {
+        var network = SystemNetworkProjection.Project(approved.Graph.Nodes, approved.Graph.Edges);
+        return Narrative(approved, "SV-1/SV-2-aligned network architecture", network.Nodes, network.Edges)
+            + NetworkReferences(approved.Graph, network);
+    }
+
+    private static string NetworkReferences(SystemDesignGraph graph, SystemNetworkView network)
+    {
+        var text = new StringBuilder("\nNetwork frames record design scope, not verified AO component coverage. CSP association, claimed hosting IL, DISN media, standards citations and control IDs do not prove accepted inheritance, authorization, StdV-1 conformance or implemented controls.\n");
+        text.AppendLine($"Network contains {network.Edges.Count(SystemDesignSemantics.IsFlow)} technical interfaces and {network.Edges.Count(SystemNetworkProjection.IsAssociation)} source-recorded associations. Associations are dashed without arrowheads, not network traffic.");
+        if (!network.Edges.Any(SystemDesignSemantics.IsFlow)) text.AppendLine("No technical network interfaces are documented; recorded membership, service use and access do not establish routes, ports or data flows.");
+        foreach (var node in network.Nodes)
+            text.AppendLine($"Network record {node.Id}: {node.Label}; scope/segment {SystemNetworkProjection.Group(node, graph.Nodes)}.");
+        foreach (var hosting in graph.Nodes.Where(n => n.Kind == "Environment"))
+            text.AppendLine($"Hosting context (not network device): {hosting.Label}; source {hosting.Source?.Type ?? "Unrecorded"}/{hosting.Source?.Id ?? hosting.Id}; version {hosting.Source?.Version ?? "Working"}.");
+        var ids = network.Nodes.Select(n => n.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var edge in graph.Edges.Where(e => SystemDesignSemantics.IsFlow(e) && (!ids.Contains(e.SourceNodeId) || !ids.Contains(e.TargetNodeId))))
+            text.AppendLine($"Interface mapping gap {edge.Id}: {edge.SourceNodeId} → {edge.TargetNodeId}; not mapped to computing/user endpoints in Network; retained in the full design/DFD.");
+        return text.ToString();
+    }
+
+    private static string DataFlowNarrative(ApprovedSystemDesign approved)
+    {
+        var dfd = SystemDataFlowProjection.Project(approved.Graph.Nodes, approved.Graph.Edges);
+        return Narrative(approved, "SV-4-aligned system functions, data lifecycle and interconnections", dfd.Nodes, dfd.Edges, true)
+            + DataFlowReferences(approved.Graph, dfd);
+    }
+
+    private static string DataFlowReferences(SystemDesignGraph graph, SystemDataFlowView dfd)
+    {
+        var text = new StringBuilder("\nFunctions/stores are functional design records, not automatically authorized computing assets. Arrows retain producer-to-consumer endpoints; inbound/outbound is relative to system scope. Hosting/CSP associations establish no data exchange, accepted inheritance or authorization. Formal DoDAF conformance is not verified.\n");
+        foreach (var node in dfd.Nodes)
+            text.AppendLine($"DFD record {node.Id}: {node.Label}; role {SystemDataFlowProjection.Role(node)}; scope {SystemDataFlowProjection.Group(node, graph.Nodes)}.");
+        foreach (var edge in dfd.Edges.Where(e => e.InformationTypeId is not null))
+        {
+            var information = graph.Nodes.SingleOrDefault(n => n.Kind == "InformationType" && n.Source?.Id == edge.InformationTypeId);
+            text.AppendLine($"Information source for {edge.Id}: {information?.Label ?? "Unavailable"}; record {edge.InformationTypeId}; version {information?.Source?.Version ?? "Unavailable"}.");
+        }
+        return text.ToString();
+    }
+
+    private static string ContextNarrative(ApprovedSystemDesign approved)
+    {
+        var context = SystemContextProjection.Project(approved.Graph.Nodes, approved.Graph.Edges);
+        return Narrative(approved, "System context", context.Nodes, context.Edges) + ContextReferences(approved.Graph, context);
+    }
+
+    private static string LogicalReferences(SystemDesignGraph graph)
+    {
+        var text = new StringBuilder("\nActual system constructs; not the generic DM2 schema or verified DoDAF/PES conformance. Logical predicates are not network flows. Realizes documents explicit refinement/reification.\n");
+        text.AppendLine("Security measures are not inferred mission capabilities; compliance roadmaps are not inferred system upgrades. CSP references do not prove accepted inheritance or implementation.");
+        foreach (var node in graph.Nodes.Where(n => SystemLogicalProjection.Type(n) is not null))
+            text.AppendLine($"Logical construct {node.Id}: {SystemLogicalProjection.Type(node)}; {node.Label}; layer {Value(node, "logicalLayer") ?? "Not recorded"}.");
+        foreach (var type in SystemLogicalProjection.Types.Where(type => !graph.Nodes.Any(n => SystemLogicalProjection.Type(n) == type)))
+            text.AppendLine($"Logical applicability gap: {type} not recorded.");
+        return text.ToString();
+    }
+
+    private static string ContextReferences(SystemDesignGraph graph, SystemContextView context)
+    {
+        var text = new StringBuilder();
+        var originalEdges = graph.Edges.ToDictionary(e => e.Id, StringComparer.Ordinal);
+        text.AppendLine($"Context abstraction summarizes {context.CollapsedCount} internal elements; it does not determine accepted boundary membership or DoDAF compliance.");
+        foreach (var edge in context.Edges)
+        {
+            var original = originalEdges[edge.Id];
+            text.AppendLine($"Original interface {edge.Id}: {original.SourceNodeId} → {original.TargetNodeId}; context: {edge.SourceNodeId} → {edge.TargetNodeId}.");
+        }
+        foreach (var constraint in context.Constraints)
+        {
+            text.AppendLine($"Constraint reference: {constraint.Label}; applicability approval not established.");
+            foreach (var field in constraint.Properties.Where(p => !string.IsNullOrWhiteSpace(p.Value)))
+                text.AppendLine($"{field.Key}: {field.Value}");
+            text.AppendLine($"Source: {constraint.Source?.Type ?? "Design draft"}/{constraint.Source?.Id ?? constraint.Id}; version {constraint.Source?.Version ?? "Working"}.");
+        }
+        return text.ToString();
+    }
 
     internal static string Narrative(ApprovedSystemDesign approved, string title, IEnumerable<DesignNode> nodes,
         IEnumerable<DesignEdge> edges, bool dataFlowsOnly = false)
@@ -108,6 +250,25 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
         {
             text.AppendLine();
             text.AppendLine($"{node.Label} ({node.Kind}); boundary: {node.BoundaryDisposition}.");
+            if (node.BoundaryDefinitionId is not null) text.AppendLine($"Named boundary: {node.BoundaryDefinitionId}");
+            if (node.BoundaryRationale is not null) text.AppendLine($"Scope rationale: {node.BoundaryRationale}");
+            if (node.SecurityResponsibility is not null) text.AppendLine($"Security responsibility: {node.SecurityResponsibility}");
+            if (node.BoundaryRelationship is not null) text.AppendLine($"Boundary ownership relationship: {node.BoundaryRelationship}");
+            if (node.ExternalAuthorizationReference is not null) text.AppendLine($"External authorization/source reference: {node.ExternalAuthorizationReference}");
+            if (node.DataFlowRole is not null) text.AppendLine($"DFD role: {node.DataFlowRole}");
+            if (node.FunctionDescription is not null) text.AppendLine($"System function: {node.FunctionDescription}");
+            if (node.DataRetention is not null) text.AppendLine($"Data retention: {node.DataRetention}");
+            if (node.DisposalMethod is not null) text.AppendLine($"Data disposal: {node.DisposalMethod}");
+            if (node.NetworkRole is not null) text.AppendLine($"Network role: {node.NetworkRole}");
+            if (node.NetworkSegment is not null) text.AppendLine($"Network segment: {node.NetworkSegment}");
+            if (node.NetworkAddress is not null) text.AppendLine($"Network IP/CIDR: {node.NetworkAddress}");
+            if (node.HostingImpactLevel is not null) text.AppendLine($"Claimed hosting impact level: {node.HostingImpactLevel}; accreditation/authorization not verified.");
+            if (node.SacaZone is not null) text.AppendLine($"SACA zone: {node.SacaZone}");
+            if (node.SacaRole is not null) text.AppendLine($"SACA role: {node.SacaRole}; implementation/appointment unverified.");
+            if (node.DeploymentScopeNodeId is not null) text.AppendLine($"Selected deployment scope: {node.DeploymentScopeNodeId}");
+            if (node.DeploymentOwner is not null) text.AppendLine($"Deployment responsibility: {node.DeploymentOwner}");
+            if (node.DeploymentEvidenceReference is not null) text.AppendLine($"Deployment evidence: {node.DeploymentEvidenceReference}");
+            if (node.DeploymentSecurityFunctions is not null) text.AppendLine($"Recorded deployment security functions: {node.DeploymentSecurityFunctions}");
             if (node.Environment != null || node.NetworkZone != null)
                 text.AppendLine($"Environment: {node.Environment ?? "Not recorded"}; network zone: {node.NetworkZone ?? "Not recorded"}.");
             if (node.Provider != null) text.AppendLine($"Provider reference: {node.Provider}; association alone does not establish inherited responsibility.");
@@ -132,6 +293,11 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
                 text.AppendLine($"PPS: {edge.Protocol ?? "Not recorded"}/{edge.Port ?? "Not recorded"}/{edge.Service ?? "Not recorded"}; " +
                     $"protection: {edge.Protection ?? "Not recorded"}; encryption: {edge.EncryptionState ?? "Not recorded"}.");
                 text.AppendLine($"Boundary crossing: {edge.BoundaryCrossing}; interconnection: {edge.InterconnectionId ?? "Not recorded"}; agreement: {edge.AgreementStatus ?? "Not recorded"}.");
+                text.AppendLine($"Data lifecycle: {edge.LifecycleStage ?? "Not recorded"}; information source: {edge.InformationTypeId ?? "Not selected"}.");
+                if (edge.ProtocolStack is not null) text.AppendLine($"Protocol stack: {edge.ProtocolStack}");
+                if (edge.StandardsReference is not null) text.AppendLine($"Standards profile reference: {edge.StandardsReference}");
+                if (edge.ConnectionMedium is not null) text.AppendLine($"Connection medium: {edge.ConnectionMedium}");
+                if (edge.SecurityControlReferences is not null) text.AppendLine($"Security control references: {edge.SecurityControlReferences}; implementation not verified.");
             }
             else
                 text.AppendLine($"Origin: {edge.Origin}; relationship: {edge.RelationshipType}; not a recorded data flow.");
@@ -180,13 +346,20 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
             if (!dataFlowsOnly) AppendComponentUse(text, graph);
             return text.ToString();
         }
-        characteristics["description"] = Contribution("system context", graph.Nodes, graph.Edges);
+        var context = SystemContextProjection.Project(graph.Nodes, graph.Edges);
+        characteristics["description"] = Contribution("system context", context.Nodes, context.Edges) + ContextReferences(graph, context)
+            + Contribution("DM2-aligned logical architecture", graph.Nodes.Where(n => SystemLogicalProjection.Type(n) is not null), graph.Edges) + LogicalReferences(graph);
         characteristics["authorization-boundary"] = new Dictionary<string, object>
-            { ["description"] = Contribution("authorization boundary", graph.Nodes, []) };
+            { ["description"] = Contribution("authorization boundary", graph.Nodes, graph.Edges.Where(SystemDesignSemantics.IsFlow))
+                + "\nDesign inclusion is not verified component-to-decision coverage or ATO/cATO status." };
+        var network = SystemNetworkProjection.Project(graph.Nodes, graph.Edges);
+        var deployment = SystemAzureDeploymentProjection.Project(graph.Nodes, graph.Edges);
         characteristics["network-architecture"] = new Dictionary<string, object>
-            { ["description"] = Contribution("network architecture", graph.Nodes, graph.Edges) };
+            { ["description"] = Contribution("network architecture", network.Nodes, network.Edges) + NetworkReferences(graph, network)
+                + Contribution("SACA/SCCA-aware Azure deployment", deployment.Nodes, deployment.Edges) + DeploymentReferences(graph, deployment) };
+        var dfd = SystemDataFlowProjection.Project(graph.Nodes, graph.Edges);
         characteristics["data-flow"] = new Dictionary<string, object>
-            { ["description"] = Contribution("data flows", [], graph.Edges, dataFlowsOnly: true) };
+            { ["description"] = Contribution("data flows", dfd.Nodes, dfd.Edges, dataFlowsOnly: true) + DataFlowReferences(graph, dfd) };
         AppendGraphStructures(graph, characteristics, implementation, approved: false);
         if (!includeArtifacts) return;
         // Projection timestamps and caller actions are not graph content or evidence of approval.
@@ -223,8 +396,8 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
         Dictionary<string, object> implementation, bool approved)
     {
         var ids = new PackageUuidRegistry(graph.SystemId);
-        var components = graph.Nodes.Where(n => n.Kind is "Component" or "SystemComponent" or "InventoryItem"
-            or "DesignComponent" or "Application" or "Service" or "AzureResource" or "ProviderReference" or "LeveragedAuthorization").OrderBy(n => n.Id).ToArray();
+        var components = graph.Nodes.Where(n => n.SacaRole != "TCCM" && n.Kind is ("Component" or "SystemComponent" or "InventoryItem"
+            or "DesignComponent" or "Application" or "Service" or "AzureResource" or "ProviderReference" or "LeveragedAuthorization")).OrderBy(n => n.Id).ToArray();
         var componentOutput = components.Select(n => new Dictionary<string, object>
         {
             ["uuid"] = ids.ComponentUuid(n.Source?.Id ?? n.Id).ToString(), ["type"] = (Value(n, "ComponentType", "Type") ?? n.Kind).ToLowerInvariant(),
@@ -246,7 +419,7 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
         implementation["components"] = componentOutput;
         var users = implementation.TryGetValue("users", out var currentUsers) &&
             currentUsers is IEnumerable<Dictionary<string, object>> userRecords ? userRecords.ToList() : [];
-        users.AddRange(graph.Nodes.Where(n => n.Kind == "ActorGroup").Select(n => new Dictionary<string, object>
+        users.AddRange(graph.Nodes.Where(n => n.Kind == "ActorGroup" || n.SacaRole == "TCCM" && SystemContextProjection.IsPerformer(n)).Select(n => new Dictionary<string, object>
         {
             ["uuid"] = ids.GetOrCreate("design-actor", n.Source?.Id ?? n.Id).ToString(),
             ["title"] = n.Label, ["description"] = NodeDescription(n), ["props"] = NodeProperties(n)
@@ -300,11 +473,11 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
                 ["base64"] = new Dictionary<string, string> { ["filename"] = artifact.FileName, ["media-type"] = artifact.MediaType, ["value"] = Convert.ToBase64String(artifact.Content) }
             });
         backMatter["resources"] = resources;
-        characteristics["links"] = new[] { new Dictionary<string, string>
+        characteristics["links"] = artifacts.Where(a => a.View is "context" or "logical" or "azure-deployment").Select(a => new Dictionary<string, string>
         {
-            ["href"] = $"#{artifacts.Single(a => a.View == "context").Id}", ["rel"] = "diagram",
-            ["text"] = approved ? "Approved system context diagram" : "DRAFT / UNAPPROVED system context diagram"
-        } };
+            ["href"] = $"#{a.Id}", ["rel"] = "diagram",
+            ["text"] = $"{(approved ? "Approved" : "DRAFT / UNAPPROVED")} {a.View} diagram"
+        }).ToArray();
     }
 
     private static string NodeDescription(DesignNode node) => $"{node.Label}; boundary: {node.BoundaryDisposition}. " +

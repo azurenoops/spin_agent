@@ -63,6 +63,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      input: {
+        dashboard: path.resolve(__dirname, 'index.html'),
+        providerOnboardingPrototype: path.resolve(__dirname, 'provider-onboarding-prototype.html'),
+      },
+    },
   },
   test: {
     globals: true,

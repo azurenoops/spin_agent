@@ -18,7 +18,7 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Tenancy;
 
-public sealed class ControlNarrativeWorkspaceHttpTests : IClassFixture<WorkspaceMembershipFactory>
+public sealed partial class ControlNarrativeWorkspaceHttpTests : IClassFixture<WorkspaceMembershipFactory>
 {
     private static readonly Guid DirectoryId = Guid.Parse("079ca000-0000-0000-0000-000000000001");
     private static readonly Guid Tenant = WorkspaceMembershipFactory.TenantAId;

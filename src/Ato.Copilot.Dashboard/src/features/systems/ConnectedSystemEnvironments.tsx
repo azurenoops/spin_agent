@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Network } from 'lucide-react';
 import { Link } from '../workspaces/workspaceNavigation';
 import { useWorkspaceSession } from '../workspaces/WorkspaceBoundary';
-import SetupDialog from '../workspace-operations/SetupDialog';
+import EnvironmentReviewDialog from './EnvironmentReviewDialog';
+import './environmentRegisters.css';
+import { hasImpactBlockers, isCurrentImpactPreview } from './environmentImpact';
 import * as api from '../../api/systemEnvironments';
 import { systemPanel, systemPrimaryAction, systemSecondaryAction } from './SystemTaskPresentation';
 import SubscriptionAttachmentWizard from './SubscriptionAttachmentWizard';
@@ -52,8 +54,9 @@ function ConnectedContent({ systemId, systemName, organizationName, busy, onStat
   const [detachPreview, setDetachPreview] = useState<api.EnvironmentImpactPreview | null>(null);
   const [detachBusy, setDetachBusy] = useState(false);
   const [detachAck, setDetachAck] = useState(false);
-  const detachKey = useRef(crypto.randomUUID());
-  useEffect(() => { setDetachRationale(''); setDetachPreview(null); setDetachAck(false); detachKey.current = crypto.randomUUID(); }, [detail?.attachmentId]);
+  const detachKey = useRef<{ intent: string; key: string } | null>(null);
+  const detailInvoker = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => { setDetachRationale(''); setDetachPreview(null); setDetachAck(false); detachKey.current = null; }, [detail?.attachmentId]);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError(null);
     void api.getSystemEnvironments(systemId, controller.signal).then(value => { if (!controller.signal.aborted) setData(value); })
@@ -72,6 +75,7 @@ function ConnectedContent({ systemId, systemName, organizationName, busy, onStat
     try {
       const result = await api.checkEnvironmentAccess(systemId, { expectedVersion: data.version, purpose: 'Assessment' });
       setData({ ...data, version: result.version, attachments: result.attachments });
+      setDetail(current => current ? result.attachments.find(item => item.attachmentId === current.attachmentId) ?? current : null);
       setNotice('Access checked. Monitoring and assessment execution have independent prerequisites.');
     } catch (reason) { setError(message(reason)); }
     finally { setChecking(false); }
@@ -86,10 +90,19 @@ function ConnectedContent({ systemId, systemName, organizationName, busy, onStat
     finally { setDetachBusy(false); }
   };
   const detach = async () => {
-    if (!data || !detail || !detachPreview || !detachAck || detachBusy) return;
+    if (!data || !detail || !detachPreview || !detachAck || detachBusy || hasImpactBlockers(detachPreview)) return;
+    if (!isCurrentImpactPreview(detachPreview)) {
+      setDetachPreview(null); setDetachAck(false); setError('The impact preview expired. Prepare a fresh preview.'); return;
+    }
+    const body: api.CommitEnvironmentChangeRequest = {
+      expectedVersion: data.version, previewId: detachPreview.previewId, rationale: detachRationale, acknowledgeImpact: true,
+    };
+    const intent = JSON.stringify(body);
+    if (detachKey.current?.intent !== intent) detachKey.current = { intent, key: crypto.randomUUID() };
     setDetachBusy(true); setError(null);
-    try { const result = await api.detachSystemEnvironment(systemId, detail.attachmentId,
-      { expectedVersion: data.version, previewId: detachPreview.previewId, rationale: detachRationale, acknowledgeImpact: true }, detachKey.current);
+    try { const result = await api.detachSystemEnvironment(systemId, detail.attachmentId, body, detachKey.current.key);
+      if (result.attachments.some(item => item.attachmentId === detail.attachmentId && item.attachmentState !== 'Detached'))
+        throw new Error('The server did not confirm detachment of this subscription. Your rationale is retained; refresh saved records before retrying.');
       setData(result); setDetail(null); setNotice('Environment detached. Historical source and evidence records are retained.'); }
     catch (reason) { setError(message(reason)); }
     finally { setDetachBusy(false); }
@@ -99,53 +112,78 @@ function ConnectedContent({ systemId, systemName, organizationName, busy, onStat
       refreshVersion={data?.version ?? 0} onChanged={refreshSubscriptions} />
     <section className={systemPanel} aria-label="System subscriptions">
       <div className="mb-4 flex items-start gap-3"><Network className="mt-1 text-indigo-600" size={22} aria-hidden="true" />
-        <div><h2 className="text-lg font-semibold">System subscriptions</h2><p className="mt-1 text-xs text-slate-500">Attach the Azure subscriptions and resources this system uses.</p></div></div>
+        <div><h2 className="text-lg font-semibold">System subscriptions</h2><p className="mt-1 text-xs text-slate-500">Attach the Azure subscriptions and resources this system uses. Attachment and access checks are separate operations, not part of Save Draft.</p></div></div>
       {loading && <p role="status" className="text-sm">Loading system subscriptions…</p>}
       {error && <p role="alert" className="mb-3 text-sm text-red-700">{error}<button type="button" className="ml-3 underline" onClick={() => setRevision(value => value + 1)}>Retry environments</button></p>}
       {notice && <p role="status" className="mb-3 text-sm text-indigo-800 dark:text-indigo-200">{notice}</p>}
-      {data && <div className="relative overflow-x-auto"><table className="w-full text-left text-xs">
-        <thead><tr>{['Subscription', 'Source', 'System scope', 'Assessment access', 'Monitoring', 'Actions'].map(label => <th key={label} className="border-b px-2 py-2 text-[10px] uppercase text-slate-500">{label}</th>)}</tr></thead>
-        <tbody className="divide-y divide-slate-100">{!data.attachments.length && <tr><td className="py-4" colSpan={6}>No subscriptions attached.</td></tr>}
+      {data && !data.attachments.length && <div className="space-y-3 py-3">
+        <h3 className="font-semibold">No subscriptions attached.</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-300">Attach a subscription if this system uses Azure resources you need to scope, assess or monitor.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Provider scopes can be recorded without a subscription.</p>
+      </div>}
+      {data && !!data.attachments.length && <div role="region" aria-label="Subscription register" tabIndex={0} className="min-w-0"><table aria-label="System subscriptions" className="environment-register">
+        <thead><tr>{['Subscription name and identifier', 'System resource scope', 'Assessment-access status', 'Monitoring status', 'Action'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+        <tbody>
           {data.attachments.map(item => <tr key={item.attachmentId}>
-            <td className="px-2 py-3 font-semibold">{item.registration.displayName}<span className="mt-1 block font-normal text-slate-500">{stateLabel(item.attachmentState)}</span>
-              {(data.hostingLinks ?? []).filter(link => link.attachmentId === item.attachmentId && link.state === 'Linked').map(link =>
-                <span key={link.linkId} className="mt-1 block font-normal text-slate-500">Related scope: {data.providerScopes?.find(scope => scope.assignmentId === link.assignmentId)?.hostingScopeName ?? 'Relationship needs review'}</span>)}</td>
-            <td className="px-2 py-3">{item.source === 'ProviderAllocation' ? 'Provider allocation' : 'Organization-owned'}</td>
-            <td className="px-2 py-3">{item.scope.resourceIds.length} resources<span className="block text-slate-500">{stateLabel(item.scope.reviewState)}</span>
-              {item.readiness.reason && <p className="mt-1 max-w-xs text-amber-800 dark:text-amber-300">{item.readiness.reason}</p>}</td>
-            <td className="px-2 py-3">{stateLabel(item.assessmentAccess.state)}<span className="block text-slate-500">{item.assessmentAccess.checkedAt ? new Date(item.assessmentAccess.checkedAt).toLocaleString() : 'Not checked'}</span></td>
-            <td className="px-2 py-3"><span className="rounded bg-slate-100 px-2 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200">{!item.monitoring.enabled ? 'Not enabled' : item.monitoring.health}</span></td>
-            <td className="px-2 py-3"><button type="button" disabled={disabled} className="text-indigo-700 underline" onClick={() => setDetail(item)}>View details</button>
-              <button type="button" disabled={disabled || !data.permissions.canManageEnvironments || item.attachmentState !== 'Attached'}
-                className="mt-2 block text-indigo-700 underline disabled:opacity-50" onClick={() => setWizard({ attachment: item })}>Manage system scope</button></td>
+            <th scope="row"><span className="font-semibold">{item.registration.displayName}</span>
+              <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{item.registration.subscriptionId}</span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">{stateLabel(item.attachmentState)}</span></th>
+            <td><span className="register-label" aria-hidden="true">System resource scope</span>{item.scope.resourceIds.length} resources
+              <span className="block text-xs text-slate-500 dark:text-slate-400">{stateLabel(item.scope.reviewState)}</span></td>
+            <td><span className="register-label" aria-hidden="true">Assessment-access status</span><span>{stateLabel(item.assessmentAccess.state)}</span></td>
+            <td><span className="register-label" aria-hidden="true">Monitoring status</span><span>{!item.monitoring.enabled ? 'Not enabled' : stateLabel(item.monitoring.health)}</span></td>
+            <td className="register-action"><button type="button" disabled={disabled} className={systemSecondaryAction}
+              aria-label={`Manage ${item.registration.displayName}`} onClick={event => { detailInvoker.current = event.currentTarget; setDetail(item); }}>Manage</button></td>
           </tr>)}</tbody></table></div>}
       <div className="mt-4 flex flex-wrap gap-3">
         <button type="button" disabled={disabled || !data?.permissions.canManageEnvironments} className={systemPrimaryAction}
           onClick={() => setAttaching(true)}>Attach subscription</button>
-        <button type="button" disabled={disabled || !data?.permissions.canCheckAccess || !data.attachments.length}
-          className={systemSecondaryAction} onClick={() => void checkAccess()}>{checking ? 'Checking access…' : 'Check access'}</button>
-        <Link className={systemSecondaryAction} to={`${base}/conmon`}>{data?.permissions.canManageMonitoring ? 'Set up monitoring' : 'View monitoring'}</Link>
       </div>
       {data && !data.permissions.canManageEnvironments && <p className="mt-3 text-xs text-slate-500">Your system permissions do not allow subscription attachment. Ask an authorized system manager to attach subscriptions.</p>}
       {data?.legacyReferences.filter(item => item.kind === 'AzureProfile').map(item => <div key={item.referenceId} className="mt-3 rounded border border-amber-200 p-3 text-xs text-amber-900">
         <p>{item.displayName}: {item.reason}</p>
         <button type="button" disabled={!data.permissions.canManageEnvironments} className="mt-2 underline" onClick={() => setAttaching(true)}>Review subscription scope</button>
       </div>)}
-      {data?.attachments.filter(item => item.scope.reviewState === 'PendingReview' && item.attachmentState === 'Attached').map(item =>
-        <div key={item.attachmentId} className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded border border-amber-200 p-3 text-xs">
-          <p>{item.registration.displayName}: selected resource scope is pending review. Existing approved boundary records have not been changed.</p>
-          <button type="button" disabled={disabled || !data.permissions.canManageEnvironments} className={systemSecondaryAction}
-            onClick={() => setWizard({ attachment: item, reviewPendingScope: true })}>Review pending scope</button>
-        </div>)}
+      <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Attachment does not review resource scope, verify assessment access or establish monitoring connectivity. Manage each subscription to review these separately.</p>
     </section>
     {attaching && data && <SubscriptionAttachmentWizard systemId={systemId} systemName={systemName} organizationName={organizationName}
       version={data.version} onClose={() => setAttaching(false)}
       onSaved={result => { setData(result); setAttaching(false); setNotice('Subscriptions attached. Scope review, access checks and monitoring remain separate.'); }} />}
     {wizard && data && <EnvironmentWizard systemId={systemId} systemName={systemName} organizationName={organizationName} version={data.version} {...wizard}
-      onClose={() => setWizard(null)} onSaved={value => { setData(value); setWizard(null); setNotice('Environment and selected scope saved. Documentation remains a draft; access, monitoring and provider coverage are separate.'); }} />}
-    {detail && <SetupDialog placement="right" title={detail.registration.displayName} busy={detachBusy} onClose={() => setDetail(null)}
+      onClose={() => { setWizard(null); requestAnimationFrame(() => detailInvoker.current?.focus()); }}
+      onSaved={value => { setData(value); setWizard(null); requestAnimationFrame(() => detailInvoker.current?.focus()); setNotice('Environment and selected scope saved. Documentation remains a draft; access, monitoring and provider coverage are separate.'); }} />}
+    {detail && <EnvironmentReviewDialog placement="right" title={detail.registration.displayName} busy={detachBusy || checking} onClose={() => setDetail(null)}
       description="One shared environment reference. Provider subscription and offering identity are not editable copies.">
       {error && <p role="alert" className="mb-3 text-sm text-red-700">{error}</p>}
+      {notice && <p role="status" className="mb-3 text-sm">{notice}</p>}
+      <section aria-label="Subscription management" className="mb-5 space-y-3 text-sm">
+        <h3 className="font-semibold">System resource scope</h3>
+        <p>{stateLabel(detail.scope.reviewState)} · {detail.scope.resourceIds.length} selected resources</p>
+        {detail.scope.reviewState === 'PendingReview' && <p>Selected resource scope is pending review. Existing approved boundary records have not been changed.</p>}
+        {detail.readiness.reason && <p>{detail.readiness.reason}</p>}
+        <div className="flex flex-wrap gap-3">
+          <button type="button" disabled={disabled || detachBusy || !!detachRationale.trim() || !data?.permissions.canManageEnvironments || detail.attachmentState !== 'Attached'}
+            className={systemSecondaryAction} onClick={() => { setWizard({ attachment: detail }); setDetail(null); }}>Manage system scope</button>
+          {detail.scope.reviewState === 'PendingReview' && <button type="button"
+            disabled={disabled || detachBusy || !!detachRationale.trim() || !data?.permissions.canManageEnvironments || detail.attachmentState !== 'Attached'}
+            className={systemSecondaryAction} onClick={() => { setWizard({ attachment: detail, reviewPendingScope: true }); setDetail(null); }}>Review pending scope</button>}
+        </div>
+        {!!detachRationale.trim() && <p>Keep or discard your detachment input before switching to resource-scope review.</p>}
+        {!data?.permissions.canManageEnvironments && <p>The server does not permit changing this system's subscription scope.</p>}
+        <h3 className="font-semibold">Assessment access</h3>
+        <p>{stateLabel(detail.assessmentAccess.state)} · {detail.assessmentAccess.checkedAt ? new Date(detail.assessmentAccess.checkedAt).toLocaleString() : 'Not checked'}</p>
+        <button type="button" disabled={disabled || detachBusy || !data?.permissions.canCheckAccess || detail.attachmentState !== 'Attached'}
+          className={systemSecondaryAction} onClick={() => void checkAccess()}>{checking ? 'Checking access…' : 'Check access'}</button>
+        <p className="text-xs">This existing operation checks assessment access across attached system subscriptions. It does not check monitoring connectivity.</p>
+        {!data?.permissions.canCheckAccess && <p>The server does not permit assessment-access checks for this identity.</p>}
+        <h3 className="font-semibold">Monitoring</h3>
+        <p>Monitoring access: {stateLabel(detail.monitoringAccess.state)} · Collection: {detail.monitoring.enabled ? stateLabel(detail.monitoring.health) : 'Not enabled'}</p>
+        <Link className={systemSecondaryAction} target="_blank" rel="noopener noreferrer" to={`${base}/conmon`}>
+          {data?.permissions.canManageMonitoring ? 'Set up monitoring' : 'View monitoring'} (opens in a new tab)
+        </Link>
+        <p className="text-xs">Monitoring configuration, source access and observed collection health are independent of attachment and assessment access.</p>
+      </section>
+      <details><summary className="cursor-pointer">Subscription source and technical details</summary>
       <dl className="space-y-3 text-sm">{[
         ['Source', detail.source], ['Offering', detail.offeringName ?? 'Not applicable'],
         ['Provider', detail.providerName ?? 'Not applicable / not recorded'], ['Consuming organization', detail.consumerName ?? organizationName ?? 'Active organization'],
@@ -164,11 +202,17 @@ function ConnectedContent({ systemId, systemName, organizationName, busy, onStat
       <h3 className="mt-5 font-semibold">Selected resources</h3>
       <ul className="mt-2 space-y-2 text-xs">{detail.scope.resourceIds.map(id => <li key={id} className="break-all">{id}</li>)}</ul>
       <p className="mt-4 text-xs">Provenance: {detail.provenance.source} · {detail.provenance.externalId ?? 'No external ID'} · {detail.provenance.reconciliationState}</p>
+      </details>
       <p className="mt-4 text-xs">Provider relationships are optional and independent of this subscription's source.</p>
-      {(data?.hostingLinks ?? []).some(link => link.attachmentId === detail.attachmentId && link.state === 'Linked') &&
+      {(data?.hostingLinks ?? []).filter(link => link.attachmentId === detail.attachmentId && link.state === 'Linked').map(link =>
+        <p key={link.linkId} className="mt-2 text-sm">Related scope: {data?.providerScopes?.find(scope => scope.assignmentId === link.assignmentId)?.hostingScopeName ?? 'Relationship needs review'}</p>)}
+      {!detachRationale.trim() && (data?.hostingLinks ?? []).some(link => link.attachmentId === detail.attachmentId && link.state === 'Linked') &&
         <button type="button" className="mt-2 text-sm underline" onClick={() => {
           setDetail(null);
-          requestAnimationFrame(() => document.getElementById('provider-services-scopes')?.scrollIntoView({ block: 'start' }));
+          requestAnimationFrame(() => {
+            const panel = document.getElementById('provider-services-scopes');
+            panel?.scrollIntoView({ block: 'start' }); panel?.focus();
+          });
         }}>View related provider scopes</button>}
       <h3 className="mt-5 font-semibold">Independent source checks</h3>
       <div className="mt-2 space-y-3 text-xs">
@@ -187,11 +231,15 @@ function ConnectedContent({ systemId, systemName, organizationName, busy, onStat
           className="mt-1 w-full rounded border p-2 dark:bg-slate-900" /></label>
         {!detachPreview && <button type="button" disabled={!detachRationale.trim()} className={systemSecondaryAction} onClick={() => void prepareDetach()}>Preview detachment impact</button>}
         {detachPreview && <div className="space-y-3 text-sm">{detachPreview.warnings.map(value => <p key={value}>{value}</p>)}
-          <label><input type="checkbox" checked={detachAck} onChange={event => setDetachAck(event.target.checked)} /> I reviewed the affected assessment and monitoring work.</label>
-          <button type="button" disabled={!detachAck} className={systemSecondaryAction} onClick={() => void detach()}>Confirm detachment</button>
+          {hasImpactBlockers(detachPreview) && <div role="alert">{detachPreview.blockers?.length
+            ? detachPreview.blockers.map((blocker, index) => <p key={index}>{blocker}</p>)
+            : <p>The server does not permit committing this preview. Resolve its source restrictions and prepare a fresh preview.</p>}</div>}
+          <label><input type="checkbox" checked={detachAck} disabled={hasImpactBlockers(detachPreview)}
+            onChange={event => setDetachAck(event.target.checked)} /> I reviewed the affected assessment and monitoring work.</label>
+          <button type="button" disabled={!detachAck || hasImpactBlockers(detachPreview)} className={systemSecondaryAction} onClick={() => void detach()}>Confirm detachment</button>
         </div>}
       </fieldset>}
-    </SetupDialog>}
+    </EnvironmentReviewDialog>}
   </div>;
 }
 
@@ -243,7 +291,10 @@ function EnvironmentWizard({ systemId, systemName, organizationName, attachment,
       finally { writing.current = false; setPending(false); }
   };
   const apply = async () => {
-    if (!discovery || !preview || !acknowledged || writing.current) return;
+    if (!discovery || !preview || !acknowledged || writing.current || hasImpactBlockers(preview)) return;
+    if (!isCurrentImpactPreview(preview)) {
+      setPreview(null); setAcknowledged(false); setStep(2); setError('The impact preview expired. Prepare a fresh preview.'); return;
+    }
     const commit: api.CommitEnvironmentChangeRequest = { expectedVersion: choices?.version ?? version,
       previewId: preview.previewId, acknowledgeImpact: true, rationale };
     const intent = JSON.stringify(commit);
@@ -259,10 +310,11 @@ function EnvironmentWizard({ systemId, systemName, organizationName, attachment,
     } catch (reason) { setError(message(reason)); }
     finally { writing.current = false; setPending(false); }
   };
-  return <SetupDialog title={reviewPendingScope ? 'Review system resource scope' : 'Manage system resource scope'}
+  return <EnvironmentReviewDialog title={reviewPendingScope ? 'Review system resource scope' : 'Manage system resource scope'}
     expanded busy={pending} onClose={onClose} description={reviewPendingScope
       ? 'Review the unchanged pending resource selection against fresh discovery. Accepting this environment scope does not rewrite approved boundaries or grant Azure collection permissions.'
       : "Choose an eligible source, select only this system's resources, and review the exact links. This does not provision a subscription or grant Azure permissions."}>
+    {requestClose => <>
     <ol aria-label="Environment attachment steps" className="mb-5 flex flex-wrap gap-5 text-sm">
       {['Choose source', 'System scope', 'Review'].map((label, i) => <li key={label} aria-current={step === i + 1 ? 'step' : undefined}
         className={step === i + 1 ? 'font-semibold text-indigo-700' : 'text-slate-500'}>{i + 1}. {label}</li>)}
@@ -312,22 +364,26 @@ function EnvironmentWizard({ systemId, systemName, organizationName, attachment,
       {preview && <div className="rounded-lg border border-amber-200 p-3 text-sm">
         <p>{preview.requiresScopeReview ? 'Scope changes require review; approved boundary records remain intact.' : 'Review the proposed source changes.'}</p>
         {preview.warnings.map(value => <p key={value} className="mt-2">{value}</p>)}
+        {hasImpactBlockers(preview) && <div role="alert">{preview.blockers?.length
+          ? preview.blockers.map((blocker, index) => <p key={index}>{blocker}</p>)
+          : <p>The server does not permit committing this preview. Resolve its source restrictions and prepare a fresh preview.</p>}</div>}
         {preview.systems.map(value => <p key={value.attachmentId}>{value.systemName} · assessments {value.assessmentAffected ? 'affected' : 'not identified'} · monitoring {value.monitoringAffected ? 'affected' : 'not identified'}</p>)}
       </div>}
       <p className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-900">Reuses the canonical subscription registration. Optional provider relationships remain separate. Scope review, assessment access and monitoring require their own checks.</p>
-      <label className="block text-sm"><input type="checkbox" checked={acknowledged} disabled={pending} onChange={event => setAcknowledged(event.target.checked)} /> I reviewed this exact system scope and the remaining prerequisites.</label>
+      <label className="block text-sm"><input type="checkbox" checked={acknowledged} disabled={pending || !preview || hasImpactBlockers(preview)} onChange={event => setAcknowledged(event.target.checked)} /> I reviewed this exact system scope and the remaining prerequisites.</label>
     </div>}
     <footer className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
       <p className="text-xs text-slate-500">Deployment documentation remains unchanged.</p>
       <div className="flex flex-wrap gap-3">
         {step > 1 && <button type="button" disabled={pending} className={systemSecondaryAction} onClick={() => setStep(value => value - 1)}>Back</button>}
-        <button type="button" disabled={pending} className={systemSecondaryAction} onClick={onClose}>Cancel</button>
+        <button type="button" disabled={pending} className={systemSecondaryAction} onClick={requestClose}>Cancel</button>
         {step === 1 && <button type="button" disabled={pending || !choice || !choices?.permissions.canManageEnvironments || !choice.eligible} className={systemPrimaryAction}
           onClick={() => void discover()}>{pending ? 'Discovering resources…' : 'Continue to system scope'}</button>}
         {step === 2 && <button type="button" disabled={pending || !selected.length} className={systemPrimaryAction} onClick={() => void review()}>Review attachment</button>}
-        {step === 3 && <button type="button" disabled={pending || !acknowledged} className={systemPrimaryAction} onClick={() => void apply()}>
+        {step === 3 && <button type="button" disabled={pending || !acknowledged || !preview || hasImpactBlockers(preview)} className={systemPrimaryAction} onClick={() => void apply()}>
           {pending ? 'Saving…' : reviewPendingScope ? 'Accept reviewed environment scope' : 'Confirm scope changes'}</button>}
       </div>
     </footer>
-  </SetupDialog>;
+    </>}
+  </EnvironmentReviewDialog>;
 }

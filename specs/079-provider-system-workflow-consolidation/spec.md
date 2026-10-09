@@ -1,5 +1,25 @@
 # Feature 079: Provider-to-Mission Workflow Consolidation
 
+## Approved focused offering workspace (2026-10-07)
+
+Implement the approved `provider-offering-workspace-focused.html` hierarchy using
+retained production records for every offering. The actual HTML has six task
+destinations: Overview, Capabilities, Scope & duties, Sources &
+findings, Release & changes, Mission use. Preserve existing deep routes and
+review/publication/assignment/evidence operations. Show offering identity lifecycle
+and revision separately from canonical published capability revisions. Derive
+one next task from current prerequisites, findings and review state; do not
+invent a release checklist when there are no proposals.
+
+Capability search/filter/sort/pagination and a read-only detail drawer must
+distinguish retained-source descriptions/duties from immutable publication.
+Scope, exclusions, duties and source versions stay inspectable. Mission association
+is not capability adoption or accepted inheritance. Draft identity comparison
+compares entered values with the opening persisted identity, not with an
+unavailable historical published identity. Use existing change-impact and version
+workflows for retained release comparisons; disclose missing prerequisites.
+No automatic attach/adopt/approve/publish and no changed backend contracts.
+
 **Created**: 2026-09-26  
 **Status**: Application implementation authorized 2026-09-26; acceptance pending  
 **Implementation baseline**: `13204325f21d2ff7e0028e0065a52bb795cb5bee`  
@@ -9,7 +29,106 @@
 
 ## Product outcome and scope
 
-### October 2: task-oriented Component details
+### October 8: approved provider first-login onboarding implementation
+
+This is an approved implementation slice of Feature 079, but it is not documented
+as implemented, tested, accepted, or released yet. It extends the retained provider
+setup and access contracts; it does not authorize a second identity system or a
+provider-workspace redesign.
+
+The current prototype under
+`src/Ato.Copilot.Dashboard/src/features/csp-onboarding/prototype` is the interaction
+reference for **onboarding only**. It covers first-entry routing, invitation
+confirmation, access-required handling, the six setup stages, save/resume,
+truthful source-receipt states, review, and completion. Every prototype branch
+stops at onboarding completion or an onboarding status. Provider offering,
+readiness, assessment, decision, evidence, and other workspace screens remain
+owned by their existing Feature 079 workflows and are not demonstrated by this
+mock. Completion may identify the authorized next destination, but acceptance
+must not require this prototype to render that destination. The completion
+screen displays the onboarding summary and an explicit **Open provider
+workspace** link. Only the user's activation of that link may navigate to the
+server-authorized destination; onboarding must not auto-redirect or embed any
+provider workspace screen.
+
+The approved implementation assumptions are:
+
+- The **platform-operator workflow** is the initial source of provider setup
+  authority. First login, login order, a contact record, and an unreviewed
+  deployment claim do not bootstrap provider authority.
+- Durable, hashed, expiring, single-use invitation-token persistence and
+  invitation create/read/accept/revoke API behavior are included in the
+  implementation. No email, Teams, Graph, notification, or other token-delivery
+  channel is claimed by this slice.
+- The canonical serialized provider assessment role is **Assessor**. Provider
+  UI may display **SCA** as its label; it is not a second role or grant.
+- Each offering has at most **one active primary service portfolio**. Historical
+  memberships are retained; future non-primary membership is outside this slice.
+- Provider AO action is limited to **recording a previously issued external
+  authorization decision** with exact source, scope, actor, and revision
+  provenance. The application does not issue a native provider authorization.
+- Follow-up due dates and reviewers are optional. They become required only if a
+  later approved policy names the applicable work type; missing optional values
+  do not block onboarding completion.
+
+Provider first-login routing is server-owned and mutually exclusive: authorized
+new/resuming setup administrator, invited member, established member, no access,
+or conflicting/expired/revoked access. Deep links remain subject to server
+authorization. Established members do not repeat provider registration, invited
+members do not become setup administrators, and unauthorized identities see no
+provider data.
+
+The six setup stages are provider identity; access and contacts; first offering
+and optional primary portfolio; authorization starting point; optional available
+records; and review/completion. Authorization intent, uploaded or referenced
+sources, extraction candidates, boundary association, recorded external decision,
+current posture, customer coverage, monitoring health, and authorization remain
+separate states. Completion means onboarding is recorded and a usable workspace
+may be entered through the existing authorized routing; it does not prove any of
+those downstream outcomes.
+
+Acceptance criteria:
+
+1. The platform operator can grant initial setup authority without relying on
+   login order, and every route outcome is derived from current server records.
+2. Invitation tokens are stored hashed, expire, are single-use, reject identity
+   mismatch/revocation/replay, and grant only approved membership/role/scope.
+   API verification must not claim that an invitation was delivered.
+3. `Assessor` remains the only persisted canonical value while provider screens
+   consistently display `SCA`; permissions match the assessor action matrix.
+4. Concurrent writes cannot leave two active primary portfolio memberships for
+   one offering; prior memberships remain readable.
+5. A provider AO can record an exact, previously issued external decision only
+   for assigned scope. Setup, intent, source receipt, extraction, or admin role
+   cannot issue or synthesize a decision.
+6. Follow-up items persist with acceptance criteria and an accountable principal
+   or explicit Unassigned state. Reviewer and due date may be absent.
+7. Schema-v1 drafts, command keys, receipts, provider/offering identifiers, and
+   active-profile behavior remain compatible through save, resume, retry, and
+   completion.
+8. Desktop, mobile, keyboard, failure, save/resume, uncertain-receipt, invitation,
+   existing-member, and no-access checks end at onboarding completion/status.
+   The completion screen retains its summary and exposes a keyboard-accessible
+   user-initiated provider-workspace link. It does not auto-redirect or embed the
+   destination. Separate workspace tests verify that link's authorized target
+   without expanding this mock.
+9. Automated implementation evidence, manual local acceptance, deployment, and
+   live invitation delivery are reported separately; none is inferred from these
+   documentation changes.
+### October 7: provider Overview offering register
+
+Remove the redundant Service offering dropdown from provider Overview only.
+Keep the paged Service offerings register and every Open offering link available
+independently of summary success. Offering names in this register select the
+offering-specific Overview metrics and focus tasks; identify that context by
+name. With multiple offerings and no deep-link selection, prompt for a register
+selection rather than silently showing the first offering's counts. A sole
+offering may show its explicitly named summary. Preserve offeringId/offeringPage
+deep links, missing-selection states, retries and Mission systems selectors.
+The existing overview API is offering-specific; do not aggregate its counts or
+represent them as provider totals. No backend, permission or mutation changes.
+Manual acceptance remains pending at local port 4196; exports are unaffected.
+### October 2: task-oriented  Component details
 
 The component panel follows `docs/design/workspace-ui-mocks/component-review-simple.html`:
 readable source name, service subtype and owner; Overview, System scope and
@@ -44,6 +163,190 @@ monitoring connectivity and authorization. Final documentation uses the retained
 reviewed design; working previews identify draft scope. External issue creation
 and user acceptance remain pending approval.
 
+### Mission system record and responsibility presentation
+
+### October 6: focused offering review drawer
+
+Initial review shows the selected offering/provider/system, one overall outcome,
+distinct relationship, applicability/adoption and responsibility states, and one
+contextual action with its short reason. Actions derive only from complete current
+server records and explicit permissions. Missing/failed/stale reads require
+inspection or refresh, never inferred completion or a fixed prerequisite order.
+Known backend blocker codes are readable; repeated prerequisites are grouped
+with their affected capabilities, with raw diagnostics disclosed.
+
+Published capabilities, source revisions/provenance, relationship maintenance,
+optional subscription links and removal are collapsed. Capabilities are paged,
+with each description and duty/control allocation disclosed individually.
+Missing duty content remains explicit and does not reduce the source count.
+Published applicability is not system adoption; reviewed responsibility records
+are not an authorization decision. Current capability releases are compared with
+the drawer's captured releases, never substituted into the selected source.
+In-app navigation retains system/offering/assignment/hosting-release context and
+uses the existing unsaved navigation guard. Confirmation/version/audit/tenant
+contracts and all existing actions remain unchanged.
+
+### October 6: focused provider and subscription registers
+
+Change only the two registers outside the Environment draft form. Provider rows
+contain Offering, System relationship, Responsibility review and one Review
+action. Show offering/provider/pinned release names; keep identifiers, hashes and
+revision provenance in expandable details. The focused Review panel contains
+read-only published scope/duties, current applicability/adoption prerequisites,
+canonical relationship editing, responsibility-review navigation, optional
+subscription links and guarded removal. Published allocations are not accepted
+system responsibilities or inherited coverage. Preserve draft input on canceled
+close/navigation and rejected/stale writes.
+
+Empty subscriptions show no table headers and one primary Attach subscription.
+Provider scopes do not require subscriptions. Populated subscriptions show name
+and identifier, resource scope, assessment access, monitoring and one Manage
+action, retaining resource review, source checks, monitoring navigation and
+detachment inside the existing workflows. Attachment, reviewed scope, access
+and telemetry connectivity remain separate. Desktop headers and labeled mobile
+rows must remain accessible, with keyboard focus restoration and safe long text.
+Source-projected permissions, revisions, tenant isolation, approved baselines and
+audit behavior are unchanged. Local acceptance uses port 4196; live checks are
+read-only except the explicitly authorized development identity simulation.
+
+### October 5: RMF journey System Overview
+
+The System Overview follows the supplied `ato-overview-full-page.html` reference,
+retaining the existing shell/navigation. Seven browsable RMF phases remain visible
+in both Package preparation and Monitoring & follow-up. Browsing never mutates
+the recorded phase or implies earlier completion. A default enum without explicit
+phase provenance is Not confirmed. Authorized confirmation uses the existing
+audited RMF lifecycle/gate checks, never an AI suggestion or forced transition.
+
+Overview reads the canonical purpose-bound readiness workspace and preserved
+individual validation findings, not role-derived tasks or mock counts. Server-side
+grouping uses finding/category/control/record context and existing workflow actions.
+Every finding is retained exactly once; task/group counts and finding counts are
+distinct and reconcile. Paged groups and findings avoid thousands of cards.
+Assigned to me filters only explicit recorded Person assignments. Missing owners
+are visible. A rule-based recommendation identifies a supported prerequisite,
+separately from optional AI help.
+
+Summary shows actual blocking/warning/finding totals, purpose, successful-check
+time and current/stale/unchecked/loading/failed state. Failed refresh retains
+previous successful results with an explicit failure/age label. Existing document
+records, gaps, drafts and reviews are separate from preparation/export, recorded
+manual eMASS observations and AO decisions. No preview availability is fabricated.
+Monitoring surfaces actual scoped coverage/rules/evaluations/impacts and baseline
+follow-up; enabling rules is not healthy connectivity, cATO or authorization.
+
+Read-only overview explanations, suggested focus, requirement mappings and response
+wording use the existing model client without mutation tools. Actual catalog
+statements, binding/version, current/approved narratives, evidence and selected
+provider context are captured as sources. Missing/unbound requirements reject
+mapping/draft requests with explicit questions. No overview proposal is applied
+to source responses, responsibilities or phases; application remains in the
+existing reviewed workflows. User corrections and source versions remain distinct.
+Return navigation keeps ownership/phase/section filters and expanded groups in
+the URL. All reads/writes retain tenant/action authorization and accepted baselines.
+
+This journey supersedes the earlier Guided Overview readiness presentation below.
+Existing mission, diagram, source and responsibility workflows remain intact.
+
+SACA Azure deployment follow-up: show actual On-premises/DISN, Secure cloud
+access and recorded Azure cloud zones, with explicit BCAP/VDSS/VDMS/CNAP roles,
+workloads and shared services. TCCM is an AO-appointed business performer,
+not a vault/appliance. Capture missing zone, role, exact scope, ownership,
+security-function descriptions and source evidence. Reuse CSP and non-CSP
+records equally; unknown cloud placement remains explicit and reference roles
+do not become implemented assets or prove compliance/inheritance/authorization.
+
+October 5 Network usability correction: display existing source-recorded
+relationships as an explicitly nontraffic dashed overlay, default-on and
+switchable without content/layout writes. State when technical interfaces
+are absent. Do not fabricate missing flows merely to connect a sparse view.
+
+Network follow-up: show recorded computing assets and actual interfaces grouped
+by named design boundary, environment, zone and segment. External/shared/
+separately authorized dependencies remain outside; do not equate inclusion
+with verified AO component coverage. Capture device roles, IP/CIDR, claimed
+hosting IL, protocol stacks, standards citations, connection medium and
+security-control references where missing. CSP and non-CSP sources use the
+same scope rules; hosting and governance associations are not packet flows.
+Support SSP/native artifact traceability without a formal DoDAF/StdV-1 claim.
+
+DFD follow-up: show explicit system functions, stores and external information
+producers/consumers, using recorded direction, named data and security scope.
+Capture missing functional roles, transformations, retention/disposal,
+information-type references and lifecycle stages in governed design records.
+Reuse CSP-linked and non-CSP sources without inventing flows from hosting,
+names or association. Preserve original canonical interface endpoints and
+approved outputs; this is SV-4-aligned, not formal conformance certification.
+
+Logical architecture follow-up: show actual system-specific DM2-aligned
+constructs and supporting scope references in named clusters, with abstraction
+layers and explicit directed predicates. Reuse mission facts, team/users,
+information types, retained rules, linked security measures, selected-system
+CSP subscriptions/adoption releases and compliance improvement projects.
+Capture missing constructs and conditions/effects in governed drafts. Never
+infer traffic, inheritance, mission capabilities, project intent or formal
+DoDAF/PES conformance. See the [logical contract](contracts/system-design.md).
+
+DoD ABD follow-up: Boundary must separate named system scopes, included technical
+assets, outside/shared/separately authorized dependencies, undetermined scope
+and non-component actors. Capture scope rationale/responsibility and external
+authorization references. Reuse recorded assignments/decisions for CSP and
+non-CSP systems while explicitly stating that component authorization coverage
+and cATO cannot be established from design inclusion or association alone.
+
+ATO context follow-up: Context must center the recorded system and connect its
+external performers, operational systems, information endpoints and support
+services, whether CSP-linked or not. Reuse actual team contacts and retained
+policy references; capture missing context entities/interactions explicitly.
+Keep detailed component topology, governance associations and applicable
+constraints distinguishable. See the [context contract](contracts/system-design.md).
+
+October 3 design follow-up: generate six source-backed diagram views (System
+context, Authorization boundary, Logical architecture, Data flow, Network and
+Azure deployment) from recorded definition, inventory, hosting and connection
+data. Retain newer Mission metadata and show recorded technical details without
+inventing traffic or authorization. See the updated [design contract](contracts/system-design.md).
+
+Mission presents the referenced System record layout: canonical system name,
+acronym, eMASS and DITPR identifiers; a team-sourced read-only System Owner;
+editable version/release, responsible organization and program office; and
+full-width mission statement and business purpose. Identity and role records
+must not be duplicated or changed by profile saving. Governed mission fields
+feed reviewed SSP snapshots and retain existing save/submit/review behavior.
+Unrecorded values and unavailable sources remain explicit; do not copy example
+values or invent a working revision.
+
+The Control Responsibility drawer follows the simple-review reference, distinct
+from the Applied Capability drawer: compact source card, readable allocation
+choices and duty fields precede advanced first-pass/history details. Source
+questions stay inspectable and staleness/failures remain explicit. Automatic
+preparation, user edits and the existing authorized approval lifecycle are
+unchanged; provider-source content is read-only.
+
+### Guided Overview readiness presentation
+
+System Overview follows the guided readiness reference: a white readiness hero
+with one check action, role-owned Your work cards, separate team-wide findings
+after validation, and a documentation-at-a-glance sidebar with workflow links.
+Personal task absence does not mean package readiness. Findings and document
+states must come from actual saved-record validation; do not copy sample gaps,
+owners or completion from the mock. Keep Monitoring & follow-up distinct,
+showing actual recorded health/changes and explicit missing coverage or records.
+
+### Prepared duties without repeated environment selection
+
+Opening Control Responsibility review must use the system's recorded environment
+to resolve provider scope and present an editable first pass automatically.
+Do not require users to select provider scope or initiate first preparation.
+Authorized preparation must not replace saved corrections, accepted records
+or source-defined allocations. Show preparation progress and failures honestly.
+No provider environment means system-record grounding without assumed inheritance.
+Several provider contributions still permit an editable system/environment first
+pass without an arbitrary provider selection. Preserve their authoritative
+allocations and require the existing source-specific allocation review before
+confirmation. Users retain edit/save/refresh and existing explicit
+responsibility confirmation, with provenance and review history.
+
 ### October 1 merged responsibility review integration
 
 The task-oriented applied-capability panel uses the responsibility first-pass
@@ -54,6 +357,17 @@ edits, save drafts and explicitly confirm through the existing authorized
 upstream lifecycle. Source references, versions and history remain canonical.
 Scope/component association does not imply provider coverage, deployed
 configuration, monitoring connectivity, control satisfaction or authorization.
+
+The review panel follows the applied-capability HTML reference's compact
+hierarchy: one named system/capability header, a lavender next-task card,
+count chips, overview scope/duty task rows, and a persistent summary footer.
+Provider contribution and the team's duties are the primary editable fields;
+allocation, basis, scope, source versions and history remain available through
+progressive disclosure. Synthetic reference statements must never populate
+application records. Saved draft counts are derived from canonical persisted
+contexts, refreshed after successful mutations, and distinguished from controls
+that still need preparation. Visual fidelity must be checked in the deployed
+app, not inferred from functional test success.
 
 ### September 30: governed System design
 
@@ -113,14 +427,16 @@ or the approved baseline, and required missing contributions remain gaps.
 Expose a labelled proposed-element palette (application/API/service/database/
 storage/network/identity/actor/external) in addition to canonical source choices.
 These are unreviewed design components, not fabricated Azure or canonical records.
-Reuse shared System definition tab styling. Working SSP previews render all four
+Reuse shared System definition tab styling. Working SSP previews render all six
 current graph diagrams with explicit draft/unapproved metadata; final exports
 continue to require immutable approved design.
 
 System definition gains a seventh, directly addressable **System design** tab.
-The existing labels remain exactly Mission, Users, Environment & hosting, Data,
-Inventory & boundary, and Ports & interconnections. The new capability assembles
-canonical records server-side into Context, Boundary, Network and Data flows;
+The existing labels remain Mission, Users, Environment & hosting, Data,
+Components & system scope (clarified October 6 from Inventory & boundary), and
+Ports & interconnections. The new capability assembles
+canonical records server-side into Context, Boundary, Logical, Data flows,
+Network and Azure deployment;
 it does not split the six tabs or introduce a top-level design workspace.
 
 The domain graph owns design meaning: stable source references/versions,
@@ -145,7 +461,7 @@ Conflicts remain visible. Azure/monitoring contributions are observed proposals
 and require existing authorized resource scope; unsupported collectors are not
 presented as healthy or connected.
 
-All four views share an equivalent structured editor, inspectable sources,
+All six views share an equivalent structured editor, inspectable sources,
 filter/search, stable layout, keyboard navigation and design gaps. Completeness
 uses evaluated required design checks rather than diagram appearance. Missing
 endpoints, purpose/classification/protection/PPS, boundary decisions,
@@ -340,8 +656,9 @@ maintaining two active implementations.
   verified contracts and approval.
 - Deleting historical source, review, release, evidence, decision, or package data.
 - Expanding to every historical mock merely because it is copied into the design
-  archive. The newly encountered onboarding companion is retained as reference;
-  broad organization/system onboarding redesign requires separate scope review.
+  archive. The October 8 approved provider first-login onboarding slice above is
+  the only newly authorized onboarding expansion; broad organization/system
+  onboarding redesign still requires separate scope review.
 
 ## User stories and independent acceptance
 

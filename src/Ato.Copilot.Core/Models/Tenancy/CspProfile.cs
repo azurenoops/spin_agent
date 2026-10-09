@@ -44,6 +44,12 @@ public class CspProfile
     [MaxLength(40)]
     public string? SupportPhone { get; set; }
 
+    [MaxLength(128)]
+    public string? DodComponent { get; set; }
+
+    [MaxLength(128)]
+    public string? TimeZoneId { get; set; }
+
     /// <summary>
     /// Default classification floor enforced when a tenant has not set its own.
     /// Defaults to <see cref="ClassificationLevel.Unclassified"/>.

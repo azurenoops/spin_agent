@@ -7,6 +7,56 @@
 
 ## Clarifications
 
+### Focused provider offering review (October 6)
+
+The shared Environment drawer initially shows offering/provider/system, canonical
+relationship/applicability/adoption/responsibility states and one next action
+derived from current server permissions and prerequisites. Capabilities, source
+metadata and all maintenance actions are disclosed. Source selection is not
+adoption, accepted responsibilities or authorization. Keep profile drafts and
+drawer input independent, and guard same-tab navigation with captured offering,
+assignment and hosting release context. Feature 079 owns the additive read-only
+source count, missing-duty metadata and exact hosting exclusions; no profile,
+schema or export payload is changed by this drawer follow-up.
+
+### Environment & hosting organization (October 6)
+
+Treat this as organization of existing records, not a new environment lifecycle.
+Keep deployment description, network/location and recovery/operating fields
+visible together in one unified Deployment description form, without separate
+collapsible subforms or disclosures. Place one Save Draft in the page header. Follow
+the draft with compact provider-service and subscription registers, whose actions
+write independently of profile saving. Non-provider cloud, on-premises and hybrid
+descriptions remain supported without a required provider or Azure subscription.
+Use the shared supporting-documentation sidebar below the page status/guidance
+banners. Association, allocation, resource-scope review, responsibility review,
+access, monitoring and authorization remain distinct, source-backed states.
+No new fields, schema, approval or export contract is introduced.
+
+### Data handling cleanup (October 6)
+
+Data uses compact information-type, classification/CUI, declared CIA, privacy/
+retention and actual section-review summaries, with top Save Draft/preview,
+table Add, named detail editor and source-oriented sidebar. Capture missing CUI
+category, declared CIA impacts, privacy applicability, retention/disposal and
+categorization rationale/source reference. Retained profile review feeds these
+declarations into SSP/native output but does not approve FIPS categorization,
+PIA decisions or authorization. Data context and rows remain reviewed together;
+individual mock approvals, working revision numbers and 7/11 are not copied.
+
+### Users record cleanup (October 6)
+
+Users uses a compact per-category documentation table with identity/privilege,
+access/authentication, data access and actual review state, alongside package/
+readiness/ownership guidance. Save Draft is a top header action; Add user
+category sits beside the table and opens the existing governed editor.
+Capture missing human/workload identity, privilege, affiliation, authentication,
+owner, locations, permitted environments and authorized data descriptions.
+These declarations feed retained SSP sources, not account grants or automatic
+inheritance. Category review/revisions are independent of access context and
+remain server-authoritative. Preserve old content and do not fabricate mock
+revision numbers, approval dates or readiness counts.
+
 ### Session 2026-03-26
 
 - Q: Can the ISSO formally review/approve profile sections, or is the ISSO limited to reading and incorporating Mission Owner input into narratives? → A: ISSO reads profile data and incorporates into narratives; only ISSM approves profile sections.
@@ -451,3 +501,36 @@ This is not a security mechanism — it is a UX and testing aid. When CAC auth i
 - System profile data inherits the same data protection posture as existing entities (`RegisteredSystem`, `SecurityCategorization`). Database-level encryption at rest applies; no additional field-level encryption or display redaction is required. Classification markings on data types (e.g., PII, CUI) are metadata *about* data the system handles, not the sensitive data itself.
 - The dashboard does not currently have login or authentication capability. CAC/Entra ID integration is planned as a separate feature. Until then, the role switcher serves as a simulated-role mechanism for development and testing. The role-aware view logic is designed to be permanent — when real auth is implemented, the `settings.role` value is replaced by the user's authenticated RMF role, and the rest of the view logic is unchanged.
 - The `X-Simulated-Role` header sent by the dashboard is a development convenience only. The backend may use it to scope responses during testing but MUST NOT treat it as an authorization mechanism. In production with CAC auth, this header is ignored.
+# Inventory & boundary follow-up (October 6)
+
+Present the governed component inventory as a compact authorization-boundary
+table, matching the supplied reference, with top Save Draft, actual counts,
+source-aware review labels and documentation sidebar. Capture missing owner,
+environment, rationale and boundary decisions in existing design annotations.
+Reuse CSP/non-CSP provenance and preserved approved SSP snapshots. Retain
+boundary-definition/placement management; no new independent approval model.
+
+## Components & system scope clarification (October 6)
+
+- Preserve the boundaries route while naming the task **Components & system scope**.
+  Ask **What belongs to this system?** and present inclusion, outside and needs
+  confirmation as the existing InBoundary, OutOfBoundary and Undetermined values.
+  Unknown legacy values and contradictory shared-service inclusion remain explicit.
+- The recorded system name identifies this design's system scope. Physical,
+  Logical and Hybrid boundary definitions do not prove authorization scope or
+  internal system-area semantics. Show all recorded names/types, flag missing or
+  ambiguous definitions, and use the existing source workflow without selecting
+  or creating a definition automatically. Internal groups, environment and network
+  zones are separate from authorization scope.
+- Separate component operation/management, rationale and responsibility from
+  inclusion. A provider-hosted application may be included. Advanced details retain
+  exact named-definition associations, identifiers, versions and external references.
+- List actual external/shared-service records and recorded connections; distinguish
+  recorded service consumption from excluded components with no recorded use.
+  Separately authorized means recorded information, not verified component coverage.
+- Save scope draft and Review scope changes use governed design workflows.
+  Explain: Saving a draft does not change the reviewed baseline or establish authorization.
+  Canonical definition/placement writes remain explicitly immediate source writes.
+- Next work identifies missing decisions, rationale, operator and review, not an
+  authorization-readiness score. Verify mobile/keyboard, permission/revision errors,
+  retained inputs, provenance and approved versus draft native document outputs.

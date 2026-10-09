@@ -70,22 +70,26 @@ describe('server-authoritative profile editing (#968)',() => {
     expect(screen.queryByText('Information handling context')).not.toBeInTheDocument();
     expect(api.saveProfileSection).not.toHaveBeenCalled();
   });
-  it('uses the Data mock header action to open one Add data type dialog without saving', async () => {
+  it('places Data Save Draft at the top and opens Add data type beside the table without saving', async () => {
     // Arrange
     state.sectionType = 'DataTypes';
     api.getProfileSection.mockResolvedValue(section(true, 'Draft'));
     render(<SystemProfile />);
     await screen.findByRole('heading', { name: 'Data types & sensitivity' });
     // Act
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Add data type' }));
+    const header = screen.getByRole('banner');
+    expect(within(header).getByRole('button', { name: 'Save Draft' })).toHaveAttribute('form', 'system-profile-editor');
+    expect(within(header).getByRole('link', { name: 'Preview SSP contribution' })).toHaveAttribute('href',
+      '/systems/system-a/documents/preview?contribution=DataTypes');
+    fireEvent.click(screen.getByRole('button', { name: 'Add data type' }));
     // Assert
     expect(screen.getAllByRole('button', { name: 'Add data type' })).toHaveLength(1);
-    expect(within(screen.getByRole('banner')).queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Save Draft' })).toHaveLength(1);
     expect(screen.getByRole('dialog', { name: 'Add data type' })).toBeVisible();
     expect(api.saveProfileSection).not.toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'Preview contribution' })).toHaveAttribute('href', '/systems/system-a/documents/preview?contribution=DataTypes');
   });
-  it('keeps Environment documentation and review expanded with its short SSP contribution line', async () => {
+  it('uses the shared Environment documentation sidebar below both page banners', async () => {
     // Arrange
     state.sectionType = 'EnvironmentAndDeployment';
     api.getProfileSection.mockResolvedValue(section(true, 'Draft'));
@@ -93,13 +97,16 @@ describe('server-authoritative profile editing (#968)',() => {
     render(<SystemProfile />);
     await screen.findByRole('heading', { name: 'Environment & hosting' });
     // Assert
-    expect(screen.getByText('Contributes to your SSP’s environment and hosting section.')).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Documentation & review' })).toBeVisible();
-    expect(screen.getByText('Documentation & review').closest('details')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Documentation & review' })).not.toBeInTheDocument();
+    const support = screen.getByRole('complementary', { name: 'Document contribution and next tasks' });
+    expect(within(support).getByText('Used in your package')).toBeVisible();
+    const guidance = screen.getByText(/Prepare for review: complete the applicable deployment/);
+    expect(guidance.parentElement).toBe(support.parentElement!.parentElement);
+    expect(guidance).not.toHaveTextContent('Expand Documentation details');
     expect(screen.getByRole('link', { name: 'Preview contribution' })).toBeVisible();
     expect(screen.getByRole('link', { name: 'View package readiness' })).toBeVisible();
   });
-  it.each([true, false])('omits the duplicate Environment header action with edit capability %s', async canEdit => {
+  it.each([true, false])('shows one Environment header save only with edit capability %s', async canEdit => {
     // Arrange
     state.sectionType = 'EnvironmentAndDeployment';
     api.getProfileSection.mockResolvedValue(section(canEdit, 'Draft'));
@@ -108,8 +115,107 @@ describe('server-authoritative profile editing (#968)',() => {
     await screen.findByRole('heading', { name: 'Environment & hosting' });
     // Assert
     expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Review hosting scope' })).not.toBeInTheDocument();
-    expect(within(screen.getByRole('banner')).queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
+    const saves = screen.queryAllByRole('button', { name: 'Save Draft' });
+    expect(saves).toHaveLength(canEdit ? 1 : 0);
+    if (canEdit) expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Save Draft' }))
+      .toHaveAttribute('form', 'system-profile-editor');
     expect(screen.getAllByRole('heading', { name: 'Provider services & scopes' })).toHaveLength(1);
+  });
+  it.each(['Draft', 'NeedsRevision'])('omits Environment profile submission in %s without removing header save', async status => {
+    // Arrange
+    state.sectionType = 'EnvironmentAndDeployment';
+    state.role = 'MissionOwner';
+    api.getProfileSection.mockResolvedValue(section(true, status));
+    // Act
+    render(<SystemProfile />);
+    await screen.findByRole('heading', { name: 'Environment & hosting' });
+    // Assert
+    expect(screen.queryByRole('button', { name: 'Submit for Review' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Save Draft' })).toBeEnabled();
+    expect(api.submitSections).not.toHaveBeenCalled();
+  });
+  it('retains Mission profile submission for an editable draft', async () => {
+    // Arrange
+    state.role = 'MissionOwner';
+    api.getProfileSection.mockResolvedValue(section(true, 'Draft'));
+    api.submitSections.mockResolvedValue({ submittedSections: ['MissionAndPurpose'], skippedSections: [] });
+    // Act
+    render(<SystemProfile />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit for Review' }));
+    // Assert
+    await waitFor(() => expect(api.submitSections).toHaveBeenCalledWith('system-a', { action: 'submit', sectionTypes: ['MissionAndPurpose'] }));
+  });
+  it.each([
+    ['Draft', false],
+    ['UnderReview', true],
+  ])('keeps Environment %s fields locked with edit capability %s', async (status, canEdit) => {
+    // Arrange
+    state.sectionType = 'EnvironmentAndDeployment';
+    state.role = 'MissionOwner';
+    api.getProfileSection.mockResolvedValue(section(canEdit, status));
+    // Act
+    render(<SystemProfile />);
+    await screen.findByRole('heading', { name: 'Environment & hosting' });
+    // Assert
+    expect(screen.getByRole('textbox', { name: 'Deployment description' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit for Review' })).not.toBeInTheDocument();
+    if (status === 'UnderReview') expect(screen.getByRole('button', { name: 'Withdraw' })).toBeEnabled();
+    expect(api.saveProfileSection).not.toHaveBeenCalled();
+    expect(api.submitSections).not.toHaveBeenCalled();
+  });
+  it('saves visible Environment fields together from the header with unknown values retained', async () => {
+    // Arrange
+    state.sectionType = 'EnvironmentAndDeployment';
+    const original = { hostingModel: 'Hybrid', additionalDetails: 'Reviewed description',
+      networkZones: '["DMZ"]', rtoRpo: 'Custom retained target', customSource: 'retain' };
+    api.getProfileSection.mockResolvedValue({ ...section(true, 'Draft'), draftContent: JSON.stringify(original) });
+    api.saveProfileSection.mockResolvedValue(section(true, 'Draft'));
+    render(<SystemProfile />);
+    await screen.findByRole('heading', { name: 'Environment & hosting' });
+    // Act
+    fireEvent.change(screen.getByRole('textbox', { name: 'Deployment description' }), { target: { value: 'Working description' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Availability Tier' }), { target: { value: 'Best Effort' } });
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Save Draft' }));
+    // Assert
+    await waitFor(() => expect(api.saveProfileSection).toHaveBeenCalledWith('system-a', 'EnvironmentAndDeployment', {
+      content: JSON.stringify({ ...original, additionalDetails: 'Working description', availabilityTier: 'Best Effort' }), childItems: undefined,
+    }));
+  });
+  it('keeps unified Environment dirty values after a failed header save and retains them on save/reload', async () => {
+    // Arrange
+    state.sectionType = 'EnvironmentAndDeployment';
+    const original = { hostingModel: 'Legacy hosting', networkZones: '["Custom zone"]',
+      geographicLocations: 'Legacy site', rtoRpo: 'Custom target', operatingSystem: '["Legacy OS"]',
+      additionalDetails: 'Saved description', customSource: { reference: 'retain' } };
+    api.getProfileSection.mockResolvedValue({ ...section(true, 'Draft'), draftContent: JSON.stringify(original) });
+    api.saveProfileSection.mockRejectedValueOnce(new Error('Synthetic save rejected'));
+    const view = render(<SystemProfile />);
+    await screen.findByRole('textbox', { name: 'Deployment description' });
+    // Act
+    fireEvent.change(screen.getByRole('textbox', { name: 'Deployment description' }), { target: { value: 'Dirty description' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Maintenance Windows' }), { target: { value: 'Quarterly Scheduled' } });
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Save Draft' }));
+    // Assert
+    await screen.findAllByText('Synthetic save rejected');
+    expect(screen.getByRole('textbox', { name: 'Deployment description' })).toHaveValue('Dirty description');
+    expect(screen.getByRole('combobox', { name: 'Maintenance Windows' })).toHaveValue('Quarterly Scheduled');
+    const saved = { ...original, additionalDetails: 'Dirty description', maintenanceWindows: 'Quarterly Scheduled' };
+    api.saveProfileSection.mockResolvedValue({ ...section(true, 'Draft'), draftContent: JSON.stringify(saved) });
+    api.getProfileSection.mockResolvedValue({ ...section(true, 'Draft'), draftContent: JSON.stringify(saved) });
+    // Act
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Save Draft' }));
+    await waitFor(() => expect(api.saveProfileSection).toHaveBeenLastCalledWith('system-a', 'EnvironmentAndDeployment', {
+      content: JSON.stringify(saved), childItems: undefined,
+    }));
+    view.unmount();
+    render(<SystemProfile />);
+    // Assert
+    expect(await screen.findByRole('textbox', { name: 'Deployment description' })).toHaveValue('Dirty description');
+    expect(screen.getByRole('combobox', { name: 'RTO / RPO Targets' })).toHaveValue('Custom target');
+    expect(screen.getByRole('combobox', { name: 'Network Zones' })).toHaveTextContent('Custom zone');
+    expect(screen.getByRole('combobox', { name: 'Geographic Locations' })).toHaveTextContent('Legacy site');
+    expect(screen.getByRole('combobox', { name: 'Operating Systems' })).toHaveTextContent('Legacy OS');
   });
   it('labels Users access-context approval separately from individual category review', async () => {
     // Arrange
@@ -131,7 +237,7 @@ describe('server-authoritative profile editing (#968)',() => {
     expect(api.reviewSection).toHaveBeenCalledWith('system-a', 'UsersAndAccess', { decision: 'approve' });
   });
 
-  it('uses one header Add user category action on Users instead of a primary Save Draft', async () => {
+  it('places Users Save Draft at the top and keeps one table Add user category action', async () => {
     // Arrange
     state.sectionType = 'UsersAndAccess';
     api.getProfileSection.mockResolvedValue(section(true, 'Draft'));
@@ -139,10 +245,12 @@ describe('server-authoritative profile editing (#968)',() => {
     // Act
     await screen.findByRole('heading', { name: 'Users & access' });
     const header = screen.getByRole('banner');
-    fireEvent.click(within(header).getByRole('button', { name: 'Add user category' }));
+    expect(within(header).getByRole('button', { name: 'Save Draft' })).toHaveAttribute('form', 'system-profile-editor');
+    expect(within(header).getByRole('link', { name: 'Preview SSP contribution' })).toHaveAttribute('href', '/systems/system-a/documents/preview?contribution=UsersAndAccess');
+    fireEvent.click(screen.getByRole('button', { name: 'Add user category' }));
     // Assert
     expect(screen.getAllByRole('button', { name: 'Add user category' })).toHaveLength(1);
-    expect(within(header).queryByRole('button', { name: 'Save Draft' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Save Draft' })).toHaveLength(1);
     expect(screen.getByRole('dialog')).toBeVisible();
     expect(api.saveProfileSection).not.toHaveBeenCalled();
   });
@@ -226,7 +334,7 @@ describe('server-authoritative profile editing (#968)',() => {
   it.each([
     ['MissionAndPurpose', 'Mission & purpose', 'System record'],
     ['UsersAndAccess', 'Users & access', 'User categories'],
-    ['DataTypes', 'Data types & sensitivity', 'Information types'],
+    ['DataTypes', 'Data types & sensitivity', 'Information types and handling'],
     ['PortsProtocolsAndServices', 'Ports & interconnections', 'Ports and services'],
   ])('uses the task-specific record composition for %s', async (type, title, recordTitle) => {
     // Arrange
@@ -244,7 +352,26 @@ describe('server-authoritative profile editing (#968)',() => {
       expect(screen.getByRole('heading', { name: recordTitle })).toBeVisible();
       expect(screen.getAllByRole('button', { name: 'Save Draft' })).toHaveLength(1);
     }
-    expect(screen.getByRole('complementary', { name: 'Document contribution and next tasks' })).toBeVisible();
+    if (type === 'MissionAndPurpose') {
+      const sidebar = screen.getByRole('complementary', { name: 'Document contribution and next tasks' });
+      expect(sidebar).toBeVisible();
+      expect(within(sidebar).getByText('Used in your package')).toBeVisible();
+      expect(within(sidebar).getByText('Review & ownership')).toBeVisible();
+      expect(within(sidebar).getByText('Related work')).toBeVisible();
+      expect(within(sidebar).getByText('SSP · System description')).toBeVisible();
+      expect(within(sidebar).getByText('Last edited: Not recorded')).toBeVisible();
+      expect(within(sidebar).getByText('Approved snapshot: Not recorded')).toBeVisible();
+      expect(within(sidebar).getByRole('link', { name: 'Review System team' })).toHaveAttribute('href', '/systems/system-a/roles');
+      expect(within(sidebar).getByRole('link', { name: 'View activity history' })).toHaveAttribute('href', '/systems/system-a/history');
+      expect(within(sidebar).getByRole('link', { name: 'Users & access' })).toHaveAttribute('href', '/systems/system-a/profile/UsersAndAccess');
+      expect(screen.getAllByRole('link', { name: 'Preview contribution' })).toHaveLength(1);
+      expect(screen.getAllByRole('link', { name: 'View package readiness' })).toHaveLength(1);
+      expect(within(sidebar).queryByRole('button', { name: 'Manage access context' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Documentation & review' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('region', { name: 'System record' })).toHaveLength(1);
+    } else {
+      expect(screen.getByRole('complementary', { name: 'Document contribution and next tasks' })).toBeVisible();
+    }
   });
 
   it('adds and saves a real user-category row through the existing single editor', async () => {

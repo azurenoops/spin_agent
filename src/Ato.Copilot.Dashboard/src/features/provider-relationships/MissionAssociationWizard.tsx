@@ -7,6 +7,8 @@ import { capabilityName, CapabilityResponsibilities, ReadStatus, ScopeDetails, T
 import * as api from './api';
 import { canPlanAdoption, MissionReviewRequiredError, prepareAdoption } from './adoptionPreparation';
 import type { ApplicableProviderCapability, CapabilityAdoptionInput, PagedResult, SystemHostingAllocation } from './types';
+import ProviderOfferingWorkflowContext from '../systems/ProviderOfferingWorkflowContext';
+import type { SystemProviderScope } from '../../api/systemEnvironments';
 
 const choiceClass = 'flex items-start gap-3 rounded border border-slate-300 p-4';
 const identity = (item: ApplicableProviderCapability) => `${item.capabilityId}:${item.releaseId}`;
@@ -38,11 +40,15 @@ export default function MissionAssociationWizard({ hostingOnly = false, environm
       </section>
     </TaskFrame>;
   }
-  return <AssociationTask key={`${session.workspace.tenantId}:${id ?? 'picker'}:${hostingOnly}:${environmentEntry}`}
-    systemId={id} hostingOnly={hostingOnly} environmentEntry={environmentEntry} />;
+  const task = (capturedScope?: SystemProviderScope) => <AssociationTask
+    key={`${session.workspace.tenantId}:${id ?? 'picker'}:${hostingOnly}:${environmentEntry}:${location.search}`}
+    systemId={id} hostingOnly={hostingOnly} environmentEntry={environmentEntry} capturedScope={capturedScope} />;
+  return id ? <ProviderOfferingWorkflowContext systemId={id}>{task}</ProviderOfferingWorkflowContext> : task();
 }
 
-function AssociationTask({ systemId, hostingOnly, environmentEntry }: { systemId?: string; hostingOnly: boolean; environmentEntry: boolean }) {
+function AssociationTask({ systemId, hostingOnly, environmentEntry, capturedScope }: {
+  systemId?: string; hostingOnly: boolean; environmentEntry: boolean; capturedScope?: SystemProviderScope;
+}) {
   const location = useLocation();
   const [step, setStep] = useState(0);
   const [systemName, setSystemName] = useState('');
@@ -82,7 +88,7 @@ function AssociationTask({ systemId, hostingOnly, environmentEntry }: { systemId
       {' '}{plan.capabilities.map(item => item.name).join(', ') || 'none'}. Review only the remaining work.</p>}
     {step === 0 && <MissionSystemPicker systemId={systemId} onContinue={chooseHosting} locked={hostingOnly || environmentEntry}
       autoContinue={environmentEntry || (!systemName && location.state?.chooseHosting === true)} />}
-    {step === 1 && systemId && <HostingChoices systemId={systemId} selected={allocation} hostingOnly={hostingOnly} providerFirst={environmentEntry}
+    {step === 1 && systemId && <HostingChoices systemId={systemId} selected={allocation} hostingOnly={hostingOnly} providerFirst={environmentEntry} capturedScope={capturedScope}
       onSelect={value => {
         if (allocation?.assignmentId !== value.assignmentId || allocation.revision !== value.revision) setSelected([]);
         setAllocation(value);
@@ -118,18 +124,21 @@ function Paging({ page, data, onPage, noun }: {
   </nav>;
 }
 
-function HostingChoices({ systemId, selected, onSelect, onBack, onContinue, hostingOnly, providerFirst }: {
+function HostingChoices({ systemId, selected, onSelect, onBack, onContinue, hostingOnly, providerFirst, capturedScope }: {
   systemId: string; selected: SystemHostingAllocation | null; onSelect: (value: SystemHostingAllocation) => void;
   onBack: () => void; onContinue: () => void; hostingOnly: boolean; providerFirst: boolean;
+  capturedScope?: SystemProviderScope;
 }) {
   const [page, setPage] = useState(1);
   const [provider, setProvider] = useState<string | null>(selected?.providerName ?? null);
   const [choosingProvider, setChoosingProvider] = useState(providerFirst);
   const state = useRemote(async signal => {
-    if (!providerFirst) return api.listSystemHostingAllocations(systemId, page, signal);
-    const items = await api.listAllSystemHostingAllocations(systemId, signal);
+    if (!providerFirst && !capturedScope) return api.listSystemHostingAllocations(systemId, page, signal);
+    const all = await api.listAllSystemHostingAllocations(systemId, signal);
+    const items = capturedScope ? all.filter(item => item.assignmentId === capturedScope.assignmentId
+      && item.offeringId === capturedScope.offeringId && item.revision === capturedScope.assignmentVersion) : all;
     return { items, page: 1, pageSize: Math.max(1, items.length), total: items.length };
-  }, [systemId, page, providerFirst]);
+  }, [systemId, page, providerFirst, capturedScope?.assignmentId, capturedScope?.assignmentVersion]);
   // Provider names filter the display only; all writes remain assignment-ID/revision bound.
   const providerLabel = (item: SystemHostingAllocation) => item.providerName ?? 'Provider name not recorded';
   const providers = [...new Set(state.data?.items.map(providerLabel) ?? [])].sort();

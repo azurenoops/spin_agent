@@ -4,6 +4,37 @@
 
 ## Overview
 
+### AI requirement first passes
+
+Extend the single existing IControlNarrativeService/NarrativeTemplateService
+pipeline with a structured source-cited suggestion method and embedded prompt.
+Use a partial RequirementCoverageService for authorized source capture and
+transient generation; reauthorize/recheck context after model completion.
+Curate profile fields, declared information/privacy records, exact retained
+policies and existing values; scoped narrative grounding supplies CSP/non-CSP
+capability/reference/evidence context. Never enumerate foreign/provider-wide
+records or send named credential/configuration fields.
+
+Use server Data Protection for 24-hour tenant/person/system/control/kind/
+revision/source-bound generation proof. Explicit save validates proof/context
+and retains source metadata in existing JSON snapshots/history; Policy and
+Technical assistance remain attributable without overwriting human edits.
+No tables, migrations, dependency packages or second AI service are introduced.
+Existing author/reviewer separation, PPS/evidence and approval gates remain.
+
+Dashboard resolves OSCAL parameter inserts for display, exposes original
+sources through disclosure, auto-prepares missing draft fields once per context,
+and previews explanations/questions. Applying fills empty fields only; save
+and review remain separate. Handle abort/unmount/context changes, failed AI,
+stale proof and wrong response scope explicitly. Native renderers reuse saved/
+reviewed responses and retain AI-assistance metadata, not a satisfaction claim.
+
+Validation gate: failing UI/model tests preceded production code; verify
+isolation, source/version changes, tampered/foreign proof, unavailable AI,
+preserved manual edits, actual SSP/OSCAL/Word/PDF/eMASS output, type-check,
+coverage and browser behavior. Preserve separately staged/running overview work
+during local API-only rollout; no unrelated commit or GitHub write.
+
 ### Hierarchical table correction
 
 Verified gap: the workspace maps API items directly into flat table rows.

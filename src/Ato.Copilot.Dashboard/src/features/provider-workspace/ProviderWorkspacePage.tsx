@@ -47,7 +47,8 @@ function OfferingWorkspace({ view }: { view: 'overview' | 'missions' }) {
   const [refresh, setRefresh] = useState(0);
   const [notice, setNotice] = useState('');
   const offerings = useRemote(signal => api.listOfferings(page, '', signal), [page]);
-  const selected = selectedId ? offerings.data?.items.find(item => item.offeringId === selectedId) : offerings.data?.items[0];
+  const selected = selectedId ? offerings.data?.items.find(item => item.offeringId === selectedId)
+    : view === 'missions' || offerings.data?.total === 1 ? offerings.data?.items[0] : undefined;
   return <>
     <WorkspacePageHeader eyebrow="Provider operations" title={view === 'overview' ? 'Your provider workspace' : 'Mission systems'}
       description={view === 'overview'
@@ -60,20 +61,24 @@ function OfferingWorkspace({ view }: { view: 'overview' | 'missions' }) {
     <Status loading={offerings.loading} error={offerings.error} retry={offerings.retry} />
     {offerings.data && <>
       {!selected ? <section className={panel}>
-        <h2 className="mb-2 font-semibold">{selectedId ? 'Selected offering unavailable on this page' : 'No service offerings recorded'}</h2>
-        <p className="mb-4 text-sm text-slate-500">{selectedId ? 'No other service was selected automatically. Choose from the current offering page or change pages.' : 'Define a service before reviewing its sources, releases, or customer relationships.'}</p>
-        {selectedId ? <button className={action} onClick={() => setSelectedId('')}>Choose from current offering page</button>
-          : <Link to="/authorizations/create" className={primary}>Create offering</Link>}
+        <h2 className="mb-2 font-semibold">{selectedId ? 'Selected offering unavailable on this page'
+          : offerings.data.total > 0 ? 'Choose an offering to view its overview' : 'No service offerings recorded'}</h2>
+        <p className="mb-4 text-sm text-slate-500">{selectedId ? 'No other service was selected automatically. Choose from the current offering page or change pages.'
+          : offerings.data.total > 0 ? 'Select an offering name in Service offerings below. Metrics and focus tasks apply only to that offering, not the whole provider.'
+            : 'Define a service before reviewing its sources, releases, or customer relationships.'}</p>
+        {view === 'missions' && selectedId ? <button className={action} onClick={() => setSelectedId('')}>Choose from current offering page</button>
+          : offerings.data.total === 0 && <Link to="/authorizations/create" className={primary}>Create offering</Link>}
       </section> : <>
-        {(offerings.data.total > 1 || view !== 'overview') && <label className="mb-5 block max-w-md text-xs text-slate-600 dark:text-slate-300">Service offering
+        {view === 'missions' && <label className="mb-5 block max-w-md text-xs text-slate-600 dark:text-slate-300">Service offering
           <select value={selected.offeringId} onChange={event => setSelectedId(event.target.value)}
             className="mt-2 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
             {offerings.data.items.map(item => <option key={item.offeringId} value={item.offeringId}>{item.name}</option>)}
           </select>
         </label>}
-        {view === 'overview' ? <OfferingOverview key={selected.offeringId} offering={selected}>
-          <OfferingTable offerings={offerings.data.items} />
-        </OfferingOverview>
+        {view === 'overview' ? <>
+          <h2 className="mb-3 break-words text-sm font-semibold">Offering overview: {selected.name}</h2>
+          <OfferingOverview key={selected.offeringId} offering={selected} />
+        </>
           : <>
             {notice && <p role="status" className="provider-banner">{notice}</p>}
             <MissionSystems key={selected.offeringId} offering={selected} offeringPage={page} refresh={refresh} />
@@ -86,12 +91,15 @@ function OfferingWorkspace({ view }: { view: 'overview' | 'missions' }) {
             </SetupDialog>}
           </>}
       </>}
+      {view === 'overview' && offerings.data.items.length > 0 && <div className="mt-5 xl:mr-[314px]">
+        <OfferingTable offerings={offerings.data.items} onSelect={setSelectedId} />
+      </div>}
       {offerings.data.total > offerings.data.pageSize && <Pager {...offerings.data} onPage={next => { setPage(next); setSelectedId(''); }} />}
     </>}
   </>;
 }
 
-function OfferingTable({ offerings }: { offerings: Offering[] }) {
+function OfferingTable({ offerings, onSelect }: { offerings: Offering[]; onSelect: (id: string) => void }) {
   return <section className={panel}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-semibold">Service offerings</h2><Link to="/authorizations" className={action}>View all offerings</Link>
@@ -101,7 +109,8 @@ function OfferingTable({ offerings }: { offerings: Offering[] }) {
               <tr><th className="p-3">Offering</th><th className="p-3">Published release</th><th className="p-3">Source status</th><th className="p-3"><span className="sr-only">Actions</span></th></tr>
             </thead>
             <tbody>{offerings.map(item => <tr key={item.offeringId} className="border-b border-slate-100 last:border-0 dark:border-gray-800">
-              <td className="p-3 font-semibold">{item.name}<small className="mt-1 block font-normal text-slate-500">{item.environments.map(environment => offeringEnvironments[environment]).join(' · ')}</small></td>
+              <td className="p-3 font-semibold"><button type="button" className="text-left text-indigo-700 underline dark:text-indigo-300"
+                aria-label={`Show overview for ${item.name}`} onClick={() => onSelect(item.offeringId)}>{item.name}</button><small className="mt-1 block font-normal text-slate-500">{item.environments.map(environment => offeringEnvironments[environment]).join(' · ')}</small></td>
               <OfferingSourceCells offering={item} />
               <td className="p-3"><Link className={action} to={api.authorizationHref(item.offeringId)}>Open offering<span className="sr-only"> {item.name}</span></Link></td>
             </tr>)}</tbody>
@@ -195,15 +204,15 @@ function Metric({ label, value, caption }: { label: string; value: number | stri
   </div>;
 }
 
-function OfferingOverview({ offering, children }: { offering: Offering; children: ReactNode }) {
+function OfferingOverview({ offering }: { offering: Offering }) {
   const overview = useRemote(signal => api.getOfferingOverview(offering.offeringId, 1, 1, signal), [offering.offeringId]);
   return <>
     <Status loading={overview.loading} error={overview.error} retry={overview.retry} />
-    {overview.data && <OverviewContent offering={offering} data={overview.data}>{children}</OverviewContent>}
+    {overview.data && <OverviewContent offering={offering} data={overview.data} />}
   </>;
 }
 
-function OverviewContent({ offering, data, children }: { offering: Offering; data: OfferingOverviewData; children: ReactNode }) {
+function OverviewContent({ offering, data }: { offering: Offering; data: OfferingOverviewData }) {
   return <>
     <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
       <Metric label="Published capabilities" value={data.capabilities.published} caption={offering.name} />
@@ -221,7 +230,7 @@ function OverviewContent({ offering, data, children }: { offering: Offering; dat
           to="/security-capabilities" action="Review capabilities" />
         <Task title="Review customer service associations" description={`${data.hosting.assignmentCount} service assignments; ${data.hosting.associatedSystemCount} associated systems.`}
           to={api.authorizationHref(offering.offeringId, 'inherited-coverage')} action="View service scope" />
-      </section>{children}</div>
+      </section></div>
       <aside className="space-y-6">
         <Support title="Provider perspective"><p>Maintain what your service supplies. Mission Owners complete and review what their individual systems require.</p></Support>
         <Support title="Contributes to the system package"><ol className="list-decimal space-y-1 pl-4">

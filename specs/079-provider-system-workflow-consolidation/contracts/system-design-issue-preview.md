@@ -21,7 +21,8 @@ No assignees, labels or milestones are changed.
 
 Implement System design as the seventh tab within the existing System definition
 workspace. Preserve the existing Mission, Users, Environment & hosting, Data,
-Inventory & boundary, and Ports & interconnections labels and canonical records.
+Components & system scope (formerly Inventory & boundary), and Ports &
+interconnections labels and canonical records.
 
 Deliver a server-owned, versioned design graph; Context, Boundary, Network and
 Data flows views; accessible structured editing; immutable approved baselines;

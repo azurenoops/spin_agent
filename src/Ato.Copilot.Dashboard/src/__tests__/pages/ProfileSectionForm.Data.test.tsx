@@ -78,14 +78,14 @@ describe('Data information types editor', () => {
     expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('Save failed');
   });
   it.each(['Draft', 'Approved', 'UnderReview', 'NeedsRevision', 'NotStarted'] as const)(
-    'shows only five compact columns and section-scoped %s governance', governanceStatus => {
+    'shows six handling columns and section-scoped %s governance', governanceStatus => {
       // Arrange
       render(<ProfileSectionForm {...props({ governanceStatus })} />);
       // Act
       const table = screen.getByRole('table', { name: 'Information types' });
       // Assert
       expect(within(table).getAllByRole('columnheader').map(cell => cell.textContent))
-        .toEqual(['Data type', 'Context', 'Sensitivity', 'Review state', 'Open']);
+        .toEqual(['Information type', 'Classification / CUI', 'CIA', 'Privacy & retention', 'Review', 'Open']);
       expect(table).not.toHaveClass('min-w-[720px]');
       expect(within(table).getByText(`Section: ${governanceStatus}`)).toBeVisible();
       expect(within(table).queryByRole('button', { name: /edit|remove|move/i })).not.toBeInTheDocument();
@@ -194,7 +194,7 @@ describe('Data information types editor', () => {
     expect(input.onSave).toHaveBeenCalledWith(input.initialContent, [{ ...next, sortOrder: 0 }]);
   });
 
-  it('uses the external Add trigger without a duplicate visual heading or add button', () => {
+  it('preserves external Add compatibility alongside the visible table Add action', () => {
     // Arrange
     const input = props({ addEntryOpen: false, onAddEntryClose: vi.fn() });
     const { rerender } = render(<><button>Header Add data type</button><ProfileSectionForm {...input} /></>);
@@ -205,8 +205,8 @@ describe('Data information types editor', () => {
     const dialog = screen.getByRole('dialog', { name: 'Add data type' });
     // Assert
     expect(screen.getByRole('table', { name: 'Information types' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Information types' }).parentElement).toHaveClass('sr-only');
-    expect(screen.queryByRole('button', { name: 'Add data type' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Information types and handling' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Add data type' })).toBeVisible();
     // Act
     fireEvent.change(within(dialog).getByLabelText('Data Type'), { target: { value: 'Custom records' } });
     fireEvent.change(within(dialog).getByLabelText('Classification'), { target: { value: 'CUI' } });
@@ -281,9 +281,14 @@ describe('Data information types editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
     rerender(<ProfileSectionForm {...input} initialChildItems={[{ ...data }]} error="Save conflict" />);
     // Assert
-    expect(screen.getByText('Retained context')).toBeVisible();
     expect(screen.getByText('Save conflict')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Submit for Review' })).toBeDisabled();
+    // Act
+    openData();
+    // Assert
+    expect(within(screen.getByRole('dialog')).getByText('Retained context')).toBeVisible();
+    expect(input.onSave).toHaveBeenCalledExactlyOnceWith(input.initialContent,
+      [{ ...data, description: 'Retained context' }]);
   });
 
   it('never presents unknown row review metadata as independent data governance', () => {
@@ -351,7 +356,7 @@ describe('Data information types editor', () => {
     expect(input.onSave).not.toHaveBeenCalled();
   });
 
-  it('provides a focus destination when the last entry is removed with external Add', () => {
+  it('focuses the table Add action when the last entry is removed', () => {
     // Arrange
     const input = props({ onAddEntryClose: vi.fn() });
     render(<ProfileSectionForm {...input} />);
@@ -360,7 +365,7 @@ describe('Data information types editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove data type' }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove from draft' }));
     // Assert
-    expect(screen.getByRole('table', { name: 'Information types' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Add data type' })).toHaveFocus();
     expect(screen.getByText(/No information types are recorded/)).toBeVisible();
     expect(input.onSave).not.toHaveBeenCalled();
   });

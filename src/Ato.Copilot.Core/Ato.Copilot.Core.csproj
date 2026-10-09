@@ -55,6 +55,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Prompts\NarrativeGeneration.prompt.txt" />
     <EmbeddedResource Include="Prompts\GroundedNarrative.prompt.txt" />
+    <EmbeddedResource Include="Prompts\RequirementFirstPass.prompt.txt" />
     <EmbeddedResource Include="Prompts\ResponsibilityFirstPass.prompt.txt" />
   </ItemGroup>
 

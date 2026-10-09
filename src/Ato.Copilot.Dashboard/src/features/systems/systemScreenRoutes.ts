@@ -20,7 +20,7 @@ export const SYSTEM_SCREEN_GROUPS: SystemScreenGroup[] = [
     { path: 'profile/UsersAndAccess', label: 'Users' },
     { path: 'profile/EnvironmentAndDeployment', label: 'Environment & hosting' },
     { path: 'profile/DataTypes', label: 'Data' },
-    { path: 'boundaries', label: 'Inventory & boundary' },
+    { path: 'boundaries', label: 'Components & system scope' },
     { path: 'profile/PortsProtocolsAndServices', label: 'Ports & interconnections' },
     { path: 'profile/SystemDesign', label: 'System design' },
   ] },

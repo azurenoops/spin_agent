@@ -14,10 +14,10 @@ export const systemProfileTasks: Record<ProfileSectionType, { title: string; des
     next: [{ label: 'System team', path: 'roles' }, { label: 'Control responsibilities', path: 'inheritance/subscriptions' }],
   },
   EnvironmentAndDeployment: {
-    title: 'Environment & hosting', description: 'Describe the deployment and confirm the provider scope associated with this system.',
+    title: 'Environment & hosting', description: 'Describe where this system runs, then manage provider services and subscription connections separately.',
     record: 'Deployment description', contribution: 'SSP · Environment and hosting scope',
     guidance: 'Scope association documents where the system runs. Review applied capabilities and customer duties separately.',
-    next: [{ label: 'Applied capabilities', path: 'security-capabilities' }, { label: 'Inventory & boundary', path: 'boundaries' }],
+    next: [{ label: 'Applied capabilities', path: 'security-capabilities' }, { label: 'Components & system scope', path: 'boundaries' }],
   },
   DataTypes: {
     title: 'Data types & sensitivity', description: 'Describe the information handled by the system and review its categorization inputs.',
@@ -29,7 +29,7 @@ export const systemProfileTasks: Record<ProfileSectionType, { title: string; des
     title: 'Ports & interconnections', description: 'Record permitted communication and the external systems your system depends on.',
     record: 'Ports and services', contribution: 'SSP · Network interfaces / Interconnection register',
     guidance: 'Port entries describe permitted communication. An external connection may also require a reviewed interconnection agreement.',
-    next: [{ label: 'Inventory & boundary', path: 'boundaries' }, { label: 'Interconnection documents', path: 'documents' }],
+    next: [{ label: 'Components & system scope', path: 'boundaries' }, { label: 'Interconnection documents', path: 'documents' }],
   },
   LeveragedAuthorizations: {
     title: 'Leveraged authorization records', description: 'Inspect retained authorization context and its sources.',

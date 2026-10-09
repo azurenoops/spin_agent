@@ -33,7 +33,7 @@ export interface MonitoringWorkspace {
   impacts: MonitoringImpact[];
 }
 const root = (id: string) => `/systems/${encodeURIComponent(id)}/conmon`;
-export const getMonitoringWorkspace = (id: string) => api.get<MonitoringWorkspace>(`${root(id)}/workspace`).then(r => r.data);
+export const getMonitoringWorkspace = (id: string, signal?: AbortSignal) => api.get<MonitoringWorkspace>(`${root(id)}/workspace`, { signal }).then(r => r.data);
 export const saveMonitoringRule = (system: string, input: RuleInput, id?: string) =>
   (id ? api.put<MonitoringRule>(`${root(system)}/rules/${id}`, input) : api.post<MonitoringRule>(`${root(system)}/rules`, input)).then(r => r.data);
 export const testMonitoringRule = (system: string, id: string) =>

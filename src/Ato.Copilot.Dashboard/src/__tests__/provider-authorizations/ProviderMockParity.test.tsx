@@ -12,6 +12,7 @@ import { offeringOverview } from './overviewFixtures';
 import { candidate, page } from '../package-imports/fixtures';
 import * as packageApi from '../../features/package-imports/api';
 import * as catalogApi from '../../features/workspace-operations/api';
+import '../helpers/dialog';
 
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getOfferingOverview: vi.fn(), listOfferings: vi.fn(),
@@ -57,18 +58,17 @@ beforeEach(() => {
   })]));
 });
 
-it('places release availability, four real metrics and the next-release checklist before record details', async () => {
+it('places release availability, four real metrics and a contextual next task before record details', async () => {
   // Arrange
   render(<MemoryRouter><OfferingOverview offering={offering} /></MemoryRouter>);
   // Act
-  const checklist = await screen.findByRole('region', { name: 'Complete the next release' });
+  const checklist = await screen.findByRole('region', { name: 'What customers can use' });
   // Assert
   expect(screen.getByLabelText('Offering metrics').children).toHaveLength(4);
   expect(screen.getByText('Published capabilities are available to customers')).toBeInTheDocument();
-  expect(within(checklist).getByText('Sources reviewed')).toBeInTheDocument();
-  expect(within(checklist).getByText('Scope confirmed')).toBeInTheDocument();
-  expect(within(checklist).getByText('Capability changes reviewed')).toBeInTheDocument();
-  expect(within(checklist).getByRole('link', { name: 'Review release candidates' })).toHaveAttribute('href',
+  expect(within(checklist).getByText('Recorded service boundary')).toBeInTheDocument();
+  expect(within(checklist).getByText('Customer responsibilities')).toBeInTheDocument();
+  expect(within(checklist).getByRole('link', { name: 'Browse capabilities →' })).toHaveAttribute('href',
     api.authorizationHref(offering.offeringId, 'inherited-coverage?task=capabilities'));
   await waitFor(() => expect(screen.getByLabelText('Open findings')).toHaveTextContent('1'));
   expect(screen.queryByText('Release 1.2')).not.toBeInTheDocument();
@@ -92,14 +92,15 @@ it('renders the capabilities tab as a table, not a scope page obscured by a dial
   // Act
   const table = await screen.findByRole('table', { name: 'Service implementations' });
   // Assert
-  expect(within(table).getByRole('columnheader', { name: 'Control references' })).toBeInTheDocument();
-  expect(within(table).getByRole('columnheader', { name: 'Responsibilities' })).toBeInTheDocument();
+  expect(within(table).getByRole('columnheader', { name: 'Source control references' })).toBeInTheDocument();
   expect(within(table).getByRole('columnheader', { name: 'Release state' })).toBeInTheDocument();
-  expect(within(table).getByRole('link', { name: 'Review source proposal' })).toHaveAttribute('href',
-    api.authorizationHref(offering.offeringId, 'packages/package%20%2F1/candidates/candidate%20%2F1'));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  expect(await within(table).findByText('AU-6: Shared')).toBeInTheDocument();
-  expect(within(table).getByText('Source proposal · not a published duty')).toBeInTheDocument();
+  fireEvent.click(within(table).getByRole('button', { name: 'Audit collection proposal' }));
+  const drawer = screen.getByRole('dialog', { name: 'Audit collection proposal' });
+  expect(within(drawer).getByRole('link', { name: 'Review retained source' })).toHaveAttribute('href',
+    api.authorizationHref(offering.offeringId, 'packages/package%20%2F1/candidates/candidate%20%2F1'));
+  expect(await within(drawer).findByText('Shared')).toBeInTheDocument();
+  expect(within(drawer).getByText(/Source proposal duties do not establish/)).toBeInTheDocument();
 });
 
 it('lists actual retained evidence separately from service findings with exact access-controlled navigation', async () => {
@@ -136,8 +137,9 @@ it('uses the published capability API without inventing duties from its offering
   // Assert
   expect(await screen.findByText('Current catalog description')).toBeInTheDocument();
   expect(screen.getByText('SC-7')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Inspect responsibility split' })).toHaveAttribute('href', '/security-capabilities/capability%20%2F1?tab=responsibilities');
-  expect(screen.getByText('release-exact')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Published protection' }));
+  expect(screen.getByRole('link', { name: 'Open capability workflow' })).toHaveAttribute('href', '/security-capabilities/capability%20%2F1');
+  expect(screen.getAllByText(/release-exact/).length).toBeGreaterThan(0);
   expect(screen.queryByText('Release 7')).not.toBeInTheDocument();
   expect(screen.queryByText('Shared')).not.toBeInTheDocument();
 });
@@ -149,7 +151,9 @@ it('retries unavailable proposal metadata without reporting an absent control ma
   // Act
   fireEvent.click(await screen.findByRole('button', { name: 'Retry implementation details' }));
   // Assert
-  expect(await screen.findByText('AU-6: Shared')).toBeInTheDocument();
+  expect(await screen.findByText('AU-6')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Audit collection proposal' }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('Shared');
   expect(screen.queryByText('No mappings recorded')).not.toBeInTheDocument();
 });
 

@@ -16,6 +16,18 @@ function mount(content: Record<string, string> = {}, isReadOnly = false) {
 }
 beforeEach(() => vi.clearAllMocks());
 describe('Environment documentation independent of services and subscriptions', () => {
+  it.each(['Draft', 'NeedsRevision'] as const)('hides only Environment submission in %s', governanceStatus => {
+    // Arrange
+    const submit = vi.fn();
+    // Act
+    render(<MemoryRouter><ProfileSectionForm sectionType="EnvironmentAndDeployment" governanceStatus={governanceStatus}
+      initialContent="{}" reviewerComments={null} isReadOnly={false} userRole="MissionOwner"
+      isSubmitting={false} error={null} onSave={save} onSubmit={submit} onWithdraw={vi.fn()} /></MemoryRouter>);
+    // Assert
+    expect(screen.queryByRole('button', { name: 'Submit for Review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Draft' })).toBeEnabled();
+    expect(submit).not.toHaveBeenCalled();
+  });
   it('preserves hosting choices, deployment text and recovery controls beside independent workflows', () => {
     // Arrange
     mount();
@@ -26,7 +38,7 @@ describe('Environment documentation independent of services and subscriptions', 
       '— Select —', 'Provider-managed cloud', 'Organization-managed cloud', 'On-Premises', 'Hybrid',
     ]);
     expect(screen.getByRole('textbox', { name: 'Deployment description' })).toBeVisible();
-    expect(screen.getByRole('combobox', { name: 'Availability Tier' })).toBeVisible();
+    expect(screen.getByLabelText(/^Availability Tier/)).toHaveValue('');
     expect(screen.getByRole('region', { name: 'Provider services & scopes' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'System subscriptions' })).toBeVisible();
     expect(screen.queryByRole('region', { name: 'Azure assessment environment' })).not.toBeInTheDocument();
@@ -51,7 +63,7 @@ describe('Environment documentation independent of services and subscriptions', 
     // Assert
     expect(model).toHaveValue('Cloud (IaaS)');
     expect(screen.getByRole('option', { name: /Cloud \(IaaS\).*previously recorded/ })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Availability Tier' })).toHaveValue('99.9% (Three 9s)');
+    expect(screen.getByLabelText(/^Availability Tier/)).toHaveValue('99.9% (Three 9s)');
     expect(save).not.toHaveBeenCalled();
   });
   it('leaves unsaved deployment text unchanged when independent workflow sections render', () => {

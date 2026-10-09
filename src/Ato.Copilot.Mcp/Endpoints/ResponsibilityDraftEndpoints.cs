@@ -22,9 +22,11 @@ public static class ResponsibilityDraftEndpoints
                 return Results.Problem(statusCode: 409, title: "The draft changed. Reload and compare before continuing.");
             }
         });
-        drafts.MapGet("/{controlId}", async (string systemId, string controlId, Guid? scopeId,
+        drafts.MapGet("/{controlId}", async (string systemId, string controlId, Guid? scopeId, bool? useEnvironment, Guid? capabilityId,
             [FromServices] ResponsibilityDraftService service, CancellationToken ct) =>
-            TypedResults.Ok(await service.GetAsync(systemId, controlId, scopeId, ct)))
+            TypedResults.Ok(useEnvironment == true
+                ? await service.GetForEnvironmentAsync(systemId, controlId, capabilityId, ct)
+                : await service.GetAsync(systemId, controlId, scopeId, ct)))
             .RequireResponsibilityAccess(false);
         drafts.MapPost("/{controlId}/prepare", async (string systemId, string controlId,
             PrepareResponsibilityDraftRequest request, [FromServices] ResponsibilityDraftService service, [FromServices] ICurrentUserService user, CancellationToken ct) =>

@@ -1,5 +1,464 @@
 # Applied capability review: local acceptance walkthrough
 
+## October 7 local PR #1064 conflict resolution
+
+The PR branch was locally rebased onto `origin/main` at `f0e46d45`.
+The inherited capability-review changes overlap upstream's canonical
+responsibility draft APIs and independently reviewed component service-use scope.
+Retain upstream's draft fixtures, scope decisions, component drawer and deployment
+configuration instead of restoring older session-specific endpoints or treating
+raw placement as reviewed service use. Preserve the later Mission, Overview and
+system-definition improvements while adapting them to the current contracts.
+This is a local integration only: no containers are replaced, no package is
+submitted and no remote branch is updated. Historical test totals below are not
+verification of this rebase. Fresh targeted validation is recorded below;
+manual acceptance remains open.
+
+The first focused browser run passed 54 scenarios and failed three applied
+capability scenarios at the retired `Manage system placement` assertion.
+Their fixture omitted the current component drawer's governed design and
+placement reads, producing an explicit 404. Adapt this regression to supply
+the canonical read contracts, verify the service-use scope editor, and inspect
+immediate infrastructure placement only through its separate disclosure.
+Do not restore the retired button or bypass current scope permissions.
+
+Fresh verification on the merged branch:
+
+- 378 focused Dashboard tests in 20 files passed, including reviewed component
+  scope, placement, shared drawer, first-pass, Environment, profile, journey and
+  System design behavior.
+- Strict Dashboard `tsc --noEmit`, project type-check and production build passed.
+- 284 focused backend unit tests and 146 integration tests passed, with no skipped
+  or failed tests. These include canonical responsibility review, tenant/source
+  fencing, profile governance, design service-use scope, immutable approved
+  outputs and synthetic SSP/OSCAL/DOCX/PDF/package paths.
+- The final combined Chromium run on explicit
+  `PLAYWRIGHT_BASE_URL=http://127.0.0.1:4196` passed all 57 scenarios. It covers
+  component scope, applied capabilities at 1440/390/320 pixels, six design views,
+  provider offerings with zero/one/many capabilities, failed writes, keyboard
+  focus, independent profile drafts and the Overview journey. Fixture writes
+  remain synthetic; no shared service was replaced or live package submitted.
+- Compilation emitted 136 warning messages during the unit build and 10 during
+  the integration build (nullable, obsolete API and analyzer diagnostics).
+  Frontend warnings included stale Browserslist data, SignalR annotations,
+  mixed static/dynamic imports and bundle size. No warning was suppressed.
+- No full-suite or modified-path coverage claim is made. Earlier walkthrough
+  failures/totals are historical, not a fresh full-suite result.
+
+For local human acceptance, use the current 4196 preview and review the component
+drawer's System scope and separate infrastructure-placement disclosure, the
+Overview journey, Mission/Users/Data records, provider review and all six design
+views. Saving is still separate from independent review and authorization.
+No push or PR body update has occurred; publishing the rebased branch requires
+explicit approval of the exact force-with-lease command and remote head.
+
+## Focused provider offering review contracts
+
+The Environment drawer reads canonical relationship permissions and complete
+paged applicability for the exact system/assignment/offering. Its pure typed
+presentation selector does not create an authorization policy, infer permissions
+from visible roles, or treat published applicability as adoption. Known source
+blockers are grouped with affected capabilities and translated; raw diagnostics
+are disclosed. Captured scope-projection review flags are technical diagnostics,
+not a replacement for the canonical relationship task state.
+
+The read-only published-duty DTO adds nullable `totalCapabilities` and
+`unavailableCapabilities` (capability ID, captured name if available, exact release
+ID/revision and reason). Counts deduplicate verified matching releases and include
+missing duty content; existing valid `capabilities` semantics are unchanged.
+System scope `exclusions` comes from its exact retained hosting snapshot.
+No private citations, new schema, accepted responsibility or approved baseline
+are introduced. Older servers show count unavailable for incomplete source,
+not an invented zero. Complete operational duty/private source content remains
+unavailable unless a separately authorized source workflow supplies it.
+
+Workflow origin query keys are `offeringId`, `assignmentId` and
+`hostingScopeRevisionId`; the system remains route-bound. The receiver rechecks
+the exact active scope and release and refuses changed/missing context.
+Association choices are constrained to its assignment and revision without
+preselecting capabilities. The responsibility matrix retains the complete system
+baseline rather than silently narrowing it to the origin offering.
+
+See the [manual drawer walkthrough](../guides/system-security-capabilities.md#focused-offering-review-at-port-4196).
+Recorded review, package preparation/export, actual eMASS submission and an AO
+decision remain distinct. This follow-up's native/SSP regression tests are
+synthetic; no live package was generated or submitted.
+
+## Requirement first passes from recorded system information
+
+The control-detail requirement panel should show named parameter values, not
+OSCAL `insert: param` tokens. Source text/IDs remain available separately for
+traceability. For authorized authors, an existing selected-control draft with
+missing requirement responses/parameters prepares a source-backed AI first pass.
+The AI uses scoped entered profile/data records, applicable narrative grounding,
+retained system policies and recorded values through the existing narrative
+generator. It must not infer legal authority from a standards name or claim
+observed enforcement from declared capability/evidence metadata.
+
+Review response/parameter suggestions, their basis and remaining questions.
+Use the explicit action to fill empty fields only; existing text is preserved.
+Save as an unreviewed draft and obtain the existing independent review. AI
+generation alone creates no approval, evidence attachment or baseline addition.
+Missing source values stay readable gaps; failure/AI unavailable is visible and
+manual drafting remains possible. Server-protected provenance and source
+freshness checks prevent stale/foreign suggestion application.
+
+Manual acceptance: use a synthetic control with parameterized prose and scoped
+Mission/Data/policy records. Verify first-pass preview, preserved edits, named
+values/placeholders, source disclosures, unsupported legal-authority questions,
+explicit save/reload, separate review and actual native output. Repeat as a
+viewer and another tenant/system; no unauthorized generation/save may occur.
+
+First-pass local API rollout overlays the currently running overview image
+with `ato-copilot-mcp:requirements-firstpass-1312bde8-20261005`, preserving its
+source/runtime configuration, volumes, peers and separately staged files.
+The Dockerfile's existing package-only build context was used for cached NuGet
+archives after a real NuGet TLS/EOF restore failure; TLS was not disabled and
+no dependency version changed. Retain the current overview image for rollback.
+Verify real drawer/API behavior on 4196 without saving or approving demo data.
+
+First-pass rollout verified October 5: API healthy and normalized environment/
+user/ports/mounts unchanged; SQL/Redis/Chat/Docker frontend identities preserved.
+Real browser configured sign-in and PT-2 auto-generation on 4196 returned 200
+with five scoped records, two response drafts, zero invented parameter values
+and five questions. Source gaps, particularly legal authority/processing values,
+remain for review. Narrative version 1 is unchanged; no draft save, approval
+or evidence/baseline mutation was performed.
+
+Refresh Narratives, select PT-2 and review **First pass from your system records**.
+Inspect suggested responses, their source basis and remaining questions. Use
+**Use first pass in empty fields**, edit as needed, then explicitly save and
+obtain independent review. Original OSCAL tokens stay in source disclosure,
+not the main requirement wording. No legal authority or control satisfaction
+is inferred from a draft.
+
+Validation: 113 backend/generator/native tests, 53 API/overview tests,
+31 Dashboard tests and 8 desktop/mobile narrative cases passed with builds/
+type-check (existing warnings remain). Snapshot/history/native output retains
+AI-assistance source metadata and separates it from human review. The other
+overview changes already staged/running in this worktree remain intact; this
+task made no commits or GitHub writes.
+
+## Control Responsibility simple-review presentation: October 2
+
+The actual Control Responsibility drawer was compared with
+`docs/design/workspace-ui-mocks/responsibility-review-simple.html` in the main
+checkout. Its earlier full first-pass panel pushed allocation choices and editable
+duties below a long stack of provenance, source conflicts and questions.
+
+The drawer now follows the specific simple-review reference: named header and
+one current-responsibility status, compact provider contribution card, four
+allocation cards, relevant duty fields, **What happens next**, and a fixed
+review/save footer. Provider scope/evidence, source versions, saved review
+history and first-pass details are expandable. Source staleness stays visible;
+refreshed-suggestion comparisons open the relevant disclosure for explicit
+review. Request failures show a dedicated card with failure details and reload.
+The mock's sample source text was not copied.
+
+Automatic environment-backed preparation, saved corrections, source versions,
+server authorization and existing confirmation remain intact. This is a
+presentation change, not a competing approval lifecycle or an inheritance grant.
+
+Current dashboard:
+`ato-copilot-dashboard:main69b7e407-simple-responsibility5173-dev-20261002`.
+MCP, SQL, Redis and Chat are unchanged; port **5173** and development simulation
+are retained.
+
+Local review: refresh 5173, use **Dev ISSM**, open **SPIN Demo System →
+Responsibilities**, then **Open AU-11 responsibility**. The provider card and
+allocation choices should be visible immediately, without a scope picker or
+Prepare action. Inspect/edit duties, expand provider evidence and saved history,
+and use the existing draft-save/review/confirmation steps. Stale sources must
+still be refreshed and compared before confirmation.
+
+Verification: **3,096 dashboard tests**, actual TypeScript/development build and
+**26 delivered-image browser scenarios passed**. The real AU-11 drawer passed
+light/dark checks at **1440, 390 and 320 pixels**, with no horizontal clipping or
+panel-scoped WCAG axe violations. Review/save failures, concurrency, permissions,
+history, corrected drafts, keyboard access and comparison flows remain covered.
+Existing Vite warnings remain; no backend or schema change was needed.
+
+Rollback this presentation by redeploying only the dashboard with the retained
+Overview override instead of the simple-responsibility override:
+`main69b7e407-overview-mock5173-dev-20261001`. Keep the runtime environment and all
+database volumes. No push or GitHub write occurred; human acceptance is pending.
+
+## System Overview mock correction
+
+The System Overview was compared directly with `/tmp/spin-readiness-mock.html`.
+The deployed presentation now uses its white readiness hero, compact **Your work**
+cards, separate team findings, documentation-at-a-glance sidebar and expandable
+readiness explanation. Monitoring uses the same hierarchy with actual recorded
+changes and health context. The existing system shell, navigation, server role
+queue, package purpose and API permissions remain unchanged.
+
+Dashboard image:
+`ato-copilot-dashboard:main69b7e407-overview-mock5173-dev-20261001`.
+MCP remains on the automatic-responsibility image. Port **5173**, development
+simulation and the original demo data remain in use.
+
+Local review:
+
+1. Refresh **http://localhost:5173**, sign in with supported **Dev ISSM**
+   simulation and open **SPIN Demo System → Overview**.
+2. Before a check, verify **Readiness not checked**, **Find out what your package
+   needs**, **Your work** and **Documentation at a glance**. No mock findings or
+   fictional document completion appear.
+3. Click **Check readiness**. Team findings come from the actual validation
+   response and remain separate from personal assignments. Unknown owners are
+   explicitly marked rather than guessed. Expand task details to inspect the
+   original finding/remediation and follow its existing source workflow.
+4. Inspect document previews and package-readiness links; they retain
+   **InitialSubmission** purpose. Empty personal work is not overall readiness
+   or authorization.
+5. Switch to **Monitoring & follow-up**. Review actual enabled state, last check,
+   findings and retained records. No fictional logging event is copied from the
+   mock, and absence of changes is not proof of complete collection coverage.
+6. Test light/dark themes, keyboard tab navigation and narrow layouts. Unlike the
+   mock, supporting documentation remains accessible by stacking below the main
+   content on narrow screens rather than disappearing.
+
+Validation: new hierarchy/state tests failed before implementation; actual
+TypeScript check and development build passed; **3,095 dashboard tests passed**
+and **12 delivered-image readiness/role/package browser scenarios passed**.
+The real demo's unchecked, checked and fully loaded monitoring states were
+verified at **1440, 390 and 320 pixels in both themes**, with no horizontal
+clipping or panel-scoped WCAG axe violations. Existing Vite warnings remain.
+This UI-only correction required no backend or database change.
+
+The real demo validation reports many more findings than the mock's three sample
+items. The Overview shows the actual counts and first five findings, with a link
+to the full readiness workflow. It does not convert legacy unstructured
+validation messages into fabricated owners or completed tasks. Source error
+codes remain inspectable; the verified System-design approval finding links to
+the existing System design workflow.
+
+Rollback only this presentation by redeploying the dashboard using the retained
+runtime configuration plus the automatic-responsibility override, without the
+Overview override. The previous dashboard tag is
+`main69b7e407-automatic-responsibility5173-dev-20261001`. Keep all environment
+settings and SQL volumes; no data rollback or removal of other services is needed.
+No push or GitHub write occurred. Human visual acceptance remains pending.
+
+## Automatic environment-backed first pass
+
+User clarification: responsibility review must not ask users to select the
+environment/provider scope again or initiate first preparation. Both the Applied
+Capability editor and Control Responsibility panel now request the recorded
+environment context and automatically prepare the first pass for authorized
+reviewers. The scope selector and initial Prepare action are removed from these
+panels. Source selection is now read-only context with a link to the owning
+Environment workflow.
+
+Both current images use the tag
+`main69b7e407-automatic-responsibility5173-dev-20261001`; the earlier image
+sections below are retained history. Port **5173**, development simulation and
+the original SQL Server volumes are unchanged.
+
+The server resolves current assigned scopes by published capability/control
+mappings, using the applied provider capability where supplied. It ignores
+removed scopes and never takes the first item in a list. Provider-qualified matrix
+entries forward their existing capability context. A whole-control entry with
+several provider contributions still gets an editable system/environment first
+pass without arbitrarily choosing a provider; source-specific allocation review
+remains explicit for provider-reliant allocations. An explicit Customer decision
+retains the existing system-only human review path. AI cannot replace recorded provider mappings with assumed
+customer ownership. No applicable provider scope uses authorized
+system records without inventing a provider or inheritance. Environment inputs
+are fingerprinted in draft provenance so changed assignments invalidate stale
+assumptions.
+
+Source-backed values are available while AI prepares; users can edit them.
+Saved corrections and accepted drafts are not automatically regenerated.
+Untouched source-only proposed drafts can receive their first AI pass, with
+revision-fenced suggestion application. New preparation changes draft state
+only, never confirmed responsibility. Preparation and confirmation use separate
+callbacks to prevent a generated draft from displaying a confirmation notice.
+Failures remain visible; refresh/comparison and authorized acceptance stay
+explicit.
+
+For local review: refresh **5173**, use **Dev ISSM**, open **Audit collection**,
+and select **AU-11**, **AU-2**, or **AU-6**. Do not select a scope or press
+Prepare. Inspect the populated duties and origin labels, make corrections and
+save. The source context, provenance and Environment link remain expandable.
+Missing environment/source information or AI availability is a real limitation,
+not an invitation to copy the mock's duties.
+
+Live Audit collection verification returned actual prepared provider duties for
+**AU-11**, **AU-2** and **AU-6**, with HTTP 200/Prepared responses. AU-6 also
+contained AI-proposed customer review text identifying that the supplied records
+do not confirm customer duties; that text is not a verified duty assignment.
+AU-11/AU-2 did not receive supported customer
+duties; those fields stay empty with an explicit gap rather than fabricated text.
+These are proposed responsibility drafts, not accepted allocations.
+
+Final automatic-first-pass validation:
+
+- Actual TypeScript check and development build passed.
+- **3,092 dashboard tests / 323 files passed**.
+- **92 responsibility integration tests passed**, including environment
+  resolution, source splits, aggregate allocation guards, isolation, revisions,
+  review lifecycle and downstream outputs.
+- **44 delivered-image browser scenarios passed**.
+- Real demo: Applied Capability, provider-qualified matrix and whole-control
+  first passes are editable without scope selection or a Prepare action at
+  **1440/light, 390/dark and 320/light**. Whole-control review retains a
+  legitimate multi-provider notice, not a request failure or a demand to repair
+  valid Environment records. Panel-scoped accessibility checks passed.
+- Applied-capability counts now use exactly the environment-resolved draft
+  shown for the current contribution, rather than summing unrelated provider
+  scopes and whole-control proposals.
+- The full solution build passed. Existing compiler/analyzer and Vite warnings
+  remain; the earlier full integration scan-worker failure is documented below
+  and is not represented as an all-green full integration run.
+- No source statements were copied from the mock, no provider locations were
+  assigned automatically, no accepted allocation was created by preparation,
+  and no GitHub write or push occurred. Human acceptance remains pending.
+
+To roll back this behavior, redeploy **both** MCP and dashboard from the retained
+base runtime compose configuration without the automatic-responsibility override:
+
+```bash
+docker compose -p ato-copilot -f "$RUNTIME_COMPOSE" \
+  up -d --no-build --no-deps --wait --wait-timeout 180 \
+  ato-copilot ato-dashboard
+```
+
+No schema migration or data deletion is needed. Retain newly prepared draft
+records and their history; source fingerprints can appear stale under the older
+capture logic and must not be treated as accepted content.
+
+## Mock fidelity correction: October 1 evening
+
+The actual deployed panel was compared with the supplied HTML reference, not
+just exercised through mocked functional tests. The supplied parent-directory
+path was absent; the same reference is present in the main checkout's
+`docs/design/workspace-ui-mocks/applied-capability-review.html`.
+
+The panel now has a single named system/capability header, a lavender next-task
+card, accurate tab count chips, Overview scope/duty task rows, a persistent
+summary footer, and two prominent editable duty fields. Allocation, basis,
+source selection, versions, history and recorded mappings use progressive
+disclosure. Conflicts, stale sources, request failures and read-only restrictions
+remain explicit. Successful editor changes reload canonical persisted counts.
+The correction uses the existing first-pass hook and approval lifecycle; no
+provider statements or AI suggestions were copied from the mock. Existing
+synthetic demo records remain unchanged.
+
+Dashboard image:
+`ato-copilot-dashboard:main69b7e407-applied-mock5173-dev-20261002`.
+The MCP image remains
+`ato-copilot-mcp:main69b7e407-membership5173-dev-20261001`.
+All five original containers are healthy; dashboard HTTP 200 on **5173**.
+Development simulation and the original SQL Server demo volume are retained.
+
+### Local manual review
+
+1. Open **http://localhost:5173** and refresh the page to load the rebuilt assets.
+   Use the supported **Dev ISSM** simulation identity.
+2. Open **SPIN Demo Organization → SPIN Demo System → Applied security
+   capabilities → Audit collection**. Check the single header, lavender task
+   card, scope/duty task rows and fixed **Back to summary** action.
+3. Select **Where it applies**. Verify recorded component names and locations.
+   **Assign location** / **Change** opens the existing authorized component
+   placement workflow. Do not interpret association as coverage or connectivity.
+4. Select **Responsibilities** and inspect **AU-11**, **AU-2** and **AU-6**.
+   The two visible fields are **Provider contribution** and **Your team's
+   duties**. Empty source-backed values must stay empty rather than use the
+   mock's synthetic duties.
+5. The first pass is prepared automatically from the recorded environment.
+   Expand **Environment context and sources** to inspect the resolved
+   context, origins, applicability questions and conflicts. Correct provider
+   applicability in the owning Environment workflow, not a second scope picker.
+   Refreshing a suggestion must preserve corrections pending comparison.
+6. Correct a duty, switch controls and tabs, and return. The correction should
+   remain in this session. **Save draft** is separate from **Review saved
+   responsibility** and explicit confirmation. Inspect allocation/basis/scope
+   and canonical history before confirming; confirmation is not narrative
+   approval, eMASS submission or authorization.
+7. Test keyboard Tab/Shift+Tab, tab arrow/Home/End navigation, Escape and focus
+   return. At 320/390 pixels and in dark mode, use vertical panel scrolling;
+   content must not clip horizontally.
+
+### Verified checks and limitations
+
+- New hierarchy/disclosure tests failed before the production changes.
+- Actual TypeScript command: `npx tsc -b --pretty false`; passed.
+- Development dashboard build passed and includes the simulation module.
+- **18 delivered-image browser scenarios passed**, including keyboard
+  navigation, placement editing, preserved corrections and protected workflows.
+- Real demo browser checks passed at **1440/390/320 pixels in light and dark
+  themes**, with exact panel widths, fully loaded AU-11/AU-2/AU-6 contexts,
+  no horizontal clipping and zero panel-scoped WCAG axe violations.
+- `dotnet build Ato.Copilot.sln --no-restore -m:1` passed, with **10 existing
+  warnings in untouched integration tests**. Vite also reports existing
+  Browserslist, SignalR annotation, mixed-import and chunk-size warnings;
+  this is not a warning-free baseline.
+- Full final dashboard suite: **323 files / 3,080 tests passed**, with bounded
+  concurrency (`npm test -- --reporter=dot --maxWorkers=2`).
+  The count-refresh regression initially held a detached panel node across a
+  successful parent reload; it now queries the current panel. An existing
+  immediate-readiness assertion in ResponsibilityReviewTask was intermittent
+  under the unbounded full run; its targeted rerun and final bounded full run
+  passed without changing that approval screen or test.
+- The prior full `.NET` solution run finished: **8,110 unit tests passed**;
+  integration had **1 failure / 1,855 passed / 20 skipped**. The failure was
+  ScanImportWorkerIntegrationTests' temporary-file cleanup assertion. Its
+  subsequent targeted rerun passed; its intermittent cause has not been
+  established, and the full integration run is not claimed green.
+- Automatic environment resolution and existing responsibility lifecycle:
+  **92 focused integration tests passed** (including that scan-worker rerun).
+  The full solution build passed; existing compiler/analyzer warnings remain.
+- Visual delivery is available for local human review; human acceptance is
+  pending. This presentation correction does not independently re-prove actual
+  eMASS submission, authorization or a live AI service's generated content.
+
+### Presentation rollback
+
+Retain the current runtime configuration, ports, environment and named volumes.
+Redeploy only the dashboard service using the retained base runtime compose
+configuration (without the applied-UI override), whose dashboard image is
+`ato-copilot-dashboard:main69b7e407-membership5173-dev-20261001`:
+
+```bash
+docker compose -p ato-copilot -f "$RUNTIME_COMPOSE" \
+  up -d --no-build --no-deps --wait --wait-timeout 180 ato-dashboard
+```
+
+Set `RUNTIME_COMPOSE` to the retained private runtime configuration; never commit
+it or print its environment. Do not remove SQL, Redis or Chat as "orphans."
+This UI-only rollback does not change the database or revert the access fixes.
+
+## Current address and development simulation
+
+User direction, October 1 evening: keep the app on **http://localhost:5173**.
+The 5197 preview has been removed and is not recreated. The original SQL Server
+demo data and volumes remain in use.
+
+Current MCP/dashboard images:
+`main69b7e407-membership5173-dev-20261001`.
+Backend `ASPNETCORE_ENVIRONMENT=Development` and
+`CacAuth:SimulationMode=true` are explicitly enabled; the dashboard was built with
+`NODE_ENV=development`, including the supported simulation UI chunk.
+The login bootstrap exposes all nine configured development identities.
+This remains development-only and does not enable simulation in production.
+
+The reported demo ISSM portfolio failure was reproduced as 403. Canonical active
+directory/object membership now resolves its existing unlinked Person and
+persisted RMF assignments in effective access. No Person was promoted or role
+granted; revoked/wrong-directory/cross-tenant/disabled-tenant access remains denied,
+and the rule denying tenant aggregates to system-only assignments remains intact.
+
+The restored view exposed a second coverage 500: a SQL-incompatible membership
+test on the value-converted NIST baseline list. Both organization and system
+denominators now count projected lists after materialization, with a relational
+regression test. **40 focused authorization/import tests passed**.
+
+Actual deployed verification with supported Dev ISSM simulation and the real
+SPIN Demo Organization database: **portfolio 200, coverage 200**, one active
+SPIN Demo System, and neither error banner present in the browser. The earlier
+addresses, image tags and totals below are retained deployment history.
+
 ## Current deployment after the main rebase
 
 The session branch now descends from `origin/main` at `69b7e407` (merged #1062).

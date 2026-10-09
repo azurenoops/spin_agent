@@ -14,6 +14,26 @@ public sealed partial class ResponsibilityDraftService(AtoCopilotContext db,
     NarrativeLibraryService library, IResponsibilityDraftGenerator generator,
     ILogger<ResponsibilityDraftService> logger)
 {
+    public async Task<ResponsibilityDraftContext> GetForEnvironmentAsync(string systemId, string controlId,
+        Guid? capabilityId, CancellationToken ct)
+    {
+        controlId = Control(controlId);
+        await responsibilities.AuthorizeAsync(systemId, false, ct);
+        var environment = await environments.ListAsync(systemId, ct);
+        var assigned = environment.ProviderScopes.Where(x => x.State != "Removed").ToArray();
+        var matches = assigned.Where(scope => scope.PublishedDuties.Capabilities.Any(capability =>
+            (!capabilityId.HasValue || capability.CapabilityId == capabilityId)
+            && MapsControl(capability, controlId))).ToArray();
+        if (matches.Length == 0)
+            matches = assigned.Where(scope => scope.PublishedDuties.State != "Available"
+                || scope.PublishedDuties.Capabilities.Count == 0
+                || capabilityId.HasValue && scope.PublishedDuties.Capabilities.Any(x => x.CapabilityId == capabilityId)).ToArray();
+        var context = await GetAsync(systemId, controlId, matches.Length == 1 ? matches[0].AssignmentId : null, ct);
+        return matches.Length > 1 ? context with {
+            EnvironmentScopeIssue = "Several recorded provider contexts may apply to this control. This first pass uses system and environment records without choosing a provider. Verify provider-reliant allocation against the named contributions before confirming.",
+        } : context;
+    }
+
     public async Task<ResponsibilityDraftContext> GetAsync(string systemId, string controlId, Guid? scopeId, CancellationToken ct)
     {
         controlId = Control(controlId);

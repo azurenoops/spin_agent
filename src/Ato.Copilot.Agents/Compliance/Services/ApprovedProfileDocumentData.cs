@@ -10,6 +10,7 @@ namespace Ato.Copilot.Agents.Compliance.Services;
 /// <summary>One projection of reviewed profile values for all existing document builders.</summary>
 internal static class ApprovedProfileDocumentData
 {
+    internal const string DataHandlingInterpretation = "Information handling values are recorded declarations. Profile review does not establish approved FIPS/SP800-60 CIA categorization, a privacy determination, CUI authority or an authorization decision. Verify the named source records separately.";
     internal static int DestinationSection(ProfileSectionType type) => type switch
     {
         ProfileSectionType.MissionAndPurpose => 1,
@@ -34,10 +35,14 @@ internal static class ApprovedProfileDocumentData
         }
         var users = await db.UserCategories.AsNoTracking().Where(x => x.SystemProfileSectionId == section.Id)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
-            .Select(x => new { x.Id, x.CategoryName, x.Description, x.ApproximateCount, x.AccessMethod, x.DataSensitivityLevel, x.SortOrder }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.CategoryName, x.Description, x.ApproximateCount, x.AccessMethod, x.DataSensitivityLevel, x.SortOrder,
+                x.IdentityType, x.PrivilegeLevel, x.Affiliation, x.AuthenticationMethod, x.ResponsibleOwner,
+                x.UserLocations, x.PermittedEnvironments, x.AuthorizedDataTypes }).ToListAsync(ct);
         var data = await db.DataTypeEntries.AsNoTracking().Where(x => x.SystemProfileSectionId == section.Id)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
-            .Select(x => new { x.Id, x.DataTypeName, x.Description, x.SensitivityClassification, x.Source, x.Destination, x.ApplicableRegulations, x.SortOrder }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.DataTypeName, x.Description, x.SensitivityClassification, x.Source, x.Destination, x.ApplicableRegulations, x.SortOrder,
+                x.CuiCategory, x.ConfidentialityImpact, x.IntegrityImpact, x.AvailabilityImpact, x.PrivacyApplicability,
+                x.RetentionRule, x.DisposalMethod, x.CategorizationRationale, x.CategorizationReference }).ToListAsync(ct);
         var ports = await db.PpsEntries.AsNoTracking().Where(x => x.SystemProfileSectionId == section.Id)
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
             .Select(x => new { x.Id, x.PortOrRange, x.Protocol, x.ServiceName, x.Direction, x.Justification, x.SortOrder }).ToListAsync(ct);
@@ -141,6 +146,8 @@ internal static class ApprovedProfileDocumentData
             ? "### Retained UsersAndAccess baselines (independent category and access-context reviews)"
             : $"### Approved profile: {section.Type}");
         text.AppendLine($"{(section.Type == ProfileSectionType.UsersAndAccess ? "Source snapshot" : "Approval")}: {section.ApprovalId}; SHA-256: {section.Hash}");
+        if (section.Type == ProfileSectionType.DataTypes)
+            text.AppendLine(DataHandlingInterpretation);
         foreach (var property in section.Content.EnumerateObject())
         {
             if (property.Name == "scalarContent")

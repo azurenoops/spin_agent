@@ -45,7 +45,122 @@ permission loading never enables editing.
 2. **Notification**: MO receives email notification and To Do task in dashboard
 3. **Profile Completion**: MO fills in each profile section:
    - Mission & Purpose (mission statement, business purpose, operational justification, business functions)
+   - Data types & sensitivity now summarizes classification/CUI, declared CIA,
+     privacy applicability and retention rules. **Save Draft** and SSP preview
+     are at the top; **Add data type** is beside Information types and handling.
+     Open a type to record CUI category, Low/Moderate/High CIA declarations,
+     privacy applicability, retention/disposal and categorization rationale/
+     source reference, alongside the original description/source/destination/
+     regulations. Record actual handling and evidence, not reference examples.
+
+     The sidebar counts ten documentation fields per type plus CUI category
+     where CUI is declared. Unknown CIA or a pending privacy review remains a
+     gap. Its correction opens the named type; recorded categorization/privacy
+     documents remain separate sources. Data context and rows are reviewed
+     together, so the row badge states **Section** status, not a fabricated
+     individual approval. Profile review does not approve categorization or
+     a privacy determination, and SSP output preserves that distinction.
+
+     **Local check:** refresh the Data tab on port 4196. In a system draft you
+     own, add/open an information type, enter its actual classification/CUI,
+     declared CIA, privacy applicability, retention/disposal and source record.
+     Use the top Save Draft, reload and check the table, missing-field sidebar
+     and SSP preview. Saving does not submit or approve the section. Do not
+     populate shared demo records with example values.
+
+     October 6 verification: the Data API is healthy and all nine nullable
+     SQL Server fields exist. The live demo has no information types yet;
+     its empty table, top save and new-field editor were inspected and
+     cancelled without writes or status changes. Isolated tests verify
+     save/reload and reviewed data in OSCAL/Word/PDF, including exclusion
+     of later drafts. Runtime configuration and other containers were
+     preserved; no commit/push was made for this follow-up.
+
    - Users & Access (access overview, authentication method, user categories)
+     now summarizes identity/privilege, access/authentication, declared data
+     access and each category's real review state. **Save Draft** is at the top;
+     **Add user category** sits beside the table. Open a category to record
+     Human/Workload identity, privilege, affiliation, responsible owner, user
+     locations, permitted environments and authorized data descriptions.
+     Existing count/description/sensitivity remain in details.
+
+     The sidebar counts recorded documentation fields, not authorization
+     readiness. Missing workload owner/environment is an explicit correction
+     task. Record names/descriptions do not create data/environment links or
+     account grants. Apply locally, save, then review each category independently
+     of the system-wide access context. Draft changes never replace retained
+     approved SSP sources; unknown legacy fields remain blank, not inferred.
+
+     Local acceptance on 4196: create synthetic human/external and workload/
+     privileged categories, fill access/authentication, owner/location/environment/
+     data descriptions, apply locally and use the top Save Draft. Reload and
+     inspect the named record; submit/review it individually and verify its
+     retained values in SSP/native output. Change a later draft and confirm the
+     approved source is unchanged. Read-only users cannot mutate records.
+
+     Users API rollout targets `ato-copilot-mcp:users-record-1312bde8-20261006`
+     over the existing overview/AI runtime. The startup schema adds nullable,
+     rerunnable columns; no old approval/value is inferred. Preserve runtime
+     environment/user/volumes/ports/peer services and retain the first-pass image
+     for rollback. Docker used the existing package-only cached-feed build path
+     after NuGet TLS/EOF failure, without dependency changes or disabled TLS.
+     Do not save or approve shared demo categories for live rendering checks.
+
+     October 6 live verification succeeded: updated API healthy with unchanged
+     runtime configuration and peer containers. The real SQL Server-backed
+     Users page on 4196 exposes all eight nullable fields and the top Save Draft/
+     preview actions. Category inspection and readiness worked without profile
+     writes/page errors; demo status/categories/approvals were unchanged.
+     Existing unknown fields show real gaps, not sample screenshot values.
+     Tests verified category-approved fields in OSCAL/Word/PDF and excluded
+     later drafts. Refresh Users to test locally; no commit/push was made.
+   - Components & system scope now shows the governed component register in a
+     compact table: component, type/source, environment, boundary decision,
+     responsible operator and design/source review states. **Save scope draft** is in
+     the page header. Counts are computed from actual components and eligible
+     source candidates; actors and hosting/documentation references are not
+     counted as computing assets.
+
+     **Add component** offers recorded CSP/organization sources or a manual
+     record. Open a component to record its environment, named boundary,
+     responsibility, rationale and external source reference. Apply stages
+     changes locally; top Save scope draft saves the existing System design
+     revision with a required reason. It does not change canonical source
+     inventory, accept inheritance or approve/authorize anything.
+
+     **Reconcile discoveries** creates source-change proposals for review.
+     Complete missing fields through the sidebar and review the whole design
+     in **System design**. Approved designs require **Start working revision**
+     first; UnderReview is read-only. Source approval is shown separately from
+     design approval. Original boundary definitions and source placement tools
+     remain in the visible **Recorded boundary definitions** register.
+
+     **Local check:** refresh Components & system scope on port 4196. In a draft
+     you own, open a component, enter actual owner/environment/scope rationale,
+     apply, use top Save scope draft with a reason, reload and inspect the SSP
+     contribution preview. Confirm the named source/version is unchanged.
+     Reviewed records feed OSCAL/Word/PDF; later drafts do not replace the
+     approved output. Do not save example values into shared demo records.
+
+     **Scope decisions:** An app and its API can share this system's scope.
+     Included in this system, Outside this system, and Needs confirmation map
+     to existing design dispositions. A provider-hosted app can be included;
+     provider infrastructure does not become included simply through an association.
+     Unknown/conflicting decisions need explicit correction. Record who operates
+     or manages each component, rationale and security responsibility.
+
+     **Advanced scope details:** Physical/Logical/Hybrid boundary definitions
+     are not automatically internal system areas or proven authorization scope.
+     Keep exact optional named-definition associations and source versions.
+     Recorded groups, hosting environments and network zones are distinct.
+
+     **Draft versus source:** Save scope draft preserves the reviewed baseline;
+     Review scope changes opens the existing design review workflow.
+     Saving a draft does not change the reviewed baseline or establish authorization.
+     The secondary definition/placement workflow changes canonical records
+     immediately, not a draft. External/shared services retain recorded connections,
+     responsibilities and sources; unused excluded components are not consumed services.
+
    - Environment & Deployment (hosting model, network zones, DR posture)
    - Data Types (data overview, data type entries with sensitivity classifications)
    - Ports, Protocols & Services (PPS overview, PPS entries with justifications)
@@ -67,6 +182,23 @@ permission loading never enables editing.
 ---
 
 ## Dashboard Features
+
+- **System definition → Mission** presents a **System record** with a supporting
+  sidebar for **Used in your package**, **Review & ownership**, and **Related
+  work**. The sidebar includes contribution preview, review status, last-edit and
+  approved-snapshot information, team/history links, package readiness and next
+  tasks. It sits beside the form on desktop and below it on narrow screens.
+  The record includes:
+  system name, owner, acronym, version/release, eMASS system ID, DITPR identifier,
+  responsible organization, program office/division, mission statement and
+  business purpose. Identity and identifiers are read-only registration records;
+  the owner is read-only and sourced from **System team**. Save Draft updates the
+  profile fields, not registration or role assignments. **Additional mission
+  details** retains operational justification and business functions below the
+  main card. Save, submit for ISSM review, and approve before relying on profile
+  values in the SSP. SSP generation uses the retained approved profile snapshot;
+  later drafts do not replace it. Missing identifiers remain unrecorded, not
+  fabricated authorization metadata.
 
 - **Associate CSP hosting and capabilities** is a separate guided task:
   select an authorized existing system → choose one of that system's existing

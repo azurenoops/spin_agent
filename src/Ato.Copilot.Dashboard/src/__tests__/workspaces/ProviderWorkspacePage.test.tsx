@@ -93,6 +93,9 @@ describe('provider task workspace', () => {
     expect(screen.getByRole('columnheader', { name: 'Source status' })).toBeInTheDocument();
     expect(screen.getByLabelText('Published capabilities')).toHaveTextContent('4');
     expect(screen.getByLabelText('Customer actions')).toHaveTextContent('7');
+    expect(screen.queryByRole('combobox', { name: 'Service offering' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: `Offering overview: ${offering.name}` })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: `Open offering ${offering.name}` })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: `Review ${offering.name}` })).toHaveAttribute('href', `/authorizations/offerings/${offering.offeringId}/packages`);
     expect(screen.queryByText('Harbor Logistics')).not.toBeInTheDocument();
     expect(screen.queryByText('Release 1.2 live')).not.toBeInTheDocument();
@@ -104,6 +107,7 @@ describe('provider task workspace', () => {
     render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
     // Act
     expect(await screen.findByRole('alert')).toHaveTextContent('Provider summary unavailable');
+    expect(screen.getByRole('link', { name: `Open offering ${offering.name}` })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     // Assert
     expect(await screen.findByLabelText('Published capabilities')).toHaveTextContent('4');
@@ -116,6 +120,18 @@ describe('provider task workspace', () => {
     render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
     // Assert
     expect(await screen.findByLabelText('Customer actions')).toHaveTextContent('Unavailable');
+  });
+
+  it('reports an unavailable offering list without inventing a summary or empty register', async () => {
+    // Arrange
+    vi.mocked(api.listOfferings).mockRejectedValueOnce(new Error('Offering access unavailable'));
+    // Act
+    render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('Offering access unavailable');
+    expect(screen.queryByRole('combobox', { name: 'Service offering' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'No service offerings recorded' })).not.toBeInTheDocument();
+    expect(api.getOfferingOverview).not.toHaveBeenCalled();
   });
 
   it('does not request provider records from an organization workspace', () => {
@@ -210,12 +226,56 @@ describe('provider task workspace', () => {
       ...overview, offeringId: id, capabilities: { ...overview.capabilities, published: id === second.offeringId ? 9 : 4 },
     }));
     render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
-    await screen.findByLabelText('Published capabilities');
+    await screen.findByRole('heading', { name: 'Service offerings' });
+    expect(screen.queryByRole('combobox', { name: 'Service offering' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Published capabilities')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Focus for today' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: `Open offering ${offering.name}` })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open offering Second service' })).toBeInTheDocument();
     // Act
-    fireEvent.change(screen.getByRole('combobox', { name: 'Service offering' }), { target: { value: second.offeringId } });
+    fireEvent.click(screen.getByRole('button', { name: 'Show overview for Second service' }));
     // Assert
     expect(await screen.findByLabelText('Published capabilities')).toHaveTextContent('9');
     expect(screen.getByRole('link', { name: 'Review Second service' })).toHaveAttribute('href', '/authorizations/offerings/offering-b/packages');
+    expect(screen.getByRole('heading', { name: 'Offering overview: Second service' })).toBeInTheDocument();
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: `Show overview for ${offering.name}` }));
+    // Assert
+    expect(await screen.findByLabelText('Published capabilities')).toHaveTextContent('4');
+    expect(screen.getByRole('heading', { name: `Offering overview: ${offering.name}` })).toBeInTheDocument();
+  });
+
+  it('preserves named deep-link summary context without a dropdown', async () => {
+    // Arrange
+    const second = { ...offering, offeringId: 'offering-b', name: 'Deep linked service' };
+    vi.mocked(api.listOfferings).mockResolvedValue({ items: [offering, second], total: 2, page: 1, pageSize: 25 });
+    vi.mocked(api.getOfferingOverview).mockImplementation(async id => ({
+      ...overview, offeringId: id, capabilities: { ...overview.capabilities, published: id === second.offeringId ? 9 : 4 },
+    }));
+    // Act
+    render(<MemoryRouter initialEntries={['/?offeringId=offering-b']}><ProviderWorkspacePage view="overview" /></MemoryRouter>);
+    // Assert
+    expect(await screen.findByLabelText('Published capabilities')).toHaveTextContent('9');
+    expect(screen.getByRole('heading', { name: 'Offering overview: Deep linked service' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Service offering' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /^Open offering / })).toHaveLength(2);
+  });
+
+  it('keeps every offering accessible when a deep-linked selection is unavailable', async () => {
+    // Arrange
+    const second = { ...offering, offeringId: 'offering-b', name: 'Available service' };
+    vi.mocked(api.listOfferings).mockResolvedValue({ items: [offering, second], total: 2, page: 1, pageSize: 25 });
+    // Act
+    render(<MemoryRouter initialEntries={['/?offeringId=missing']}><ProviderWorkspacePage view="overview" /></MemoryRouter>);
+    // Assert
+    expect(await screen.findByRole('heading', { name: 'Selected offering unavailable on this page' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Published capabilities')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /^Open offering / })).toHaveLength(2);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Show overview for Available service' }));
+    // Assert
+    expect(await screen.findByLabelText('Published capabilities')).toHaveTextContent('4');
+    expect(screen.getByRole('heading', { name: 'Offering overview: Available service' })).toBeInTheDocument();
   });
 
   it('restores the selected offering and both listing pages after relationship navigation', async () => {

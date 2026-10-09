@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
 import { installWorkspaceFixture } from '../fixtures/workspace-shell';
 import { appliedResponsibilityContext } from '../fixtures/applied-responsibility';
+import { componentDesignFixture } from '../../src/__tests__/fixtures/componentReview';
 
 const systemRoot = '/workspaces/organizations/org-a/systems/system-a';
 const access = {
@@ -148,8 +149,28 @@ for (const width of [1440, 390, 320]) {
         },
       },
     }));
-    await page.route('**/api/dashboard/systems/system-a/capability-subscriptions/drafts/**',
-      route => route.fulfill({ json: appliedResponsibilityContext('system-a', 'AU-2') }));
+    await page.route('**/api/dashboard/systems/system-a/design', route =>
+      route.fulfill({ json: componentDesignFixture('org-a', 'system-a') }));
+    await page.route('**/api/dashboard/systems/system-a/design/approved', route =>
+      route.fulfill({ json: null }));
+    await page.route('**/security-capabilities/provider/component/component-a/placements', route =>
+      route.fulfill({ json: { status: 'success', data: {
+        source: component.source, recordId: component.recordId, sourceRevision: component.sourceRevision,
+        relationshipRevision: 'relationship-1', canAssignBoundary: true, assignBlockedReason: null,
+        boundaries: [{ id: 'boundary-a', name: 'Operations boundary' }],
+        placements: [{ ...placement, canUnassign: true, unassignBlockedReason: null }],
+      } } }));
+    let preparedDraft: ReturnType<typeof appliedResponsibilityContext>['draft'] = null;
+    await page.route('**/api/dashboard/systems/system-a/capability-subscriptions/drafts/**', route => {
+      const context = appliedResponsibilityContext('system-a', 'AU-2');
+      if (route.request().method() === 'POST') preparedDraft = {
+        id: 'prepared-a', revision: 1, status: 'Proposed', sourceHash: context.sourceHash, isStale: false,
+        generationState: 'Prepared', generationError: null, preparedAt: '2026-10-01', generatedAt: '2026-10-01',
+        preparedBy: 'Fixture reviewer', reviewedBy: null, reviewedAt: null, values: context.sourceValues,
+        suggestion: { values: context.sourceValues, questions: [], conflicts: [] }, sources: [], history: [],
+      };
+      return route.fulfill({ json: { ...context, draft: preparedDraft } });
+    });
     await page.route('**/security-capabilities/setups/prepare', async route => {
       const request = route.request();
       const body = request.postDataJSON() as { idempotencyKey: string; selections: unknown[] };
@@ -228,12 +249,23 @@ for (const width of [1440, 390, 320]) {
     await page.getByRole('button', { name: 'Open Audit logging' }).click();
     const reviewDrawer = page.getByRole('dialog', { name: 'Review applied capability' });
     await expect(reviewDrawer).toBeVisible();
+    await expect(reviewDrawer.getByRole('heading', { name: 'What this capability provides' })).toBeVisible();
+    await expect(reviewDrawer.getByRole('button', { name: 'Review scope' })).toBeVisible();
+    await expect(reviewDrawer.getByRole('button', { name: 'Review duties' })).toBeVisible();
+    const panelBounds = await reviewDrawer.boundingBox();
+    expect(panelBounds?.width).toBeGreaterThanOrEqual(Math.min(width, 640) - 2);
+    expect(panelBounds?.width).toBeLessThanOrEqual(640);
+    const footerBounds = await reviewDrawer.getByRole('button', { name: 'Back to summary' }).boundingBox();
+    expect(footerBounds!.y + footerBounds!.height).toBeLessThanOrEqual(1000);
     const overview = reviewDrawer.getByRole('tab', { name: 'Overview' });
     await overview.focus();
     await page.keyboard.press('End');
     await expect(reviewDrawer.getByRole('tab', { name: 'Responsibilities' })).toBeFocused();
     await expect(reviewDrawer.getByRole('heading', { name: 'Prepared responsibility · AU-2' })).toBeVisible();
     await reviewDrawer.getByRole('textbox', { name: 'Customer responsibility draft' }).fill('Reviewer correction');
+    await expect(reviewDrawer.getByRole('textbox', { name: 'Provider responsibility draft' })).toBeVisible();
+    await expect(reviewDrawer.getByText('Allocation, basis and supporting details').locator('..')).not.toHaveAttribute('open');
+    await reviewDrawer.getByText('Recorded mapping and duties').click();
     await expect(reviewDrawer.getByText('Collect audit records')).toBeVisible();
     expect(await reviewDrawer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page.addScriptTag({ content: axe.source });
@@ -251,7 +283,13 @@ for (const width of [1440, 390, 320]) {
     await reviewDrawer.getByRole('button', { name: 'Change location for Provider collector' }).click();
     const componentDrawer = page.getByRole('dialog', { name: 'Component details' });
     await expect(componentDrawer).toBeVisible();
-    await expect(componentDrawer.getByRole('button', { name: 'Manage system placement' })).toBeEnabled();
+    await componentDrawer.getByRole('button', { name: 'Review system scope' }).click();
+    await expect(componentDrawer.getByRole('radio', { name: 'Needs confirmation', exact: true })).toBeChecked();
+    await expect(componentDrawer.getByRole('textbox', { name: 'How it is used', exact: true })).toBeEditable();
+    await expect(componentDrawer.getByRole('button', { name: 'Save scope draft', exact: true })).toBeEnabled();
+    await componentDrawer.getByText('Existing infrastructure placements', { exact: true }).click();
+    await expect(componentDrawer.getByRole('button', { name: 'Remove from Operations boundary', exact: true })).toBeEnabled();
+    await expect(componentDrawer.getByRole('alert')).toHaveCount(0);
     await componentDrawer.getByRole('button', { name: 'Close dialog' }).click();
 
     await page.getByRole('button', { name: 'Add organization capability' }).click();

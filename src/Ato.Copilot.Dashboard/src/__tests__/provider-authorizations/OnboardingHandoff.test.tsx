@@ -20,12 +20,12 @@ describe('canonical provider setup handoff', () => {
   it('preserves selected sources across in-page navigation without uploading them', async () => {
     // Arrange
     render(<MemoryRouter><CspWizard /></MemoryRouter>);
-    await screen.findByRole('heading', { name: 'Identify your provider' });
-    fireEvent.click(screen.getByRole('button', { name: /4 Source package/ }));
+    await screen.findByRole('heading', { name: 'Confirm provider identity' });
+    fireEvent.click(screen.getByRole('button', { name: /5 Add available records/ }));
     // Act
     fireEvent.change(screen.getByLabelText('Select source files'), { target: { files: [new File(['source'], 'retain.json')] } });
-    fireEvent.click(screen.getByRole('button', { name: /5 Review setup/ }));
-    fireEvent.click(screen.getByRole('button', { name: /4 Source package/ }));
+    fireEvent.click(screen.getByRole('button', { name: /6 Review and finish setup/ }));
+    fireEvent.click(screen.getByRole('button', { name: /5 Add available records/ }));
     // Assert
     expect(screen.getByRole('button', { name: 'Remove selected files' })).toBeInTheDocument();
     expect(setupApi.uploadSource).not.toHaveBeenCalled();
@@ -35,11 +35,11 @@ describe('canonical provider setup handoff', () => {
   it('offers optional receipt-only sources without requiring offering or boundary creation', async () => {
     // Arrange
     render(<MemoryRouter><CspWizard /></MemoryRouter>);
-    await screen.findByRole('heading', { name: 'Identify your provider' });
+    await screen.findByRole('heading', { name: 'Confirm provider identity' });
     // Act
-    fireEvent.click(screen.getByRole('button', { name: /4 Source package/ }));
+    fireEvent.click(screen.getByRole('button', { name: /5 Add available records/ }));
     // Assert
-    expect(screen.getByRole('heading', { name: 'Add source material' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Add available records' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Boundary revision')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Skip sources for now' })).toBeEnabled();
     expect(screen.queryByRole('region', { name: 'Candidate records' })).not.toBeInTheDocument();
@@ -69,8 +69,8 @@ describe('canonical provider setup handoff', () => {
     // Act
     fireEvent.click(await screen.findByLabelText('Confirm this provider setup.'));
     fireEvent.click(screen.getByRole('button', { name: 'Finish provider setup' }));
-    await screen.findByRole('heading', { name: 'Your provider workspace is ready' });
-    fireEvent.click(screen.getByRole('button', { name: 'Open provider review queue' }));
+    await screen.findByRole('heading', { name: 'Provider setup complete' });
+    fireEvent.click(screen.getByRole('link', { name: 'Open provider workspace' }));
     // Assert
     await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/workspaces/csp/authorizations'));
     expect(setupApi.completeSetup).toHaveBeenCalledWith(1, 1, [], expect.any(String));

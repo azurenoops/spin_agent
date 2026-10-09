@@ -12,23 +12,25 @@ import * as api from './providerSetupApi';
 import type { ProviderScreen, SetupDraft, SetupState, UploadIntent } from './providerSetupApi';
 
 const steps = [
-  { id: 'p-details', label: 'Provider details' }, { id: 'p-access', label: 'Access & contacts' },
-  { id: 'p-offering', label: 'First offering' }, { id: 'p-sources', label: 'Source package · optional' },
-  { id: 'p-review', label: 'Review setup' }, { id: 'p-ready', label: 'Workspace ready' },
+  { id: 'p-details', label: 'Confirm provider identity' }, { id: 'p-access', label: 'Confirm access and contacts' },
+  { id: 'p-offering', label: 'Add the first offering' }, { id: 'p-authorization', label: 'Choose authorization starting point' },
+  { id: 'p-sources', label: 'Add available records' }, { id: 'p-review', label: 'Review and finish setup' },
 ];
 const titles: Record<ProviderScreen, string> = {
-  'p-details': 'Identify your provider', 'p-access': 'Confirm provider access', 'p-offering': 'Add your first service offering',
-  'p-sources': 'Add source material', 'p-uncertain': 'Check the package receipt', 'p-review': 'Review provider setup',
-  'p-ready': 'Your provider workspace is ready',
+  'p-details': 'Confirm provider identity', 'p-access': 'Confirm access and contacts', 'p-offering': 'Add the first offering',
+  'p-authorization': 'Choose authorization starting point', 'p-sources': 'Add available records',
+  'p-uncertain': 'Check the package receipt', 'p-review': 'Review and finish setup',
+  'p-ready': 'Provider setup complete',
 };
 const descriptions: Record<ProviderScreen, string> = {
-  'p-details': 'Capture the organization operating the service and the contact who maintains its records.',
-  'p-access': 'Review the authorized administrator and the person responsible for security review.',
-  'p-offering': 'Give Mission Owners a clear service identity. Review its authorization and implementations later.',
-  'p-sources': 'Optional: retain the package now and review its proposed records in the provider portal.',
+  'p-details': 'Confirm the operating organization, provider name, DoD component, timezone, and service contact.',
+  'p-access': 'Review actual administrator access and record operational and security contacts separately from role grants.',
+  'p-offering': 'Create or select the first offering and optionally associate it with a service portfolio.',
+  'p-authorization': 'Record onboarding intent and optionally submit an eMASS package for canonical intake and analysis.',
+  'p-sources': 'Optionally retain supporting material, reference an existing package, or explicitly defer records.',
   'p-uncertain': 'The upload response was interrupted. Confirm the existing request before trying again.',
-  'p-review': 'Confirm the workspace details. Source review and service publication remain separate tasks.',
-  'p-ready': 'Continue the detailed work in the portal, where the team can review it together.',
+  'p-review': 'Review saved facts, unresolved work, and explicit non-claims before completing onboarding.',
+  'p-ready': 'Review the onboarding summary, then open the provider workspace when you are ready.',
 };
 const button = 'rounded-lg border border-slate-300 px-4 py-2 text-sm text-indigo-700 disabled:opacity-50';
 const deferral = (reason: string) => ({ reason, ownerRole: 'CSP.Admin' as const });
@@ -45,10 +47,27 @@ function emptyDraft(state: SetupState): SetupDraft {
     currentScreen: 'p-details',
     details: { displayName: state.profile.identity?.displayName ?? '', legalEntityName: state.profile.identity?.legalEntityName ?? '',
       serviceContactName: '', serviceContactEmail: state.profile.supportContact?.primarySupportEmail ?? '',
+      dodComponent: '', timeZoneId: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       legacyClassificationDefault: state.profile.classification?.defaultClassificationFloor ?? 'Unclassified',
       confirmLegacyClassificationDefault: !!state.profile.classification },
-    securityContact: { choice: 'Unspecified' }, firstOffering: { choice: 'Unspecified' },
+    operationalContact: { choice: 'Unspecified' }, securityContact: { choice: 'Unspecified' },
+    firstOffering: { choice: 'Unspecified' }, authorization: { choice: 'Unspecified' },
     sources: { choice: 'Unspecified', intentIds: [] },
+  };
+}
+
+function normalizeDraft(value: SetupDraft): SetupDraft {
+  return {
+    ...value,
+    currentScreen: value.currentScreen === ('p-ready' as ProviderScreen) ? 'p-ready' : value.currentScreen,
+    details: {
+      ...value.details,
+      dodComponent: value.details.dodComponent ?? '',
+      timeZoneId: value.details.timeZoneId ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
+    },
+    operationalContact: value.operationalContact ?? { choice: 'Unspecified' },
+    firstOffering: { ...value.firstOffering, portfolioName: value.firstOffering.portfolioName ?? '' },
+    authorization: value.authorization ?? { choice: 'Unspecified' },
   };
 }
 
@@ -77,7 +96,7 @@ export default function CspWizard() {
   const hydrate = (next: SetupState, restore = false) => {
     setState(next);
     setProjectionUnavailable(false);
-    const fields = next.draft?.fields ?? emptyDraft(next);
+    const fields = normalizeDraft(next.draft?.fields ?? emptyDraft(next));
     setDraft(fields);
     if (restore) {
       setScreen(fields.currentScreen ?? 'p-details');
@@ -88,9 +107,6 @@ export default function CspWizard() {
     const controller = new AbortController();
     api.getSetup(controller.signal).then(next => {
       if (controller.signal.aborted) return;
-      if (next.profile.onboardingState === 'Active' && !search.has('reentry')) {
-        navigate('/workspaces/csp/authorizations', { replace: true }); return;
-      }
       hydrate(next, true);
       if (search.get('screen') === 'p-sources') setScreen('p-sources');
       const pending = next.uploadIntents?.find(item => item.intentId === search.get('intentId'));
@@ -225,8 +241,10 @@ export default function CspWizard() {
   });
   const next = () => void act(async () => {
     if (!draft || !state) return;
-    if (screen === 'p-ready') { navigate('/workspaces/csp/authorizations'); return; }
+    if (screen === 'p-ready') { navigate('/setup'); return; }
     if (screen === 'p-uncertain') { await checkReceipt(); return; }
+    if (screen === 'p-authorization' && draft.authorization.choice === 'Unspecified')
+      throw new Error('Choose an authorization starting point.');
     const saved = await save(draft);
     if (screen === 'p-review') {
       if (!confirmed) throw new Error('Confirm the provider setup.');
@@ -235,12 +253,13 @@ export default function CspWizard() {
       await execute(signature, key => api.completeSetup(saved.draft!.revision, saved.profileRevision!, unresolved.map(item => item.intentId), key));
       setScreen('p-ready'); return;
     }
-    const section = screen === 'p-details' ? 'Details' : screen === 'p-access' ? 'Contacts' : screen === 'p-offering' ? 'FirstOffering' : null;
+    const section = screen === 'p-details' ? 'Details' : screen === 'p-access' ? 'Contacts'
+      : screen === 'p-offering' ? 'FirstOffering' : screen === 'p-authorization' ? 'AuthorizationStartingPoint' : null;
     if (section && !(section === 'Details' && saved.profile.onboardingState === 'Active')) {
       const signature = JSON.stringify([section, saved.draft!.revision, saved.profileRevision]);
       await execute(signature, key => api.commitSetup(saved.draft!.revision, saved.profileRevision!, section, key, draft.firstOffering.expectedRevision));
     }
-    if (screen === 'p-sources' && !['Deferred', 'Intents'].includes(draft.sources.choice))
+    if (screen === 'p-sources' && !['Deferred', 'Intents', 'ExistingPackage'].includes(draft.sources.choice))
       throw new Error('Add a source package or explicitly choose Skip sources for now.');
     go(steps[Math.min(steps.findIndex(item => item.id === screen) + 1, steps.length - 1)]!.id);
   });
@@ -255,13 +274,13 @@ export default function CspWizard() {
     currentStep={screen === 'p-uncertain' ? 'p-sources' : screen} steps={steps} onStepChange={go}
     onSaveLater={saveLater} onChoosePath={() => navigate('/setup')} busy={busy} error={error} saveStatus={saveStatus}
     onBack={() => go(steps[Math.max(0, steps.findIndex(item => item.id === screen) - 1)]!.id)}
-    primaryAction={{ label: screen === 'p-review' ? 'Finish provider setup' : screen === 'p-ready' ? 'Open provider review queue'
+    primaryAction={{ label: screen === 'p-review' ? 'Finish provider setup' : screen === 'p-ready' ? 'Return to setup overview'
       : screen === 'p-uncertain' ? 'Check existing receipt' : screen === 'p-sources' ? 'Continue to setup review' : 'Save & continue',
       onClick: next, disabled: projectionUnavailable || screen === 'p-review' && !confirmed }}
     footerHelp="Saved records, source processing, human review and publication remain separate."
     guidance={<><SetupGuidance title="Use existing provider identity">Reuse this provider and its retained receipts. Adding a service never creates a new provider.</SetupGuidance>
       <SetupGuidance title="Nothing is auto-published">Source proposals remain private until explicit review, exact approval and publication. Setup grants no customer-system access.</SetupGuidance>
-      <SetupGuidance title="Where this information goes">Provider service descriptions, support contacts and source attribution support reviewed documentation.</SetupGuidance></>}>
+      <SetupGuidance title="Onboarding-only scope">This flow stops at setup confirmation. It does not open a provider or offering workspace.</SetupGuidance></>}>
     {commandRetry.current && error && <button className={button} onClick={() => void act(async () => {
       if (commandRetry.current) result(await commandRetry.current());
     })}>Retry same saved request</button>}
@@ -274,6 +293,13 @@ export default function CspWizard() {
         <Field label="Operating organization" value={details.legalEntityName} maxLength={256} onChange={value => change('details', { ...details, legalEntityName: value })} />
         <Field label="Service contact" value={details.serviceContactName ?? ''} onChange={value => change('details', { ...details, serviceContactName: value })} />
         <Field label="Contact email" value={details.serviceContactEmail} type="email" onChange={value => change('details', { ...details, serviceContactEmail: value })} />
+        <label className="grid gap-1 text-sm">DoD component<select className="rounded border p-2" value={details.dodComponent ?? ''}
+          onChange={event => change('details', { ...details, dodComponent: event.target.value })}>
+          <option value="">Choose a DoD component</option>
+          {['Department of the Navy', 'Department of the Army', 'Department of the Air Force', 'Fourth Estate'].map(value => <option key={value}>{value}</option>)}
+        </select></label>
+        <Field label="Timezone (IANA, for example America/New_York)" value={details.timeZoneId ?? ''}
+          onChange={value => change('details', { ...details, timeZoneId: value })} />
       </fieldset>{state.profile.onboardingState === 'Active' && <p className="mt-3 text-sm">Committed provider identity is finalized. Source work remains available.</p>}</SetupPanel>
       <SetupPanel title="Deployment handling limit">
         <p>{state.handling.environmentLabel ?? 'Configured handling environment unavailable'}</p>
@@ -292,7 +318,20 @@ export default function CspWizard() {
     </>}
     {screen === 'p-access' && <>
       <SetupPanel title="Current provider administrator"><p className="font-semibold">{state.access.actor.displayName}</p>
-        <p className="mt-2">Current authenticated identity · {state.access.state} provider access</p><p className="mt-2 text-sm">Provider records and administration. This screen does not grant access.</p></SetupPanel>
+        <p className="mt-2">Current authenticated identity · {state.access.state} provider setup access</p>
+        <p className="mt-2 text-sm">Portal administration does not include security-review, assessment, or AO decision authority. This screen grants no access.</p></SetupPanel>
+      <SetupPanel title="Operational contact"><div className="grid gap-5 sm:grid-cols-2">
+        <Field label="Operational contact" value={draft.operationalContact?.displayName ?? ''}
+          onChange={value => change('operationalContact', { ...draft.operationalContact, choice: 'ContactOnly', displayName: value })} />
+        <Field label="Operational contact email" value={draft.operationalContact?.email ?? ''} type="email"
+          onChange={value => change('operationalContact', { ...draft.operationalContact, choice: 'ContactOnly', email: value })} />
+      </div>
+        <p className="mt-4 text-sm">A contact record does not create a directory match, membership, or role assignment.</p>
+        <button className={`${button} mt-4`} onClick={() => change('operationalContact', {
+          choice: 'Deferred', deferral: deferral('Operational contact will be identified later'),
+        })}>Identify operational contact later</button>
+        {draft.operationalContact?.choice === 'Deferred' && <p className="mt-3">Operational contact deferred.</p>}
+      </SetupPanel>
       <SetupPanel title="Security review contact"><div className="grid gap-5 sm:grid-cols-2">
         <Field label="Reviewer" value={draft.securityContact.displayName ?? ''} onChange={value => change('securityContact', { ...draft.securityContact, choice: 'ContactOnly', displayName: value })} />
         <Field label="Reviewer contact email" value={draft.securityContact.email ?? ''} type="email" onChange={value => change('securityContact', { ...draft.securityContact, choice: 'ContactOnly', email: value })} />
@@ -305,6 +344,8 @@ export default function CspWizard() {
     </>}
     {screen === 'p-offering' && <SetupPanel title="Service offering">
       <div className="grid gap-5 sm:grid-cols-2"><Field label="Offering name" value={draft.firstOffering.name ?? ''} onChange={value => change('firstOffering', { ...draft.firstOffering, choice: 'New', name: value })} />
+        <Field label="Optional service portfolio" value={draft.firstOffering.portfolioName ?? ''}
+          onChange={value => change('firstOffering', { ...draft.firstOffering, portfolioName: value })} />
         <label className="grid gap-1 text-sm">Environment<select className="rounded border p-2" value={draft.firstOffering.serviceDescription?.environmentKind ?? ''}
           onChange={event => {
             const selected = offeringEnvironments.find(environment => environment.id === event.target.value);
@@ -332,10 +373,48 @@ export default function CspWizard() {
       <button className={`${button} mt-4`} onClick={() => change('firstOffering', { choice: 'Deferred', deferral: deferral('The first service offering will be added later') })}>I will add an offering later</button>
       {draft.firstOffering.choice === 'Deferred' && <p className="mt-3">Offering deferred.</p>}
     </SetupPanel>}
-    {(screen === 'p-sources' || screen === 'p-uncertain') && <>
+    {screen === 'p-authorization' && <>
+      <div className="grid gap-4">
+        {[
+          ['ExistingAuthorization', 'We have an existing authorization', 'Register available facts and sources for verification without treating them as a recorded decision.'],
+          ['InitialAuthorization', 'We are preparing for initial authorization', 'Create package-preparation follow-up without claiming that authorization has been issued.'],
+          ['DetermineLater', 'We need to determine the authorization scope', 'Keep coverage unresolved and create follow-up work without fabricating a boundary.'],
+        ].map(([value, label, detail]) => <label key={value} className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${
+          draft.authorization.choice === value ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white'}`}>
+          <input aria-label={label} type="radio" checked={draft.authorization.choice === value}
+            onChange={() => change('authorization', { choice: value as SetupDraft['authorization']['choice'] })} className="mt-1" />
+          <span><strong className="block">{label}</strong><span className="mt-1 block text-sm text-slate-600">{detail}</span></span>
+        </label>)}
+      </div>
+      {draft.authorization.choice === 'ExistingAuthorization' && <SetupPanel title="Available decision details · all optional">
+        <p className="mb-5 text-sm">Unknown values may remain blank. These are unconfirmed onboarding facts awaiting source review.</p>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Decision reference" value={draft.authorization.decisionReference ?? ''}
+            onChange={value => change('authorization', { ...draft.authorization, decisionReference: value })} />
+          <Field label="Issuing AO or authority" value={draft.authorization.issuingAuthority ?? ''}
+            onChange={value => change('authorization', { ...draft.authorization, issuingAuthority: value })} />
+          <Field label="Decision date" type="date" value={draft.authorization.decisionDate ?? ''}
+            onChange={value => change('authorization', { ...draft.authorization, decisionDate: value })} />
+          <Field label="Expiration date" type="date" value={draft.authorization.expirationDate ?? ''}
+            onChange={value => change('authorization', { ...draft.authorization, expirationDate: value })} />
+          <Field label="System or boundary name" value={draft.authorization.systemOrBoundaryName ?? ''}
+            onChange={value => change('authorization', { ...draft.authorization, systemOrBoundaryName: value })} />
+          <Field label="Supporting source" value={draft.authorization.supportingSource ?? ''}
+            onChange={value => change('authorization', { ...draft.authorization, supportingSource: value })} />
+          <label className="grid gap-1 text-sm sm:col-span-2">Conditions<textarea className="min-h-24 rounded border p-3"
+            value={draft.authorization.conditions ?? ''}
+            onChange={event => change('authorization', { ...draft.authorization, conditions: event.target.value })} /></label>
+        </div>
+      </SetupPanel>}
+    </>}
+    {(screen === 'p-sources' || screen === 'p-uncertain' || screen === 'p-authorization' && draft.authorization.choice === 'ExistingAuthorization') && <>
       {screen === 'p-uncertain' && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-950"><b>Receipt is not yet confirmed</b>
         <p className="mt-2">The service may have received the source. Check the existing request before retrying. Browser File objects do not survive restart.</p></div>}
-      <SetupPanel title={screen === 'p-uncertain' ? 'Pending upload' : 'Authorization package or service documents'}>
+      <SetupPanel title={screen === 'p-uncertain' ? 'Pending upload'
+        : screen === 'p-authorization' ? 'Optional eMASS package intake' : 'Authorization package or service documents'}>
+        {screen === 'p-authorization' && <div className="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm">
+          The canonical package engine will validate the permitted package, retain its receipt and provenance, inventory supported records, and produce unconfirmed candidates for human review. Upload does not verify an authorization or map coverage.
+        </div>}
         {pending && <div className="mb-4 space-y-2"><p>{pending.input.packageName}</p><p>Receipt status: Unknown · Provider private</p>
           <ul>{pending.input.files.map(file => <li key={file.ordinal}>{file.fileName} · {file.byteLength} bytes</li>)}</ul></div>}
         {!pending && draft.sources.selection && <p className="mb-4 text-sm">File selection metadata is saved, not uploaded.
@@ -365,17 +444,28 @@ export default function CspWizard() {
         </div>
         {state.uploadIntents?.filter(item => item.receipt).map(item => <div key={item.intentId} className="mt-4"><PackageReceiptCard item={item.receipt!} showLink /></div>)}
       </SetupPanel>
-      <SetupPanel title="Review after onboarding"><p>Source claims stay private and unpublished. An offering hint does not create a boundary or association.</p>
+      {screen !== 'p-authorization' && <SetupPanel title="Review after onboarding"><p>Source claims stay private and unpublished. An offering hint does not create a boundary or association.</p>
+        {screen === 'p-sources' && <div className="mt-4 rounded-lg border border-slate-200 p-4">
+          <Field label="Reference an existing package" value={draft.sources.packageReference ?? ''}
+            onChange={value => change('sources', { ...draft.sources, choice: value ? 'ExistingPackage' : 'Unspecified', packageReference: value })} />
+          <p className="mt-2 text-sm">A reference does not import, verify, publish, or associate the package.</p>
+        </div>}
         <button className={`${button} mt-4`} disabled={!!pending || !!state.uploadIntents?.length || !!files.length}
           onClick={() => change('sources', { choice: 'Deferred', intentIds: [], deferral: deferral('Source material will be added later') })}>Skip sources for now</button>
         {draft.sources.choice === 'Deferred' && <p className="mt-3">Sources deferred: {draft.sources.deferral?.reason}</p>}
         {pending && screen !== 'p-uncertain' && <button className={`${button} ml-3 mt-4`} onClick={() => void act(checkReceipt)}>Check existing receipt</button>}
-      </SetupPanel>
+      </SetupPanel>}
     </>}
-    {screen === 'p-review' && <SetupPanel title="Workspace summary"><dl className="grid gap-3 sm:grid-cols-2">
+    {screen === 'p-review' && <SetupPanel title="Onboarding summary"><dl className="grid gap-3 sm:grid-cols-2">
       <dt>Provider</dt><dd>{state.profile.identity?.displayName ?? 'Required profile details not yet committed'}</dd>
       <dt>Administrator</dt><dd>{state.access.actor.displayName} · {state.access.state}</dd>
+      <dt>DoD component</dt><dd>{draft.details.dodComponent || 'Not yet recorded'}</dd>
+      <dt>Timezone</dt><dd>{draft.details.timeZoneId || 'Not yet recorded'}</dd>
+      <dt>Service portfolio</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.portfolioName || 'No portfolio selected'}</dd>
       <dt>First offering</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.name ?? 'Not yet recorded'}</dd>
+      <dt>Authorization starting point</dt><dd>{draft.authorization.choice === 'ExistingAuthorization' ? 'Existing authorization declared; verification separate'
+        : draft.authorization.choice === 'InitialAuthorization' ? 'Preparing for initial authorization'
+          : draft.authorization.choice === 'DetermineLater' ? 'Authorization scope unresolved' : 'Not yet selected'}</dd>
       <dt>Source receipt</dt><dd>{unresolved.length ? 'Unknown — recovery remains open' : state.uploadIntents?.length ? 'Confirmed' : draft.sources.choice === 'Deferred' ? 'Deferred · optional' : 'Not yet recorded'}</dd>
       <dt>Source review</dt><dd>Not completed by onboarding</dd><dt>Published capabilities</dt><dd>None created by setup</dd>
     </dl><label className="mt-5 flex gap-2"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />Confirm this provider setup.</label>
@@ -384,13 +474,22 @@ export default function CspWizard() {
     {screen === 'p-ready' && <>
       <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5"><b>{state.profile.onboardingState !== 'Active' ? 'Setup has not been finalized'
         : unresolved.length ? 'Profile ready — source receipt unresolved' : state.draft?.completion ? 'Setup complete' : 'Provider profile active'}</b>
-        <p className="mt-2">Source processing and publication have their own status. This is not an authorization decision.</p></div>
-      <SetupPanel title="Your next actions">{state.facts?.map(item => <div key={item.actionId} className="border-b py-4 last:border-0">
+        <p className="mt-2">This onboarding summary does not verify an authorization, approve documents, pass assessment, establish customer coverage, or connect monitoring.</p></div>
+      <SetupPanel title="Recorded onboarding facts"><dl className="grid gap-3 sm:grid-cols-2">
+        <dt>Provider</dt><dd>{draft.details.displayName}</dd>
+        <dt>Operating organization</dt><dd>{draft.details.legalEntityName}</dd>
+        <dt>Service portfolio</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.portfolioName || 'No portfolio selected'}</dd>
+        <dt>Offering</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.name || 'Not recorded'}</dd>
+        <dt>Authorization intent</dt><dd>{draft.authorization.choice}</dd>
+        <dt>Available records</dt><dd>{draft.sources.choice}</dd>
+      </dl></SetupPanel>
+      <SetupPanel title="Outstanding onboarding work">{state.facts?.map(item => <div key={item.actionId} className="border-b py-4 last:border-0">
         <p className="font-semibold">{item.label}</p><p className="mt-1 text-sm">{item.state} · {item.ownerRole} {item.reason}</p>
-        <Link className="mt-2 inline-block text-indigo-700 underline" to={item.destination.path}>{item.destination.label}</Link>
       </div>)}
-        <Link className="mt-4 block text-indigo-700 underline" to="/workspaces/csp/authorizations">Review source analysis, service scope and reviewed releases</Link>
+        {!state.facts?.length && <p className="text-sm">No deferred onboarding work is currently projected.</p>}
       </SetupPanel>
+      <Link className="inline-flex rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white"
+        to="/workspaces/csp/authorizations">Open provider workspace</Link>
     </>}
   </SetupFrame>;
 }

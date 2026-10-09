@@ -58,6 +58,12 @@ public class PackageValidationResult
 [TenantScoped]
 public class ValidationFinding
 {
+    [NotMapped]
+    public string? ReadinessCheckId { get; set; }
+    [NotMapped]
+    public string? ControlId { get; set; }
+    [NotMapped]
+    public string? RecordId { get; set; }
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

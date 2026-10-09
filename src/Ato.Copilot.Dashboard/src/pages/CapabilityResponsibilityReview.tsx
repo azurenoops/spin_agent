@@ -21,6 +21,7 @@ import {
   warningClass,
 } from '../features/workspace-operations/workspaceUi';
 import { Link, useParams } from '../features/workspaces/workspaceNavigation';
+import ProviderOfferingWorkflowContext from '../features/systems/ProviderOfferingWorkflowContext';
 
 const states: Record<string, { label: string; explanation: string }> = {
   MissingBaseline: { label: 'Missing baseline', explanation: 'Select a system baseline before reviewing this contribution.' },
@@ -39,7 +40,9 @@ const linkClass = 'text-indigo-700 underline dark:text-indigo-300';
 export default function CapabilityResponsibilityReview() {
   const { id } = useParams<{ id: string }>();
   if (!id) return <p role="alert">Select a system before reviewing subscription responsibilities.</p>;
-  return <SystemResponsibilityReview key={id} systemId={id} />;
+  return <ProviderOfferingWorkflowContext systemId={id}>{() =>
+    <SystemResponsibilityReview key={id} systemId={id} />}
+  </ProviderOfferingWorkflowContext>;
 }
 
 function SystemResponsibilityReview({ systemId }: { systemId: string }) {
@@ -256,6 +259,7 @@ function SystemResponsibilityReview({ systemId }: { systemId: string }) {
     {selected && data && (selectedItem || !selected.subscriptionId) && <ResponsibilityReviewPanel key={`${selected.subscriptionId}:${selected.controlId}`}
       item={selectedItem || null} controlId={selected.controlId} firstPass={data.supportsResponsibilityDrafts === true}
       onDraftConfirmed={() => { setNotice('Responsibility confirmed through authorized review. Check effective matrix and document contributions.'); void load(); }}
+      onDraftPrepared={() => { void load(); }}
       baselineId={data.baselineId} canConfirm={data.canConfirm} busy={busy || loading}
       eligible={(!selectedItem || editableStates.has(selectedItem.state)) && !inconsistentSubscription}
       stateExplanation={selectedItem ? states[selectedItem.state]?.explanation ?? 'Unknown review state. Refresh before confirming.'

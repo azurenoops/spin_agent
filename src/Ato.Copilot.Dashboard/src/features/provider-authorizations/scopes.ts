@@ -4,6 +4,12 @@ export const offeringEnvironments: Record<OfferingEnvironment, string> = {
   AzureCloud: 'Azure Commercial', AzureUSGovernment: 'Azure Government',
   Microsoft365DoD: 'Microsoft 365 DoD (manual service)', ManualService: 'Other manually documented service',
 };
+export const missionRelationshipLabels: Record<string, string> = {
+  Undetermined: 'Relationship review required',
+  ReviewRequired: 'Relationship review required',
+  SeparateBoundaryConsumer: 'Separate mission boundary consuming provider services',
+  ExplicitlyCoveredByRecordedScope: 'Covered workload relationship recorded by the Authorizing Official',
+};
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown) => typeof value === 'string' && value.trim().length > 0;
 export function isProviderScope(value: unknown): value is ProviderScope {

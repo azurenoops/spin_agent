@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, useId, lazy, Suspense } from 'react';
 import { Link, Navigate, useLocation, useParams } from '../features/workspaces/workspaceNavigation';
 import { useSystemContext } from '../components/layout/SystemLayout';
 import { useSettings } from '../hooks/useSettings';
@@ -15,12 +15,15 @@ import { rolesApi } from '../api/roles';
 import SystemConnections from '../features/systems/SystemConnections';
 import SystemOperationalStatus from '../features/systems/SystemOperationalStatus';
 import '../features/systems/systemRecordPages.css';
+import '../features/systems/missionRecordForm.css';
 import type {
   ProfileSectionDetail,
   ProfileSectionType,
   GovernanceStatus,
   UserCategoryReviewRequest,
 } from '../types/dashboard';
+import { userDocumentation, type UserDocumentation } from '../features/systems/userCategoryPresentation';
+import { dataDocumentation, type DataDocumentation } from '../features/systems/dataTypePresentation';
 
 const SystemDesign = lazy(() => import('../features/system-design/SystemDesign'));
 
@@ -81,6 +84,12 @@ function SystemProfileSection() {
   const [hostingStatus, setHostingStatus] = useState('Hosting association · Loading scopes');
   const [canAddConnection, setCanAddConnection] = useState(false);
   const writing = useRef(false);
+  const [usersDocumentation, setUsersDocumentation] = useState<UserDocumentation>(userDocumentation([]));
+  const [openUserCategoryId, setOpenUserCategoryId] = useState<string | null>(null);
+  const userCategoryOpened = useCallback(() => setOpenUserCategoryId(null), []);
+  const [dataReadiness, setDataReadiness] = useState<DataDocumentation>(dataDocumentation([]));
+  const [openDataTypeId, setOpenDataTypeId] = useState<string | null>(null);
+  const dataTypeOpened = useCallback(() => setOpenDataTypeId(null), []);
 
   const sectionType = sectionParam as ProfileSectionType;
   const isPorts = sectionType === 'PortsProtocolsAndServices';
@@ -255,10 +264,21 @@ function SystemProfileSection() {
   if (!task) return <p role="alert">This system profile section is not available.</p>;
 
   const profileForm = <ProfileSectionForm
+    missionIdentityFields={sectionType === 'MissionAndPurpose' ? {
+      name: <MissionIdentity label="System name" value={detail.name} />,
+      owner: <SystemOwner systemId={systemId} />,
+      acronym: <MissionIdentity label="System acronym" value={detail.acronym} />,
+      emass: <MissionIdentity label="eMASS system ID" value={detail.emassId} hint="Required before package reconciliation" />,
+      ditpr: <MissionIdentity label="DITPR identifier" value={detail.ditprId} />,
+    } : undefined}
     systemDisplayName={detail.name}
     hideChildItems={isPorts}
     onHostingStatusChange={sectionType === 'EnvironmentAndDeployment' ? setHostingStatus : undefined}
-    formId={isPorts || headerAddEntry || sectionType === 'EnvironmentAndDeployment' ? undefined : 'system-profile-editor'}
+    formId={isPorts ? undefined : 'system-profile-editor'}
+    onUserDocumentationChange={sectionType === 'UsersAndAccess' ? setUsersDocumentation : undefined}
+    openUserCategoryId={openUserCategoryId} onUserCategoryOpened={userCategoryOpened}
+    onDataDocumentationChange={sectionType === 'DataTypes' ? setDataReadiness : undefined}
+    openDataTypeId={openDataTypeId} onDataTypeOpened={dataTypeOpened}
     addEntryOpen={headerAddEntry && addingProfileEntry}
     onAddEntryClose={headerAddEntry ? () => setAddingProfileEntry(false) : undefined}
     onReviewUserCategory={sectionType === 'UsersAndAccess' ? handleUserCategoryReview : undefined}
@@ -297,9 +317,10 @@ function SystemProfileSection() {
             action={isPorts ? <button type="button" disabled={saving || !canAddConnection}
               onClick={() => { setError(null); setAddingProfileEntry(true); }} className={systemPrimaryAction}>
               Add connection<span aria-hidden="true"> →</span>
-            </button> : sectionType === 'EnvironmentAndDeployment'
-              ? undefined
-              : !isReadOnly && (headerAddEntry
+            </button> : ['UsersAndAccess', 'DataTypes'].includes(sectionType) ? <div className="flex flex-wrap gap-3">
+              <Link className={systemSecondaryAction} to={`/systems/${systemId}/documents/preview?contribution=${sectionType}`}>Preview SSP contribution</Link>
+              {!isReadOnly && <button type="submit" form="system-profile-editor" disabled={saving} className={systemPrimaryAction}>{saving ? 'Saving...' : 'Save Draft'}</button>}
+            </div> : !isReadOnly && (headerAddEntry
               ? <button type="button" disabled={saving} onClick={() => setAddingProfileEntry(true)} className={systemPrimaryAction}>
                 {sectionType === 'DataTypes' ? 'Add data type' : 'Add user category'}
               </button>
@@ -325,8 +346,12 @@ function SystemProfileSection() {
               : sectionType === 'DataTypes' ? 'Context and information types are reviewed together · Recording sensitivity does not approve categorization'
               : 'Mission Owner authors / ISSM reviews · Saving does not approve'}</span>
           </div>
+          {sectionType === 'EnvironmentAndDeployment' && <p className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200">
+            Prepare for review: complete the applicable deployment, network/location and recovery/operating details.
+            Review the visible fields below for missing information. Provider relationships and subscription connections are managed separately.
+          </p>}
           <SystemTaskColumns stretch={isPorts} support={isPorts ? <PortsDocumentation systemId={systemId} busy={saving}
-            onContext={() => { setError(null); setContextDialogOpen(true); }} /> : <ProfileDocumentation environment={sectionType === 'EnvironmentAndDeployment'}>
+            onContext={() => { setError(null); setContextDialogOpen(true); }} /> : <>
             <section className="border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[1.2px]">Used in your package</p>
               <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{task.contribution}</h2>
@@ -334,6 +359,28 @@ function SystemProfileSection() {
               <Link className={systemSecondaryAction} to={`/systems/${systemId}/documents/preview?contribution=${sectionType}`}>Preview contribution</Link>
               <p className="mt-2 leading-relaxed">Preview uses current records, not an approved export.</p>
             </section>
+            {sectionType === 'UsersAndAccess' && <section aria-label="Users documentation readiness" className="space-y-2 border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[1.2px]">Section readiness</p>
+              <strong className="block text-2xl text-indigo-600">{usersDocumentation.recorded}/{usersDocumentation.total}</strong>
+              <p>{usersDocumentation.categories ? `${usersDocumentation.missing} user documentation fields need attention across ${usersDocumentation.categories} categories.` : 'No active categories are recorded.'}</p>
+              <p>Counts cover ten documentation fields per active category, not approval or ATO readiness. Optional count/description/sensitivity remain in category details.</p>
+              {usersDocumentation.firstIncompleteId && <button type="button" disabled={saving}
+                onClick={() => setOpenUserCategoryId(usersDocumentation.firstIncompleteId ?? null)}
+                className="text-indigo-700 underline dark:text-indigo-300">
+                {usersDocumentation.workloadName ? 'Record identity owner, environment and missing details' : 'Review missing user details'} →
+              </button>}
+            </section>}
+            {sectionType === 'DataTypes' && <section aria-label="Data documentation readiness" className="space-y-2 border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[1.2px]">Section readiness</p>
+              <strong className="block text-2xl text-indigo-600">{dataReadiness.recorded}/{dataReadiness.total}</strong>
+              <p>{dataReadiness.types ? `${dataReadiness.missing} information-handling fields need attention across ${dataReadiness.types} types.` : 'No information types are recorded.'}</p>
+              <p>Counts cover ten documentation fields plus CUI category where CUI is declared. They do not establish approved categorization, a privacy decision or ATO readiness.</p>
+              {dataReadiness.firstIncompleteId && <button type="button" disabled={saving}
+                onClick={() => setOpenDataTypeId(dataReadiness.firstIncompleteId ?? null)}
+                className="text-indigo-700 underline dark:text-indigo-300">Complete {dataReadiness.firstIncompleteName} handling details →</button>}
+              <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/baseline`}>Review authoritative categorization →</Link>
+              <Link className="block text-indigo-700 underline dark:text-indigo-300" to={`/systems/${systemId}/documents`}>Review recorded privacy documents →</Link>
+            </section>}
             <section className="space-y-2 border-l-2 border-[#d9d3f9] pl-[18px] text-xs text-slate-500">
               <p className="text-[10px] font-semibold uppercase tracking-[1.2px]">Review &amp; ownership</p>
               <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Keep the next action clear</h2>
@@ -366,7 +413,7 @@ function SystemProfileSection() {
                 <p>Assessment collection is separate from the recorded hosting association.</p>
               </>}
             </section>
-          </ProfileDocumentation>}>
+          </>}>
 
           {/* Success message */}
           {successMsg && (
@@ -377,16 +424,14 @@ function SystemProfileSection() {
           {isPorts && section ? <SystemConnections systemId={systemId} profile={section} profileReadOnly={isReadOnly}
             profileError={error} saving={saving} addOpen={addingProfileEntry}
             onAddClose={() => setAddingProfileEntry(false)} onCanAddChange={setCanAddConnection}
-            onSaveProfile={handleSave} /> : <div className={sectionType === 'EnvironmentAndDeployment' ? 'min-w-0' : systemPanel}>
-            {!['UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
-            {sectionType === 'MissionAndPurpose' && <div className="mb-5 grid gap-[18px] sm:grid-cols-2">
-              <label className="text-xs text-slate-600">System name<input readOnly value={detail.name ?? systemId}
-                className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
-              <SystemOwner systemId={systemId} />
-              <SystemOperationalStatus key={systemId} systemId={systemId} />
-              <p className="text-xs text-slate-500 sm:col-span-2">Identity comes from the system registration. Manage owner assignments in System team; profile saving does not change either.</p>
-            </div>}
+            onSaveProfile={handleSave} /> : <div className={['EnvironmentAndDeployment', 'MissionAndPurpose', 'UsersAndAccess', 'DataTypes'].includes(sectionType) ? 'min-w-0' : systemPanel}>
+            {!['MissionAndPurpose', 'UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
             {profileForm}
+            {sectionType === 'MissionAndPurpose' && <details className="mt-5"><summary className="cursor-pointer text-sm text-indigo-700 dark:text-indigo-300">Operating status and canonical source records</summary>
+              <div className="mt-4"><SystemOperationalStatus key={systemId} systemId={systemId} /></div>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Identity and identifiers come from system registration; the owner comes from System team. Profile saving does not change those records.</p>
+              <Link className="mt-3 inline-block text-sm underline" to={`/systems/${systemId}/roles`}>Manage System team assignments</Link>
+            </details>}
             {sectionType !== 'EnvironmentAndDeployment' && <p className="mt-4 rounded-lg bg-[#f4f5f9] p-4 text-xs leading-relaxed text-slate-700 dark:bg-slate-800 dark:text-slate-200">{task.guidance}</p>}
           </div>}
           </SystemTaskColumns>
@@ -458,18 +503,8 @@ function PortsDocumentation({ systemId, busy, onContext }: {
   </>;
 }
 
-function ProfileDocumentation({ environment, children }: { environment: boolean; children: ReactNode }) {
-  if (!environment) return <>{children}</>;
-  return <div className="space-y-3">
-    <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-300">Contributes to your SSP’s environment and hosting section.</p>
-    <section aria-label="Documentation & review" className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-      <h2 className="text-sm font-semibold">Documentation &amp; review</h2>
-      <div className="mt-4 space-y-5">{children}</div>
-    </section>
-  </div>;
-}
-
 function SystemOwner({ systemId }: { systemId: string }) {
+  const id = useId();
   const [name, setName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -486,9 +521,21 @@ function SystemOwner({ systemId }: { systemId: string }) {
     return () => { current = false; };
   }, [systemId, attempt]);
   return <div>
-    <label className="text-xs text-slate-600">System owner<input readOnly value={error ? 'Unavailable' : name ?? 'Loading owner...'}
-      className="mt-1.5 block w-full rounded-[7px] border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm" /></label>
+    <div className="mission-identity-label">
+      <label htmlFor={id}>System owner</label>
+      <input id={id} readOnly value={error ? 'Unavailable' : name ?? 'Loading owner...'} aria-describedby={`${id}-source`} />
+      <span id={`${id}-source`}>Sourced from the System team role assignment</span>
+    </div>
     {error && <div className="mt-2 text-xs text-amber-800"><p role="alert">{error}</p>
       <button type="button" className="underline" onClick={() => setAttempt(value => value + 1)}>Retry system owner</button></div>}
+  </div>;
+}
+
+function MissionIdentity({ label, value, hint }: { label: string; value?: string | null; hint?: string }) {
+  const id = useId();
+  return <div className="mission-identity-label">
+    <label htmlFor={id}>{label}</label>
+    <input id={id} readOnly value={value ?? ''} placeholder="Not recorded" aria-describedby={hint ? `${id}-hint` : undefined} />
+    {hint && <span id={`${id}-hint`}>{hint}</span>}
   </div>;
 }
