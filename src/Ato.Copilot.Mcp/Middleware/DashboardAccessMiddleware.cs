@@ -45,7 +45,8 @@ public sealed class DashboardAccessMiddleware(
                 oid,
                 context.User.Identity?.Name ?? "Dashboard user",
                 tenantContext.EffectiveTenantId,
-                tenantContext.IsCspAdmin),
+                tenantContext.IsCspAdmin,
+                Guid.TryParse(context.User.FindFirstValue("tid"), out var directoryId) ? directoryId : null),
             context.RequestAborted);
 
         var systemDestinations = access.Destinations

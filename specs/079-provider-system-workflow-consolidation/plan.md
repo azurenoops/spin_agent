@@ -949,7 +949,9 @@ A rebuilt page must still call the canonical services.
 - Mock suites may omit production edge states. Preserve the design and seek
   focused approval for necessary additions, not an agent-invented redesign.
 - The copied design archive includes an onboarding companion that appeared
-  after the initial inventory. Copying does not authorize its full redesign.
+  after the initial inventory. The October 8 provider first-login slice is now
+  authorized only to the bounded onboarding completion/status contract; copying
+  still does not authorize a provider-workspace or broader onboarding redesign.
 - Legacy-data collisions must be inspected on a safe copy before migration.
 
 ## Complexity tracking

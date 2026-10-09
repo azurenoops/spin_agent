@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { validatePackage, type ReadinessResult, type PackagePurpose, type RetainedPackageSelection } from '../../api/package';
 import PackagePurposeSelect from '../../components/PackagePurposeSelect';
 import RetainedPackageContext from '../../components/RetainedPackageContext';
+import { systemPrimaryAction } from './SystemTaskPresentation';
 
-export default function SystemPackageValidation({ systemId, initialPurpose = 'Legacy', summaryOnly = false, onResult, onPurposeChange }: {
+export default function SystemPackageValidation({ systemId, initialPurpose = 'Legacy', summaryOnly = false, overviewHero = false, onResult, onPurposeChange }: {
   systemId: string;
   initialPurpose?: PackagePurpose;
   summaryOnly?: boolean;
+  overviewHero?: boolean;
   onResult?: (result: ReadinessResult | null) => void;
   onPurposeChange?: (purpose: PackagePurpose) => void;
 }) {
@@ -51,6 +53,27 @@ export default function SystemPackageValidation({ systemId, initialPurpose = 'Le
     }
   };
 
+  if (overviewHero) return <section aria-label="Initial submission readiness status" className="system-overview-hero">
+    <div className="min-w-0">
+      <span role="status" className={`system-overview-badge ${result?.isValid ? 'is-clear' : 'needs-input'}`}>
+        {pending ? 'Checking saved records…' : error ? 'Readiness unavailable'
+          : result ? result.isValid ? 'No blocking requirements returned'
+            : `${result.errorCount} blocking requirement${result.errorCount === 1 ? ' remains' : 's remain'}`
+            : 'Readiness not checked'}
+      </span>
+      <h2>{pending ? 'Checking what your package needs' : error ? 'The readiness check could not finish'
+        : result ? result.isValid ? 'Review the returned package findings'
+          : 'Your team has requirements to address' : 'Find out what your package needs'}</h2>
+      <p>{result ? 'Review the saved-record findings below. A check does not approve, submit or authorize this package.'
+        : 'Run a check against saved system records to see missing information and reviews.'}</p>
+      <p className="overview-meta">Package purpose: Initial submission</p>
+      {result && <p className="overview-meta">{result.warningCount} warnings · Checked {result.validatedAt}. Recheck after changing source records.</p>}
+      {error && <p role="alert" className="mt-3 text-sm text-amber-800 dark:text-amber-200">{error}</p>}
+    </div>
+    <button type="button" disabled={pending} className={systemPrimaryAction} onClick={() => void validate()}>
+      {pending ? 'Checking readiness…' : result ? 'Check again' : error ? 'Retry readiness check' : 'Check readiness'}
+    </button>
+  </section>;
   if (summaryOnly) return <section aria-label="Initial submission readiness status" className="mb-[22px]">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dedaf5] bg-[#f1effc] px-[17px] py-3 text-xs dark:border-indigo-900 dark:bg-indigo-950">
       <span role="status">{pending ? 'Initial submission · Checking requirements…' : error ? 'Initial submission · Readiness unavailable'

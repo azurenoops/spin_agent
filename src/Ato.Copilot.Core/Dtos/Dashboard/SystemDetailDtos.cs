@@ -13,6 +13,8 @@ public class SystemDetailDto
 
     /// <summary>System acronym.</summary>
     public string? Acronym { get; init; }
+    public string? DitprId { get; init; }
+    public string? EmassId { get; init; }
 
     /// <summary>System type (e.g. MajorApplication).</summary>
     public required string SystemType { get; init; }

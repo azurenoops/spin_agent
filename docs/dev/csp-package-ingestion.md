@@ -4,6 +4,28 @@ This workflow extends Features 048 and 078. It must be manually accepted before
 being declared complete. Local implementation/testing does not authorize a
 Docker deployment, live provider changes, GitHub updates or pushes.
 
+## Semantic cancellation regression - October 7, 2026
+
+PR 1064 CI run `37626797528`, job `112810530533`, built successfully but failed
+the caller-cancellation assertion in
+`Semantic_TimeoutIsExplicitAndCallerCancellationPropagates`; 8228 other unit
+tests passed. That test passes in isolation locally. Its independent 25 ms
+caller-cancellation and 50 ms model-timeout timers do not guarantee the ordering
+the assertion requires under load. A model timeout with no caller cancellation
+requested is correctly returned as an explicit incomplete-analysis result.
+
+Keep the model-timeout test separate. Test caller cancellation deterministically
+before analysis and synchronously when the provider receives the linked token.
+Both must throw `OperationCanceledException`; the before-analysis case must not
+call the provider. Do not increase production budgets, retry the CI job to hide
+the failure, or convert cancellation into successful analysis. These are mock
+provider contract tests, not verification of a live model or package retry.
+
+Local verification passed 262 analyzer cases and the complete Release unit
+suite (8231 passed, zero failures/skips). The Release solution build passed;
+remote CI still requires an approved commit/push and a new run. No production
+analyzer behavior, model budget or retained source/review data changed.
+
 ## Archive superseded unpublished sources
 
 When a published canonical context still cites an old unpublished source, archival

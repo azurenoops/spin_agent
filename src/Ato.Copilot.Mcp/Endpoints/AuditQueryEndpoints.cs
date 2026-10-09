@@ -177,7 +177,8 @@ public static class AuditQueryEndpoints
                 oid,
                 http.User.Identity?.Name ?? "Audit user",
                 tenant.EffectiveTenantId,
-                tenant.IsCspAdmin),
+                tenant.IsCspAdmin,
+                Guid.TryParse(http.User.FindFirstValue("tid"), out var directoryId) ? directoryId : null),
             ct);
 
         var allowed = result.Destinations.Any(destination =>

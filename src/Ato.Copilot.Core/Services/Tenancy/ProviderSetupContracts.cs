@@ -9,7 +9,8 @@ public sealed record ProviderServiceDescription(string EnvironmentKind, string? 
     string? DeclaredImpactLevel = null, string? DeclaredImpactText = null);
 public sealed record SaveProviderSetupDraft(long ExpectedRevision, JsonElement Draft);
 public sealed record CommitProviderSetup(long ExpectedRevision, string Section, long ExpectedProfileRevision,
-    long? ExpectedOfferingRevision = null);
+    long? ExpectedOfferingRevision = null, long? ExpectedPortfolioRevision = null,
+    long? ExpectedAuthorizationIntentRevision = null);
 public sealed record CompleteProviderSetup(long ExpectedRevision, long ExpectedProfileRevision, bool Confirmed,
     IReadOnlyList<Guid> AcknowledgedUnresolvedIntentIds);
 public sealed record ReconcileProviderSetup(string Operation, string RequestKey);
@@ -22,6 +23,8 @@ public sealed record PrepareProviderUpload(long ExpectedSetupRevision, ProviderU
 public sealed record ReconcileProviderReceipt(string RequestKey, string IntentHash);
 public sealed record ProviderSetupCommitOutcome(Guid CommandId, Guid ProviderId, Guid DraftId, string Operation,
     DateTimeOffset CommittedAt, long CommittedDraftRevision, long CommittedProfileRevision,
-    Guid? CommittedOfferingId = null, long? CommittedOfferingRevision = null);
+    Guid? CommittedOfferingId = null, long? CommittedOfferingRevision = null,
+    Guid? CommittedPortfolioId = null, long? CommittedPortfolioRevision = null,
+    Guid? CommittedAuthorizationIntentId = null, long? CommittedAuthorizationIntentRevision = null);
 public sealed record ProviderSetupCommandResult(string Outcome, bool Replayed,
     ProviderSetupCommitOutcome? CommittedOutcome, JsonElement? HistoricalCommitSnapshot, object Current);

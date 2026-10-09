@@ -426,6 +426,11 @@ function SystemProfileSection() {
             onSaveProfile={handleSave} /> : <div className={['EnvironmentAndDeployment', 'MissionAndPurpose', 'UsersAndAccess', 'DataTypes'].includes(sectionType) ? 'min-w-0' : systemPanel}>
             {!['MissionAndPurpose', 'UsersAndAccess', 'DataTypes', 'PortsProtocolsAndServices', 'EnvironmentAndDeployment'].includes(sectionType) && <h2 className="mb-5 text-lg font-semibold">{task.record}</h2>}
             {profileForm}
+            {sectionType === 'MissionAndPurpose' && <details className="mt-5"><summary className="cursor-pointer text-sm text-indigo-700 dark:text-indigo-300">Operating status and canonical source records</summary>
+              <div className="mt-4"><SystemOperationalStatus key={systemId} systemId={systemId} /></div>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Identity and identifiers come from system registration; the owner comes from System team. Profile saving does not change those records.</p>
+              <Link className="mt-3 inline-block text-sm underline" to={`/systems/${systemId}/roles`}>Manage System team assignments</Link>
+            </details>}
             {sectionType !== 'EnvironmentAndDeployment' && <p className="mt-4 rounded-lg bg-[#f4f5f9] p-4 text-xs leading-relaxed text-slate-700 dark:bg-slate-800 dark:text-slate-200">{task.guidance}</p>}
           </div>}
           </SystemTaskColumns>

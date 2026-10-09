@@ -515,6 +515,8 @@ public class DashboardService
             SystemId = system.Id,
             Name = system.Name,
             Acronym = system.Acronym,
+            DitprId = system.DitprId,
+            EmassId = system.EmassId,
             SystemType = system.SystemType.ToString(),
             MissionCriticality = system.MissionCriticality.ToString(),
             HostingEnvironment = system.HostingEnvironment,

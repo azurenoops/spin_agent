@@ -106,6 +106,8 @@ export interface SystemDetailResponse {
   systemId: string;
   name: string;
   acronym: string | null;
+  ditprId?: string | null;
+  emassId?: string | null;
   systemType: string;
   missionCriticality: string;
   hostingEnvironment: string;

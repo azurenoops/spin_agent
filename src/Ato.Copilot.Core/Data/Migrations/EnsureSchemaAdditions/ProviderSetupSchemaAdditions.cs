@@ -16,6 +16,7 @@ public static class ProviderSetupSchemaAdditions
         var text = sql ? "nvarchar(max)" : "TEXT";
         var date = sql ? "datetimeoffset" : "TEXT";
         var number = sql ? "bigint" : "INTEGER";
+        var boolean = sql ? "bit" : "INTEGER";
         string Short(int count) => sql ? $"nvarchar({count})" : "TEXT";
         var definitions = new Dictionary<string, string>
         {
@@ -42,6 +43,48 @@ public static class ProviderSetupSchemaAdditions
                 UNIQUE(ProviderId,IdempotencyKey),
                 FOREIGN KEY(ProviderId) REFERENCES CspProfiles(Id),
                 FOREIGN KEY(ProviderId,DraftId) REFERENCES ProviderSetupDrafts(ProviderId,Id)
+                """,
+            ["ServicePortfolios"] = $"""
+                Id {guid} NOT NULL PRIMARY KEY, ProviderId {guid} NOT NULL,
+                Name {Short(256)} NOT NULL, Description {text} NOT NULL, Lifecycle {Short(32)} NOT NULL,
+                Revision {number} NOT NULL, CreatedAt {date} NOT NULL, CreatedBy {Short(254)} NOT NULL,
+                UpdatedAt {date} NOT NULL, UpdatedBy {Short(254)} NOT NULL,
+                UNIQUE(ProviderId,Id), FOREIGN KEY(ProviderId) REFERENCES CspProfiles(Id)
+                """,
+            ["ServicePortfolioOfferingRevisions"] = $"""
+                Id {guid} NOT NULL PRIMARY KEY, ProviderId {guid} NOT NULL,
+                PortfolioId {guid} NOT NULL, OfferingId {guid} NOT NULL, PredecessorId {guid} NULL,
+                IsPrimary {boolean} NOT NULL, State {Short(32)} NOT NULL, Reason {Short(2000)} NULL,
+                Revision {number} NOT NULL, CreatedAt {date} NOT NULL, CreatedBy {Short(254)} NOT NULL,
+                UNIQUE(ProviderId,Id), UNIQUE(ProviderId,OfferingId,Revision),
+                FOREIGN KEY(ProviderId,PortfolioId) REFERENCES ServicePortfolios(ProviderId,Id),
+                FOREIGN KEY(ProviderId,OfferingId) REFERENCES ProviderOfferings(ProviderId,Id),
+                FOREIGN KEY(ProviderId,PredecessorId) REFERENCES ServicePortfolioOfferingRevisions(ProviderId,Id)
+                """,
+            ["ProviderOfferingAuthorizationIntentRevisions"] = $"""
+                Id {guid} NOT NULL PRIMARY KEY, ProviderId {guid} NOT NULL, SetupId {guid} NOT NULL,
+                OfferingId {guid} NULL, PredecessorId {guid} NULL, StartingPoint {Short(32)} NOT NULL,
+                UnconfirmedFactsJson {text} NOT NULL, SourcesJson {text} NOT NULL, UnresolvedFieldsJson {text} NOT NULL,
+                Revision {number} NOT NULL, CreatedAt {date} NOT NULL, CreatedBy {Short(254)} NOT NULL,
+                UNIQUE(ProviderId,Id), UNIQUE(ProviderId,SetupId,Revision),
+                FOREIGN KEY(ProviderId,SetupId) REFERENCES ProviderSetupDrafts(ProviderId,Id),
+                FOREIGN KEY(ProviderId,OfferingId) REFERENCES ProviderOfferings(ProviderId,Id),
+                FOREIGN KEY(ProviderId,PredecessorId) REFERENCES ProviderOfferingAuthorizationIntentRevisions(ProviderId,Id)
+                """,
+            ["ProviderSetupWorkItems"] = $"""
+                Id {guid} NOT NULL PRIMARY KEY, ProviderId {guid} NOT NULL, SetupId {guid} NOT NULL,
+                PortfolioId {guid} NULL, OfferingId {guid} NULL, UploadIntentId {guid} NULL,
+                Type {Short(64)} NOT NULL, ReasonCode {Short(64)} NOT NULL, State {Short(32)} NOT NULL,
+                OwnerRole {Short(64)} NOT NULL, AccountablePrincipalId {Short(254)} NULL,
+                ReviewerPrincipalId {Short(254)} NULL, DueAt {date} NULL,
+                AcceptanceCriteria {Short(2000)} NOT NULL, Destination {Short(2048)} NOT NULL,
+                SourceRevision {number} NOT NULL, IdempotencyKey {Short(300)} NOT NULL,
+                CreatedAt {date} NOT NULL, CreatedBy {Short(254)} NOT NULL,
+                ClosedAt {date} NULL, ClosedBy {Short(254)} NULL,
+                UNIQUE(ProviderId,IdempotencyKey),
+                FOREIGN KEY(ProviderId,SetupId) REFERENCES ProviderSetupDrafts(ProviderId,Id),
+                FOREIGN KEY(ProviderId,PortfolioId) REFERENCES ServicePortfolios(ProviderId,Id),
+                FOREIGN KEY(ProviderId,OfferingId) REFERENCES ProviderOfferings(ProviderId,Id)
                 """
         };
         foreach (var (table, definition) in definitions)
@@ -53,6 +96,8 @@ public static class ProviderSetupSchemaAdditions
         foreach (var (table, column, definition) in new[]
         {
             ("CspProfiles", "SetupRevision", $"{number} NOT NULL DEFAULT 1"),
+            ("CspProfiles", "DodComponent", $"{Short(128)} NULL"),
+            ("CspProfiles", "TimeZoneId", $"{Short(128)} NULL"),
             ("CspPackages", "UploadIntentId", $"{guid} NULL"),
             ("CspPackages", "HandlingPolicyVersion", $"{Short(100)} NULL"),
             ("CspPackages", "HandlingDeclarationJson", $"{text} NULL"),
@@ -116,6 +161,14 @@ public static class ProviderSetupSchemaAdditions
             ? "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CspPackages_UploadIntentId' AND object_id = OBJECT_ID(N'CspPackages')) CREATE UNIQUE INDEX IX_CspPackages_UploadIntentId ON CspPackages(UploadIntentId) WHERE UploadIntentId IS NOT NULL"
             : "CREATE UNIQUE INDEX IF NOT EXISTS IX_CspPackages_UploadIntentId ON CspPackages(UploadIntentId) WHERE UploadIntentId IS NOT NULL";
         await db.Database.ExecuteSqlRawAsync(uniqueIntentIndex, ct);
+        var activePortfolioIndex = sql
+            ? "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ServicePortfolioOfferingRevisions_ActivePrimary' AND object_id = OBJECT_ID(N'ServicePortfolioOfferingRevisions')) CREATE UNIQUE INDEX IX_ServicePortfolioOfferingRevisions_ActivePrimary ON ServicePortfolioOfferingRevisions(ProviderId,OfferingId) WHERE IsPrimary = 1 AND State = 'Active'"
+            : "CREATE UNIQUE INDEX IF NOT EXISTS IX_ServicePortfolioOfferingRevisions_ActivePrimary ON ServicePortfolioOfferingRevisions(ProviderId,OfferingId) WHERE IsPrimary = 1 AND State = 'Active'";
+        await db.Database.ExecuteSqlRawAsync(activePortfolioIndex, ct);
+        var workQueueIndex = sql
+            ? "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ProviderSetupWorkItems_Queue' AND object_id = OBJECT_ID(N'ProviderSetupWorkItems')) CREATE INDEX IX_ProviderSetupWorkItems_Queue ON ProviderSetupWorkItems(ProviderId,State,OwnerRole)"
+            : "CREATE INDEX IF NOT EXISTS IX_ProviderSetupWorkItems_Queue ON ProviderSetupWorkItems(ProviderId,State,OwnerRole)";
+        await db.Database.ExecuteSqlRawAsync(workQueueIndex, ct);
         logger.LogInformation("Verified additive private provider setup schema");
     }
 }

@@ -50,6 +50,70 @@ Guided setup prepares a usable workspace and identifies the work still needed
 for a documented system. Completing setup does not approve documents, publish
 provider releases, accept customer duties or make an authorization decision.
 
+## Approved provider first-login implementation (October 8, 2026)
+
+This section documents the approved **next implementation** and does not replace
+the verified September 30 results below. The first-login changes are not yet
+claimed implemented, tested, accepted, deployed, or release-ready by this guide.
+
+The current UI prototype at
+`src/Ato.Copilot.Dashboard/src/features/csp-onboarding/prototype` is onboarding
+only. Reviewers should exercise its entry/status scenarios, six setup stages,
+save/resume and failure/receipt recovery through the final onboarding confirmation.
+The prototype intentionally stops there. It does not demonstrate My Offerings,
+offering overview, readiness, evidence, assessment, decision, or other provider
+workspace screens. Production may route an authorized user to those existing
+destinations only when the user activates the explicit **Open provider
+workspace** link on the completion screen. The completion screen retains the
+onboarding summary; it must not auto-redirect, preload, or embed the provider
+workspace. Destination behavior is reviewed in its owning workflow.
+
+### Approved operating assumptions
+
+- A platform operator authorizes the initial provider setup administrator.
+  Nobody receives authority because they logged in first.
+- The implementation includes durable hashed, expiring, single-use invitation
+  tokens and invitation create/read/accept/revoke APIs. No invitation delivery
+  channel is claimed; an API-created token is not proof of email or notification.
+- Provider screens display **SCA**, while the canonical persisted role remains
+  **Assessor**.
+- An offering has one active primary service portfolio at a time. Prior
+  memberships remain historical records.
+- A provider AO may record a previously issued external decision with exact
+  provenance and assigned scope. SPIN Agent does not issue the provider decision.
+- Follow-up reviewers and due dates are optional unless a later approved policy
+  requires them for a named work type. Acceptance criteria and an accountable
+  principal or explicit Unassigned state are still required.
+
+### Manual acceptance to perform after implementation
+
+1. As a platform operator, grant setup authority to a named provider identity;
+   verify a different first-login identity cannot start registration.
+2. Complete and resume the six-stage setup, including a deferred offering or
+   source. Confirm the durable work item retains acceptance criteria and may have
+   no reviewer or due date.
+3. Create an invitation through the API, confirm storage does not retain the raw
+   token, accept it once as the intended identity, and verify replay, mismatch,
+   expiry, and revocation fail. Do not report that any message was delivered.
+4. Verify `SCA` presentation resolves to canonical `Assessor` permissions and
+   does not add AO or administrator rights.
+5. Race two primary-portfolio assignments and verify only one is active while
+   both histories remain readable.
+6. Declare existing authorization facts and receive/analyze a source. Confirm
+   proposed facts remain unverified until review and that only an assigned
+   provider AO can record the already-issued external decision.
+7. Complete onboarding in every prototype scenario at desktop/mobile and by
+   keyboard. Confirm each mock branch stops at completion/status, retains the
+   onboarding summary, and does not navigate until the user activates **Open
+   provider workspace**. Test the authorized destination separately through the
+   production router and confirm no workspace is embedded in onboarding.
+
+Acceptance must record backend persistence/API results, Dashboard/browser
+results, local manual review, deployment, and any future delivery-channel test
+separately. Setup completion still does not establish document review,
+assessment, authorization, customer coverage, monitoring health, cATO readiness,
+eMASS submission, or an AO decision.
+
 ## Enter and resume
 
 In an ordinary authorized workspace, choose **Guided setup** in the workspace

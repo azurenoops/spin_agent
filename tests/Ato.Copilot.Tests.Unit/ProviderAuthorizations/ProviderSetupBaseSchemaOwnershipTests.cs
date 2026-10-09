@@ -34,6 +34,8 @@ public sealed class ProviderSetupBaseSchemaOwnershipTests
             ALTER TABLE CspPackages DROP COLUMN HandlingDeclarationJson;
             ALTER TABLE CspPackages DROP COLUMN RequiresOfferingAssociation;
             ALTER TABLE CspProfiles DROP COLUMN SetupRevision;
+            ALTER TABLE CspProfiles DROP COLUMN DodComponent;
+            ALTER TABLE CspProfiles DROP COLUMN TimeZoneId;
             ALTER TABLE ProviderOfferings DROP COLUMN ServiceModel;
             ALTER TABLE ProviderOfferings DROP COLUMN ManagementArrangement;
             ALTER TABLE ProviderOfferings DROP COLUMN ServiceOwner;
@@ -56,6 +58,8 @@ public sealed class ProviderSetupBaseSchemaOwnershipTests
         var retainedProfile = await db.CspProfiles.SingleAsync();
         retainedProfile.Id.Should().Be(profile.Id);
         retainedProfile.SetupRevision.Should().Be(1);
+        retainedProfile.DodComponent.Should().BeNull();
+        retainedProfile.TimeZoneId.Should().BeNull();
         var retainedOffering = await db.Set<ProviderOffering>().SingleAsync();
         retainedOffering.Id.Should().Be(offering.Id);
         retainedOffering.ProviderId.Should().Be(profile.Id);

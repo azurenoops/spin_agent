@@ -69,6 +69,7 @@ public static class ProviderSetupEndpoints
         http.Response.Headers.CacheControl = "private, no-store";
         try
         {
+            await service.AuthorizeAsync(Actor(http), http.RequestAborted);
             if (http.RequestServices.GetRequiredService<IOptions<DeploymentOptions>>().Value.Mode == DeploymentMode.SingleTenant)
                 return ProviderAuthorizationHttp.Failure(http, 404, "SINGLE_TENANT_MODE", "Provider setup is not applicable.");
             if (http.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();

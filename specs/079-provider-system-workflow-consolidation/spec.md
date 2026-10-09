@@ -656,8 +656,9 @@ maintaining two active implementations.
   verified contracts and approval.
 - Deleting historical source, review, release, evidence, decision, or package data.
 - Expanding to every historical mock merely because it is copied into the design
-  archive. The newly encountered onboarding companion is retained as reference;
-  broad organization/system onboarding redesign requires separate scope review.
+  archive. The October 8 approved provider first-login onboarding slice above is
+  the only newly authorized onboarding expansion; broad organization/system
+  onboarding redesign still requires separate scope review.
 
 ## User stories and independent acceptance
 

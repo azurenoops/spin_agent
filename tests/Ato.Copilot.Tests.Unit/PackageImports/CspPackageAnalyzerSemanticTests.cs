@@ -292,7 +292,7 @@ public sealed partial class CspPackageAnalyzerTests
     }
 
     [Fact]
-    public async Task Semantic_TimeoutIsExplicitAndCallerCancellationPropagates()
+    public async Task Semantic_TimeoutIsExplicit()
     {
         // Arrange
         var client = new Mock<IChatClient>(MockBehavior.Strict);
@@ -303,13 +303,38 @@ public sealed partial class CspPackageAnalyzerTests
 
         // Act
         var timeout = await analyzer.AnalyzeAsync([SemanticInput("txt")]);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
-        var cancelled = () => analyzer.AnalyzeAsync([SemanticInput("txt")], cancellation.Token);
 
         // Assert
         timeout.Entries.Single().ReasonCode.Should().Be("MODEL_ANALYSIS_TIMEOUT");
         timeout.NeedsAttention.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Semantic_CallerCancellationPropagates(bool beforeAnalysis)
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        var client = new Mock<IChatClient>(MockBehavior.Strict);
+        client.Setup(item => item.GetStreamingResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(),
+            It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .Returns((IEnumerable<ChatMessage> _, ChatOptions? _, CancellationToken ct) =>
+            {
+                cancellation.Cancel();
+                ct.IsCancellationRequested.Should().BeTrue();
+                return SemanticDelayedStream(ct);
+            });
+        var analyzer = SemanticAnalyzer(client.Object);
+        if (beforeAnalysis) cancellation.Cancel();
+
+        // Act
+        var cancelled = () => analyzer.AnalyzeAsync([SemanticInput("txt")], cancellation.Token);
+
+        // Assert
         await cancelled.Should().ThrowAsync<OperationCanceledException>();
+        client.Verify(item => item.GetStreamingResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(),
+            It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()), beforeAnalysis ? Times.Never() : Times.Once());
     }
 
     private sealed record SemanticTestSegment(string Key, string Text);

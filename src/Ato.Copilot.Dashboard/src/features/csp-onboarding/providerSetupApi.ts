@@ -3,7 +3,7 @@ import type { PackageStatus } from '../package-imports/types';
 import type { SourceManifestEntry } from '../package-imports/uploadIdentity';
 import type { CspOnboardingStateDto } from './api';
 
-export type ProviderScreen = 'p-details' | 'p-access' | 'p-offering' | 'p-sources' | 'p-uncertain' | 'p-review' | 'p-ready';
+export type ProviderScreen = 'p-details' | 'p-access' | 'p-offering' | 'p-authorization' | 'p-sources' | 'p-uncertain' | 'p-review' | 'p-ready';
 export interface Deferral { reason: string; ownerRole: 'CSP.Admin' }
 export interface ServiceDescription {
   environmentKind: string; environmentLabel?: string; serviceModel?: string; managedBy?: string;
@@ -12,11 +12,16 @@ export interface ServiceDescription {
 export interface SetupDraft {
   currentScreen: ProviderScreen;
   details: { displayName: string; legalEntityName: string; serviceContactName: string; serviceContactEmail: string;
-    supportPhone?: string; logoUrl?: string; legacyClassificationDefault?: string; confirmLegacyClassificationDefault?: boolean };
+    dodComponent?: string; timeZoneId?: string; supportPhone?: string; logoUrl?: string;
+    legacyClassificationDefault?: string; confirmLegacyClassificationDefault?: boolean };
+  operationalContact?: { choice: string; displayName?: string; email?: string; deferral?: Deferral };
   securityContact: { choice: string; displayName?: string; email?: string; deferral?: Deferral };
   firstOffering: { choice: string; offeringId?: string; expectedRevision?: number; name?: string; description?: string;
-    environments?: string[]; serviceDescription?: ServiceDescription; deferral?: Deferral };
-  sources: { choice: string; intentIds: string[]; deferral?: Deferral;
+    portfolioName?: string; environments?: string[]; serviceDescription?: ServiceDescription; deferral?: Deferral };
+  authorization: { choice: 'Unspecified' | 'ExistingAuthorization' | 'InitialAuthorization' | 'DetermineLater';
+    decisionReference?: string; issuingAuthority?: string; decisionDate?: string; expirationDate?: string;
+    conditions?: string; statedScope?: string; systemOrBoundaryName?: string; supportingSource?: string };
+  sources: { choice: string; intentIds: string[]; packageReference?: string; deferral?: Deferral;
     selection?: { packageName: string; files: SourceManifestEntry[]; offeringHintId: string | null; context: null } };
 }
 export interface SetupActor { directoryTenantId: string; objectId: string; displayName: string }
@@ -49,7 +54,8 @@ export interface SetupAction {
 export interface SetupState {
   providerId: string | null; profileRevision: number | null; profile: CspOnboardingStateDto;
   draft: { draftId: string; revision: number; currentScreen: ProviderScreen; fields: SetupDraft;
-    savedAt: string; savedBy: string; committedOfferingId: string | null; completion: object | null } | null;
+    savedAt: string; savedBy: string; committedOfferingId: string | null;
+    committedPortfolioId?: string | null; committedAuthorizationIntentId?: string | null; completion: object | null } | null;
   access: SetupAccess; handling: HandlingPolicy; uploadIntents: UploadIntent[]; facts: SetupAction[];
 }
 export interface CommandResult {

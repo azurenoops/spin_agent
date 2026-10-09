@@ -15,6 +15,34 @@ namespace Ato.Copilot.Tests.Unit.Services;
 
 public class CapabilityImportServiceTests : IDisposable
 {
+    [Fact]
+    public async Task Coverage_relational_baseline_counts_preserve_organization_and_system_denominators()
+    {
+        // Arrange
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new AtoCopilotContext(new DbContextOptionsBuilder<AtoCopilotContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        db.RegisteredSystems.Add(new() { Id = "coverage-system", Name = "Coverage test system", CreatedBy = "fixture" });
+        db.ControlBaselines.Add(new() { RegisteredSystemId = "coverage-system", BaselineLevel = "High",
+            ControlIds = ["AC-1", "AU-2"], TotalControls = 2, CreatedBy = "fixture" });
+        db.NistControls.AddRange(
+            new NistControl { Id = "AC-1", Title = "First", Family = "AC", Description = "Fixture", Baselines = ["High", "Moderate"] },
+            new NistControl { Id = "AU-2", Title = "Second", Family = "AU", Description = "Fixture", Baselines = ["High"] },
+            new NistControl { Id = "IA-1", Title = "Excluded", Family = "IA", Description = "Fixture", Baselines = ["Low"] });
+        await db.SaveChangesAsync();
+        var environment = new Mock<IWebHostEnvironment>();
+        environment.SetupGet(x => x.ContentRootPath).Returns(Path.Combine(_tempDir, "src", "seed-data"));
+        var service = new CapabilityImportService(db,
+            new CspProfileService(Mock.Of<ILogger<CspProfileService>>(), environment.Object),
+            _orgServiceMock.Object, new NarrativeTemplateService(), Mock.Of<ILogger<CapabilityImportService>>());
+        // Act
+        var result = await service.ComputeCoverageAsync(true, false);
+        // Assert
+        result.OrgWide.BaselineControlCount.Should().Be(2);
+        result.PerSystem.Should().ContainSingle(system => system.TotalControls == 2);
+    }
+
     private readonly AtoCopilotContext _db;
     private readonly Mock<IOrgInheritanceService> _orgServiceMock;
     private readonly CapabilityImportService _sut;

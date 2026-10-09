@@ -216,7 +216,8 @@ public class TenantScopedEndpointHttpPipelineTests
         };
         db.ControlImplementations.Add(implementation);
         db.RmfRoleAssignments.AddRange(
-            new RmfRoleAssignment { TenantId = _tenantA, RegisteredSystemId = systemId, UserId = "multi-tenant-test-user", RmfRole = RmfRole.Issm },
+            new RmfRoleAssignment { TenantId = _tenantA, RegisteredSystemId = systemId,
+                UserId = MultiTenantWebApplicationFactory<McpProgram>.TestActorObjectId.ToString(), RmfRole = RmfRole.Issm },
             new RmfRoleAssignment { TenantId = _tenantA, RegisteredSystemId = systemId, UserId = "separate-author", RmfRole = RmfRole.SystemOwner });
         await db.SaveChangesAsync();
         var endpoint = $"/api/systems/{systemId}/narrative-library";
@@ -259,7 +260,8 @@ public class TenantScopedEndpointHttpPipelineTests
         var assignment = new RmfRoleAssignment
         {
             TenantId = _tenantA, RegisteredSystemId = systemId,
-            UserId = "multi-tenant-test-user", RmfRole = RmfRole.SystemOwner, IsActive = true, AssignedBy = "test"
+            UserId = MultiTenantWebApplicationFactory<McpProgram>.TestActorObjectId.ToString(),
+            RmfRole = RmfRole.SystemOwner, IsActive = true, AssignedBy = "test"
         };
         db.RmfRoleAssignments.Add(assignment);
         await db.SaveChangesAsync();
@@ -290,13 +292,44 @@ public class TenantScopedEndpointHttpPipelineTests
         (await _client.PostAsJsonAsync(endpoint + $"/{id}/publish", review)).StatusCode.Should().Be(HttpStatusCode.Conflict);
         var stored = await db.NarrativeReferences.AsNoTracking().SingleAsync(item => item.Id == id);
         stored.TenantId.Should().Be(_tenantA);
-        stored.PublishedBy.Should().Be("multi-tenant-test-user");
+        stored.PublishedBy.Should().Be(MultiTenantWebApplicationFactory<McpProgram>.TestActorObjectId.ToString());
         (await db.ControlImplementations.SingleAsync(item => item.RegisteredSystemId == systemId)).PolicyNarrative.Should().Be("Active policy");
         assignment.IsActive = false;
         await db.SaveChangesAsync();
         (await _client.PostAsJsonAsync(endpoint + $"/{id}/publish", review)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         SetTenant(_tenantB, isCspAdmin: false);
         (await _client.GetAsync(endpoint)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Issue1001_NarrativeLibrary_UsesObjectIdentityInsteadOfNameIdentifierForAuthority()
+    {
+        // Arrange
+        var systemId = (await SeedSystemAsync(_tenantA, "Narrative-object-identity")).ToString();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var assignment = new RmfRoleAssignment
+        {
+            TenantId = _tenantA, RegisteredSystemId = systemId,
+            UserId = "multi-tenant-test-user", RmfRole = RmfRole.SystemOwner, IsActive = true, AssignedBy = "test"
+        };
+        db.RmfRoleAssignments.Add(assignment);
+        await db.SaveChangesAsync();
+        var endpoint = $"/api/systems/{systemId}/narrative-library/proposals";
+
+        // Act
+        var wrongIdentity = await _client.GetAsync(endpoint);
+
+        // Assert
+        wrongIdentity.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Act
+        assignment.UserId = MultiTenantWebApplicationFactory<McpProgram>.TestActorObjectId.ToString();
+        await db.SaveChangesAsync();
+        var objectIdentity = await _client.GetAsync(endpoint);
+
+        // Assert
+        objectIdentity.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

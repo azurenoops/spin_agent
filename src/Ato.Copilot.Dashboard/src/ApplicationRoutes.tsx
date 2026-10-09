@@ -35,6 +35,7 @@ import OrgSettingsPage from './pages/settings/OrgSettingsPage';
 import OnboardingShell from './features/onboarding/OnboardingShell';
 import TenantWizard from './features/onboarding/TenantWizard';
 import CspWizard from './features/csp-onboarding/CspWizard';
+import ProviderInvitationPage from './features/csp-onboarding/ProviderInvitationPage';
 import CspInheritedComponentsPage from './features/csp-inherited-components/CspInheritedComponentsPage';
 import OrgCapabilityLibraryPage from './pages/OrgCapabilityLibraryPage';
 import OrgCapabilityDetailPage from './pages/OrgCapabilityDetailPage';
@@ -166,6 +167,7 @@ export default function ApplicationRoutes() {
             <Route path="platform/migration" element={<AdminAccessGate action="platform.migration.preview"><AdminMigrationPage embedded /></AdminAccessGate>} />
           </Route>
           <Route path="access-required" element={<RequireAuth><AccessRequiredPage /></RequireAuth>} />
+          <Route path="access/invitations/:invitationId" element={<RequireAuth><ProviderInvitationPage /></RequireAuth>} />
           <Route path="admin/imported-documents" element={<RequireAuth><ImportedDocumentsView /></RequireAuth>} />
           <Route path="admin/templates" element={<RequireAuth><TemplatesAdminPage /></RequireAuth>} />
           {/* Wave 6 GAP-007: retired /csp-dashboard redirect */}

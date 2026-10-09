@@ -91,6 +91,9 @@ public static class CoreServiceExtensions
         services.TryAddSingleton<ITenantContextAccessor, TenantContextAccessor>();
         services.TryAddScoped<ITenantContext, TenantContext>();
         services.TryAddScoped<IEffectiveAccessService, EffectiveAccessService>();
+        services.TryAddScoped<ProviderAccessService>();
+        services.TryAddScoped<IProviderAccessService>(provider =>
+            provider.GetRequiredService<ProviderAccessService>());
 
         // Register IMemoryCache with configurable size limit (FR-020a)
         var cachingOptions = new CachingOptions();
