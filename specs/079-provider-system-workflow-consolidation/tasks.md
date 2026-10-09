@@ -1,5 +1,16 @@
 # Tasks: Feature 079
 
+### Approved focused offering follow-up (2026-10-07)
+
+- [x] Write failing approved-layout, next-task, capability interaction and identity
+  comparison/close-guard tests before production changes.
+- [x] Implement focused destinations with existing typed contracts and retained
+  source, review, publication and allocation handoffs.
+- [x] Validate focused tests, TypeScript/build, desktop/mobile production reads
+  and synthetic failures without writing live feature records.
+- [ ] User manually reviews the production 4196 offering and existing source,
+  finding, identity and scope workflows before accepting the presentation change.
+
 **Inputs**: [spec](spec.md), [plan](plan.md), [screen contract](contracts/screen-route-migration.md)  
 **Status**: Application implementation started 2026-09-26; full contract acceptance remains open.  
 **Format**: ID / story / dependency / exact affected paths and acceptance.
@@ -31,7 +42,28 @@ Task dependencies are intentional: UI work waits for persisted server authority
 and setup contracts; external-decision integration waits for intent/work records;
 release evidence waits for both onboarding completion and separate route handoff.
 Live invitation delivery is not a hidden dependency because it is not in scope.
+### October 7: provider Overview dropdown removal
 
+- [x] PO01: Verify checkout/current offering API and document narrow Overview
+  contract before production changes; preserve excluded report/agent files.
+- [x] PO02: Red frontend assertions for absent Overview dropdown, actionable
+  full register, explicit summary context, deep links and multi/empty/error states.
+- [x] PO03: Remove only the Overview selector; select through register names,
+  label offering metrics and retain the register independently of summary state.
+- [x] PO04: Focused tests, TypeScript/build and read-only synthetic browser
+  desktop/mobile/keyboard checks; no feature writes or exports.
+- [ ] PO05: User manual acceptance at 4196. No commit/push/GitHub write.
+
+PO02 reproduced four failing regressions before production changes. Final PO04:
+17 Vitest cases, `npx tsc --noEmit`, production build and four Chromium cases
+passed at 1440px/390px. Browser checks include Tab/Enter, no horizontal page
+overflow, named deep links and zero API writes. Port 4196 became unreachable
+after the initial successful HTTP probe; synthetic browser verification used
+an isolated owned frontend at 4197, stopped afterward, without restarting shared
+services. Live provider inspection is unverified. Build warnings remain for
+Browserslist age, SignalR annotations, mixed static/dynamic imports and bundle
+size; existing Administration tests report React act warnings. No backend/export
+changes or export rerun. Excluded report/agent files remain untouched.
 ### Focused offering drawer follow-up
 
 - [x] FD01: Verify checkout/reference/contracts and preserve staged fingerprint;
@@ -1110,3 +1142,73 @@ bytes and digest within that run.
 
 No issue closure, GitHub write, commit, push, production mutation, live cloud
 validation, or user manual acceptance has occurred.
+# Scope & duties correction — October 7, 2026
+
+- [x] Reproduce production/mock scope hierarchy mismatch in semantic tests.
+- [x] Consolidate service scope, preserve provenance and responsive service tiles,
+      and group recorded provider/customer duties with real workflow links.
+- [x] Validate isolated edit/permission/error cases, desktop/mobile mock comparison,
+      no live feature writes, type checking and production build.
+- [ ] User manually accepts the scoped 4196 Scope & duties presentation; immutable
+      published duty payloads and authorization/export completeness are not asserted.
+
+## Capability implementation drawer correction — October 7, 2026
+
+- [x] Reproduce the exact offering table-triggered drawer/mock mismatch and add
+      failing semantic parity tests before changing production source.
+- [x] Scope readable header, implementation paragraphs, control chips, exact-duty
+      grouping and progressive provenance/actions to this drawer.
+- [x] Validate focused unit/native fixture coverage, type checking/build, live
+      read-only screenshots and unchanged offering/source/release snapshots.
+- [ ] User manually accepts the Capabilities drawer on 4196. Historical release
+      payload and mission acceptance are not asserted.
+
+Verification: parity tests first failed 2/16; final combined focused/canonical
+run passed 159 tests in 9 files (OfferingCapabilities lines/statements 97.76%,
+branches 92.26%, functions 90.90%). Initial native run passed 24/26 and exposed
+lost trigger focus after source retry unmounted the table. The scoped trigger
+replacement fix then passed all 26: six new implementation scenarios plus the
+20 existing scope/offering fixtures, including isolated identity unsaved/error/
+success and boundary writes. No fixture write reached live APIs.
+
+`tsc --noEmit` and production build passed after fixing a new test's incorrectly
+typed workspace target. Actual 4196/mock 4198 drawers match native width, font,
+padding and radius at 1440/390px. Live offering/candidate/release-reference
+snapshots were unchanged, with zero feature writes and JavaScript errors.
+Four organization-context shell 403s remain. Canonical unit tests emit an act
+warning; Browserslist data, SignalR annotations, mixed static/dynamic import and
+bundle-size build warnings remain. These are not a clean full-stack assertion.
+No identity timeout occurred in this run; no claim is made about the earlier
+flaky identity timeout's root cause. No backend/export, commit/push, GitHub write
+or user acceptance was performed.
+# Release & changes parity follow-up (October 7)
+
+- [x] RC01 — Document mock structure and real read/identity comparison limits.
+- [x] RC02 — Failing layout tests, paired release/identity cards and working
+  changes panel with retained exact-context source/scope/impact actions.
+- [x] RC03 — Verify focused tests, strict type-check/build, desktop/mobile
+  mock comparison and live inspect-only acceptance without feature writes.
+
+RC03 evidence: 65 frontend tests, 8 new release-parity browser cases and 2
+retained identity/prerequisite cases passed. Strict type-check/build and scoped
+whitespace checks passed. Real identity/overview snapshots stayed unchanged
+at both widths; zero feature writes or JavaScript exceptions. Surrounding
+organization-context 403 and existing build warnings remain. No export or
+backend contract changed. See the mock README for manual acceptance and
+historical identity-comparison limitations.
+# Mission use parity follow-up (October 7)
+
+- [x] MU01 — Document compact handoff and allocation/adoption count semantics.
+- [x] MU02 — Failing tests, compact mission facts, focused provenance drawer,
+  real release and relationship states, preserved allocation workflows.
+- [x] MU03 — Type-check/build and focused tests; desktop/mobile mock and live
+  read-only checks with snapshots and zero feature writes.
+
+MU03 evidence: 60 focused frontend tests and 24 browser scenarios passed;
+strict type-check/build and scoped whitespace passed. Final corrected test
+typing also passed the 16-test release/mission selection and strict type-check.
+Release/mission coverage: 172/173 statements, 72/76 branches. The live page
+retains one recorded hosting allocation and zero adopted capabilities;
+identity/overview snapshots stayed unchanged, zero feature writes/page errors.
+Existing organization-context 403/build warnings remain. Backend and export
+contracts were not changed; native export validation was not rerun.

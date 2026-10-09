@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { inputClass, message } from '../workspace-operations/workspaceUi';
 import { Field, MutationForm } from './forms';
 import { ProviderPanel } from './ProviderPresentation';
@@ -36,7 +36,7 @@ export function OfferingIdentityFields({ value, onChange }: { value: IdentityMet
   </div>;
 }
 
-export function OfferingIdentityEditor({ offering, onSaved, onPendingChange }: { offering: Offering; onSaved: (updated: Offering) => void; onPendingChange?: (pending: boolean) => void }) {
+export function OfferingIdentityEditor({ offering, onSaved, onPendingChange, onDirtyChange }: { offering: Offering; onSaved: (updated: Offering) => void; onPendingChange?: (pending: boolean) => void; onDirtyChange?: (dirty: boolean) => void }) {
   const [name, setName] = useState(offering.name);
   const [description, setDescription] = useState(offering.description);
   const [metadata, setMetadata] = useState(() => identityMetadata(offering));
@@ -46,6 +46,16 @@ export function OfferingIdentityEditor({ offering, onSaved, onPendingChange }: {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState<Offering | null>(null);
   const [error, setError] = useState('');
+  const [comparing, setComparing] = useState(false);
+  const dirty = name !== base.name || description !== base.description || JSON.stringify(metadata) !== JSON.stringify(identityMetadata(base));
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  const changes = [
+    ['Name', base.name, name], ['Description', base.description, description],
+    ['Service model', base.serviceModel ? serviceModels[base.serviceModel] : 'Not recorded', metadata.serviceModel ? serviceModels[metadata.serviceModel] : 'Not recorded'],
+    ['Management', base.managementArrangement ? managementArrangements[base.managementArrangement] : 'Not recorded', metadata.managementArrangement ? managementArrangements[metadata.managementArrangement] : 'Not recorded'],
+    ['Service owner', base.serviceOwner || 'Not recorded', metadata.serviceOwner || 'Not recorded'],
+    ['Security contact', base.securityContact || 'Not recorded', metadata.securityContact || 'Not recorded'],
+  ].filter(([, before, after]) => before !== after);
   const refresh = async () => {
     setRefreshing(true); setError('');
     try {
@@ -58,6 +68,7 @@ export function OfferingIdentityEditor({ offering, onSaved, onPendingChange }: {
     finally { setRefreshing(false); }
   };
   return <div className="space-y-4">
+    <p className="rounded bg-indigo-50 p-3 text-sm">Edit the current service identity. Saving does not replace immutable published capability releases or accept mission inheritance.</p>
     <MutationForm label="Save service identity" onPendingChange={value => { setPending(value); onPendingChange?.(value); }} disabled={refreshing} submitDisabled={!name.trim()}
       submit={async () => onSaved(await api.updateOffering(offering.offeringId, { name: name.trim(), description, environments: base.environments,
         ...metadata, expectedRevision: revision }))} onSaved={() => undefined}>
@@ -66,6 +77,15 @@ export function OfferingIdentityEditor({ offering, onSaved, onPendingChange }: {
       <OfferingIdentityFields value={metadata} onChange={setMetadata} />
       <p className="text-xs">Updating revision {revision} records service identity, not authorization or a live connector. Previously retained release contexts are not rewritten.</p>
     </MutationForm>
+    <button type="button" className="provider-secondary" onClick={() => setComparing(value => !value)}>Compare identity edits</button>
+    {comparing && <section className="space-y-3">
+      <h3 className="font-semibold">Persisted identity revision {revision} → unsaved edits</h3>
+      <p className="text-xs">Published offering-identity snapshot is not available from this API. This is not a release comparison.</p>
+      {!changes.length ? <p>No identity changes.</p> : <table className="provider-table table-fixed w-full" aria-label="Identity changes">
+        <thead><tr><th>Field</th><th>Persisted</th><th>Unsaved</th></tr></thead>
+        <tbody>{changes.map(([field, before, after]) => <tr key={field}><th scope="row">{field}</th><td className="break-words">{before}</td><td className="break-words">{after}</td></tr>)}</tbody>
+      </table>}
+    </section>}
     <button className="provider-secondary" disabled={pending || refreshing} onClick={() => void refresh()}>Reload current service identity</button>
     {error && <p role="alert">{error}</p>}
     {refreshed && <ProviderPanel title={`Current service identity · revision ${refreshed.revision}`}>

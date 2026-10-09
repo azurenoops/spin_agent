@@ -5,8 +5,8 @@ import { registerHistoryGuard } from './navigationGuardRegistry';
 
 /** BrowserRouter does not support useBlocker. Intercept its navigator before unmount. */
 export default function UnsavedDesignGuard({ dirty, title = 'Unsaved System design changes',
-  description = 'Leaving will discard unsaved graph or presentation changes. Your saved revision and approved baseline are unchanged.', inline = false }: {
-  dirty: boolean; title?: string; description?: string; inline?: boolean;
+  description = 'Leaving will discard unsaved graph or presentation changes. Your saved revision and approved baseline are unchanged.', inline = false, busy = false }: {
+  dirty: boolean; title?: string; description?: string; inline?: boolean; busy?: boolean;
 }) {
   const { navigator } = useContext(UNSAFE_NavigationContext);
   const { pathname } = useLocation();
@@ -83,14 +83,14 @@ export default function UnsavedDesignGuard({ dirty, title = 'Unsaved System desi
         setPending(null);
         if (returnFocus.current?.isConnected) returnFocus.current.focus();
       }}>Keep editing</button>
-      <button type="button" className="sd-button" onClick={() => { bypass.current = true; pending(); setPending(null); }}>Discard and leave</button>
+      <button type="button" disabled={busy} className="sd-button" onClick={() => { bypass.current = true; pending(); setPending(null); }}>Discard and leave</button>
     </div>
   </section>;
   return <SetupDialog title={title} description={description}
-    busy={false} onClose={() => setPending(null)}>
+    busy={busy} onClose={() => { if (!busy) setPending(null); }}>
     <div className="flex flex-wrap justify-end gap-3">
       <button type="button" className="sd-button" onClick={() => setPending(null)}>Keep editing</button>
-      <button type="button" className="sd-button sd-primary" onClick={() => { bypass.current = true; pending(); setPending(null); }}>Discard and leave</button>
+      <button type="button" disabled={busy} className="sd-button sd-primary" onClick={() => { bypass.current = true; pending(); setPending(null); }}>Discard and leave</button>
     </div>
   </SetupDialog>;
 }

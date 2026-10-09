@@ -9,6 +9,18 @@ vi.mock('../../features/workspace-operations/SetupDialog', () => ({
 }));
 
 describe('unsaved design guard', () => {
+  it('prevents discard-and-leave while a retained offering operation is pending', () => {
+    // Arrange
+    render(<MemoryRouter initialEntries={['/offering']}><Routes>
+      <Route path="/offering" element={<><Link to="/elsewhere">Leave</Link><UnsavedDesignGuard dirty busy /></>} />
+      <Route path="/elsewhere" element={<h1>Elsewhere</h1>} />
+    </Routes></MemoryRouter>);
+    // Act
+    fireEvent.click(screen.getByRole('link', { name: 'Leave' }));
+    // Assert
+    expect(screen.getByRole('button', { name: 'Discard and leave' })).toBeDisabled();
+    expect(screen.queryByText('Elsewhere')).not.toBeInTheDocument();
+  });
   it('restores focus when canceling an inline programmatic push and retains explicit leave', () => {
     // Arrange
     function Editor() {

@@ -1,5 +1,14 @@
 # Mandatory mock-to-screen and route contract
 
+**Provider Overview register (2026-10-07)**: `/workspaces/csp` has no Service
+offering combobox. Select named offering summaries through the existing lower
+Service offerings register; retain all Open offering links and pagination.
+An unselected multi-offering page shows no offering metrics/focus tasks; a sole
+offering or explicit `offeringId` shows named context, never provider totals.
+The register stays usable while summary reads load/fail. Missing deep-link
+selections do not fall back to another offering. Mission systems selectors,
+summary API and authorization/mutation contracts are unchanged.
+
 **Navigation label refinement (2026-09-29)**: The organization/system left
 navigation group is **ATO Readiness**, replacing **ATO package & eMASS**.
 Its routes, icon, five task tabs, purpose propagation and permissions remain
@@ -185,6 +194,25 @@ values after failed saves, prevent dismissal during writes, and verify keyboard
 focus, cancellation and mobile scrolling.
 
 ## Reading the matrix
+
+### Focused offering routes and response fences (2026-10-07)
+
+The approved offering navigation retains the existing protected routes:
+Overview at the offering root; Capabilities at
+`inherited-coverage?task=capabilities`; Scope & duties at `boundary`; Sources &
+findings at `packages` (with an explicit offering-scoped finding/evidence
+handoff); Release & changes at `release`; Mission use at `mission-use`.
+Existing package, candidate, decision, impact, hosting/proposal and relationship
+deep routes remain available. Native route links preserve CSP workspace context.
+
+The boundary read rejects foreign/missing offering identity or invalid revision,
+and capability pagination rejects revision changes across pages. Identity writes
+use the existing PATCH `expectedRevision` fence and only accept a response
+identifying that offering and the next persisted revision. No server API/schema,
+tenant filters, role policy, source edition or published snapshot is changed.
+Missing historical published identity and pinned duty content are disclosed.
+The canonical capability workflow exposes working-revision and source-duty
+review plus publication previews, not a reconstructed immutable duty payload.
 
 **Single boundary surface correction (2026-09-28)**: The main boundary page
 must not expose both the selected-boundary panel and a second expandable
@@ -604,3 +632,85 @@ be dropped just to fit a mock; route them through the matching task/details
 pattern and obtain approval where design is ambiguous. Production data,
 security, error handling and accessibility are real implementations, not copies
 of in-memory mock state.
+# Scope & duties visual correction — October 7, 2026
+
+The approved focused prototype's Scope & duties panel leads with one **Service
+scope** card: recorded version, scope statement, two-column included-service
+tiles, exclusions, then collapsed hosting identity/source provenance. **Provider
+duties** and **Customer duties** follow as a two-column group (stacked on small
+screens). The production `/boundary` body previously split scope and services
+into oversized cards and exposed technical scope metadata before the duties.
+
+Use only the current recorded boundary and existing linked-record read models.
+Long scope statements retain their exact complete text in provenance; a compact
+first sentence is a presentation excerpt, not a new scope definition. Exclusion
+rationales, resource identifiers, hashes, citations, previous versions and linked
+records remain available through disclosures. Missing data and read failures
+must not become coverage claims. Boundary duties are working recorded duties,
+not immutable released allocations or mission acceptance. Explore-by-capability
+links to the existing capability workflow; no simulated duty approval is added.
+Boundary editing still creates a successor only through the existing editor.
+No backend/schema change or live feature write is needed for this correction.
+
+## Capability service implementation drawer — October 7, 2026
+
+The exact capability-name action in the offering Capabilities service table
+opens a read-only retained-context drawer, not the canonical working-revision
+editor. Reproduction found a generic 512px modal with an ungrouped description,
+comma-separated controls and stacked duty metadata. The approved focused HTML
+groups source description, control chips, responsibilities and provenance, with
+a 520px desktop drawer and compact mobile dialog.
+
+Apply that hierarchy only to the offering implementation drawer. Display the
+selected offering name and reported capability release revision; keep offering
+identity, retained proposal revision, published release and mission acceptance
+distinct. Group duty values exactly as supplied, without inventing provider or
+customer duties from a Shared classification. Missing published payloads,
+narratives, scope or evidence remain explicit, not mock copy.
+
+Keep canonical capability editing/review/publication, retained source review and
+scope workflows reachable via their existing context-scoped links. This mock
+has no implementation editor: do not add a simulated save or bypass existing
+editor permission, revision, prerequisite, unsaved-change or pending-write gates.
+Keep complete citations and technical identities in progressive disclosures.
+Preserve native modal focus containment, Escape and trigger restoration.
+No backend, historical snapshot model, live feature write or export change is
+required; user visual acceptance remains outstanding.
+
+Native restricted-source retry reproduced a disconnected trigger: reloading the
+capability table unmounts its rows while the open drawer survives. The generic
+modal cannot restore focus to its original disconnected button. Track the exact
+selected capability/package/candidate's replacement trigger in this offering
+component and restore that trigger after close; do not alter shared modal or
+provider-review behavior.
+# Release & changes mock parity (October 7)
+
+Keep the existing release route and read-only overview contract. Present one
+“Published release & working changes” panel with a clearly non-gating workflow
+orientation and paired customer-visible capability snapshots / working offering
+identity cards. A second “Working changes” panel provides current identity
+comparison and exact-context source-review handoffs. Retain all existing scope,
+source and impact actions in expandable comparison details.
+
+Published capability counts/revisions and pending counts come from the selected
+offering overview; identity lifecycle/revision come from its actual identity.
+Mixed or missing release versions remain explicit. Never reproduce the mock's
+simulated changes, discard action or publication success. Historical published
+identity is unavailable; existing identity editing compares unsaved fields only
+to the opening persisted identity. Orientation links are not completed stages
+or publication gates. No persistence, approval or export contract changes.
+# Mission use mock parity (October 7)
+
+Present mission use as compact allocation rows with paired hosting relationship
+and adopted-capability facts, plus a “What the Mission Owner still needs to
+review” panel. View handoff opens a focused, keyboard-accessible read-only
+drawer containing exact adopted releases, assigned scopes and provenance;
+existing relationship/allocation workflows remain accessible from it.
+
+Overview totals count hosting allocations, not accepted adoptions or uniquely
+associated systems. Never turn those totals into the mock's synthetic associated
+system count. Association, relationship review and retained release adoption
+remain distinct. Unknown relationship values and missing release identities are
+explicit. Mission-owner guidance is orientation, not a completed checklist.
+Preserve pagination, failed/stale reads, context-scoped links and existing
+permissions. This is a presentation change with no new write or export contract.

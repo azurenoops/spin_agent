@@ -1,5 +1,19 @@
 # Implementation Plan: Provider-to-Mission Workflow Consolidation
 
+### Focused offering implementation refinement (2026-10-07)
+
+Frontend-only: existing offering overview/boundary/package/finding projections,
+canonical capability details and retained candidates feed the approved layout.
+Existing PATCH identity concurrency fencing and versioned scope/source/impact
+review workflows remain unchanged. New mission-use and release-context read
+surfaces retain all operational links. Progressive disclosures and native
+SetupDialog focus/close behavior replace duplicated checklist content.
+Validate focused Vitest selectors, dashboard typecheck/build and real 4196
+desktop/mobile browser reads with before/after baseline equality. Exercise writes
+only against synthetic intercepted fixtures. No new export or eMASS compatibility
+claim. Existing authenticated server authorization and tenant filters remain
+authoritative; this change neither creates a permission contract nor weakens one.
+
 **Feature**: 079 | **Spec**: [spec.md](spec.md)  
 **Status**: Application implementation authorized 2026-09-26; acceptance pending  
 **Baseline**: `13204325f21d2ff7e0028e0065a52bb795cb5bee`
@@ -65,7 +79,17 @@ Slice exit requires every acceptance criterion in the October 8 spec section,
 including exact denial cells and non-claims. It does not require live email or
 other invitation delivery, workspace-screen mock fidelity, live Azure/Entra/eMASS
 connectivity, or an authorization decision. Feature 079 remains acceptance-pending.
+### October 7: provider Overview dropdown removal
 
+Frontend-only: retain the existing offering summary API and paged register.
+Show named offering context above metrics; use register offering-name buttons
+for local selection, preserving Open offering navigation. Do not auto-select a
+multi-offering page or hide the register behind a failed/unavailable summary.
+Keep the Mission systems selector unchanged. TDD covers no Overview combobox,
+multi/single/empty offerings, deep links, selection-specific counts, failures
+and read-only behavior; validate focused Vitest, TypeScript, production build
+and synthetic browser desktop/mobile/keyboard checks on the existing 4196 server.
+No schema, dependency, export or shared-runtime changes; user acceptance is open.
 ### October 4 proposed cross-artifact package completeness
 
 The [eMASS package completeness implementation plan](../../docs/design/emass-package-completeness-implementation-plan.md)
@@ -1005,3 +1029,38 @@ or modify sibling checkout work. Do not perform rollback without approval.
 - Application tests, live external integrations, new application screenshots,
   GitHub writes, commits and pushes were not performed. User acceptance remains
   open; follow [quickstart](quickstart.md) for local review.
+# Scope & duties correction — October 7, 2026
+
+Reuse provider panels/badges and responsive presentation styles for the approved
+single scope card and provider/customer duty group. Keep existing boundary,
+history, linked capability and mission loaders and editor contracts. Scope-only
+header presentation uses the offering identity rather than replacing it with a
+technical destination name. Preserve complete source text and citations in
+disclosures; do not infer immutable release duties from current candidates.
+Validate semantic structure red/green, editor behavior and missing/partial/stale
+data, then native-browser mock/live captures at 1440 and 390 pixels, unchanged
+GET snapshots, keyboard/Escape behavior, type checking and production build.
+
+## Capability implementation drawer presentation correction — October 7, 2026
+
+Use OfferingCapabilities' existing selected offering/candidate/catalog reads and
+SetupDialog's native modal shell; add a drawer-specific presentation class only.
+Retain exact source duty values and disclose release-payload limitations.
+Canonical editing stays in its existing workflow. Validate structure red/green,
+long text, missing duties, source errors, lifecycle and workspace-scoped links,
+then native desktop/mobile mock/live screenshots, keyboard behavior and unchanged
+offering/candidate/release GET snapshots. No data model or backend changes.
+# Release presentation follow-up (October 7)
+
+Restructure OfferingReleaseContext into the approved mock's paired release and
+identity layout plus compact working-change panel. Add scoped release styles,
+preserve existing exact-context routes in advanced comparison details, and
+verify real/mixed/missing counts, stale/failed reads and mobile keyboard access.
+No new backend or published-identity comparison contract is introduced.
+# Mission handoff presentation (October 7)
+
+Reuse the boundary mission overview and existing SetupDialog for the mock's
+compact mission card and detail handoff. Keep release/scope metadata inside the
+drawer, preserve existing allocation routes, and share verified relationship
+labels with BoundaryPage. Validate real totals, zero/multiple/paginated records,
+unknown/failed/stale states, mobile facts, keyboard dismissal and focus return.

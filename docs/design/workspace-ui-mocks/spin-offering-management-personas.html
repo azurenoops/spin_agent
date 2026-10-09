@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>SPIN · Ongoing offering management · SIMULATED prototype</title>
+  <link rel="stylesheet" href="spin-offering-management-personas.css">
+  <script defer src="spin-offering-management-personas.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to workspace</a>
+  <header class="top">
+    <div class="workspace-brand">
+      <a class="brand" href="#" id="brand" aria-label="SPIN provider overview"><img alt="SPIN" src="data:image/svg+xml,%3Csvg width='980' height='420' viewBox='0 0 980 420' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='spinArcGradient' x1='108' y1='210' x2='877' y2='210' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%230F255F'/%3E%3Cstop offset='1' stop-color='%231E7EF2'/%3E%3C/linearGradient%3E%3ClinearGradient id='spinTextGradient' x1='470' y1='225' x2='928' y2='225' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%230F255F'/%3E%3Cstop offset='1' stop-color='%231E7EF2'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M165 135C221 66 320 28 429 28C518 28 601 53 667 105' stroke='url(%23spinArcGradient)' stroke-width='24' stroke-linecap='round'/%3E%3Cpath d='M216 175C257 123 330 94 410 94C468 94 523 110 568 141' stroke='%239AA0A6' stroke-width='15' stroke-linecap='round'/%3E%3Cpath d='M339 328C395 370 468 392 542 392C618 392 689 370 744 327' stroke='%239AA0A6' stroke-width='13' stroke-linecap='round'/%3E%3Cpath d='M164 302C224 371 323 410 435 410C558 410 673 363 748 278' stroke='url(%23spinArcGradient)' stroke-width='24' stroke-linecap='round'/%3E%3Cpath d='M724 110L862 56L803 178L801 131L682 114L724 110Z' fill='%231E7EF2'/%3E%3Cpath d='M763 131L826 95L789 138L763 131Z' fill='white' fill-opacity='.94'/%3E%3Cpath d='M817 133L871 203L844 184L817 161V133Z' fill='%231E7EF2'/%3E%3Cg transform='translate(12 10) skewX(-12)'%3E%3Ctext x='20' y='262' font-family='Arial Black, Arial, Helvetica, sans-serif' font-size='214' font-weight='900' fill='%230F255F'%3ESP%3C/text%3E%3Ctext x='448' y='262' font-family='Arial Black, Arial, Helvetica, sans-serif' font-size='214' font-weight='900' fill='url(%23spinTextGradient)'%3EiN%3C/text%3E%3C/g%3E%3Ccircle cx='623' cy='166' r='24' fill='%231E7EF2'/%3E%3C/svg%3E"></a>
+      <div class="workspace-identity"><strong>PEO Digital <span>· Flank Speed portfolio</span></strong><small id="workspace-role">Provider workspace · SSM</small></div>
+    </div>
+    <div class="demo-controls">
+      <span class="demo-badge">SIMULATED · ISOLATED PROTOTYPE</span>
+      <button id="demo-help">Demo help</button>
+      <div><label class="sr-only" for="persona">Demo persona</label><select id="persona" aria-describedby="switch-help"></select></div>
+      <button id="reset">Reset demo data</button>
+    </div>
+    <p class="sr-only" id="switch-help">Presentation-only demo switcher. Seven fixed sample identities and scoped grants, not authentication or production role assignment.</p>
+  </header>
+  <div id="storage-error" role="alert" hidden></div>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <div class="layout">
+    <aside class="rail">
+      <p class="eyebrow">Provider workspace</p>
+      <nav aria-label="Provider workspace">
+        <button id="home" class="rail-link"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v11h-6v-7H9v7H3Z"/></svg>Overview</button>
+        <button id="offerings" class="rail-link" data-action="offerings"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21V3h12v18M16 8h4v13H4M8 7h4M8 11h4M8 15h4"/></svg>Offerings</button>
+        <button id="missions" class="rail-link" data-action="workspaceSection" data-id="environments"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 21v-4c0-5 12-5 12 0v4M16 4c5 0 5 6 0 6M18 14c3 1 3 4 3 7"/></svg>Mission systems</button>
+        <button id="changes" class="rail-link" data-action="workspaceSection" data-id="changes"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12h4l3-8 5 16 3-8h5"/></svg>Changes</button>
+        <button id="administration" class="rail-link" data-action="administration"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="m10 2-1 4-4 1-3 3 3 3-1 4 4 1 3 4 3-3 4-1-1-4 3-3-3-3-4 1Z"/></svg>Administration</button>
+        <button id="queue" class="rail-link"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v16H4ZM8 2v6M16 2v6M8 12h8M8 16h5"/></svg>My work</button>
+      </nav>
+      <nav class="rail-secondary" aria-label="Workspace support">
+        <button class="rail-link" data-action="workspaceSection" data-id="history">Audit history</button>
+        <button class="rail-link" data-action="help">Knowledge Base</button>
+      </nav>
+    </aside>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <dialog id="drawer" aria-labelledby="drawer-title" aria-describedby="drawer-help">
+    <header class="dialog-head"><div><p class="eyebrow">SIMULATED · LOCAL ONLY</p><h2 id="drawer-title"></h2></div><button id="close" aria-label="Close detail">×</button></header>
+    <p id="drawer-help">Changes affect only this browser's example records. Submission pins and historical reviews are retained.</p>
+    <div id="dialog-content"></div>
+    <p id="form-error" role="alert"></p>
+    <div id="dirty-guard" hidden role="group" aria-label="Unsaved edits">
+      <p>Keep editing or discard unsaved local changes?</p>
+      <button id="keep">Keep editing</button><button id="discard">Discard unsaved edits</button>
+    </div>
+  </dialog>
+</body>
+</html>

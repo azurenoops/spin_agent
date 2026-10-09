@@ -1,11 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getOfferingOverview, listDecisions } from '../../features/provider-authorizations/api';
+import { getOfferingOverview, getBoundaryOverview, updateOffering, listDecisions } from '../../features/provider-authorizations/api';
+import { offering } from './testData';
 import { packageRequest } from '../../features/package-imports/request';
 import { offeringOverview } from './overviewFixtures';
 
 vi.mock('../../features/package-imports/request', () => ({ packageRequest: vi.fn() }));
 beforeEach(() => vi.resetAllMocks());
 describe('offering overview transport', () => {
+  it.each([null, { ...offering, offeringId: 'foreign-offering' }, { ...offering, revision: 0 }, offering])(
+    'rejects an identity write response that does not confirm its exact offering and next revision', async response => {
+      // Arrange
+      vi.mocked(packageRequest).mockResolvedValue(response);
+      // Act / Assert
+      await expect(updateOffering(offering.offeringId, { ...offering, expectedRevision: offering.revision }))
+        .rejects.toThrow('persisted service identity');
+    },
+  );
+  it('accepts the exact persisted identity response from a revision-fenced PATCH', async () => {
+    // Arrange
+    const updated = { ...offering, revision: offering.revision + 1 };
+    vi.mocked(packageRequest).mockResolvedValue(updated);
+    // Act / Assert
+    expect(await updateOffering(offering.offeringId, { ...offering, expectedRevision: offering.revision })).toEqual(updated);
+  });
+  it.each([null, { offeringId: 'foreign-offering', offeringRevision: 1 }, { offeringId: 'offering-1', offeringRevision: 0 }])(
+    'rejects unavailable or foreign capability/mission context', async response => {
+      // Arrange
+      vi.mocked(packageRequest).mockResolvedValue(response);
+      // Act / Assert
+      await expect(getBoundaryOverview('offering-1')).rejects.toThrow('requested offering');
+    },
+  );
+  it('retains independent capability and mission pages and explicit workspace-safe offering identity', async () => {
+    // Arrange
+    const data = { offeringId: 'offering-1', offeringRevision: 3,
+      capabilities: { items: [], page: 2, pageSize: 10, total: 11, published: 0, awaitingReview: 0 },
+      missionSystems: { items: [], page: 3, pageSize: 10, total: 21 } };
+    vi.mocked(packageRequest).mockResolvedValue(data);
+    // Act / Assert
+    expect(await getBoundaryOverview('offering-1', 2, 3)).toEqual(data);
+    expect(packageRequest).toHaveBeenCalledWith({ url: '/api/csp/offerings/offering-1/boundary-overview',
+      params: { capabilityPage: 2, missionPage: 3, pageSize: 10 }, signal: undefined });
+  });
   it.each([{ revisions: [-1] }, { revisions: [1.2] }, { revisions: ['3'] }, { revisions: [3, 3] }, { revisions: null }])('rejects malformed canonical release revisions $revisions', async ({ revisions }) => {
     // Arrange
     const data = offeringOverview();

@@ -43,8 +43,12 @@ export async function getOfferingOverview(id: string, authorizationPage = 1, pac
 }
 export const createOffering = (data: OfferingIdentityInput, key: string) =>
   packageRequest<Offering>({ method: 'POST', url: root, data, headers: keyHeader(key) });
-export const updateOffering = (id: string, data: OfferingIdentityInput & { expectedRevision: number }) =>
-  packageRequest<Offering>({ method: 'PATCH', url: offeringPath(id), data });
+export async function updateOffering(id: string, data: OfferingIdentityInput & { expectedRevision: number }) {
+  const result = await packageRequest<Offering>({ method: 'PATCH', url: offeringPath(id), data });
+  if (!result || result.offeringId !== id || !Number.isSafeInteger(result.revision) || result.revision !== data.expectedRevision + 1)
+    throw new Error('The persisted service identity did not confirm this offering and the next revision. The save outcome is uncertain; retain the inputs and reconcile current records.');
+  return result;
+}
 export const listBoundaries = (id: string, page = 1, signal?: AbortSignal) =>
   packageRequest<Page<BoundaryRevision>>({ url: `${offeringPath(id)}/boundary-revisions`, params: params(page), signal });
 export async function getBoundary(id: string, revisionId: string, signal?: AbortSignal) {
@@ -55,10 +59,14 @@ export async function getBoundary(id: string, revisionId: string, signal?: Abort
     throw new Error('The server did not return the selected offering and boundary. Reload before editing.');
   return boundary;
 }
-export const getBoundaryOverview = (id: string, capabilityPage = 1, missionPage = 1, signal?: AbortSignal) =>
-  packageRequest<OfferingBoundaryOverview>({
+export async function getBoundaryOverview(id: string, capabilityPage = 1, missionPage = 1, signal?: AbortSignal) {
+  const result = await packageRequest<OfferingBoundaryOverview>({
     url: `${offeringPath(id)}/boundary-overview`, params: { capabilityPage, missionPage, pageSize: 10 }, signal,
   });
+  if (!result || result.offeringId !== id || !Number.isSafeInteger(result.offeringRevision) || result.offeringRevision < 1)
+    throw new Error('The capability and mission overview did not identify the requested offering and current revision. Reload before continuing.');
+  return result;
+}
 export const createBoundary = (id: string, data: BoundaryInput & { expectedOfferingRevision: number; predecessorRevisionId: string | null }, key: string) =>
   packageRequest<BoundaryRevision>({ method: 'POST', url: `${offeringPath(id)}/boundary-revisions`, data, headers: keyHeader(key) });
 export const listPackageVersions = (id: string, page = 1, signal?: AbortSignal) =>

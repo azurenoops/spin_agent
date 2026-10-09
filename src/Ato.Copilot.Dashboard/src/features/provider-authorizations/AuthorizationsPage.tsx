@@ -26,6 +26,9 @@ import { ProviderMonitoringPanel } from './ProviderMonitoringPage';
 import { getPackageEntries } from '../package-imports/api';
 import SetupDialog from '../workspace-operations/SetupDialog';
 import { OfferingSectionNavigation } from './OfferingSectionNavigation';
+import { OfferingMissionUse, OfferingReleaseContext } from './OfferingReleaseAndUse';
+import { offeringEnvironments } from './scopes';
+import { managementArrangements } from './OfferingIdentity';
 
 export function PackagesSection({ offering }: { offering: Offering }) {
   const [page, setPage] = useState(1);
@@ -54,8 +57,9 @@ export function PackagesSection({ offering }: { offering: Offering }) {
         {summary.data.authorizations.total > summary.data.authorizations.pageSize && <Pager {...summary.data.authorizations} onPage={setAuthorizationPage} />}
       </ProviderPanel>
       <ProviderPanel title="Source packages & documents">
+        <p className="mb-4">Retained source documents include history, excluded files and prior versions. Reviewed source metadata is separate from published capability releases.</p>
         {!summary.data.packages.total ? <p>No source packages associated with this offering.</p> : <div className="provider-table-wrap">
-          <table className="provider-table provider-source-table" aria-label="Source packages and documents">
+          <table className="provider-table provider-source-table offering-source-table" aria-label="Source packages and documents">
             <colgroup><col style={{ width: '42%' }} /><col style={{ width: '21%' }} /><col style={{ width: '21%' }} /><col style={{ width: '16%' }} /></colgroup>
             <thead><tr><th>Source</th><th>Analysis</th><th>Review</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>{summary.data.packages.items.map(item => <SourcePackageRows key={item.package.packageId} offeringId={offering.offeringId} item={item} />)}</tbody>
@@ -84,7 +88,13 @@ export function PackagesSection({ offering }: { offering: Offering }) {
     </li>)}</ul><Pager {...versions.data} onPage={setPage} /></>}
     </>}
     </SetupDialog>}
-  </section><aside className="provider-support"><ProviderPanel title="Keep the distinctions">
+  </section><aside className="provider-support"><ProviderPanel title="Provider findings & evidence">
+    <p>Review observations with retained evidence and closure decisions. Source review does not automatically close a finding.</p>
+    <p className="mt-3">{summary.loading ? 'Checking finding status…' : summary.error ? 'Finding count unavailable'
+      : summary.data?.openFindingCount == null ? 'Open finding count not reported' : `${summary.data.openFindingCount} open provider findings`}</p>
+    <Link className="provider-secondary mt-3" to={api.authorizationHref(offering.offeringId, 'findings')}>Review provider findings & evidence</Link>
+    <Link className="provider-text mt-3 block" to={api.authorizationHref(offering.offeringId, 'import')}>Add source material</Link>
+  </ProviderPanel><ProviderPanel title="Keep the distinctions">
     <p><strong>Authorization:</strong> a recorded external decision.</p>
     <p className="mt-3"><strong>Source package:</strong> retained supporting documents.</p>
     <p className="mt-3"><strong>Service release:</strong> reviewed implementations customers can use.</p>
@@ -102,9 +112,9 @@ function SourcePackageRows({ offeringId, item }: { offeringId: string; item: Off
     && !entry.archivePath.endsWith('/') && entry.mediaType !== 'application/zip');
   return <>
     <tr>
-      <td className="font-semibold"><span className="line-clamp-2" title={source.name}>{source.name}</span><small>{item.version == null ? 'Version not recorded' : `Retained version ${item.version}`}</small></td>
-      <td>{source.coverage.processed} of {source.coverage.total} entries processed<small>{source.coverage.excluded} excluded</small></td>
-      <td><ProviderBadge tone={item.awaitingReview || source.processingState === 'NeedsAttention' ? 'attention' : 'neutral'}>
+      <td data-label="Source" className="font-semibold"><span className="line-clamp-2" title={source.name}>{source.name}</span><small>{item.version == null ? 'Version not recorded' : `Retained version ${item.version}`}</small></td>
+      <td data-label="Analysis">{source.coverage.processed} of {source.coverage.total} entries processed<small>{source.coverage.excluded} excluded</small></td>
+      <td data-label="Review"><ProviderBadge tone={item.awaitingReview || source.processingState === 'NeedsAttention' ? 'attention' : 'neutral'}>
         {item.awaitingReview ? `${item.awaitingReview} records need review` : stateLabel(source.publicationState)}
       </ProviderBadge></td>
       <td><Link className="provider-secondary" to={href}>Review package</Link></td>
@@ -114,9 +124,9 @@ function SourcePackageRows({ offeringId, item }: { offeringId: string; item: Off
       <button type="button" className="provider-text" onClick={entries.retry}>Retry source documents</button>
     </td></tr>}
     {documents?.map(entry => <tr key={entry.entryId}>
-      <td>{entry.fileName}<small title={entry.archivePath}>Retained source · Revision {entry.revision}</small></td>
-      <td>{stateLabel(entry.status)}</td>
-      <td><ProviderBadge tone={entry.status === 'Processed' ? 'neutral' : 'attention'}>
+      <td data-label="Source">{entry.fileName}<small title={entry.archivePath}>Retained source · Revision {entry.revision}</small></td>
+      <td data-label="Analysis">{stateLabel(entry.status)}</td>
+      <td data-label="Review"><ProviderBadge tone={entry.status === 'Processed' ? 'neutral' : 'attention'}>
         {entry.status === 'Processed' ? `${entry.candidateCount} extracted record${entry.candidateCount === 1 ? '' : 's'}` : 'Needs attention'}
       </ProviderBadge></td>
       <td><Link className="provider-secondary" to={href} aria-label={`Review source ${entry.fileName}`}>Review source</Link></td>
@@ -179,19 +189,23 @@ function AuthorizationRoutes() {
   const isCreating = !offeringId && segments[1] === 'create';
   const pageTitle = section === 'import' || segments[1] === 'import' ? 'Add source material'
     : section === 'packages' ? segments[4] ? 'Review package analysis' : 'Authorizations & sources'
+      : section === 'release' ? 'Release & changes'
+        : section === 'mission-use' ? 'Mission use'
       : section === 'findings' || section === 'evidence' ? 'Evidence & findings'
         : section === 'missions' ? 'Service relationship'
         : section === 'decisions' ? 'Recorded authorization'
         : section === 'inherited-coverage' ? segments[4] === 'propose' ? 'Propose a scope update' : impactQuery.get('task') === 'capabilities' ? 'Capabilities & responsibilities' : 'Services & scope'
-          : section === 'boundary' ? 'Service boundary' : section === 'impact' ? 'Review change impact'
+          : section === 'boundary' ? offering.data?.name ?? 'Service offering' : section === 'impact' ? 'Review change impact'
             : offeringId ? offering.data?.name ?? 'Service offering' : isCreating ? 'Create a service offering' : 'Service offerings';
   const activePath = section === 'inherited-coverage' && impactQuery.get('task') === 'capabilities' ? 'inherited-coverage?task=capabilities'
-    : section === 'inherited-coverage' || section === 'boundary' ? 'inherited-coverage'
+    : section === 'inherited-coverage' && impactQuery.get('task') === 'missions' ? 'mission-use'
+    : section === 'inherited-coverage' || section === 'boundary' ? 'boundary'
       : ['packages', 'import', 'decisions'].includes(section) ? 'packages'
-        : section === 'findings' || section === 'evidence' ? 'findings' : section;
+        : section === 'findings' || section === 'evidence' ? 'packages' : section === 'impact' ? 'release' : section;
   const nav = offeringId && section !== 'missions' && !fromChanges && <OfferingSectionNavigation offeringId={offeringId} activePath={activePath} />;
   const isCapabilities = section === 'inherited-coverage' && impactQuery.get('task') === 'capabilities';
   const tabDescription = section === 'impact' ? 'Trace the proposed service change to customer duties and system documentation.'
+    : section === 'boundary' ? 'Keep your service scope, security capabilities and customer responsibilities clear — in one place.'
     : section === 'packages'
     ? 'Review what the documents actually say before they support a published service release.'
     : isCapabilities ? 'Publish reusable security implementations with a clear provider/customer split.'
@@ -213,7 +227,10 @@ function AuthorizationRoutes() {
       actions={<>
         {!offeringId && !isCreating && <Link to="/authorizations/create" className="provider-primary">Create offering</Link>}
         {offeringId && fromChanges ? <Link className="provider-secondary" to={`/provider-changes?offeringId=${encodeURIComponent(offeringId)}`}>Back to change queue</Link>
-          : offeringId && section === '' ? <Link className="provider-primary" to={api.authorizationHref(offeringId, 'inherited-coverage?task=capabilities')}>Review publication</Link>
+          : offeringId && (section === '' || section === 'boundary') ? <>
+            <Link className="provider-secondary" to={`${api.authorizationHref(offeringId)}?action=identity`}>Edit service details</Link>
+            <Link className="provider-secondary" to={api.authorizationHref(offeringId, 'release')}>View published release</Link>
+          </>
           : offeringId && isCapabilities ? <Link className="provider-primary" to={api.authorizationHref(offeringId, 'packages')}>Review source proposals</Link>
             : offeringId && section === 'inherited-coverage' && !segments[4] && offering.data?.currentHostingScopeRevisionId
               ? <Link className="provider-primary" to={api.authorizationHref(offeringId, 'inherited-coverage/propose')}>Edit proposed scope</Link>
@@ -222,13 +239,20 @@ function AuthorizationRoutes() {
                 : !isCreating && section !== 'import' && segments[1] !== 'import' && <Link className={section === 'packages' ? 'provider-primary' : 'provider-secondary'}
           to={offeringId ? api.authorizationHref(offeringId, 'import') : api.importHref}>Add source material</Link>}
       </>} /></div>}
+    {offering.data && section !== 'missions' && <p className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600">
+      <span>Offering identity: {offering.data.lifecycle} · revision {offering.data.revision}</span>
+      <span>{offering.data.environments.map(environment => offeringEnvironments[environment]).join(', ')}</span>
+      <span>{offering.data.managementArrangement ? managementArrangements[offering.data.managementArrangement] : 'Management arrangement not recorded'}</span>
+    </p>}
     {nav}
     {offeringId ? <>
       <Status loading={offering.loading} error={offering.error} retry={offering.retry} />
       {offering.data && <div className="space-y-5">
         {section === 'import' && <Link className="inline-block text-sm text-indigo-700 underline dark:text-indigo-300" to={api.authorizationHref(offeringId)}>Back to offering</Link>}
         {section === 'monitoring' ? <ProviderMonitoringPanel offeringId={offeringId} />
-          : section === '' ? <OfferingOverview key={offeringId} offering={offering.data} />
+          : section === '' ? <OfferingOverview key={offeringId} offering={offering.data} onChanged={offering.retry} />
+          : section === 'release' ? <OfferingReleaseContext offering={offering.data} />
+          : section === 'mission-use' ? <OfferingMissionUse offering={offering.data} />
           : section === 'import' ? packageId
             ? <PackageAssociationRedirect packageId={packageId} initialOfferingId={offeringId} />
             : <FileFirstImport key={offeringId} offering={offering.data} />

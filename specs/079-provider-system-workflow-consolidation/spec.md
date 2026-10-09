@@ -1,5 +1,25 @@
 # Feature 079: Provider-to-Mission Workflow Consolidation
 
+## Approved focused offering workspace (2026-10-07)
+
+Implement the approved `provider-offering-workspace-focused.html` hierarchy using
+retained production records for every offering. The actual HTML has six task
+destinations: Overview, Capabilities, Scope & duties, Sources &
+findings, Release & changes, Mission use. Preserve existing deep routes and
+review/publication/assignment/evidence operations. Show offering identity lifecycle
+and revision separately from canonical published capability revisions. Derive
+one next task from current prerequisites, findings and review state; do not
+invent a release checklist when there are no proposals.
+
+Capability search/filter/sort/pagination and a read-only detail drawer must
+distinguish retained-source descriptions/duties from immutable publication.
+Scope, exclusions, duties and source versions stay inspectable. Mission association
+is not capability adoption or accepted inheritance. Draft identity comparison
+compares entered values with the opening persisted identity, not with an
+unavailable historical published identity. Use existing change-impact and version
+workflows for retained release comparisons; disclose missing prerequisites.
+No automatic attach/adopt/approve/publish and no changed backend contracts.
+
 **Created**: 2026-09-26  
 **Status**: Application implementation authorized 2026-09-26; acceptance pending  
 **Implementation baseline**: `13204325f21d2ff7e0028e0065a52bb795cb5bee`  
@@ -95,8 +115,20 @@ Acceptance criteria:
 9. Automated implementation evidence, manual local acceptance, deployment, and
    live invitation delivery are reported separately; none is inferred from these
    documentation changes.
+### October 7: provider Overview offering register
 
-### October 2: task-oriented Component details
+Remove the redundant Service offering dropdown from provider Overview only.
+Keep the paged Service offerings register and every Open offering link available
+independently of summary success. Offering names in this register select the
+offering-specific Overview metrics and focus tasks; identify that context by
+name. With multiple offerings and no deep-link selection, prompt for a register
+selection rather than silently showing the first offering's counts. A sole
+offering may show its explicitly named summary. Preserve offeringId/offeringPage
+deep links, missing-selection states, retries and Mission systems selectors.
+The existing overview API is offering-specific; do not aggregate its counts or
+represent them as provider totals. No backend, permission or mutation changes.
+Manual acceptance remains pending at local port 4196; exports are unaffected.
+### October 2: task-oriented  Component details
 
 The component panel follows `docs/design/workspace-ui-mocks/component-review-simple.html`:
 readable source name, service subtype and owner; Overview, System scope and
