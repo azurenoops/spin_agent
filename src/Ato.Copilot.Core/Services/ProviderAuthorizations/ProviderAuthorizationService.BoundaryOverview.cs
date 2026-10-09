@@ -184,6 +184,9 @@ public sealed partial class ProviderAuthorizationService
                 .ThenBy(r => r.CapabilityId).ThenBy(r => r.ReleaseId).ToArray());
         var latest = relationships.GroupBy(x => x.AssignmentId)
             .ToDictionary(x => x.Key, x => x.OrderByDescending(r => r.Revision).ThenBy(r => r.Id).First());
+        var fits = await db.Set<ProviderScopeFitRecord>().AsNoTracking()
+            .Where(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id && ids.Contains(x.AssignmentId))
+            .ToDictionaryAsync(x => x.AssignmentId, ct);
         return new(rows.Select(assignment =>
         {
             latest.TryGetValue(assignment.Id, out var relationship);
@@ -196,7 +199,10 @@ public sealed partial class ProviderAuthorizationService
             {
                 TargetTenantId = assignment.TargetTenantId,
                 TargetTenantName = names.GetValueOrDefault(assignment.Id)?.TenantName,
-                AdoptedReleases = adoptedReleases.GetValueOrDefault(assignment.Id) ?? []
+                AdoptedReleases = adoptedReleases.GetValueOrDefault(assignment.Id) ?? [],
+                ScopeFit = fits.TryGetValue(assignment.Id, out var fit)
+                    ? Map(fit)
+                    : new(ScopeFitFacts.Unevaluated, "", "", "", null, null, "")
             };
         }).ToArray(), page, pageSize, total);
     }

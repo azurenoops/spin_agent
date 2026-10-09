@@ -22,6 +22,19 @@ export function sourceReviewLabel(data: OfferingOverviewData): string {
   return 'No pending source reviews';
 }
 
+export function recordedAuthorizationFacts(data: OfferingOverviewData): {
+  validity: string; packageReadiness: string; monitoringHealth: string;
+} {
+  if (data.authorizationFacts) return data.authorizationFacts;
+  const packages = data.packages;
+  return {
+    validity: data.authorizations.recorded > 0 ? 'Undetermined' : 'NotRecorded',
+    packageReadiness: packages.needsAttention > 0 || packages.processing > 0
+      || packages.awaitingReview > 0 || packages.total === 0 ? 'Incomplete' : 'Ready',
+    monitoringHealth: 'Unavailable',
+  };
+}
+
 export function publishedReleaseLabel(data: OfferingOverviewData): string | null {
   const revisions = data.capabilities.publishedReleaseRevisions;
   if (!revisions?.length) return null;

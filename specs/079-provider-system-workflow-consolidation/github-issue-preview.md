@@ -891,3 +891,49 @@ and a locally runnable user walkthrough. No live eMASS claim is implied.
 7. **No automatic closure.** The new umbrella and existing workstreams close
    only after their own criteria and children are completed or explicitly
    dispositioned with evidence, and the user can test locally.
+
+---
+
+## October 9 — E2/E6 scope-fit child (local preview only)
+
+**No GitHub mutation has been performed.** Token: `SCOPEFIT_ISSUE`. Parent
+once posted: #1023 (CSP-backed and independent ATO workflows). Do not post
+until this exact body is approved. Do not treat `SCOPEFIT_ISSUE` as a real
+number.
+
+Proposed title: `Recorded authorization facts and scope-fit records (079 E2+E6)`
+
+Exact proposed body:
+
+```markdown
+Parent: #1023
+
+Feature 079 US7/US8 (October 9 spec delta).
+
+Show three independent facts on the provider Overview and offering: recorded
+authorization validity, package readiness, and monitoring health. Never one
+green ATO-health tile. Never Mission Owner package ATO counts.
+
+Each approved offering relationship gets a server-owned scope-fit record
+(InScope / Exception / OutOfScope / unevaluated) from declared use pinned to
+an offering version and adopted release. Out of scope queues ISSM action; it
+does not withdraw the recorded authorization. Not a provider change-impact
+disposition. Not a read of the Mission Owner SSP.
+
+Frozen wording: recorded authorization, in scope, exception, out of scope,
+scope fit. Never “invalidates the ATO” or “how MOs affect your ATO.”
+
+No implied MO-sub telemetry. Offering ConMon is CSP-owned evidence only.
+Attachment/allocation is not a monitoring feed over Mission Owner
+subscriptions. Product brief is source of truth.
+
+Design: docs/design/csp-portal-product-brief.md and
+docs/design/csp-home-impact-mock/index.html (this slice only). Does not replace
+the Feature 079 provider-workspace-mock for other screens.
+
+Tasks: SF01–SF06 in specs/079-provider-system-workflow-consolidation/tasks.md.
+TDD required. User local acceptance required. No push without approval.
+```
+
+US7/US8 must link this child after an approved number exists. A feature-only
+link does not satisfy story-level hierarchy.

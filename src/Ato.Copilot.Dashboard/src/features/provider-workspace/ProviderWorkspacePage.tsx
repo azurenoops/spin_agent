@@ -8,7 +8,7 @@ import * as api from '../provider-authorizations/api';
 import type { Offering, OfferingBoundaryMission, OfferingOverviewData } from '../provider-authorizations/types';
 import ProviderChangesPage from './ProviderChangesPage';
 import { ProviderAdministration } from '../provider-authorizations/ProviderAdministration';
-import { publishedReleaseLabel, sourceReviewLabel } from '../provider-authorizations/providerReadModels';
+import { publishedReleaseLabel, recordedAuthorizationFacts, sourceReviewLabel } from '../provider-authorizations/providerReadModels';
 import { offeringEnvironments } from '../provider-authorizations/scopes';
 import { readAllPages } from '../provider-authorizations/providerReadModels';
 import { ProviderBadge } from '../provider-authorizations/ProviderPresentation';
@@ -156,7 +156,7 @@ function MissionSystems({ offering, offeringPage, refresh }: { offering: Offerin
       {items.length === 0 ? <p className="text-sm text-slate-500">{needle ? 'No mission systems or organizations match this search.' : 'No mission systems are assigned to this offering.'}</p>
         : <div className="provider-table-wrap"><table className="provider-table min-w-[780px]" aria-label="Customer service relationships">
           <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-gray-800">
-            <tr><th>Mission system</th><th>Service / scope</th><th>Association</th><th>Capability release</th><th><span className="sr-only">Actions</span></th></tr>
+            <tr><th>Mission system</th><th>Service / scope</th><th>Association</th><th>Capability release</th><th>Scope fit</th><th><span className="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>{items.map(system => <tr key={system.assignmentId}>
             <td className="font-semibold">{system.systemName ?? system.systemId}<small>{system.targetTenantName ?? 'Organization name unavailable'}</small></td>
@@ -165,6 +165,14 @@ function MissionSystems({ offering, offeringPage, refresh }: { offering: Offerin
               {!system.associated ? 'Awaiting MO' : system.relationshipState === 'ReviewRequired' ? 'Review required' : 'Associated'}
             </ProviderBadge></span></td>
             <td><MissionReleaseSummary relationship={system} /></td>
+            <td><span title={system.scopeFit?.rationale || 'Declared use vs recorded offering authorization. Not an ATO.'}>
+              <ProviderBadge tone={system.scopeFit?.result === 'OutOfScope' ? 'attention'
+                : system.scopeFit?.result === 'InScope' ? 'success' : 'neutral'}>
+                {system.scopeFit?.result === 'InScope' ? 'In scope'
+                  : system.scopeFit?.result === 'OutOfScope' ? 'Out of scope'
+                    : system.scopeFit?.result === 'Exception' ? 'Exception' : 'Unevaluated'}
+              </ProviderBadge>
+            </span></td>
             <td><Link className="provider-secondary" aria-label={`View relationship for ${system.systemName ?? system.systemId}`}
               to={api.authorizationHref(offering.offeringId, `missions/${encodeURIComponent(system.assignmentId)}?missionPage=${page}&offeringPage=${offeringPage}`)}>View relationship</Link></td>
           </tr>)}</tbody>
@@ -204,7 +212,16 @@ function OfferingOverview({ offering, children }: { offering: Offering; children
 }
 
 function OverviewContent({ offering, data, children }: { offering: Offering; data: OfferingOverviewData; children: ReactNode }) {
+  const facts = recordedAuthorizationFacts(data);
   return <>
+    <section aria-label="Recorded authorization facts" className="mb-6">
+      <p className="mb-3 text-xs text-slate-500">Recorded authorization — three facts, never one green light. Monitoring is offering-owned evidence, not Mission Owner subscription telemetry.</p>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <Metric label="Recorded authorization" value={facts.validity} caption="Decision as recorded. Not an issued ATO." />
+        <Metric label="Package readiness" value={facts.packageReadiness} caption="Provider package completeness. Not authorization." />
+        <Metric label="Monitoring health" value={facts.monitoringHealth} caption="CSP-owned offering evidence. Not MO-sub telemetry." />
+      </div>
+    </section>
     <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
       <Metric label="Published capabilities" value={data.capabilities.published} caption={offering.name} />
       <Metric label="Needs your review" value={data.packages.awaitingReview} caption="Source candidates awaiting review" />

@@ -78,6 +78,12 @@ public sealed class OfferingOverviewTests
         first.Authorizations.Items.Single(x => x.Reference == "Decision 0").CurrentStanding.Should().Be("Withdrawn");
         first.Authorizations.Items.Single(x => x.Reference == "Decision 1").ImpactReviewRequired.Should().BeFalse();
         first.Authorizations.Items.Should().OnlyContain(x => x.Revision >= 10);
+        first.AuthorizationFacts.Should().BeEquivalentTo(new
+        {
+            Validity = "Conditional", PackageReadiness = "Incomplete", MonitoringHealth = "Unavailable"
+        });
+        first.AuthorizationFacts!.Validity.Should().NotBe(first.AuthorizationFacts.PackageReadiness);
+        first.AuthorizationFacts.Validity.Should().NotBe(first.AuthorizationFacts.MonitoringHealth);
         result.Packages.Total.Should().Be(0);
         result.Hosting.Should().BeEquivalentTo(new OfferingOverviewHosting(null, false, 0, 0, 0));
         fixture.PackageService.VerifyNoOtherCalls();

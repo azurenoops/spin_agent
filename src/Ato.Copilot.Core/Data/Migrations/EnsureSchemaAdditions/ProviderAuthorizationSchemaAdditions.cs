@@ -165,6 +165,12 @@ public static class ProviderAuthorizationSchemaAdditions
                 PackageId {guid} NOT NULL, SourceProfileVersion {integer} NOT NULL, TargetProfileVersion {integer} NOT NULL,
                 State {Short(32)} NOT NULL, ErrorCode {text} NULL, Message {text} NULL,
                 {Reference("PackageId", "CspPackages")}
+                """,
+            ["ProviderScopeFitRecords"] = $"""
+                AssignmentId {guid} NOT NULL, Result {Short(32)} NOT NULL, DeclaredUse {Short(2000)} NOT NULL,
+                CitedOfferingVersion {Short(256)} NOT NULL, CitedAdoptedRelease {Short(256)} NOT NULL,
+                Evaluator {Short(254)} NOT NULL, EvaluatedAt {date} NOT NULL, Rationale {Short(2000)} NOT NULL,
+                {ScopedReference("AssignmentId", "ProviderHostingAssignments")}
                 """
         };
         var scripts = new List<string>();
@@ -196,6 +202,7 @@ public static class ProviderAuthorizationSchemaAdditions
         Index("ProviderAuthorizationImpactReviews", "PreviewId", true);
         Index("ProviderClaimReviews", "ProviderId,OfferingId,CandidateId,CandidateRevision");
         Index("ProviderPackageEnrichments", "ProviderId,OfferingId,PackageId,TargetProfileVersion");
+        Index("ProviderScopeFitRecords", "ProviderId,OfferingId,AssignmentId", true);
         Index("MissionProviderRelationshipReviews", "TenantId,SystemId");
         Index("CapabilityAdoptionSnapshots", "TenantId,SystemId");
 

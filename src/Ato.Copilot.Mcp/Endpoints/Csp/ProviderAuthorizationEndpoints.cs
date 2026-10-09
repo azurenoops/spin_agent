@@ -50,6 +50,14 @@ public static class ProviderAuthorizationEndpoints
             .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status404NotFound).Produces(StatusCodes.Status503ServiceUnavailable)
             .WithMetadata(new ProviderOnboardingPreparation());
+        group.MapPost("/{id:guid}/missions/{assignmentId:guid}/scope-fit", (Guid id, Guid assignmentId,
+            RecordScopeFitRequest body, HttpContext http, IProviderAuthorizationService service, CancellationToken ct) =>
+            ExecuteAsync(http, () => service.RecordScopeFitAsync(id, assignmentId, body, Actor(http), ct)))
+            .WithName("RecordProviderScopeFit")
+            .WithSummary("Record declared-use scope fit. Does not issue or withdraw the recorded offering authorization.")
+            .Produces(StatusCodes.Status200OK).Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized).Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound).Produces(StatusCodes.Status503ServiceUnavailable);
         group.MapPatch("/{id:guid}", (Guid id, UpdateProviderOfferingRequest body, HttpContext http,
             IProviderAuthorizationService service, CancellationToken ct) =>
             ExecuteAsync(http, () => service.UpdateAsync(id, body, Actor(http), ct))).WithMetadata(new ProviderOnboardingPreparation());

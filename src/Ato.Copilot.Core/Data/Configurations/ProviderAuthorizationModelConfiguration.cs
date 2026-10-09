@@ -56,6 +56,9 @@ public static class ProviderAuthorizationModelConfiguration
         Reference<ProviderPackageVersion, ProviderPackageVersion>("PreviousVersionId");
         Reference<ProviderCatalogContextSnapshot, ProviderAuthorizationImpactReview>("ImpactReviewId");
         Reference<ProviderHostingAssignment, ProviderHostingScopeRevision>("HostingScopeRevisionId");
+        Reference<ProviderScopeFitRecord, ProviderHostingAssignment>("AssignmentId");
+        modelBuilder.Entity<ProviderScopeFitRecord>()
+            .HasIndex(x => new { x.ProviderId, x.OfferingId, x.AssignmentId }).IsUnique();
         Reference<MissionProviderRelationshipReview, ProviderAuthorizationRevision>("AuthorizationRevisionId");
         Reference<MissionProviderRelationshipReview, ProviderBoundaryRevision>("BoundaryRevisionId");
         Reference<CapabilityAdoptionSnapshot, ProviderCatalogContextSnapshot>("ContextSnapshotId");

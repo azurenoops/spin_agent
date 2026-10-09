@@ -41,6 +41,11 @@ export interface OfferingBoundaryMission {
     capabilityId: string; capabilityName: string; releaseId: string; revision: number;
     currentReleaseRevision: number | null; updateAvailable: boolean;
   }[];
+  scopeFit?: {
+    result: 'Unevaluated' | 'InScope' | 'Exception' | 'OutOfScope';
+    declaredUse: string; citedOfferingVersion: string; citedAdoptedRelease: string;
+    evaluator?: string | null; evaluatedAt?: string | null; rationale: string;
+  };
 }
 export interface OfferingBoundaryOverview {
   offeringId: string; offeringRevision: number;
@@ -65,6 +70,11 @@ export interface OfferingOverviewData {
   capabilities: { proposed: number; awaitingReview: number; awaitingApproval: number; published: number; archived: number;
     publishedReleaseRevisions?: number[] };
   hosting: { name: string | null; configured: boolean; scopeCount: number; assignmentCount: number; associatedSystemCount: number };
+  authorizationFacts?: {
+    validity: string;
+    packageReadiness: string;
+    monitoringHealth: string;
+  } | null;
 }
 export interface PackageVersion {
   packageVersionId: string; offeringId: string; seriesId: string; version: number; packageId: string;

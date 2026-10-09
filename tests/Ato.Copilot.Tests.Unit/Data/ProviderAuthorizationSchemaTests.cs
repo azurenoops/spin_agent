@@ -102,7 +102,7 @@ public sealed class ProviderAuthorizationSchemaTests
 
         // Assert
         model.FindEntityType(typeof(ProviderOwnedRow)).Should().BeNull();
-        RowTypes.Should().HaveCount(25);
+        RowTypes.Should().HaveCount(26);
         foreach (var type in RowTypes)
         {
             var entity = model.FindEntityType(type);

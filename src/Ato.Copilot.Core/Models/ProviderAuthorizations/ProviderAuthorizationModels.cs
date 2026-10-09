@@ -129,6 +129,20 @@ public sealed class ProviderHostingAssignment : ProviderOwnedRow
     public string ReferencesJson { get; set; } = "[]";
 }
 
+/// <summary>Declared-use scope fit for one assignment. Not an impact-review disposition and not an ATO.</summary>
+[ProviderScoped]
+public sealed class ProviderScopeFitRecord : ProviderOwnedRow
+{
+    public Guid AssignmentId { get; set; }
+    [MaxLength(32)] public string Result { get; set; } = "Unevaluated";
+    [MaxLength(2000)] public string DeclaredUse { get; set; } = "";
+    [MaxLength(256)] public string CitedOfferingVersion { get; set; } = "";
+    [MaxLength(256)] public string CitedAdoptedRelease { get; set; } = "";
+    [MaxLength(254)] public string Evaluator { get; set; } = "";
+    public DateTimeOffset EvaluatedAt { get; set; } = DateTimeOffset.UtcNow;
+    [MaxLength(2000)] public string Rationale { get; set; } = "";
+}
+
 [TenantScoped]
 public sealed class MissionProviderRelationshipReview : ProviderOwnedRow
 {

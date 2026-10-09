@@ -8,7 +8,8 @@ import * as api from './api';
 import type { ExternalDecision, Offering, OfferingOverviewData } from './types';
 import { ProviderBadge, ProviderChecklistRow, ProviderFact, ProviderPanel, ProviderSupport } from './ProviderPresentation';
 import { managementArrangements, OfferingIdentityEditor, serviceModels } from './OfferingIdentity';
-import { publishedReleaseLabel, readAllPages, sourceReviewLabel } from './providerReadModels';
+<<<<<<< HEAD
+import { publishedReleaseLabel, readAllPages, recordedAuthorizationFacts, sourceReviewLabel } from './providerReadModels';
 
 const muted = 'text-sm text-slate-600 dark:text-slate-300';
 const linkClass = 'text-sm font-medium text-indigo-700 underline dark:text-indigo-300';
@@ -114,6 +115,7 @@ export function OfferingOverview({ offering: loadedOffering }: { offering: Offer
     return findings.filter(finding => finding.workflowState !== 'Closed').length;
   }, [offering.offeringId, loadedOffering.revision, !!data, data?.openFindingCount]);
   const releaseLabel = data ? publishedReleaseLabel(data) : null;
+  const facts = data ? recordedAuthorizationFacts(data) : null;
   useEffect(() => {
     if (data) setOffering(current => ({ ...current, revision: data.offeringRevision }));
   }, [data]);
@@ -144,6 +146,14 @@ export function OfferingOverview({ offering: loadedOffering }: { offering: Offer
           {data.capabilities.awaitingReview || data.capabilities.awaitingApproval ? 'Provider review required' : data.capabilities.published ? 'Published baseline' : 'Not published'}
         </ProviderBadge>
       </div>
+      {facts && <section aria-label="Recorded authorization facts" className="mb-5">
+        <p className="mb-3 text-xs text-slate-500">Three facts, never one green light. Monitoring is offering-owned evidence, not Mission Owner subscription telemetry.</p>
+        <dl className="provider-metrics">
+          <div><dt>Recorded authorization</dt><dd>{facts.validity}</dd><p className="text-xs text-slate-500">Decision as recorded. Not an issued ATO.</p></div>
+          <div><dt>Package readiness</dt><dd>{facts.packageReadiness}</dd><p className="text-xs text-slate-500">Provider package completeness. Not authorization.</p></div>
+          <div><dt>Monitoring health</dt><dd>{facts.monitoringHealth}</dd><p className="text-xs text-slate-500">CSP-owned offering evidence. Not MO-sub telemetry.</p></div>
+        </dl>
+      </section>}
       <dl className="provider-metrics" aria-label="Offering metrics">
         <div><dt>Capabilities available</dt><dd>{data.capabilities.published}</dd><p className="text-xs text-slate-500">{releaseLabel ? `Published ${releaseLabel.toLowerCase()}` : 'Published service implementations'}</p></div>
         <div><dt>Mission systems</dt><dd>{data.hosting.associatedSystemCount}</dd><p className="text-xs text-slate-500">Associated with this hosting scope</p></div>

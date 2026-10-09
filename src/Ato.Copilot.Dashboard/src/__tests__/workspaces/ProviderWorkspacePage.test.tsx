@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import ProviderWorkspacePage from '../../features/provider-workspace/ProviderWorkspacePage';
@@ -44,6 +44,7 @@ const overview: OfferingOverviewData = {
   packages: { items: [], total: 0, page: 1, pageSize: 25, needsAttention: 1, processing: 0, awaitingReview: 2, preferredAuthorizationReview: null },
   capabilities: { proposed: 3, awaitingReview: 2, awaitingApproval: 1, published: 4, archived: 0 },
   hosting: { name: 'Demo hosting', configured: true, scopeCount: 2, assignmentCount: 2, associatedSystemCount: 1 },
+  authorizationFacts: { validity: 'Effective', packageReadiness: 'Incomplete', monitoringHealth: 'Stale' },
 };
 
 beforeEach(() => {
@@ -96,6 +97,33 @@ describe('provider task workspace', () => {
     expect(screen.getByRole('link', { name: `Review ${offering.name}` })).toHaveAttribute('href', `/authorizations/offerings/${offering.offeringId}/packages`);
     expect(screen.queryByText('Harbor Logistics')).not.toBeInTheDocument();
     expect(screen.queryByText('Release 1.2 live')).not.toBeInTheDocument();
+  });
+
+  it('shows three independent recorded-authorization facts without a composite ATO health tile', async () => {
+    // Arrange
+    render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
+    // Act
+    const facts = await screen.findByRole('region', { name: 'Recorded authorization facts' });
+    // Assert
+    expect(within(facts).getByLabelText('Recorded authorization')).toHaveTextContent('Effective');
+    expect(within(facts).getByLabelText('Package readiness')).toHaveTextContent('Incomplete');
+    expect(within(facts).getByLabelText('Monitoring health')).toHaveTextContent('Stale');
+    expect(screen.queryByLabelText('ATO health')).not.toBeInTheDocument();
+    expect(screen.queryByText('Total ATO decisions')).not.toBeInTheDocument();
+    expect(facts).toHaveTextContent('Not MO-sub telemetry');
+  });
+
+  it('still shows three facts when the API omits authorizationFacts', async () => {
+    // Arrange
+    const { authorizationFacts: _omitted, ...withoutFacts } = overview;
+    vi.mocked(api.getOfferingOverview).mockResolvedValue(withoutFacts);
+    render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
+    // Act
+    const facts = await screen.findByRole('region', { name: 'Recorded authorization facts' });
+    // Assert
+    expect(within(facts).getByLabelText('Recorded authorization')).toHaveTextContent('NotRecorded');
+    expect(within(facts).getByLabelText('Package readiness')).toHaveTextContent('Incomplete');
+    expect(within(facts).getByLabelText('Monitoring health')).toHaveTextContent('Unavailable');
   });
 
   it('shows a failed summary explicitly and retries rather than reporting zero', async () => {

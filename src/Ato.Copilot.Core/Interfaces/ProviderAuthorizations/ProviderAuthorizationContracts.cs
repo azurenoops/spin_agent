@@ -27,10 +27,18 @@ public sealed record OfferingOverview(Guid OfferingId, long OfferingRevision,
     public int? CustomerActionCount { get; init; }
     /// <summary>All provider/offering findings whose workflow state is not Closed, independent of pages.</summary>
     public int OpenFindingCount { get; init; }
+    /// <summary>Independent validity, package readiness, and offering monitoring health. Not a composite ATO score.</summary>
+    public OfferingAuthorizationFacts? AuthorizationFacts { get; init; }
 }
 /// <summary>Current provider decisions only; review-state totals cover all pages.</summary>
 public sealed record OfferingOverviewAuthorizations(IReadOnlyList<ProviderDecisionResponse> Items,
-    int Page, int PageSize, int Total, int Recorded, int Unconfirmed, int Rejected);
+    int Page, int PageSize, int Total, int Recorded, int Unconfirmed, int Rejected)
+{
+    [JsonIgnore]
+    public IReadOnlyList<string> RecordedStandings { get; init; } = [];
+    [JsonIgnore]
+    public bool HasRecordedConditions { get; init; }
+}
 /// <summary>Associated receipts and global processing, source-review and next-source facts.</summary>
 public sealed record OfferingOverviewPackages(IReadOnlyList<OfferingOverviewPackage> Items,
     int Page, int PageSize, int Total, int NeedsAttention, int Processing, int AwaitingReview,
@@ -74,7 +82,15 @@ public sealed record OfferingBoundaryMission(Guid AssignmentId, string SystemId,
     public string? TargetTenantName { get; init; }
     /// <summary>Verified active subscription pins only; legacy unpinned adoptions remain counted without release details.</summary>
     public IReadOnlyList<OfferingMissionRelease> AdoptedReleases { get; init; } = [];
+    /// <summary>Declared-use scope fit. Unevaluated until recorded. Not an ATO and not MO SSP body.</summary>
+    public ScopeFitResponse ScopeFit { get; init; } = new(ScopeFitFacts.Unevaluated, "", "", "", null, null, "");
 }
+/// <summary>Recorded declared-use fit against the cited offering version and adopted release.</summary>
+public sealed record ScopeFitResponse(string Result, string DeclaredUse, string CitedOfferingVersion,
+    string CitedAdoptedRelease, string? Evaluator, DateTimeOffset? EvaluatedAt, string Rationale);
+/// <summary>Write declared-use scope fit. Does not issue, withdraw, or rewrite the recorded authorization.</summary>
+public sealed record RecordScopeFitRequest(string Result, string DeclaredUse, string CitedOfferingVersion,
+    string CitedAdoptedRelease, string Rationale);
 /// <summary>Exact adopted release metadata, with the newest retained revision linked to the same offering and capability.</summary>
 public sealed record OfferingMissionRelease(Guid CapabilityId, string CapabilityName, Guid ReleaseId,
     long Revision, long? CurrentReleaseRevision, bool UpdateAvailable);
@@ -217,6 +233,7 @@ public interface IProviderAuthorizationService
     Task<ProviderOfferingResponse> GetAsync(Guid id, CancellationToken ct);
     Task<OfferingBoundaryOverview> BoundaryOverviewAsync(Guid id, int capabilityPage, int missionPage, int pageSize, CancellationToken ct);
     Task<OfferingOverview> OverviewAsync(Guid id, int authorizationPage, int packagePage, int pageSize, CancellationToken ct);
+    Task<ScopeFitResponse> RecordScopeFitAsync(Guid id, Guid assignmentId, RecordScopeFitRequest request, string actor, CancellationToken ct);
     Task<ProviderOfferingResponse> CreateAsync(CreateProviderOfferingRequest request, string key, string actor, CancellationToken ct);
     Task<ProviderOfferingResponse> UpdateAsync(Guid id, UpdateProviderOfferingRequest request, string actor, CancellationToken ct);
     Task<ProviderBoundaryResponse> CreateBoundaryAsync(Guid id, CreateProviderBoundaryRequest request, string key, string actor, CancellationToken ct);

@@ -21,6 +21,11 @@ public sealed partial class ProviderAuthorizationService
         var authorizations = await OverviewAuthorizationsAsync(db, offering, authorizationPage, pageSize, ct);
         var receipts = await OverviewPackagesAsync(db, offering, packagePage, pageSize, ct);
         var capabilities = await BoundaryCapabilitiesAsync(db, offering, ct);
+        var facts = OfferingAuthorizationFacts.Project(
+            authorizations.RecordedStandings,
+            receipts.NeedsAttention > 0 || receipts.Processing > 0 || receipts.AwaitingReview > 0 || receipts.Total == 0,
+            "Unavailable",
+            authorizations.HasRecordedConditions);
         return new(id, offering.Revision, authorizations, receipts,
             new(capabilities.Count(x => x.PublicationState == "Unpublished"),
                 capabilities.Count(x => x.PublicationState == "Unpublished" && x.ReviewState == "NeedsReview"),
@@ -36,7 +41,8 @@ public sealed partial class ProviderAuthorizationService
             CustomerActionCount = await OverviewCustomerActionsAsync(db, offering, ct),
             OpenFindingCount = await db.Set<ProviderFinding>().AsNoTracking()
                 .CountAsync(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id
-                    && x.WorkflowState != "Closed", ct)
+                    && x.WorkflowState != "Closed", ct),
+            AuthorizationFacts = facts
         };
     }
 
@@ -77,10 +83,29 @@ public sealed partial class ProviderAuthorizationService
                 ImpactReviewRequired = await RequiresImpactAsync(db, offering, item, ct)
             });
         }
+        var recordedStandings = new List<string>();
+        var hasConditions = false;
+        foreach (var revision in decisions.Where(x => x.MetadataReviewState == "Recorded"))
+        {
+            try
+            {
+                var recorded = Decision(revision, events.Where(x => x.RecordId == revision.RecordId));
+                recordedStandings.Add(recorded.CurrentStanding);
+                if (recorded.Conditions.Count > 0) hasConditions = true;
+            }
+            catch (ArgumentException error)
+            {
+                throw new InvalidDataException("Invalid retained authorization dates.", error);
+            }
+        }
         return new(items, page, pageSize, decisions.Length,
             decisions.Count(x => x.MetadataReviewState == "Recorded"),
             decisions.Count(x => x.MetadataReviewState == "Unconfirmed"),
-            decisions.Count(x => x.MetadataReviewState == "Rejected"));
+            decisions.Count(x => x.MetadataReviewState == "Rejected"))
+        {
+            RecordedStandings = recordedStandings,
+            HasRecordedConditions = hasConditions
+        };
     }
 
     private static async Task<OfferingOverviewPackages> OverviewPackagesAsync(

@@ -21,6 +21,8 @@ Source paths and verification limits are in [research.md](research.md).
 | eMASS reconciliation | Import session/conflicts, export workflow status | Receipt/import/reconciliation state requires recorded outcome, not download inference. |
 | AO decision | Existing `AuthorizationDecision` | Separate server-authorized actor/action from package generation or recommendations. |
 | Monitoring | Existing plan/watch/drift/significant-change and provider impacts | Executable rule version, evaluation/collection health, scoped targets and separate dispositions. |
+| Recorded authorization facts (E2) | Existing `ProviderDecision` / offering overview / provider monitoring | Project validity, package readiness, and monitoring health independently. Do not store a composite health enum. |
+| Scope fit (E6) | New `ScopeFitRecord` on the existing mission relationship / subscription | Declared use, cited offering version, cited adopted release, result `InScope`/`Exception`/`OutOfScope`/unevaluated, evaluator, evaluated-at, rationale. Not an `ImpactReview` disposition. No MO SSP body. |
 
 ## Invariants
 
@@ -41,6 +43,13 @@ Source paths and verification limits are in [research.md](research.md).
   mutation paths; replay of an old idempotent request cannot restore selection.
 - Internal record identity stays stable. OSCAL IDs must use persisted or
   deterministic identity mapping and resolve consistently across artifacts.
+- Scope-fit results never default missing to in-scope. `OutOfScope` never
+  mutates recorded decision validity, CRM allocation, or adopted release.
+- Scope-fit citations are exact revisions. “Newest offering” is not a legal
+  evaluation target.
+- Offering monitoring health and scope-fit MUST NOT store or project Mission
+  Owner subscription telemetry. Product-brief source of truth: no implied
+  MO-sub telemetry.
 
 ## Proposed logical snapshot (not finalized DTO/entity names)
 
