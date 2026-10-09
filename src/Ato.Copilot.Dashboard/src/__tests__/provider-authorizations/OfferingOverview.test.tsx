@@ -20,6 +20,7 @@ vi.mock('../../features/workspaces/WorkspaceBoundary', () => ({
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getOffering: vi.fn(), getOfferingOverview: vi.fn(), listDecisions: vi.fn(),
   listBoundaries: vi.fn(), createDecision: vi.fn(), recordDecision: vi.fn(), listDecisionHistory: vi.fn(), listFindings: vi.fn(),
+  updateOffering: vi.fn(),
 }));
 
 function mount() {
@@ -53,6 +54,84 @@ beforeEach(() => {
 });
 
 describe('Offering overview', () => {
+  it('does not substitute package-entry totals for an unavailable retained-document projection', async () => {
+    // Arrange
+    const data = offeringOverview();
+    data.packages.sourceDocumentCount = null;
+    vi.mocked(api.getOfferingOverview).mockResolvedValue(data);
+    mount();
+    // Act
+    const label = await screen.findByRole('link', { name: 'Source documents' });
+    // Assert
+    expect(label.closest('div')?.querySelector('dd')).toHaveTextContent('Not reported');
+  });
+  it('consumes the identity handoff, retains dirty edits through close cancellation and refreshes a successful revision', async () => {
+    // Arrange
+    const updated = { ...offering, serviceOwner: 'Explicit test service owner', revision: offering.revision + 1 };
+    vi.mocked(api.getOffering).mockResolvedValueOnce(offering).mockResolvedValue(updated);
+    vi.mocked(api.getOfferingOverview).mockResolvedValueOnce(offeringOverview())
+      .mockResolvedValue({ ...offeringOverview(), offeringRevision: updated.revision });
+    vi.mocked(api.updateOffering).mockResolvedValue(updated);
+    mount();
+    // Act
+    fireEvent.click(await screen.findByRole('link', { name: 'Edit service details' }));
+    let editor = await screen.findByRole('dialog', { name: 'Edit service identity' });
+    fireEvent.change(within(editor).getByLabelText('Service owner'), { target: { value: updated.serviceOwner } });
+    fireEvent.click(within(editor).getByRole('button', { name: 'Close dialog' }));
+    let confirm = screen.getByRole('dialog', { name: 'Discard unsaved identity edits?' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Keep editing' }));
+    // Assert
+    expect(within(editor).getByLabelText('Service owner')).toHaveValue(updated.serviceOwner);
+    // Act
+    fireEvent.click(within(editor).getByRole('button', { name: 'Close dialog' }));
+    confirm = screen.getByRole('dialog', { name: 'Discard unsaved identity edits?' });
+    fireEvent.keyDown(confirm, { key: 'Escape' });
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save service identity' }));
+    // Assert
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit service identity' })).not.toBeInTheDocument());
+    expect(await screen.findByText(`Offering identity: ${updated.lifecycle} · revision ${updated.revision}`)).toBeInTheDocument();
+    expect(api.updateOffering).toHaveBeenCalledWith(offering.offeringId, expect.objectContaining({
+      expectedRevision: offering.revision, serviceOwner: updated.serviceOwner,
+    }));
+    // Act
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit service identity' }));
+    editor = screen.getByRole('dialog', { name: 'Edit service identity' });
+    fireEvent.change(within(editor).getByLabelText('Service owner'), { target: { value: 'Discard this unsaved value' } });
+    fireEvent.click(within(editor).getByRole('button', { name: 'Close dialog' }));
+    confirm = screen.getByRole('dialog', { name: 'Discard unsaved identity edits?' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Discard edits' }));
+    // Assert
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.updateOffering).toHaveBeenCalledTimes(1);
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Offering records' }));
+    const details = screen.getByRole('dialog', { name: 'Offering records and review actions' });
+    fireEvent.click(within(details).getByRole('button', { name: 'Close dialog' }));
+    // Assert
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+  it('does not infer a clean finding state when the legacy finding-count read fails', async () => {
+    // Arrange
+    vi.mocked(api.listFindings).mockRejectedValue(new Error('Finding records unavailable'));
+    mount();
+    // Act
+    const next = await screen.findByRole('region', { name: 'Next action' });
+    // Assert
+    await waitFor(() => expect(next).toHaveTextContent('Finding status unavailable'));
+    expect(within(next).getByRole('button', { name: 'Retry finding status' })).toBeInTheDocument();
+    expect(within(next).queryByRole('link')).not.toBeInTheDocument();
+  });
+  it('replaces the release checklist with a record-derived open finding task and separate identity context', async () => {
+    // Arrange
+    vi.mocked(api.getOfferingOverview).mockResolvedValue({ ...offeringOverview(), openFindingCount: 1 });
+    mount();
+    // Act
+    const next = await screen.findByRole('region', { name: 'Next action' });
+    // Assert
+    expect(within(next).getByRole('link', { name: 'Review finding' })).toHaveAttribute('href', api.authorizationHref(offering.offeringId, 'findings'));
+    expect(screen.queryByRole('heading', { name: 'Complete the next release' })).not.toBeInTheDocument();
+    expect(screen.getByText(`Offering identity: ${offering.lifecycle} · revision ${offering.revision}`)).toBeInTheDocument();
+  });
   it('keeps an uploaded package visible when no authorization is recorded, with complete summary counts', async () => {
     // Arrange
     mount();
@@ -117,7 +196,7 @@ describe('Offering overview', () => {
     const next = await screen.findByRole('region', { name: 'Next action' });
     // Assert
     expect([...within(next).queryAllByRole('link'), ...within(next).queryAllByRole('button')]).toHaveLength(1);
-    expect(within(next).getByText(label, { exact: true })).toBeInTheDocument();
+    expect(within(next).getByRole(label === 'Review authorization records' ? 'button' : 'link', { name: label })).toBeInTheDocument();
   });
 
   it('shows source-stated decision details and evidence without presenting them as independently verified authority', async () => {

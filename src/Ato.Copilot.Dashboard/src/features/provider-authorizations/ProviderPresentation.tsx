@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import './providerPresentation.css';
 
-export function ProviderPanel({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+export function ProviderPanel({ title, children, action, description }: { title: string; children: ReactNode; action?: ReactNode; description?: ReactNode }) {
   return <section className="provider-panel" aria-label={title}>
-    <div className="provider-panel-head"><h2>{title}</h2>{action}</div>{children}
+    <div className="provider-panel-head">{description ? <div><h2>{title}</h2>{description}</div> : <h2>{title}</h2>}{action}</div>{children}
   </section>;
 }
 

@@ -97,7 +97,7 @@ it('renders the previously missing evidence and findings route with offering tab
   await screen.findByText(finding.title);
   // Assert
   expect(screen.getByRole('navigation', { name: 'Offering sections' })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Authorizations & sources' })).toHaveAttribute('href', api.authorizationHref(offering.offeringId, 'packages'));
+  expect(screen.getByRole('link', { name: 'Sources & findings' })).toHaveAttribute('href', api.authorizationHref(offering.offeringId, 'packages'));
   expect(screen.getByRole('link', { name: 'Manage finding' })).toHaveAttribute('href', api.authorizationHref(offering.offeringId, 'findings/finding-1'));
   expect(screen.getByText(/Provider remediation and mission risk acceptance/)).toBeInTheDocument();
 });

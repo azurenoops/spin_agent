@@ -99,15 +99,15 @@ describe('source-backed offering workflow', () => {
       .toHaveAttribute('href', '/workspaces/csp/authorizations/import');
     expect(api.createOffering).not.toHaveBeenCalled();
   });
-  it.each(['', '/boundary', '/packages'])('retains the selected offering in the %s header upload action', async section => {
+  it.each(['', '/boundary', '/packages'])('retains the selected offering in the %s source upload handoff', async section => {
     // Arrange
     mount(`/authorizations/offerings/offering-a${section}`);
     // jsdom's :has() style matching throws while computing names for Tailwind-styled headings.
-    await screen.findByText(section === '/boundary' ? 'Service boundary' : section === '/packages' ? 'Authorizations & sources' : offering.name, { selector: 'h1' });
+    await screen.findByText(section === '/packages' ? 'Authorizations & sources' : offering.name, { selector: 'h1' });
     expect(screen.getByRole('navigation', { name: 'Offering sections' })).toBeInTheDocument();
     // Act
-    if (!section) fireEvent.click(screen.getByRole('link', { name: 'Authorizations & sources' }));
-    fireEvent.click(screen.getByRole('link', { name: 'Add source material' }));
+    if (!section || section === '/boundary') fireEvent.click(screen.getByRole('link', { name: 'Sources & findings' }));
+    fireEvent.click(screen.getAllByRole('link', { name: 'Add source material' })[0]!);
     // Assert
     expect(await screen.findByText('Start with your authorization package', { selector: 'h2' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Boundary revision')).not.toBeInTheDocument();
@@ -183,7 +183,7 @@ describe('source-backed offering workflow', () => {
     fireEvent.click(await screen.findByText('Version history', { selector: 'summary' }));
     await screen.findByText(/Offering revision 3/);
     // Act
-    fireEvent.click(screen.getByRole('link', { name: 'Services & scope' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Manage hosting context' }));
     // Assert
     expect(await screen.findByRole('region', { name: 'Offering hosting' })).toHaveTextContent('offering-a · 4');
     expect(api.getOffering).toHaveBeenCalledTimes(2);

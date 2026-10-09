@@ -13,6 +13,53 @@ vi.mock('../../features/provider-authorizations/api', async original => ({
 beforeEach(() => vi.clearAllMocks());
 const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
+it.each([true, false])('compares recorded and missing metadata without inferred service duties: recorded=%s', async recorded => {
+  // Arrange
+  const dirty = vi.fn();
+  const current = { ...offering, serviceModel: recorded ? 'SoftwareAsAService' as const : null,
+    managementArrangement: recorded ? 'SharedOperations' as const : null,
+    serviceOwner: recorded ? 'Recorded owner' : null, securityContact: recorded ? 'Recorded contact' : null };
+  render(<OfferingIdentityEditor offering={current} onSaved={vi.fn()} onDirtyChange={dirty} />);
+  // Act
+  change('Service model', recorded ? '' : 'PlatformService');
+  change('Management arrangement', recorded ? '' : 'ProviderManaged');
+  change('Service owner', recorded ? '' : 'Proposed owner');
+  change('Security contact', recorded ? '' : 'Proposed contact');
+  change('Description', 'Proposed description');
+  fireEvent.click(screen.getByRole('button', { name: 'Compare identity edits' }));
+  // Assert
+  expect(screen.getByRole('table', { name: 'Identity changes' })).toHaveTextContent('Not recorded');
+  expect(dirty).toHaveBeenLastCalledWith(true);
+  expect(api.updateOffering).not.toHaveBeenCalled();
+});
+
+it('shows an explicit no-change identity comparison and rejects a foreign refresh', async () => {
+  // Arrange
+  vi.mocked(api.getOffering).mockResolvedValue({ ...offering, offeringId: 'foreign-offering' });
+  render(<OfferingIdentityEditor offering={offering} onSaved={vi.fn()} />);
+  // Act
+  fireEvent.click(screen.getByRole('button', { name: 'Compare identity edits' }));
+  // Assert
+  expect(screen.getByText('No identity changes.')).toBeInTheDocument();
+  // Act
+  fireEvent.click(screen.getByRole('button', { name: 'Reload current service identity' }));
+  // Assert
+  expect(await screen.findByRole('alert')).toHaveTextContent('did not match the selected offering and revision');
+  expect(screen.queryByRole('button', { name: 'Use refreshed revision with these edits' })).not.toBeInTheDocument();
+});
+
+it('compares unsaved identity with its opening persisted revision without inventing a published identity', async () => {
+  // Arrange
+  render(<OfferingIdentityEditor offering={offering} onSaved={vi.fn()} />);
+  // Act
+  change('Service owner', 'Proposed service team');
+  fireEvent.click(screen.getByRole('button', { name: 'Compare identity edits' }));
+  // Assert
+  expect(screen.getByRole('table', { name: 'Identity changes' })).toHaveTextContent('Proposed service team');
+  expect(screen.getByText(/Published offering-identity snapshot is not available/)).toBeInTheDocument();
+  expect(api.updateOffering).not.toHaveBeenCalled();
+});
+
 it('creates the explicit service identity without manufacturing a connector or authorization', async () => {
   // Arrange
   vi.mocked(api.createOffering).mockResolvedValue(offering);

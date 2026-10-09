@@ -1,5 +1,73 @@
 # Local review and synthetic acceptance
 
+## Focused production offering review (2026-10-07)
+
+Open the existing source preview at:
+`http://127.0.0.1:4196/workspaces/csp/authorizations/offerings/5417fe07-190d-4d47-9bae-a2238b6f30d4`.
+Use the configured ordinary developer CSP.Admin sign-in, not support
+impersonation. The source preview and the separate 4198 mock preview are retained.
+
+1. Confirm identity lifecycle/revision is separate from published capability
+   revisions. The contextual next task and each metric use retained API data.
+2. Browse all six offering destinations. In Capabilities, search a source control,
+   filter, sort, paginate and open a capability. Inspect its source version,
+   control-duty map, citations, boundary and exact release reference.
+3. Use arrow/Home/End keys in the section navigation, Enter to activate a link
+   or capability, Tab/Shift+Tab within the drawer, then Escape. Focus returns to
+   the invoking capability. Repeat at 390px; capability/document rows reflow.
+4. Open service details, change a field and compare unsaved values with the
+   opening persisted identity. Close/Escape offers keep/discard; no save occurs
+   on cancellation. A historical published identity comparison is unavailable.
+5. Inspect source packages, retained version history, finding/evidence handoffs,
+   scope provenance and mission relationships. Association is not adoption.
+   Release changes use the existing context-selected impact/scope workflows.
+6. To test writes safely, use the intercepted synthetic browser tests below.
+   The live production checker performs reads only after the explicitly allowed
+   development sign-in. Do not publish, adopt, attach or save live records merely
+   to illustrate this presentation change.
+
+From the Dashboard directory:
+
+```bash
+npx vitest run src/__tests__/provider-authorizations \
+  src/__tests__/workspaces/ProviderWorkspacePage.test.tsx \
+  src/__tests__/system-design/UnsavedDesignGuard.test.tsx
+npx tsc --noEmit
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:4196 npx playwright test \
+  e2e/tests/focused-offering.spec.ts e2e/tests/provider-workspace-079.spec.ts \
+  --reporter=list --output=focused-offering-browser-results
+```
+
+From the repository root:
+
+```bash
+OFFERING_ID=5417fe07-190d-4d47-9bae-a2238b6f30d4 \
+  node docs/design/workspace-ui-mocks/provider-offering-production.check.mjs
+```
+
+See the mock guide's production validation record for exact results, gaps and
+warnings. User acceptance and downstream native exports remain unverified.
+
+## Provider Overview dropdown removal: manual acceptance
+
+At `http://127.0.0.1:4196/workspaces/csp`, using an already authorized provider
+identity, confirm there is no Service offering dropdown. With multiple offerings,
+select an offering name in the lower register and check the named summary and
+focus links. Select a different offering and confirm that its own metrics appear;
+every Open offering link remains available. Check the explicit
+`?offeringId=<recorded-offering-id>` link, a missing ID, pagination, one offering
+and no offerings where locally available. Do not create/delete records to
+manufacture these cases. Check Tab/Enter and no page overflow at 1440px and 390px.
+No saves or authorization actions are needed.
+
+October 7 automated evidence uses synthetic responses, not live provider records:
+17 focused frontend tests, explicit TypeScript and production build passed;
+four Chromium desktop/mobile cases passed, including register keyboard selection,
+deep-link counts and zero API writes. Port 4196 initially answered HTTP 200 but
+became unreachable before browser setup; tests used a separate owned frontend
+on 4197, subsequently stopped. No shared service restart or backend rollout.
+Live provider acceptance and exports were not rerun for this layout-only change.
+
 ## Local application and design review
 
 Application implementation has started. The
@@ -197,3 +265,18 @@ observed outputs, screenshots, generated-file hashes/field comparisons, test
 commands/results, and limitations. Mark **implemented**, **automated checks
 passed**, and **user accepted** separately. Keep live integration NOT RUN until
 the external test was explicitly authorized and observed.
+# Manually checking Scope & duties
+
+Open an offering's **Scope & duties** tab (`/boundary`). Expect a single Service
+scope card containing recorded services and exclusions, followed by Provider
+duties and Customer duties. At a narrow viewport the service tiles and duty cards
+stack without horizontal clipping. Open Hosting identity & source provenance to
+read the complete original statement, resources, citations and exclusion
+rationales; expand Supporting records, versions & workflow, then Version history
+for predecessors. Explore duties by capability
+opens the existing capability workflow, not a simulated approval.
+
+Edit boundary opens the existing versioned editor. Check that recorded values
+are unchanged; Escape/cancel returns focus without saving. Use an isolated test
+fixture for saving, not the live demonstration offering. Recorded duties do not
+establish released duties, accepted inheritance, completed controls or an ATO.

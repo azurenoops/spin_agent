@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import { Link } from '../workspaces/workspaceNavigation';
-import { buttonClass, Pager, secondaryButtonClass, Status, surfaceClass, useRemote } from '../workspace-operations/workspaceUi';
+import { Pager, secondaryButtonClass, Status, surfaceClass, useRemote } from '../workspace-operations/workspaceUi';
 import { BoundaryEditor } from './OfferingIntake';
 import SetupDialog from '../workspace-operations/SetupDialog';
 import * as api from './api';
 import type { ProviderScope, OfferingEnvironment, Offering, OfferingBoundaryOverview } from './types';
-import { offeringEnvironments, scopeLabel } from './scopes';
+import { offeringEnvironments, scopeLabel, missionRelationshipLabels } from './scopes';
+import { ProviderBadge, ProviderPanel } from './ProviderPresentation';
 
 const cloudName = (cloud: OfferingEnvironment) => offeringEnvironments[cloud];
 const linkClass = 'text-sm font-medium text-indigo-700 underline underline-offset-2 dark:text-indigo-300';
@@ -26,6 +27,10 @@ function Statements({ values, empty, label }: { values: string[]; empty: string;
   return values.length ? <ul aria-label={label} className="list-disc space-y-2 break-words pl-5 text-sm">
     {values.map((value, index) => <li key={index}>{value}</li>)}
   </ul> : <p className={mutedClass}>{empty}</p>;
+}
+
+function RecordedDuties({ values, empty }: { values: string[]; empty: string }) {
+  return values.length === 1 ? <p className="break-words">{values[0]}</p> : <Statements values={values} empty={empty} />;
 }
 
 function ResourceScopes({ scopes }: { scopes: ProviderScope[] }) {
@@ -68,12 +73,7 @@ function CapabilityRecords({ offering, data, onPage }: {
   </>;
 }
 
-const relationshipLabels: Record<string, string> = {
-  Undetermined: 'Relationship review required',
-  ReviewRequired: 'Relationship review required',
-  SeparateBoundaryConsumer: 'Separate mission boundary consuming provider services',
-  ExplicitlyCoveredByRecordedScope: 'Covered workload relationship recorded by the Authorizing Official',
-};
+const relationshipLabels = missionRelationshipLabels;
 
 function MissionRecords({ data, onPage }: { data: OfferingBoundaryOverview['missionSystems']; onPage: (page: number) => void }) {
   return <>
@@ -135,34 +135,62 @@ export function BoundaryPage({ offering, refresh }: { offering: Offering; refres
   const linked = useRemote(signal => api.getBoundaryOverview(offering.offeringId, capabilityPage, missionPage, signal),
     [offering.offeringId, offering.revision, capabilityPage, missionPage]);
   const boundary = current.data;
-  return <div className="space-y-5">
-    <ol aria-label="Offering workflow" className="grid gap-3 rounded-lg bg-indigo-50 p-4 dark:bg-indigo-950 sm:grid-cols-2 xl:grid-cols-4">
-      {[
-        ['Review the package', 'Check the source documents and extracted claims.'],
-        ['Confirm the boundary', 'Record the services, resources and responsibilities.'],
-        ['Review and publish capabilities', 'Approve the exact reusable capabilities before release.'],
-        ['Mission Owners associate systems', 'Select applicable published capabilities and review customer duties.'],
-      ].map(([title, description], index) => <li key={title} className="flex min-w-0 gap-3">
-        <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-indigo-700 dark:bg-gray-800 dark:text-indigo-200">{index + 1}</span>
-        <div><p className="text-sm font-semibold">{title}</p><p className={`mt-1 ${mutedClass}`}>{description}</p></div>
-      </li>)}
-    </ol>
-    <Card title="Authorization boundary" description="What environment and services does this offering cover?"
-      action={<button type="button" className={`${buttonClass} inline-flex items-center gap-2`} disabled={current.loading || !!current.error}
-        onClick={() => setEditing(true)}><Pencil size={15} aria-hidden="true" />Edit boundary</button>}>
-      <dl className="grid gap-4 rounded-lg bg-slate-50 p-4 sm:grid-cols-3 dark:bg-gray-800">
-        <div><dt className={mutedClass}>Provider offering</dt><dd className="mt-1 break-words font-semibold">{offering.name}</dd></div>
-        <div><dt className={mutedClass}>Recorded cloud environment</dt><dd className="mt-1">{offering.environments.map(cloudName).join(', ')}</dd></div>
-        <div><dt className={mutedClass}>Boundary / service scope</dt><dd className="mt-1 break-words font-semibold">{boundary?.name ?? (current.loading ? 'Loading...' : current.error ? 'Unavailable' : 'Not recorded')}</dd></div>
-      </dl>
+  const scopeStatement = boundary?.scopeStatement ?? '';
+  const firstSentence = scopeStatement.split(/(?<=\.)\s+|\r?\n/)[0] ?? '';
+  const excerpt = scopeStatement.length > 320 && firstSentence.trim().length > 0 && firstSentence.length <= 320 ? firstSentence : scopeStatement;
+  const staleContext = !!linked.data && linked.data.offeringRevision !== offering.revision;
+  const unavailable = current.loading || !!current.error;
+  return <div className="offering-scope space-y-5">
+    <ProviderPanel title="Service scope"
+      description={boundary && !unavailable && <p className="offering-scope-version">Recorded boundary version {boundary.version} · Working recorded scope</p>}
+      action={<div className="offering-scope-actions">
+      <ProviderBadge tone="neutral">Recorded, not re-approved here</ProviderBadge>
+      <button type="button" className="provider-secondary inline-flex gap-2" disabled={unavailable || staleContext}
+        onClick={() => setEditing(true)}><Pencil size={15} aria-hidden="true" />Edit boundary</button>
+    </div>}>
       <Status loading={current.loading} error={current.error} retry={current.retry} />
-      {boundary && <Statements label="Recorded scope statements" values={boundary.scopeStatement.split(/(?<=;)\s*|\r?\n/).map(value => value.trim()).filter(Boolean)} empty="No scope statement recorded." />}
+      {staleContext && <p role="alert" className="offering-scope-note">
+        Offering context changed since this page loaded. <button type="button" className="provider-text" onClick={refresh}>Refresh offering context</button> before editing.
+      </p>}
+      {boundary && !unavailable && <>
+        <p className="offering-scope-statement">{excerpt || 'No scope statement recorded.'}</p>
+        {excerpt !== scopeStatement && <p className="text-xs mt-2">Scope excerpt; read the complete recorded statement in source provenance.</p>}
+        {boundary.services.length ? <ul aria-label="Included services" className="offering-scope-services">
+          {boundary.services.map((service, index) => <li key={index}>{service}</li>)}
+        </ul> : <p className="my-4">No services recorded.</p>}
+        <div className="offering-scope-note"><strong>Not included:</strong>
+          <RecordedDuties values={boundary.exclusions.map(value => value.description)} empty="No explicit exclusions recorded; this does not expand the included scope." />
+        </div>
+      </>}
       {!current.loading && !current.error && !boundary && <p className={mutedClass}>No boundary recorded. Review the package, then use Edit boundary to record the supported scope.</p>}
-      <p className={mutedClass}>The offering name and cloud environment identify the provider service. The boundary describes its recorded coverage; they are not interchangeable.</p>
-      <Link className={linkClass} to={api.authorizationHref(offering.offeringId, 'packages')}>Review source packages</Link>
-      {boundary && !editing && <Link className={`${linkClass} ml-4`} to={api.changeImpactHref(offering.offeringId,
-        { boundaryRevisionId: boundary.boundaryRevisionId })}>Review changes</Link>}
-    </Card>
+      {!unavailable && <details className="mt-4"><summary className="provider-text">Hosting identity & source provenance</summary>
+        <dl className="offering-scope-facts">
+          <div><dt>Provider offering</dt><dd>{offering.name}</dd></div>
+          <div><dt>Recorded cloud environment</dt><dd>{offering.environments.map(cloudName).join(', ') || 'Not recorded'}</dd></div>
+          <div><dt>Boundary / service scope</dt><dd>{boundary?.name ?? 'Not recorded'}</dd></div>
+          {boundary && <div><dt>Snapshot hash</dt><dd>{boundary.snapshotHash}</dd></div>}
+        </dl>
+        {boundary && <><h3 className="font-semibold">Complete recorded scope statement</h3><p className="whitespace-pre-wrap break-words mt-2">{scopeStatement || 'No scope statement recorded.'}</p></>}
+        <h3 className="mt-4 mb-2 font-semibold">Tenant and resource scope</h3>
+        {boundary?.includedScopes.length ? <ResourceScopes scopes={boundary.includedScopes} />
+          : <p>No tenant, subscription or resource identifiers recorded. This is not universal resource coverage.</p>}
+        <h3 className="mt-4 mb-2 font-semibold">Exclusion rationales</h3>
+        <Statements values={boundary?.exclusions.map(value => `${value.description} - ${value.rationale}${value.scope ? ` (${scopeLabel(value.scope)})` : ''}`) ?? []}
+          empty="No explicit exclusions recorded; this does not expand the included scope." />
+        <h3 className="mt-4 mb-2 font-semibold">Source citations</h3>
+        {boundary?.citations.length ? <ul className="space-y-2 text-xs">{boundary.citations.map((citation, index) => <li key={index}>
+          <Link className={linkClass} to={api.authorizationHref(offering.offeringId, `packages/${encodeURIComponent(citation.packageId)}`)}>{citation.archivePath}</Link> · {citation.locator}
+          <details><summary className="provider-text">Source excerpt</summary><p className="whitespace-pre-wrap break-words">{citation.quote}</p></details>
+        </li>)}</ul> : <p>No supporting source citations recorded. Resource identity alone is not reviewed service coverage.</p>}
+        <p className="mt-3 text-xs">The offering name and cloud environment identify the provider service. The boundary describes its recorded coverage; they are not interchangeable.</p>
+        <div className="offering-scope-links mt-3">
+          <Link className="provider-text" to={api.authorizationHref(offering.offeringId, 'packages')}>Review source packages</Link>
+          <Link className="provider-text" to={api.authorizationHref(offering.offeringId, 'inherited-coverage')}>Manage hosting context</Link>
+          {boundary && <Link className="provider-text" to={api.changeImpactHref(offering.offeringId,
+            { boundaryRevisionId: boundary.boundaryRevisionId })}>Review changes</Link>}
+        </div>
+      </details>}
+    </ProviderPanel>
     {editing && <SetupDialog title="Edit boundary" description={`Offering: ${offering.name}`} busy={pending} onClose={() => setEditing(false)}>
       <div className="space-y-4">
         <p className={mutedClass}>Saving creates a new version and preserves previous versions. Review affected authorization and capability context before publication.</p>
@@ -171,38 +199,51 @@ export function BoundaryPage({ offering, refresh }: { offering: Offering; refres
         <button type="button" disabled={pending} className={secondaryButtonClass} onClick={() => setEditing(false)}>Cancel editing</button>
       </div>
     </SetupDialog>}
-    <Card title="Included services and resources" description="Which tenant, subscriptions, resource groups or services are explicitly included?">
-      {current.loading || current.error ? <p className={mutedClass}>Boundary details are unavailable until the current scope loads.</p> : <>
-        <h3 className="font-medium">Services</h3><Statements values={boundary?.services ?? []} empty="No services recorded." />
-        <h3 className="font-medium">Tenant and resource scope</h3>
-        {boundary?.includedScopes.length ? <ResourceScopes scopes={boundary.includedScopes} />
-          : <p className={mutedClass}>No tenant, subscription or resource identifiers recorded. This is not universal resource coverage.</p>}
-        <h3 className="font-medium">Outside this boundary</h3>
-        <Statements values={boundary?.exclusions.map(value => `${value.description} - ${value.rationale}${value.scope ? ` (${scopeLabel(value.scope)})` : ''}`) ?? []} empty="No explicit exclusions recorded; this does not expand the included scope." />
-      </>}
-    </Card>
+    <div className="offering-scope-duties">
+      <ProviderPanel title="Provider duties">
+        {unavailable ? <p>Responsibilities are unavailable until the current scope loads.</p>
+          : <RecordedDuties values={boundary?.providerResponsibilities ?? []} empty="No CSP responsibilities recorded." />}
+        <Link className="provider-text mt-5 inline-block" to={api.authorizationHref(offering.offeringId, 'inherited-coverage?task=capabilities')}>Explore duties by capability →</Link>
+      </ProviderPanel>
+      <ProviderPanel title="Customer duties">
+        {unavailable ? <p>Responsibilities are unavailable until the current scope loads.</p>
+          : <RecordedDuties values={boundary?.customerResponsibilities ?? []} empty="No Mission Owner responsibilities recorded." />}
+        <p className="offering-scope-note mt-5">Shared control references do not mean the customer’s part is complete.</p>
+      </ProviderPanel>
+    </div>
+    <p className="offering-scope-context">Recorded boundary duties are working context, not immutable published duty allocations. Mission Owners must review their system-specific applicability; association does not accept duties automatically.</p>
     <Status loading={linked.loading} error={linked.error} retry={linked.retry} />
+    <details><summary className="provider-text">Supporting records, versions & workflow</summary>
+    <div className="space-y-4 mt-4">
+    <details className="provider-panel"><summary className="provider-text">Linked capabilities and mission records</summary>
     <Card title="Security capabilities" description="Which source proposals and published capabilities are linked to this offering?"
       action={<Link className={linkClass} to="/security-capabilities">Open capability catalog</Link>}>
       {linked.data && <CapabilityRecords offering={offering} data={linked.data.capabilities} onPage={setCapabilityPage} />}
       <Link className={linkClass} to={api.authorizationHref(offering.offeringId, 'packages')}>Review and publish package capabilities</Link>
     </Card>
-    <Card title="Shared responsibilities" description="What does the CSP provide, and what must the Mission Owner do?">
-      {current.loading || current.error ? <p className={mutedClass}>Responsibilities are unavailable until the current scope loads.</p> : <div className="grid gap-5 md:grid-cols-2">
-        <div className="space-y-3 rounded-lg bg-slate-50 p-4 dark:bg-gray-800"><h3 className="font-semibold">CSP provides</h3>
-          <Statements values={boundary?.providerResponsibilities ?? []} empty="No CSP responsibilities recorded." /></div>
-        <div className="space-y-3 rounded-lg bg-slate-50 p-4 dark:bg-gray-800"><h3 className="font-semibold">Mission Owner responsibilities</h3>
-          <Statements values={boundary?.customerResponsibilities ?? []} empty="No Mission Owner responsibilities recorded." /></div>
-      </div>}
-      <p className={mutedClass}>These are the recorded provider and customer duties. Mission Owners must review their system-specific applicability; association does not accept duties automatically.</p>
-    </Card>
     <Card title="Mission systems" description="Which systems have assigned hosting scope, associated with this offering or adopted its capabilities?"
-      action={<Link className={linkClass} to={api.authorizationHref(offering.offeringId, 'inherited-coverage')}>Manage hosting assignments</Link>}>
+      action={<Link className={linkClass} to={api.authorizationHref(offering.offeringId, 'inherited-coverage?task=missions')}>Manage hosting assignments</Link>}>
       {linked.data && <MissionRecords data={linked.data.missionSystems} onPage={setMissionPage} />}
     </Card>
+    </details>
+    <details className="provider-panel"><summary className="provider-text">Documentation and review workflow</summary>
+      <ol aria-label="Offering workflow" className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ['Review the package', 'Check the source documents and extracted claims.'],
+          ['Confirm the boundary', 'Record the services, resources and responsibilities.'],
+          ['Review and publish capabilities', 'Approve the exact reusable capabilities before release.'],
+          ['Mission Owners associate systems', 'Select applicable published capabilities and review customer duties.'],
+        ].map(([title, description], index) => <li key={title} className="flex min-w-0 gap-3">
+          <span aria-hidden="true" className="font-semibold">{index + 1}</span>
+          <div><p className="text-sm font-semibold">{title}</p><p className={`mt-1 ${mutedClass}`}>{description}</p></div>
+        </li>)}
+      </ol>
+    </details>
     <details className={`${surfaceClass} p-5`} open={historyOpen} onToggle={event => setHistoryOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer font-semibold">Version history</summary>
       {historyOpen && <BoundaryHistory offering={offering} />}
+    </details>
+    </div>
     </details>
     <p className={mutedClass}>A recorded boundary does not authorize mission workloads or grant inherited controls. Hosting connectivity, publication and mission authorization remain separate.</p>
   </div>;
