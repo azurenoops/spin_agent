@@ -8,6 +8,16 @@ Built on the Model Context Protocol (MCP) with Microsoft Foundry models, complia
 
 Security Posture Intelligence Navigator is where you DO the work, eMASS is where you SUBMIT the work. 
 
+### Spin Agent provides:
+
+- A single conversational workspace supporting all seven RMF steps
+- AI-assisted drafting of control implementation narratives and supporting documentation
+- Azure integration for automated collection of compliance evidence
+- Human review and approval workflows for AI-generated content
+- Export capabilities that support existing DoD workflows, including eMASS
+
+Spin Agent is where practitioners prepare, review, and manage RMF work. eMASS remains the system through which applicable authorization artifacts are submitted.
+
 ## Features
 
 ### RMF Lifecycle Automation
