@@ -13,6 +13,7 @@ import SystemTaskNavigation from '../features/systems/SystemTaskNavigation';
 import SetupDialog from '../features/workspace-operations/SetupDialog';
 import { rolesApi } from '../api/roles';
 import SystemConnections from '../features/systems/SystemConnections';
+import SystemOperationalStatus from '../features/systems/SystemOperationalStatus';
 import '../features/systems/systemRecordPages.css';
 import '../features/systems/missionRecordForm.css';
 import type {
