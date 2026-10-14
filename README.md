@@ -103,6 +103,9 @@ Generated content should be clearly treated as a draft until a human reviewer ap
 - **eMASS Export** — Controls, POA&M, and OSCAL format export
 - **Template Engine** — Customizable document templates with save/reuse
 
+> [!IMPORTANT]
+> Spin Agent produces draft analysis and documentation for human review. It does not approve controls, accept risk, determine system compliance, or grant an Authority to Operate. Users remain responsible for validating evidence and obtaining all required approvals through their organization's established RMF process.
+
 ## Quick Start
 
 ### Prerequisites
