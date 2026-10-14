@@ -25,9 +25,9 @@ Spin Agent is where practitioners prepare, review, and manage RMF work. eMASS re
 - **Prepare** — Register systems, define authorization boundaries, assign ISSO/ISSM/AO roles
 - **Categorize** — FIPS 199 impact levels with NIST SP 800-60 information type mapping
 - **Select** — Baseline selection, control tailoring, CRM inheritance, STIG cross-reference
-- **Implement** — Control narratives, batch SSP population, IaC compliance scanning
-- **Assess** — Automated compliance assessment, evidence collection, SAR generation
-- **Authorize** — ATO/IATT/DATO decisions, risk acceptance, POA&M management, authorization packages
+- **Implement** — Draft control narratives, populate SSP content for human review, and collect IaC compliance evidence
+- **Assess** — Support compliance analysis, evidence collection, and draft SAR generation for assessor review
+- **Authorize** — Assemble authorization packages, manage POA&Ms, and support human-led ATO, IATT, DATO, and risk-acceptance workflows
 - **Monitor** — Continuous monitoring plans, drift detection, ConMon reports, expiration alerts
 
 ### AI-Powered Intelligence
