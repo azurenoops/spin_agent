@@ -44,6 +44,52 @@ Spin Agent is where practitioners prepare, review, and manage RMF work. eMASS re
 - **RBAC Enforcement** — Viewer, Operator, Administrator, Auditor, AuthorizingOfficial roles
 - **Audit Logging** — Full correlation-tracked audit trail with 7-year retention
 
+## Responsible AI and Human Oversight
+
+Spin Agent is a decision-support and documentation-assistance system. It is not an autonomous authorization or risk-acceptance system.
+
+### Human decision authority
+
+AI-generated narratives, summaries, mappings, findings, recommendations, and draft artifacts must be reviewed by a qualified and authorized human before they are approved, submitted, or used in an RMF or ATO decision.
+
+Spin Agent does not:
+
+- Approve or validate security controls
+- Determine that a system is compliant
+- Accept residual risk
+- Act as an assessor or Authorizing Official
+- Issue or independently recommend an ATO, IATT, DATO, or denial of authorization
+- Replace an organization's established RMF governance, review, or approval processes
+
+### Intended use
+
+Spin Agent is intended to help authorized practitioners:
+
+- Collect and organize compliance evidence
+- Draft control implementation narratives
+- Identify potential gaps requiring human investigation
+- Prepare draft RMF and authorization artifacts
+- Track workflow status and reviewer feedback
+- Produce traceable drafts for human review and approval
+
+### User responsibilities
+
+Organizations deploying Spin Agent are responsible for:
+
+- Configuring roles and access controls appropriately
+- Protecting sensitive, controlled, classified, and customer data
+- Validating model outputs against authoritative evidence
+- Ensuring qualified personnel review AI-generated content
+- Maintaining required records, approvals, and audit trails
+- Performing their own security, privacy, legal, compliance, and Responsible AI reviews
+- Using approved models and services within their authorized environment
+
+### AI output limitations
+
+Generative AI can produce inaccurate, incomplete, outdated, or unsupported content. Users should verify generated content against authoritative sources, including applicable NIST publications, DoD policy, organization-specific requirements, collected technical evidence, and the direction of the responsible assessment and authorization officials.
+
+Generated content should be clearly treated as a draft until a human reviewer approves it.
+
 ### Multi-Channel Delivery
 
 - **VS Code Extension** — GitHub Copilot Chat participant with `/compliance`, `/knowledge`, `/config` commands
