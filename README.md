@@ -1,15 +1,10 @@
 # Security Posture Intelligence Navigator
 
-AI-powered compliance copilot that guides DoD teams through every step of the NIST Risk Management Framework (RMF) — from system registration through continuous monitoring and ATO authorization.
+An AI-assisted compliance platform that helps DoD teams perform activities across the NIST Risk Management Framework (RMF), from system registration through continuous monitoring.
 
-Built on the Model Context Protocol (MCP) with Azure OpenAI function calling, 130 compliance tools, and multi-channel delivery (VS Code, web chat, stdio).
+Spin Agent combines Azure compliance evidence collection, RMF workflow support, natural-language interaction, and draft document generation. It is designed to assist qualified cybersecurity and RMF practitioners. It does not replace an Authorizing Official, approve security controls, accept risk, or independently issue or recommend an Authority to Operate (ATO).
 
-Security Posture Intelligence Navigator is the first tool that:
-
-- Covers all 7 steps in a single conversational interface
-- Uses AI to automate the hardest part (control narrative writing)
-- Integrates with Azure for automated compliance evidence
-- Exports to eMASS so it fits into the existing DoD workflow instead of replacing it
+Built on the Model Context Protocol (MCP) with Microsoft Foundry models, compliance tools, and multi-channel delivery through VS Code, web chat, and stdio.
 
 Security Posture Intelligence Navigator is where you DO the work, eMASS is where you SUBMIT the work. 
 
