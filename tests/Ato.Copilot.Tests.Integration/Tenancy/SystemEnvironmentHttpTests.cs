@@ -307,6 +307,45 @@ public sealed class SystemEnvironmentHttpTests(MultiTenantWebApplicationFactory<
                 new ProviderCatalogContextSnapshot { ProviderId = provider.Id, OfferingId = offering.Id, CapabilityId = capability.Id,
                     ReleaseId = release.Id, ImpactReviewId = review.Id, SnapshotJson = json, SnapshotHash = ProviderAuthorizationStore.Hash(json) });
             await db.SaveChangesAsync();
+
+            var association = new ProviderOfferingAssociation
+            {
+                ProviderId = provider.Id,
+                OfferingId = offering.Id,
+                ComponentId = component.Id,
+                CapabilityId = capability.Id,
+                Lifecycle = "Published",
+                CreatedBy = "provider"
+            };
+            db.Add(association);
+            await db.SaveChangesAsync();
+
+            var associationRevision = new ProviderOfferingAssociationRevision
+            {
+                AssociationId = association.Id,
+                ProviderId = provider.Id,
+                OfferingId = offering.Id,
+                ComponentId = component.Id,
+                CapabilityId = capability.Id,
+                CapabilityReleaseId = release.Id,
+                CapabilityReleaseRevision = release.Revision,
+                OfferingRevision = offering.Revision,
+                Status = "Published",
+                SourceProvenanceJson = "[]",
+                ProviderCoverageJson = ProviderAuthorizationStore.Json(new[] { "Provider operates the service." }),
+                CustomerObligationsJson = "[]",
+                ContributionRole = "Primary",
+                ContentHash = ProviderAuthorizationStore.Hash("synthetic published association"),
+                Author = "provider",
+                Reviewer = "provider",
+                ReviewedAt = DateTimeOffset.UtcNow,
+                ReviewRationale = "Synthetic published association"
+            };
+            db.Add(associationRevision);
+            await db.SaveChangesAsync();
+            association.CurrentRevisionId = associationRevision.Id;
+            await db.SaveChangesAsync();
+
             offeringId = offering.Id; hostingId = hosting.Id;
             var subscription = await db.AzureSubscriptionRegistrations.SingleAsync(x => x.Id == registrationId);
             resource = $"/subscriptions/{subscription.SubscriptionId}/resourcegroups/rg/providers/microsoft.compute/virtualmachines/current";

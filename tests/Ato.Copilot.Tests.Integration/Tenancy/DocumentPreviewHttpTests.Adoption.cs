@@ -45,7 +45,10 @@ public sealed partial class DocumentPreviewHttpTests
         var item = applicability.GetProperty("data").GetProperty("items")[0];
         var request = new AdoptProviderCapabilityRequest(published.AssignmentId, 1, published.CapabilityId, published.ReleaseId,
             item.GetProperty("applicability").GetProperty("snapshotHash").GetString()!,
-            item.GetProperty("applicabilityPreviewHash").GetString()!);
+            item.GetProperty("applicabilityPreviewHash").GetString()!)
+        {
+            AssociationRevisionId = published.AssociationRevisionId
+        };
 
         // Act
         using var deniedPerson = await unrelated.PostAsJsonAsync(root + "/provider-capability-adoptions", request);
@@ -71,7 +74,7 @@ public sealed partial class DocumentPreviewHttpTests
         (await db.AuthorizationDecisions.CountAsync(d => d.RegisteredSystemId == fixture.System)).Should().Be(0);
     }
 
-    private async Task<(Guid AssignmentId, Guid CapabilityId, Guid ReleaseId)> SeedPublishedForAdoptionAsync(string system)
+    private async Task<(Guid AssignmentId, Guid CapabilityId, Guid ReleaseId, Guid AssociationRevisionId)> SeedPublishedForAdoptionAsync(string system)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
@@ -140,6 +143,45 @@ public sealed partial class DocumentPreviewHttpTests
         };
         db.AddRange(offering, boundary, hosting, assignment, record, decision, package, entry, component, capability, release, review, context);
         await db.SaveChangesAsync();
-        return (assignment.Id, capability.Id, release.Id);
+
+        var association = new ProviderOfferingAssociation
+        {
+            ProviderId = provider,
+            OfferingId = offering.Id,
+            ComponentId = component.Id,
+            CapabilityId = capability.Id,
+            Lifecycle = "Published",
+            CreatedBy = "DEMO author"
+        };
+        db.Add(association);
+        await db.SaveChangesAsync();
+
+        var associationRevision = new ProviderOfferingAssociationRevision
+        {
+            AssociationId = association.Id,
+            ProviderId = provider,
+            OfferingId = offering.Id,
+            ComponentId = component.Id,
+            CapabilityId = capability.Id,
+            CapabilityReleaseId = release.Id,
+            CapabilityReleaseRevision = release.Revision,
+            OfferingRevision = offering.Revision,
+            Status = "Published",
+            SourceProvenanceJson = ProviderAuthorizationStore.Json(new[] { citation }),
+            ProviderCoverageJson = ProviderAuthorizationStore.Json(new[] { "Provider records audit events." }),
+            CustomerObligationsJson = ProviderAuthorizationStore.Json(new[] { "Customer reviews audit events." }),
+            ContributionRole = "Primary",
+            ContentHash = Hash("DEMO published association"),
+            Author = "DEMO author",
+            Reviewer = "DEMO reviewer",
+            ReviewedAt = DateTimeOffset.UtcNow,
+            ReviewRationale = "DEMO approved offering association"
+        };
+        db.Add(associationRevision);
+        await db.SaveChangesAsync();
+        association.CurrentRevisionId = associationRevision.Id;
+        await db.SaveChangesAsync();
+
+        return (assignment.Id, capability.Id, release.Id, associationRevision.Id);
     }
 }
