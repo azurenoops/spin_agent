@@ -22,7 +22,12 @@ public static class RequirementCoverageEndpoints
         {
             try { return await next(context); }
             catch (UnauthorizedAccessException) { return Error(403, "FORBIDDEN", "Your system assignment does not authorize this operation."); }
-            catch (KeyNotFoundException) { return Error(404, "NOT_FOUND", "System, catalog or record is not accessible."); }
+            catch (KeyNotFoundException error)
+            {
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("RequirementCoverage").LogWarning(error, "Requirement coverage record was not accessible");
+                return Error(404, "NOT_FOUND", "System, catalog or record is not accessible.");
+            }
             catch (ArgumentException error) { return Error(400, "INVALID_REQUEST", error.Message); }
             catch (DbUpdateConcurrencyException) { return Error(409, "CONCURRENCY_CONFLICT", "The record changed. Reload before saving."); }
             catch (InvalidOperationException error) when (error.Message.StartsWith("AI_NOT_AVAILABLE:", StringComparison.Ordinal))

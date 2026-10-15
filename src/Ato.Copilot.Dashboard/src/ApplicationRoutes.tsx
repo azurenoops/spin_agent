@@ -71,6 +71,7 @@ export default function ApplicationRoutes() {
           <Route path="systems" element={<RequireAuth><SystemsRoute /></RequireAuth>} />
           <Route path="setup" element={<RequireAuth><SetupHomeRoute /></RequireAuth>} />
           <Route path="setup/resume" element={<RequireAuth><SetupHomeRoute mode="resume" /></RequireAuth>} />
+          <Route path="setup/systems/:id" element={<RequireAuth><SystemSetupRoute /></RequireAuth>} />
           <Route path="narrative-library/*" element={<RequireAuth><StandaloneNarrativeLibrary /></RequireAuth>} />
           {/* fix(#522): /systems/new must be registered BEFORE /systems/:id so React
               Router does not match it as id="new". SystemsNewRoute redirects to

@@ -234,6 +234,22 @@ public static partial class DashboardEndpoints
     private sealed record ReadinessRequirementContext(IReadOnlyList<ResponsibilityDraftSource> Sources,
         IReadOnlyList<string> Questions, string Hash, bool HasExistingText);
 
+    private static async Task<(ControlBaseline? Baseline, RequirementCatalog? Catalog)> BoundRequirementCatalogAsync(
+        AtoCopilotContext db, string systemId, CancellationToken ct)
+    {
+        var baseline = await db.ControlBaselines.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.RegisteredSystemId == systemId, ct);
+        if (baseline is null || string.IsNullOrWhiteSpace(baseline.RequirementCatalogBindingId))
+            return (baseline, null);
+
+        var binding = await CatalogSourceReader.ReadBindingAsync(db,
+            x => x.Id == baseline.RequirementCatalogBindingId && x.ControlBaselineId == baseline.Id, ct);
+        if (binding is null || string.IsNullOrWhiteSpace(binding.CatalogJson))
+            return (baseline, null);
+
+        return (baseline, RequirementCatalog.Parse(binding.CatalogJson));
+    }
+
     private static async Task<ReadinessRequirementContext> ReadRequirementModeContext(AtoCopilotContext db,
         ITenantContext tenant, RequirementCoverageService requirements, IDualNarrativeService narratives,
         string systemId, string controlId, CancellationToken ct)

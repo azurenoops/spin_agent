@@ -17,6 +17,17 @@
 
 Tests are mandatory, despite the older template's optional-test wording.
 
+## Explicit offering association amendment
+
+| ID | Dependency | Task and acceptance |
+|---|---|---|
+| OA001 | None | **Freeze association contract and red tests.** Cover component/capability/release/offering pins, provenance, coverage, customer obligations, contribution role, provider ownership, and lifecycle denial cells. |
+| OA002 | OA001 | **Add association persistence.** Add provider-scoped proposals, immutable revisions, published releases, and append-only history with SQLite/SQL Server additive schema handling and unique active-release constraints. |
+| OA003 | OA002 | **Implement provider review commands.** Add create, update, reject, review, publish, supersede and withdraw with role checks, expected revisions, exact release/offering checks, and stale-preview rejection. |
+| OA004 | OA003 | **Gate mission applicability.** Return only published association releases to authorized organizations; pin selected association and capability revisions without creating subscriptions or accepted responsibility. |
+| OA005 | OA004 | **Trace downstream provenance.** Include association source/hash/coverage/obligations in narrative inputs and SSP/OSCAL/eMASS-preparation projections; stage affected content on supersession or withdrawal. |
+| OA006 | OA005 | **Verify and preserve evidence.** Exercise browser/API/database tenant isolation, draft visibility, rejection, version pinning, updates and removal; save complete package-readiness category counts before teardown. |
+
 ## October 8: approved provider first-login onboarding
 
 These tasks are pending unless explicitly checked later with verified evidence.

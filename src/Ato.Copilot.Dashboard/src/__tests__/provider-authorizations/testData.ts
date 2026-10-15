@@ -18,7 +18,7 @@ export function setupState(screen: ProviderScreen = 'p-details'): SetupState {
         operationalContact: { choice: 'Deferred', deferral: { reason: 'Operations contact later', ownerRole: 'CSP.Admin' } },
         securityContact: { choice: 'Deferred', deferral: { reason: 'Review contact later', ownerRole: 'CSP.Admin' } },
         firstOffering: { choice: 'Deferred', deferral: { reason: 'Service later', ownerRole: 'CSP.Admin' } },
-        authorization: { choice: 'DetermineLater' },
+        authorizationStartingPoint: { choice: 'DetermineLater' },
         sources: { choice: 'Deferred', intentIds: [], deferral: { reason: 'Sources later', ownerRole: 'CSP.Admin' } } } },
     access: { state: 'Authorized', checkedAt: '2026-09-30T12:00:00Z', scope: 'Provider',
       actor: { directoryTenantId: 'directory', objectId: 'actor', displayName: 'Synthetic administrator' } },

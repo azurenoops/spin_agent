@@ -226,7 +226,7 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
             .Should().ThrowAsync<ArgumentException>();
     }
 
-    private async Task<(Guid CapabilityId, ProviderCapabilityRelease Release)> SeedPublishedAsync()
+    private async Task<(Guid CapabilityId, ProviderCapabilityRelease Release)> SeedPublishedAsync(bool associate = true)
     {
         var capabilityId = Guid.NewGuid();
         var release = new ProviderCapabilityRelease { CapabilityId = capabilityId, Revision = 1, SnapshotHash = "exact-release",
@@ -249,9 +249,49 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
             seed.Add(new ProviderCatalogContextSnapshot { ProviderId = _provider, OfferingId = _offering.Id,
                 CapabilityId = capabilityId, ReleaseId = release.Id, ImpactReviewId = review.Id,
                 SnapshotJson = review.ContextJson, SnapshotHash = review.ContextSnapshotHash });
+            if (associate)
+            {
+                var association = new ProviderOfferingAssociation
+                {
+                    ProviderId = _provider, OfferingId = _offering.Id, ComponentId = component.Id,
+                    CapabilityId = capabilityId, Lifecycle = "Published", CreatedBy = "provider"
+                };
+                var associationRevision = new ProviderOfferingAssociationRevision
+                {
+                    AssociationId = association.Id, ProviderId = _provider, OfferingId = _offering.Id,
+                    ComponentId = component.Id, CapabilityId = capabilityId, CapabilityReleaseId = release.Id,
+                    CapabilityReleaseRevision = release.Revision, OfferingRevision = _offering.Revision,
+                    Status = "Published", SourceProvenanceJson = ProviderAuthorizationStore.Json(new[] { _citation }),
+                    ProviderCoverageJson = ProviderAuthorizationStore.Json(new[] { "AC-2" }),
+                    CustomerObligationsJson = ProviderAuthorizationStore.Json(new[] { "AC-4" }),
+                    ContributionRole = "Primary", ContentHash = "association-hash", Author = "provider",
+                    Reviewer = "provider", ReviewedAt = DateTimeOffset.UtcNow
+                };
+                association.CurrentRevisionId = associationRevision.Id;
+                seed.AddRange(association, associationRevision);
+            }
             await seed.SaveChangesAsync();
         }
         return (capabilityId, release);
+    }
+
+    [Fact]
+    public async Task PublishedCatalogReleaseWithoutOfferingAssociation_IsNotOrganizationApplicable()
+    {
+        // Arrange
+        var (capabilityId, release) = await SeedPublishedAsync(false);
+        var tenant = new TenantContext(_tenant) { PersonId = _person, IsWorkspaceRequest = true };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = Service(db, tenant);
+        await service.AssociateAsync(_system, new(_assignment.Id, 1), "mission-owner", default);
+
+        // Act
+        var applicability = await service.ApplicableAsync(_system, 1, 10, _assignment.Id, null, null,
+            capabilityId, release.Id, default);
+
+        // Assert
+        applicability.Items.Should().BeEmpty();
     }
 
     [Theory]
@@ -275,7 +315,8 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
 
         // Act
         var adopted = await service.AdoptAsync(_system, new(_assignment.Id, 1, capabilityId, release.Id,
-            applicability.Applicability.SnapshotHash, applicability.ApplicabilityPreviewHash), "mission-owner", default, "mo-adopt");
+            applicability.Applicability.SnapshotHash, applicability.ApplicabilityPreviewHash)
+        { AssociationRevisionId = applicability.AssociationRevisionId }, "mission-owner", default, "mo-adopt");
         var access = new SystemWorkspaceAccessService(new Factory(_options, _accessor), _accessor);
         var responsibilities = new CapabilityResponsibilityService(db, tenant, access, NullLogger<CapabilityResponsibilityService>.Instance);
         var confirm = () => responsibilities.ConfirmAsync(_system, capabilityId, new("", "", "", []), "mission-owner");
@@ -336,12 +377,31 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
         await using (var seed = new AtoCopilotContext(_options))
         {
             var context = await seed.Set<ProviderCatalogContextSnapshot>().SingleAsync();
+            var association = await seed.Set<ProviderOfferingAssociation>().SingleAsync();
             seed.Add(nextRelease);
             seed.Add(new ProviderCatalogContextSnapshot
             {
                 ProviderId = _provider, OfferingId = _offering.Id, CapabilityId = capabilityId, ReleaseId = nextRelease.Id,
                 ImpactReviewId = context.ImpactReviewId, SnapshotJson = context.SnapshotJson, SnapshotHash = context.SnapshotHash
             });
+            var successorAssociation = new ProviderOfferingAssociation
+            {
+                ProviderId = _provider, OfferingId = _offering.Id, ComponentId = association.ComponentId,
+                CapabilityId = capabilityId, Lifecycle = "Published", CreatedBy = "provider"
+            };
+            var successorRevision = new ProviderOfferingAssociationRevision
+            {
+                AssociationId = successorAssociation.Id, ProviderId = _provider, OfferingId = _offering.Id,
+                ComponentId = association.ComponentId, CapabilityId = capabilityId,
+                CapabilityReleaseId = nextRelease.Id, CapabilityReleaseRevision = nextRelease.Revision,
+                OfferingRevision = _offering.Revision, Status = "Published", SourceProvenanceJson = "[\"test\"]",
+                ProviderCoverageJson = "[\"AC-2\"]", CustomerObligationsJson = "[\"AC-4\"]",
+                ContributionRole = "Primary", ContentHash = "association-v2", Author = "provider",
+                Reviewer = "reviewer", ReviewedAt = DateTimeOffset.UtcNow, ReviewRationale = "successor"
+            };
+            successorAssociation.CurrentRevisionId = successorRevision.Id;
+            seed.Add(successorAssociation);
+            seed.Add(successorRevision);
             await seed.SaveChangesAsync();
         }
 
@@ -451,7 +511,8 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
     private async Task<AdoptProviderCapabilityRequest> AdoptionRequestAsync(ProviderMissionService service, Guid capability, Guid release)
     {
         var selected = (await service.ApplicableAsync(_system, 1, 10, _assignment.Id, null, null, capability, release, default)).Items.Single();
-        return new(_assignment.Id, _assignment.Revision, capability, release, selected.Applicability.SnapshotHash, selected.ApplicabilityPreviewHash);
+        return new(_assignment.Id, _assignment.Revision, capability, release, selected.Applicability.SnapshotHash,
+            selected.ApplicabilityPreviewHash) { AssociationRevisionId = selected.AssociationRevisionId };
     }
 
     private async Task<OscalExportResult> ExportAsync()
@@ -505,7 +566,8 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
         // Act
         var after = (await service.ApplicableAsync(_system, 1, 10, _assignment.Id, null, null, null, null, default)).Items.Single();
         var act = () => service.AdoptAsync(_system, new(_assignment.Id, 1, capabilityId, release.Id,
-            before.Applicability.SnapshotHash, before.ApplicabilityPreviewHash), "manager", default);
+            before.Applicability.SnapshotHash, before.ApplicabilityPreviewHash)
+        { AssociationRevisionId = before.AssociationRevisionId }, "manager", default);
         // Assert
         after.CanProposeAdoption.Should().BeFalse();
         after.ApplicabilityState.Should().Be("ReviewRequired");
@@ -530,9 +592,11 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
         var page = await service.ApplicableAsync(_system, 1, 10, _assignment.Id, null, "AzureCloud", null, null, default);
         var item = page.Items.Single();
         var adopted = await service.AdoptAsync(_system, new(_assignment.Id, 1, capabilityId, release.Id,
-            item.Applicability.SnapshotHash, item.ApplicabilityPreviewHash), "manager", default, "adopt-key");
+            item.Applicability.SnapshotHash, item.ApplicabilityPreviewHash)
+        { AssociationRevisionId = item.AssociationRevisionId }, "manager", default, "adopt-key");
         var replay = await service.AdoptAsync(_system, new(_assignment.Id, 1, capabilityId, release.Id,
-            item.Applicability.SnapshotHash, item.ApplicabilityPreviewHash), "manager", default, "adopt-key");
+            item.Applicability.SnapshotHash, item.ApplicabilityPreviewHash)
+        { AssociationRevisionId = item.AssociationRevisionId }, "manager", default, "adopt-key");
 
         // Assert
         page.Total.Should().Be(1);

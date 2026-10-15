@@ -98,6 +98,16 @@ public sealed partial class ProviderSetupService
                 draft.CommittedMetadataJson = metadata.ToJsonString();
                 await UpsertContactAsync(db, profile.Id, "Operational", operational, actor.ObjectId, ct);
                 await UpsertContactAsync(db, profile.Id, "Security", contact, actor.ObjectId, ct);
+                if (Text(operational, "choice") == "ContactOnly")
+                {
+                    CspProfileService.ApplySupport(
+                        profile,
+                        Text(operational, "email") ?? "",
+                        Text(operational, "phone"));
+                    profile.SetupRevision++;
+                    profile.UpdatedAt = DateTimeOffset.UtcNow;
+                    profile.UpdatedBy = actor.ObjectId;
+                }
             }
             if (section == "PortfolioAndOffering")
                 return await CommitPortfolioAndOfferingAsync(db, profile, draft, fields, request, actor, ct);
@@ -353,7 +363,7 @@ public sealed partial class ProviderSetupService
             || Text(Part(draft, "portfolio"), "choice") is not ("Unspecified" or "New" or "Existing" or "Deferred")
             || Text(Part(draft, "firstOffering"), "choice") is not ("Unspecified" or "New" or "Existing" or "Deferred")
             || Text(Part(draft, "authorizationStartingPoint"), "choice")
-                is not ("ExistingAuthorization" or "InitialAuthorization" or "DetermineLater")
+                is not ("Unspecified" or "ExistingAuthorization" or "InitialAuthorization" or "DetermineLater")
             || Text(Part(draft, "sources"), "choice") is not ("Unspecified" or "Selected" or "Intents" or "Deferred"))
             throw new ArgumentException("Invalid provider setup disposition.");
         var intentIds = Part(Part(draft, "sources"), "intentIds");

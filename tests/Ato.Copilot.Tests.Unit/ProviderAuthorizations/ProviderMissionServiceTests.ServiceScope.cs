@@ -103,7 +103,8 @@ public sealed partial class ProviderMissionServiceTests
         applicability.ReasonCodes.Should().BeEmpty("the exact reviewed service scope must remain eligible");
         applicability.CanProposeAdoption.Should().BeTrue();
         var adoptionRequest = new AdoptProviderCapabilityRequest(assignment.AssignmentId, assignment.Revision, capabilityId,
-            release.Id, applicability.Applicability.SnapshotHash, applicability.ApplicabilityPreviewHash);
+            release.Id, applicability.Applicability.SnapshotHash, applicability.ApplicabilityPreviewHash)
+        { AssociationRevisionId = applicability.AssociationRevisionId };
         var adopted = await mission.AdoptAsync(_system, adoptionRequest, "mission-owner", default, "service-adoption");
         var replay = await mission.AdoptAsync(_system, adoptionRequest, "mission-owner", default, "service-adoption");
 

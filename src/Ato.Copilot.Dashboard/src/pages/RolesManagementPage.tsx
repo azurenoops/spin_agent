@@ -30,7 +30,7 @@ export default function RolesManagementPage() {
     setCallerEffectiveRole(null);
     rolesApi
       .getEffectiveRole()
-      .then(r => { if (current) setCallerEffectiveRole(r.effectiveRole ?? null); })
+      .then(r => { if (current) setCallerEffectiveRole(r.effectiveRole ?? (r.isTenantAdministrator ? 'Administrator' : null)); })
       .catch(reason => {
         if (current) setAccessError(reason instanceof Error ? reason.message : 'Assignment access is unavailable.');
       });

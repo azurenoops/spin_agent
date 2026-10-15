@@ -57,6 +57,43 @@ public sealed class ProviderSetupContractTests : IClassFixture<PackageImportFact
     }
 
     [Fact]
+    public async Task FirstScreenDraft_AllowsUnspecifiedFutureAuthorizationDisposition()
+    {
+        // Arrange
+        var before = await ReadState();
+        var draft = new
+        {
+            currentScreen = "p-details",
+            details = new
+            {
+                displayName = "Runtime verified provider",
+                legalEntityName = "Runtime verification operator",
+                serviceContactName = "Runtime security contact",
+                serviceContactEmail = "runtime@example.invalid",
+                dodComponent = "Fourth Estate",
+                timeZoneId = "America/New_York",
+                legacyClassificationDefault = "CUI",
+                confirmLegacyClassificationDefault = true
+            },
+            operationalContact = new { choice = "Unspecified" },
+            securityContact = new { choice = "Unspecified" },
+            firstOffering = new { choice = "Unspecified", portfolioName = "" },
+            authorization = new { choice = "Unspecified" },
+            sources = new { choice = "Unspecified", intentIds = Array.Empty<Guid>() }
+        };
+
+        // Act
+        var response = await Write(HttpMethod.Put, "/api/csp/onboarding/setup/draft",
+            new { expectedRevision = Revision(before), draft }, Guid.NewGuid().ToString());
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var saved = await Data(response);
+        saved.GetProperty("current").GetProperty("state").GetProperty("draft").GetProperty("fields")
+            .GetProperty("authorizationStartingPoint").GetProperty("choice").GetString().Should().Be("Unspecified");
+    }
+
+    [Fact]
     public async Task DraftReplay_IsSameCommittedOutcome_ChangedIntentAndStaleRevisionConflict()
     {
         // Arrange

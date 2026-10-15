@@ -345,6 +345,37 @@ public sealed class ProviderSetupRelationalTests
         (await db.Database.SqlQueryRaw<long>("SELECT COUNT(*) AS Value FROM CspPackageUploadIntents").SingleAsync()).Should().Be(2);
     }
 
+    [Fact]
+    public async Task ContactsCommit_AppliesOperationalContactRecordedAfterIdentity()
+    {
+        // Arrange
+        await using var fixture = await Fixture.CreateAsync();
+        var initial = System.Text.Json.Nodes.JsonNode.Parse(SchemaTwoDraft().GetRawText())!;
+        initial["operationalContact"] = JsonSerializer.SerializeToNode(new { choice = "Unspecified" });
+        var saved = await fixture.Service().SaveAsync(
+            new(0, JsonSerializer.SerializeToElement(initial)), Guid.NewGuid().ToString(), Actor, default);
+        var identity = await fixture.Service().CommitAsync(new(
+            saved.CommittedOutcome!.CommittedDraftRevision,
+            "Details",
+            saved.CommittedOutcome.CommittedProfileRevision), Guid.NewGuid().ToString(), Actor, default);
+        var contactDraft = System.Text.Json.Nodes.JsonNode.Parse(SchemaTwoDraft().GetRawText())!;
+        var contactSaved = await fixture.Service().SaveAsync(new(
+            identity.CommittedOutcome!.CommittedDraftRevision,
+            JsonSerializer.SerializeToElement(contactDraft)), Guid.NewGuid().ToString(), Actor, default);
+
+        // Act
+        await fixture.Service().CommitAsync(new(
+            contactSaved.CommittedOutcome!.CommittedDraftRevision,
+            "Contacts",
+            contactSaved.CommittedOutcome.CommittedProfileRevision), Guid.NewGuid().ToString(), Actor, default);
+
+        // Assert
+        await using var db = fixture.Factory.CreateDbContext();
+        var profile = await db.CspProfiles.SingleAsync();
+        profile.PrimarySupportEmail.Should().Be("synthetic@example.invalid");
+        profile.SupportCompletedAt.Should().NotBeNull();
+    }
+
     [Theory]
     [InlineData("InvalidScreen")]
     [InlineData("MissingDeferralReason")]

@@ -9,6 +9,11 @@ export interface ServiceDescription {
   environmentKind: string; environmentLabel?: string; serviceModel?: string; managedBy?: string;
   intendedUse?: string; declaredImpactLevel?: string;
 }
+export interface AuthorizationStartingPoint {
+  choice: 'Unspecified' | 'ExistingAuthorization' | 'InitialAuthorization' | 'DetermineLater';
+  decisionReference?: string; issuingAuthority?: string; decisionDate?: string; expirationDate?: string;
+  conditions?: string; statedScope?: string; systemOrBoundaryName?: string; supportingSource?: string;
+}
 export interface SetupDraft {
   currentScreen: ProviderScreen;
   details: { displayName: string; legalEntityName: string; serviceContactName: string; serviceContactEmail: string;
@@ -18,9 +23,8 @@ export interface SetupDraft {
   securityContact: { choice: string; displayName?: string; email?: string; deferral?: Deferral };
   firstOffering: { choice: string; offeringId?: string; expectedRevision?: number; name?: string; description?: string;
     portfolioName?: string; environments?: string[]; serviceDescription?: ServiceDescription; deferral?: Deferral };
-  authorization: { choice: 'Unspecified' | 'ExistingAuthorization' | 'InitialAuthorization' | 'DetermineLater';
-    decisionReference?: string; issuingAuthority?: string; decisionDate?: string; expirationDate?: string;
-    conditions?: string; statedScope?: string; systemOrBoundaryName?: string; supportingSource?: string };
+  authorizationStartingPoint: AuthorizationStartingPoint;
+  authorization?: AuthorizationStartingPoint;
   sources: { choice: string; intentIds: string[]; packageReference?: string; deferral?: Deferral;
     selection?: { packageName: string; files: SourceManifestEntry[]; offeringHintId: string | null; context: null } };
 }

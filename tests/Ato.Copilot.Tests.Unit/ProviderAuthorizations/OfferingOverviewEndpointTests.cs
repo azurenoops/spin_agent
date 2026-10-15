@@ -85,7 +85,9 @@ public sealed class OfferingOverviewEndpointTests : IAsyncLifetime
         json.TryGetProperty("metadata", out _).Should().BeTrue();
         var data = json.GetProperty("data");
         data.EnumerateObject().Select(x => x.Name).Should().BeEquivalentTo(
-            "offeringId", "offeringRevision", "authorizations", "packages", "capabilities", "hosting", "customerActionCount", "openFindingCount");
+            "offeringId", "offeringRevision", "authorizations", "packages", "capabilities", "hosting",
+            "customerActionCount", "openFindingCount", "authorizationFacts");
+        data.GetProperty("authorizationFacts").ValueKind.Should().Be(JsonValueKind.Null);
         data.GetProperty("openFindingCount").GetInt32().Should().Be(3);
         data.GetProperty("packages").GetProperty("sourceDocumentCount").GetInt32().Should().Be(37);
         data.GetProperty("capabilities").GetProperty("publishedReleaseRevisions").EnumerateArray()

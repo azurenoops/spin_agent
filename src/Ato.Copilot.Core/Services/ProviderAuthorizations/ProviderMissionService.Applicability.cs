@@ -51,6 +51,11 @@ public sealed partial class ProviderMissionService
                     && x.CspInheritedComponent.Status == CspInheritedComponentStatus.Published, ct);
                 if (capability is null) continue;
                 var release = releases.Single(x => x.Id == context.ReleaseId && x.CapabilityId == capability.Id);
+                var association = await db.ProviderOfferingAssociationRevisions.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(x =>
+                    x.ProviderId == allocation.ProviderId && x.OfferingId == offering.Id
+                    && x.CapabilityId == capability.Id && x.CapabilityReleaseId == release.Id
+                    && x.Status == "Published", ct);
+                if (association is null) continue;
                 if (Hash(context.SnapshotJson) != context.SnapshotHash)
                     throw new InvalidDataException("The retained offering applicability snapshot has an invalid digest.");
                 var material = Read<ProviderPublicationContextMaterial>(context.SnapshotJson);
@@ -109,7 +114,8 @@ public sealed partial class ProviderMissionService
                 var subscription = await db.CapabilitySubscriptions.AsNoTracking().SingleOrDefaultAsync(x =>
                     x.RegisteredSystemId == systemId && x.RoutingTenantId == TenantId
                     && x.CspInheritedCapabilityId.ToLower() == capability.Id.ToString(), ct);
-                var preview = Hash(Json(new { context.Id, context.SnapshotHash, ReleaseId = release.Id,
+                var preview = Hash(Json(new { context.Id, context.SnapshotHash, AssociationId = association.Id, association.ContentHash,
+                    ReleaseId = release.Id,
                     ReleaseHash = release.SnapshotHash, ReleaseContentHash = Hash(release.SnapshotJson),
                     AssignmentId = allocation.Id, allocation.Revision, allocation.AssignedScopesJson,
                     RelationshipId = relationship?.Id, RelationshipRevision = relationship?.Revision, Reasons = reasons,
@@ -121,7 +127,15 @@ public sealed partial class ProviderMissionService
                     preview, reasons.Count == 0 ? "Applicable" : "ReviewRequired", reasons, relationshipSummary.State,
                     relationshipSummary.ReviewRequired, Duties("Provider"), Duties("Shared"), Duties("Customer"),
                     decisions, references.Distinct().ToArray(), canAdopt && relationship is not null && reasons.Count == 0, canConfirm,
-                    capability.Name, offering.Name));
+                    capability.Name, offering.Name)
+                {
+                    AssociationRevisionId = association.Id,
+                    AssociationRevision = association.Revision,
+                    AssociationContentHash = association.ContentHash,
+                    AssociationProviderCoverage = Read<string[]>(association.ProviderCoverageJson),
+                    AssociationCustomerObligations = Read<string[]>(association.CustomerObligationsJson),
+                    AssociationContributionRole = association.ContributionRole
+                });
                 string[] Duties(string kind) => duties.Where(x => x.Value == kind).Select(x => x.Key).Order(StringComparer.Ordinal).ToArray();
             }
         }
@@ -142,7 +156,8 @@ public sealed partial class ProviderMissionService
                 request.CapabilityId, request.ReleaseId, ct);
             var selected = candidates.Items.SingleOrDefault();
             if (selected is null || !selected.CanProposeAdoption || selected.Applicability.SnapshotHash != request.ContextSnapshotHash
-                || selected.ApplicabilityPreviewHash != request.ApplicabilityPreviewHash)
+                || selected.ApplicabilityPreviewHash != request.ApplicabilityPreviewHash
+                || request.AssociationRevisionId != selected.AssociationRevisionId)
                 throw new DbUpdateConcurrencyException("The selected release or applicability context changed. Reload the exact capability.");
             var subscription = await responsibilities.SubscribeForAdoptionAsync(systemId, request.CapabilityId, actor, ct);
             var row = new CapabilityAdoptionSnapshot

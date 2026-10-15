@@ -104,6 +104,11 @@ public sealed class DashboardAccessMiddleware(
             return AdminPortalActions.SystemView;
         }
 
+        if (request.Path.StartsWithSegments(SystemRolesPrefix))
+        {
+            return AdminPortalActions.SystemAssignRoles;
+        }
+
         var path = request.Path.Value ?? string.Empty;
         if (path.Contains("/authorize", StringComparison.OrdinalIgnoreCase)
             || path.Contains("/authorization-decision", StringComparison.OrdinalIgnoreCase)

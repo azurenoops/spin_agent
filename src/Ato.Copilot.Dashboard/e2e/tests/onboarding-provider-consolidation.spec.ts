@@ -216,7 +216,7 @@ test('existing authorization accepts an eMASS package through canonical intake w
 
   // Assert
   await expect(page.getByRole('alert')).toBeVisible();
-  expect(fixture.state().draft!.fields.authorization).toMatchObject({
+  expect(fixture.state().draft!.fields.authorizationStartingPoint).toMatchObject({
     choice: 'ExistingAuthorization',
     decisionReference: 'ATO-2025-017',
     systemOrBoundaryName: 'Flank Speed Azure as stated',

@@ -107,6 +107,23 @@ public static class ProviderAuthorizationSchemaAdditions
                 SnapshotJson {text} NOT NULL, SnapshotHash {Short(64)} NOT NULL,
                 {ScopedReference("ImpactReviewId", "ProviderAuthorizationImpactReviews")}
                 """,
+            ["ProviderOfferingAssociations"] = $"""
+                ComponentId {guid} NOT NULL, CapabilityId {guid} NOT NULL, Revision {number} NOT NULL,
+                Lifecycle {Short(24)} NOT NULL, CreatedBy {Short(254)} NOT NULL, CreatedAt {date} NOT NULL,
+                CurrentRevisionId {guid} NULL,
+                CONSTRAINT AK_ProviderOfferingAssociations_ProviderId_Id UNIQUE (ProviderId, Id)
+                """,
+            ["ProviderOfferingAssociationRevisions"] = $"""
+                AssociationId {guid} NOT NULL, ComponentId {guid} NOT NULL, CapabilityId {guid} NOT NULL,
+                CapabilityReleaseId {guid} NOT NULL, CapabilityReleaseRevision {number} NOT NULL,
+                OfferingRevision {number} NOT NULL, Revision {number} NOT NULL, Status {Short(24)} NOT NULL,
+                SourceProvenanceJson {text} NOT NULL, ProviderCoverageJson {text} NOT NULL,
+                CustomerObligationsJson {text} NOT NULL, ContributionRole {Short(24)} NOT NULL,
+                ContentHash {Short(64)} NOT NULL, Author {Short(254)} NOT NULL, Reviewer {Short(254)} NULL,
+                CreatedAt {date} NOT NULL, ReviewedAt {date} NULL, ReviewRationale {text} NULL,
+                SupersedesRevisionId {guid} NULL,
+                {ScopedReference("AssociationId", "ProviderOfferingAssociations")}
+                """,
             ["ProviderHostingAssignments"] = $"""
                 TargetTenantId {guid} NOT NULL, SystemId {Short(36)} NOT NULL, HostingScopeRevisionId {guid} NOT NULL,
                 AssignedScopesJson {text} NOT NULL, ReferencesJson {text} NOT NULL,

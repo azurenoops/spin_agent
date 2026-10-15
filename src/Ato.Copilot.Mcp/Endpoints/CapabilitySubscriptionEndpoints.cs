@@ -57,6 +57,7 @@ public static class CapabilitySubscriptionEndpoints
         }).WithName("GetCapabilityLibraryDetail").RequireResponsibilityAccess(false, optionalSystem: true);
 
         var subscriptions = group.MapGroup("/systems/{systemId}/capability-subscriptions");
+        subscriptions.MapResponsibilityDrafts();
         subscriptions.MapGet("", async (string systemId, AtoCopilotContext db, CancellationToken ct) =>
         {
             var rows = await db.CapabilitySubscriptions.Where(s => s.RegisteredSystemId == systemId && s.IsActive)

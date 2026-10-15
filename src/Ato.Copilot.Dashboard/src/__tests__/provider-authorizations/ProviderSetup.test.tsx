@@ -36,7 +36,7 @@ function state(currentScreen = 'p-details') {
         operationalContact: { choice: 'Deferred', deferral: { reason: 'Operations later', ownerRole: 'CSP.Admin' } },
         securityContact: { choice: 'Deferred', deferral: { reason: 'Reviewer to be designated', ownerRole: 'CSP.Admin' } },
         firstOffering: { choice: 'Deferred', deferral: { reason: 'Service details later', ownerRole: 'CSP.Admin' } },
-        authorization: { choice: 'DetermineLater' },
+        authorizationStartingPoint: { choice: 'DetermineLater' },
         sources: { choice: 'Deferred', intentIds: [], deferral: { reason: 'Sources later', ownerRole: 'CSP.Admin' } },
       },
       committedOfferingId: null, completion: null,
@@ -184,7 +184,7 @@ describe('provider guided setup and persistent draft', () => {
     await waitFor(() => expect(packageRequest).toHaveBeenCalledWith(expect.objectContaining({
       method: 'PUT', url: '/api/csp/onboarding/setup/draft',
       data: expect.objectContaining({ draft: expect.objectContaining({
-        authorization: expect.objectContaining({
+        authorizationStartingPoint: expect.objectContaining({
           choice: 'ExistingAuthorization',
           decisionReference: 'ATO-2025-017',
           systemOrBoundaryName: 'Flank Speed Azure as stated',

@@ -21,6 +21,14 @@ describe('System team task', () => {
     expect(screen.getByRole('heading', { name: 'Team & permissions' })).toBeVisible();
     expect(screen.getByText('SSP · Responsible personnel / Review routing')).toBeVisible();
   });
+  it('uses the explicit tenant-administrator flag for assignment affordances', async () => {
+    // Arrange
+    vi.mocked(rolesApi.getEffectiveRole).mockResolvedValue({ effectiveRole: null, isTenantAdministrator: true });
+    // Act
+    mount();
+    // Assert
+    expect(await screen.findByText('a: Administrator')).toBeVisible();
+  });
   it('keeps assignment context read-only and retryable when the effective role cannot load', async () => {
     // Arrange
     vi.mocked(rolesApi.getEffectiveRole).mockRejectedValueOnce(new Error('Identity service unavailable'));

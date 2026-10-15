@@ -29,6 +29,42 @@ No automatic attach/adopt/approve/publish and no changed backend contracts.
 
 ## Product outcome and scope
 
+### Explicit offering association amendment (approved)
+
+The provider catalog and provider offering are separate review surfaces. A
+component represents a person, place, or thing; its capabilities describe the
+security functions it provides and their control mappings. Catalog publication
+does not imply that a capability belongs to any offering.
+
+The implemented workflow must be:
+
+`CSP component/capability -> reviewed association proposal -> published
+offering-specific release -> authorized organization visibility -> reviewed
+system-scope selection -> explicit responsibility acceptance`.
+
+An association proposal is versioned and provider-owned. It stores the exact
+component and capability identities, capability release, offering revision,
+source provenance, provider coverage, remaining customer obligations, primary
+or supporting contribution role, author, reviewer, review rationale, content
+hash, and append-only revision history. Draft proposals are visible only to
+authorized provider users. Rejection, supersession, withdrawal, and update
+preserve prior revisions and never silently update an organization selection.
+
+Published association releases are the only records returned by organization
+offering-selection queries. They do not grant access, create a hosting
+assignment, establish system applicability, create a subscription, accept
+responsibility, complete a control, or issue an authorization decision.
+Responsibility allocation remains derived from reviewed provider coverage and
+remaining customer obligations, with primary/supporting contribution kept
+separate from the allocation result.
+
+Acceptance requires provider tenant isolation, provider-role authorization,
+stale-revision rejection, version pinning, rejection/update/removal history,
+organization visibility isolation, and downstream provenance in narrative
+inputs, SSP, OSCAL and eMASS-preparation projections. Existing approved
+narratives and baselines remain unchanged; upstream association changes stage
+affected content for review.
+
 ### October 8: approved provider first-login onboarding implementation
 
 This is an approved implementation slice of Feature 079, but it is not documented

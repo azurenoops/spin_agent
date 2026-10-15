@@ -55,7 +55,7 @@ describe('setup entry canonical readers', () => {
     // Act
     render(<MemoryRouter><SetupHomeRoute /></MemoryRouter>);
     // Assert
-    expect(await screen.findByRole('link', { name: 'Continue Mission A' })).toHaveAttribute('href', '/systems/opaque-system/setup');
+    expect(await screen.findByRole('link', { name: 'Continue Mission A' })).toHaveAttribute('href', '/setup/systems/opaque-system');
     expect(screen.queryByRole('link', { name: 'Set up system' })).not.toBeInTheDocument();
     expect(mocks.provider).not.toHaveBeenCalled();
     expect(mocks.organizations).not.toHaveBeenCalled();

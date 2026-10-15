@@ -17,6 +17,44 @@ public static class ProviderAuthorizationEndpoints
     {
         var group = app.MapGroup("/api/csp/offerings").RequireAuthorization()
             .WithTags("Provider Authorizations").WithMetadata(new WorkspaceAuthorizedEndpoint());
+        group.MapGet("/{id:guid}/associations", (Guid id, bool? includeDrafts, HttpContext http,
+            IProviderOfferingAssociationService service, CancellationToken ct) =>
+            ExecuteAsync(http, () => service.ListAsync(id, includeDrafts ?? true, ct)))
+            .WithSummary("List explicit component/capability associations for an offering.");
+        group.MapPost("/{id:guid}/associations", (Guid id, CreateOfferingAssociationRequest body, HttpContext http,
+            IProviderOfferingAssociationService service, CancellationToken ct) =>
+            ExecuteAsync(http, () => service.CreateAsync(id, body, Actor(http), ct), 201))
+            .WithSummary("Create a draft, versioned offering association; catalog publication is not inclusion.");
+        group.MapPut("/{id:guid}/associations/{associationId:guid}", (Guid id, Guid associationId,
+            CreateOfferingAssociationRequest body, HttpContext http, IProviderOfferingAssociationService service,
+            CancellationToken ct) => ExecuteAsync(http, async () =>
+            {
+                await EnsureAssociationOfferingAsync(service, id, associationId, ct);
+                if (!long.TryParse(http.Request.Headers["If-Match"].FirstOrDefault(), out var expectedRevision))
+                    throw new ArgumentException("If-Match must contain the current association revision.");
+                return await service.UpdateAsync(associationId, body, expectedRevision, Actor(http), ct);
+            }));
+        group.MapPost("/{id:guid}/associations/{associationId:guid}/review", (Guid id, Guid associationId,
+            ReviewOfferingAssociationRequest body, HttpContext http, IProviderOfferingAssociationService service,
+            CancellationToken ct) => ExecuteAsync(http, async () =>
+            {
+                await EnsureAssociationOfferingAsync(service, id, associationId, ct);
+                return await service.ReviewAsync(associationId, body.ExpectedRevision, body.Approve, body.Rationale, Actor(http), ct);
+            }));
+        group.MapPost("/{id:guid}/associations/{associationId:guid}/publish", (Guid id, Guid associationId,
+            long expectedRevision, HttpContext http, IProviderOfferingAssociationService service, CancellationToken ct) =>
+            ExecuteAsync(http, async () =>
+            {
+                await EnsureAssociationOfferingAsync(service, id, associationId, ct);
+                return await service.PublishAsync(associationId, expectedRevision, Actor(http), ct);
+            }));
+        group.MapPost("/{id:guid}/associations/{associationId:guid}/withdraw", (Guid id, Guid associationId,
+            WithdrawOfferingAssociationRequest body, HttpContext http, IProviderOfferingAssociationService service,
+            CancellationToken ct) => ExecuteAsync(http, async () =>
+            {
+                await EnsureAssociationOfferingAsync(service, id, associationId, ct);
+                return await service.WithdrawAsync(associationId, body.ExpectedRevision, body.Rationale, Actor(http), ct);
+            }));
         group.MapGet("", (HttpContext http, IProviderAuthorizationService service, int? page, int? pageSize,
             string? search, string? lifecycle, CancellationToken ct) =>
             ExecuteAsync(http, () => service.ListAsync(page ?? 1, pageSize ?? 25, search, lifecycle, ct)))
@@ -159,6 +197,15 @@ public static class ProviderAuthorizationEndpoints
             return Failure(http, 503, "PROVIDER_OFFERING_OVERVIEW_UNAVAILABLE",
                 "The offering overview could not be read. No records were changed; restore access or repair the retained context before retrying.");
         }
+
+    }
+
+    private static async Task EnsureAssociationOfferingAsync(IProviderOfferingAssociationService service,
+        Guid offeringId, Guid associationId, CancellationToken ct)
+    {
+        var associations = await service.ListAsync(offeringId, includeDrafts: true, ct);
+        if (associations.All(item => item.AssociationId != associationId))
+            throw new KeyNotFoundException("The association does not belong to the selected offering.");
     }
 
     private static async Task<IResult> BoundaryOverviewAsync(HttpContext http, Func<Task<OfferingBoundaryOverview>> read)

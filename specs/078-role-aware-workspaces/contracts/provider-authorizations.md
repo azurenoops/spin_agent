@@ -1,6 +1,9 @@
 # Authorization-led provider offering contract
 
-Status: implementation contract frozen after source discovery and user decisions.
+Status: implementation contract amended for explicit reviewed offering associations
+after source discovery and user decision. The amendment is additive: existing
+catalog, release, hosting, mission-association and responsibility records remain
+distinct and historical.
 Local work only; runtime acceptance remains pending.
 This extends Feature 078 / #1002 and the package/release work under
 #1026/#1027/#1028, with Feature 048 owning optional onboarding receipt and
@@ -279,6 +282,32 @@ issued the decision or independently authenticated its signature.
 - Findings and POA&M proposals are distinct from components/capabilities.
   Evidence submission records pending review and leaves the finding open.
   Closure requires a separate authorized review/outcome with evidence.
+
+## Explicit offering association amendment
+
+Catalog publication does not, by itself, place a component or capability in an
+offering. A provider administrator must create an association proposal naming
+the exact component, capability, published capability release, offering
+revision, source citation set, provider coverage, remaining customer
+obligations, and primary/supporting contribution role. The proposal is a
+provider-owned, versioned record with author, reviewer, review rationale,
+content hash, and append-only revision history.
+
+Only a reviewed and published offering association release is eligible for
+organization visibility. A published association release is still only
+offering applicability: it does not create an organization access grant,
+hosting assignment, system applicability, subscription, accepted
+responsibility, control implementation, or authorization decision. System
+selection must pin the association release and its capability release against
+the reviewed boundary scope before the existing responsibility confirmation
+path can derive `Customer`, `Shared`, or `Inherited`.
+
+Association revisions may be rejected, superseded, or withdrawn without
+deleting prior records. A changed or withdrawn association invalidates future
+selection and creates provider-impact review work for existing adopted
+records; it never rewrites an approved narrative or accepted baseline. The
+existing provider release impact and narrative-staleness services remain the
+downstream mechanism for reviewed updates.
 
 ## Mission hosting relationships
 

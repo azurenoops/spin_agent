@@ -15,6 +15,8 @@ public static class DashboardSystemDesignEndpoints
             Execute(http, () => service.GetAsync(systemId, ct)));
         group.MapPut("", (string systemId, SaveSystemDesignRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>
             Execute(http, () => service.SaveAsync(systemId, body, ct)));
+        group.MapPut("/component-scope", (string systemId, SaveComponentScopeRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>
+            Execute(http, () => service.SaveComponentScopeAsync(systemId, body, ct)));
         group.MapPost("/review", (string systemId, DesignReviewRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>
             Execute(http, () => service.ReviewAsync(systemId, body, ct)));
         group.MapPost("/reconcile", (string systemId, DesignRevisionRequest body, ISystemDesignService service, HttpContext http, CancellationToken ct) =>
@@ -48,8 +50,18 @@ public static class DashboardSystemDesignEndpoints
         catch (DbUpdateConcurrencyException ex) { return Error(409, "DESIGN_VERSION_STALE", ex.Message); }
         catch (ArgumentException ex) { return Error(400, "DESIGN_INVALID_REQUEST", ex.Message); }
         catch (DbUpdateException) { return Error(409, "DESIGN_WRITE_CONFLICT", "Concurrent design write. Reload the retained revision before retrying."); }
-        catch (System.Text.Json.JsonException) { return Error(503, "DESIGN_SOURCE_UNAVAILABLE", "A retained source snapshot is malformed. Repair the canonical source; no successful projection is implied."); }
-        catch (InvalidOperationException) { return Error(503, "DESIGN_SOURCE_UNAVAILABLE", "The retained design or canonical source could not be verified. Retry or review the source record."); }
+        catch (System.Text.Json.JsonException ex)
+        {
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SystemDesign")
+                .LogWarning(ex, "Retained design source snapshot could not be parsed");
+            return Error(503, "DESIGN_SOURCE_UNAVAILABLE", "A retained source snapshot is malformed. Repair the canonical source; no successful projection is implied.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SystemDesign")
+                .LogWarning(ex, "Retained design or canonical source could not be verified");
+            return Error(503, "DESIGN_SOURCE_UNAVAILABLE", "The retained design or canonical source could not be verified. Retry or review the source record.");
+        }
         IResult Error(int status, string code, string message)
         {
             http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SystemDesign")

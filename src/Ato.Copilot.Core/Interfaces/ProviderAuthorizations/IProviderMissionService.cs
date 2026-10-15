@@ -34,10 +34,21 @@ public sealed record ApplicableProviderCapabilityResponse(Guid CapabilityId, Gui
     IReadOnlyList<string> ReasonCodes, string AuthorizationRelationship, bool RelationshipReviewRequired,
     IReadOnlyList<string> ProviderCoverage, IReadOnlyList<string> SharedDuties, IReadOnlyList<string> CustomerDuties,
     IReadOnlyList<string> OutstandingDecisions, IReadOnlyList<ProviderMissionSourceReference> SourceReferences,
-    bool CanProposeAdoption, bool CanConfirmResponsibilities, string? CapabilityName = null, string? OfferingName = null);
+    bool CanProposeAdoption, bool CanConfirmResponsibilities, string? CapabilityName = null, string? OfferingName = null)
+{
+    public Guid? AssociationRevisionId { get; init; }
+    public long? AssociationRevision { get; init; }
+    public string? AssociationContentHash { get; init; }
+    public IReadOnlyList<string> AssociationProviderCoverage { get; init; } = [];
+    public IReadOnlyList<string> AssociationCustomerObligations { get; init; } = [];
+    public string? AssociationContributionRole { get; init; }
+}
 /// <summary>Exact release and applicability intent, never a request for latest.</summary>
 public sealed record AdoptProviderCapabilityRequest(Guid AssignmentId, long ExpectedAssignmentRevision,
-    Guid CapabilityId, Guid ReleaseId, string ContextSnapshotHash, string ApplicabilityPreviewHash);
+    Guid CapabilityId, Guid ReleaseId, string ContextSnapshotHash, string ApplicabilityPreviewHash)
+{
+    public Guid? AssociationRevisionId { get; init; }
+}
 /// <summary>Canonical subscription and retained release/context adoption pin.</summary>
 public sealed record ProviderCapabilityAdoptionResponse(CapabilitySubscriptionChangeResponse Subscription,
     Guid AdoptionSnapshotId, Guid ReleaseId, string ContextSnapshotHash);

@@ -10,7 +10,7 @@ import * as api from './api';
 import type { ExternalDecision, Offering, OfferingOverviewData } from './types';
 import { ProviderBadge, ProviderFact, ProviderPanel, ProviderSupport } from './ProviderPresentation';
 import { managementArrangements, OfferingIdentityEditor, serviceModels } from './OfferingIdentity';
-import { publishedReleaseLabel, readAllPages, recordedAuthorizationFacts, sourceReviewLabel } from './providerReadModels';
+import { publishedReleaseLabel, readAllPages, recordedAuthorizationFacts } from './providerReadModels';
 
 const muted = 'text-sm text-slate-600 dark:text-slate-300';
 const linkClass = 'text-sm font-medium text-indigo-700 underline dark:text-indigo-300';

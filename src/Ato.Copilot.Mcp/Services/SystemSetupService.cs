@@ -153,10 +153,14 @@ public sealed class SystemSetupService(
         ValidateKey(key);
         var permission = await access.GetAccessAsync(tenantId, actor, systemId, false, ct);
         if (!permission.Permissions.CanRead) throw Missing();
-        if (!permission.Permissions.CanManageSystem) throw Denied();
+        await using var db = await factory.CreateDbContextAsync(ct);
+        if (!permission.Permissions.CanManageSystem
+            && !await db.Set<RegisteredSystem>().AnyAsync(system =>
+                system.Id == systemId && system.TenantId == tenantId
+                && system.SetupActorPersonId == actor && system.SetupCompletedAt == null, ct))
+            throw Denied();
         var action = confirm ? "Confirm" : "Save";
         var hash = Hash(new { tenantId, systemId, actor, action, revision, reviewedIdentityRevision, input });
-        await using var db = await factory.CreateDbContextAsync(ct);
         return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             db.ChangeTracker.Clear();
@@ -218,10 +222,12 @@ public sealed class SystemSetupService(
         var actor = Actor(system.TenantId);
         var permission = await access.GetAccessAsync(system.TenantId, actor, system.Id, false, ct);
         if (!permission.Permissions.CanRead || !system.IsActive) throw Missing();
+        var canManage = permission.Permissions.CanManageSystem
+            || system.SetupActorPersonId == actor && system.SetupCompletedAt == null;
         var intent = ReadIntent(system);
         var snapshot = await roles.GetSystemRolesAsync(system.TenantId, system.Id, ct);
         var contacts = await Contacts(db, system.TenantId, ct);
-        if (!permission.Permissions.CanManageSystem)
+        if (!canManage)
             contacts = contacts.Where(x => x.PersonId == intent.Contact?.PersonId).ToArray();
         var path = $"/systems/{Uri.EscapeDataString(system.Id)}";
         var sources = await SystemSourceReadProjection.ListAsync(db, system.TenantId, system.Id, ct);
@@ -230,7 +236,7 @@ public sealed class SystemSetupService(
         return new(system.Id, system.TenantId, system.Name, await OrganizationName(db, system.TenantId, ct),
             system.SetupRevision, IdentityRevision(system, intent), SavedAt(system),
             system.SetupDraftJson is null ? "legacy" : system.SetupCompletedAt is null ? "draft" : "confirmed",
-            system.SetupCompletedAt, ReadDraft(system, intent), permission.Permissions.CanManageSystem,
+            system.SetupCompletedAt, ReadDraft(system, intent), canManage,
             contacts, snapshot.Roles.Select(x => new SystemSetupTeamRole(x.Role.ToString(), x.PersonDisplayName, x.Source.ToString())).ToArray(),
             sources.Cast<object>().ToArray(),
             tasks, new(system.AzureProfile is null ? "absent" : "present", "notChecked", "unsupported", "unknown", "unknown"),

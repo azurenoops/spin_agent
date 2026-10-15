@@ -30,6 +30,7 @@ public static class AdminPortalActions
     public const string SystemEdit = "system.edit";
     public const string SystemAssess = "system.assess";
     public const string SystemApprove = "system.approve";
+    public const string SystemAssignRoles = "system.roles.assign";
     public const string SystemAdminister = "system.administer";
 }
 

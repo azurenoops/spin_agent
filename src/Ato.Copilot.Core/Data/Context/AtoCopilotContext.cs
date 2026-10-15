@@ -451,6 +451,8 @@ public class AtoCopilotContext : DbContext
 
     /// <summary>Individual controls within a framework catalog.</summary>
     public DbSet<FrameworkControl> FrameworkControls => Set<FrameworkControl>();
+    public DbSet<BaselineCatalogBinding> BaselineCatalogBindings => Set<BaselineCatalogBinding>();
+    public DbSet<RequirementEnhancementProposal> RequirementEnhancementProposals => Set<RequirementEnhancementProposal>();
 
     /// <summary>Named baselines/profiles within a framework (Low, Moderate, High, etc.).</summary>
     public DbSet<FrameworkBaseline> FrameworkBaselines => Set<FrameworkBaseline>();
@@ -595,6 +597,9 @@ public class AtoCopilotContext : DbContext
     public DbSet<ProviderCapabilityContributor> ProviderCapabilityContributors => Set<ProviderCapabilityContributor>();
     public DbSet<ProviderCapabilityDuty> ProviderCapabilityDuties => Set<ProviderCapabilityDuty>();
     public DbSet<ProviderCapabilityRelease> ProviderCapabilityReleases => Set<ProviderCapabilityRelease>();
+    public DbSet<ProviderOfferingAssociation> ProviderOfferingAssociations => Set<ProviderOfferingAssociation>();
+    public DbSet<ProviderOfferingAssociationRevision> ProviderOfferingAssociationRevisions =>
+        Set<ProviderOfferingAssociationRevision>();
     public DbSet<ProviderPublicationPreview> ProviderPublicationPreviews => Set<ProviderPublicationPreview>();
     public DbSet<ProviderReleaseImpact> ProviderReleaseImpacts => Set<ProviderReleaseImpact>();
     public DbSet<OrganizationProvisioningOperation> OrganizationProvisioningOperations => Set<OrganizationProvisioningOperation>();
@@ -624,6 +629,10 @@ public class AtoCopilotContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<BaselineCatalogBinding>().HasOne(x => x.ControlBaseline).WithMany()
+            .HasForeignKey(x => x.ControlBaselineId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RequirementEnhancementProposal>().HasOne(x => x.ControlBaseline).WithMany()
+            .HasForeignKey(x => x.ControlBaselineId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<PackageReadinessRun>(entity =>
         {
             entity.ToTable("PackageReadinessRuns");

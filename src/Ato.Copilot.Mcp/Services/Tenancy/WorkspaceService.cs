@@ -173,7 +173,7 @@ public sealed class WorkspaceService(
             : [];
         var admin = roles.Contains(nameof(OrganizationRole.Administrator));
         Current = new("organization", tenant.Id, tenant.DisplayName, mode, personId, roles,
-            new(isCsp || admin, admin, false, roles.Contains(nameof(OrganizationRole.Issm))));
+            new(isCsp || admin, admin, false, admin || roles.Contains(nameof(OrganizationRole.Issm))));
     }
 
     private static string? Header(HttpContext http, string name)

@@ -79,14 +79,16 @@ public class EffectiveAccessServiceTests
     }
 
     [Fact]
-    public async Task Administrator_without_rmf_role_has_only_organization_administration()
+    public async Task Administrator_without_rmf_role_can_view_systems_and_assign_roles_without_editing()
     {
         // Arrange
         var tenantId = Guid.NewGuid();
         var oid = Guid.NewGuid();
+        var systemId = Guid.NewGuid().ToString();
         var factory = CreateFactory();
         var person = await SeedPersonAsync(factory, tenantId, oid);
         await SeedOrgRoleAsync(factory, tenantId, person.Id, OrganizationRole.Administrator);
+        await SeedSystemAsync(factory, tenantId, systemId, "Mission Alpha");
         var service = new EffectiveAccessService(factory);
 
         // Act
@@ -95,12 +97,16 @@ public class EffectiveAccessServiceTests
             CancellationToken.None);
 
         // Assert
-        result.Destinations.Should().ContainSingle();
-        var destination = result.Destinations.Single();
-        destination.Workspace.Should().Be(WorkspaceKind.Administration);
-        destination.ScopeKind.Should().Be(AccessScopeKind.Organization);
-        destination.Actions.Should().Contain(AdminPortalActions.OrganizationProfileEdit);
-        destination.Actions.Should().NotContain(a => a.StartsWith("system.", StringComparison.Ordinal));
+        result.Destinations.Should().HaveCount(2);
+        result.Destinations.Should().Contain(destination =>
+            destination.Workspace == WorkspaceKind.Administration
+            && destination.ScopeKind == AccessScopeKind.Organization
+            && destination.Actions.Contains(AdminPortalActions.OrganizationProfileEdit));
+        var system = result.Destinations.Single(destination => destination.Workspace == WorkspaceKind.System);
+        system.ScopeId.Should().Be(systemId);
+        system.Actions.Should().BeEquivalentTo(
+            AdminPortalActions.SystemView,
+            AdminPortalActions.SystemAssignRoles);
     }
 
     [Fact]

@@ -67,8 +67,9 @@ public static partial class DashboardEndpoints
         MapInheritanceRoutes(group, app, currentUser);
         MapControlRoutes(group, app);
         MapNarrativeWorkspaceRoutes(group);
+        MapFrameworkSourceRoutes(group);
 
-                return app;
+        return app;
     }
 
     /// <summary>

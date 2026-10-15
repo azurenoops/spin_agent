@@ -20,6 +20,31 @@ authoritative; this change neither creates a permission contract nor weakens one
 
 ## Summary
 
+### Explicit offering association implementation
+
+This amendment adds the missing provider-owned association boundary without
+replacing the existing capability release, hosting assignment, mission
+relationship, subscription, or responsibility services. The implementation
+sequence is:
+
+1. Add failing unit and integration tests for association ownership,
+   revision fencing, lifecycle transitions, and organization visibility.
+2. Add additive provider-scoped proposal/revision/release persistence and
+   schema application for SQLite and SQL Server.
+3. Add provider-admin create, update, reject, review, publish, supersede and
+   withdraw commands with exact capability-release and offering-revision pins.
+4. Gate organization applicability reads on published association releases and
+   carry provider coverage/customer obligations and association provenance into
+   existing adoption and export projections.
+5. Mark downstream provider-impact/narrative work stale when a published
+   association is superseded or withdrawn; never mutate approved content.
+6. Verify browser/API/database behavior and retain package-readiness evidence
+   before disposable resources are removed.
+
+Catalog publication, organization access, hosting allocation, system
+applicability, accepted responsibility and authorization remain separate
+facts. No automatic association or authorization decision is permitted.
+
 ### October 8 approved provider first-login onboarding slice
 
 This plan authorizes implementation planning for provider first login; it does

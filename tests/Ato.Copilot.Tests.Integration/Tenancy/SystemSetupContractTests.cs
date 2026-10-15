@@ -147,7 +147,27 @@ public sealed class SystemSetupContractTests(WorkspaceMembershipFactory factory)
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task OrganizationAdministrator_CanContinueTheSystemDraftItCreates()
+    {
+        // Arrange
+        var f = await SeedAsync(OrganizationRole.Administrator);
+        using var client = f.Client;
+        client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
+
+        // Act
+        var response = await client.PostAsJsonAsync($"{Root}/setup-drafts",
+            new { name = "Administrator-created system", lastScreen = "s-details" });
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        var data = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        data.GetProperty("canManage").GetBoolean().Should().BeTrue();
+        data.GetProperty("contacts").GetArrayLength().Should().BeGreaterThan(0);
+    }
+
     [Theory]
+    [InlineData(OrganizationRole.Administrator, true)]
     [InlineData(OrganizationRole.Issm, true)]
     [InlineData(OrganizationRole.SystemOwner, false)]
     public async Task SetupAccess_UsesTheCreateGate_NotBrowserRoleInference(OrganizationRole role, bool expected)

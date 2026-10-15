@@ -56,13 +56,39 @@ public class DashboardAccessMiddlewareTests
     [InlineData("/api/systems/system-a/oscal/import/runs")]
     [InlineData("/api/v1/systems/system-a/package/download")]
     [InlineData("/api/roles/system/system-a")]
-    public async Task Admin_only_user_cannot_read_system_import_export_or_role_data(string path)
+    public async Task Organization_administrator_can_read_system_data_without_editing_it(string path)
     {
         // Arrange
         var nextCalled = false;
         var middleware = CreateMiddleware(() => nextCalled = true);
         var context = CreateContext(HttpMethods.Get, path, ("systemId", "system-a"));
-        var service = CreateAccessService([]);
+        var service = CreateAccessService([
+            SystemDestination("system-a",
+                [AdminPortalActions.SystemView, AdminPortalActions.SystemAssignRoles],
+                "OrganizationRoleAssignment"),
+        ]);
+
+        // Act
+        await middleware.InvokeAsync(context, CreateTenantContext(), service);
+
+        // Assert
+        nextCalled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task System_role_assignment_requires_the_distinct_assignment_action()
+    {
+        // Arrange
+        var nextCalled = false;
+        var middleware = CreateMiddleware(() => nextCalled = true);
+        var context = CreateContext(
+            HttpMethods.Post,
+            "/api/roles/system/system-a",
+            ("systemId", "system-a"));
+        var service = CreateAccessService([
+            SystemDestination("system-a", [AdminPortalActions.SystemView, AdminPortalActions.SystemEdit],
+                "SystemRoleAssignment"),
+        ]);
 
         // Act
         await middleware.InvokeAsync(context, CreateTenantContext(), service);
@@ -70,6 +96,29 @@ public class DashboardAccessMiddlewareTests
         // Assert
         context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
         nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Organization_administrator_can_assign_system_roles_without_system_edit()
+    {
+        // Arrange
+        var nextCalled = false;
+        var middleware = CreateMiddleware(() => nextCalled = true);
+        var context = CreateContext(
+            HttpMethods.Post,
+            "/api/roles/system/system-a",
+            ("systemId", "system-a"));
+        var service = CreateAccessService([
+            SystemDestination("system-a",
+                [AdminPortalActions.SystemView, AdminPortalActions.SystemAssignRoles],
+                "OrganizationRoleAssignment"),
+        ]);
+
+        // Act
+        await middleware.InvokeAsync(context, CreateTenantContext(), service);
+
+        // Assert
+        nextCalled.Should().BeTrue();
     }
 
     [Theory]

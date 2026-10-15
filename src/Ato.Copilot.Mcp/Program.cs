@@ -514,6 +514,8 @@ async Task RunHttpModeAsync(string[] args)
         Ato.Copilot.Core.Services.Environments.ProviderEnvironmentAllocationService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderMissionService,
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderMissionService>();
+    builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderOfferingAssociationService,
+        Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderOfferingAssociationService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderFindingService,
         Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderFindingService>();
     builder.Services.AddScoped<Ato.Copilot.Core.Interfaces.ProviderAuthorizations.IProviderEvidenceSharingService,
@@ -648,6 +650,7 @@ async Task RunHttpModeAsync(string[] args)
     app.MapControlValidationEndpoints();
     app.MapNarrativeDualEndpoints();
     app.MapNarrativeLibraryEndpoints();
+    app.MapRequirementCoverageEndpoints();
     app.MapScopedNarrativeLibraryEndpoints();
 
     // Feature 051 [US1]: dashboard login surface — login-config + me.
@@ -1388,6 +1391,10 @@ async Task EnsureSchemaAdditionsAsync(AtoCopilotContext db, Microsoft.Extensions
         .ApplyAsync(db, ct);
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TaskTicketingSchemaAdditions
         .ApplyAsync(db, logger, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.RequirementCoverageSchemaAdditions
+        .ApplyAsync(db, ct);
+    await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.ResponsibilityDraftSchemaAdditions
+        .ApplyAsync(db, ct);
     // Create workspace/catalog tables before retrofitting TenantId; legacy indexes below need the retrofit first.
     await Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions.TenantIdColumnAdditions
         .ApplyAsync(db, logger, ct);

@@ -243,7 +243,7 @@ public sealed class EffectiveAccessService : IEffectiveAccessService
         }
 
         var organizationSystemRoles = organizationRoles
-            .Where(IsRmfRole)
+            .Where(role => role == OrganizationRole.Administrator || IsRmfRole(role))
             .Distinct()
             .ToArray();
 
@@ -360,10 +360,16 @@ public sealed class EffectiveAccessService : IEffectiveAccessService
     private static IEnumerable<string> ActionsForRole(OrganizationRole role) =>
         role switch
         {
+            OrganizationRole.Administrator =>
+            [
+                AdminPortalActions.SystemView,
+                AdminPortalActions.SystemAssignRoles,
+            ],
             OrganizationRole.Issm =>
             [
                 AdminPortalActions.SystemView,
                 AdminPortalActions.SystemEdit,
+                AdminPortalActions.SystemAssignRoles,
                 AdminPortalActions.SystemAdminister,
             ],
             OrganizationRole.Isso or OrganizationRole.SystemOwner or OrganizationRole.MissionOwner =>

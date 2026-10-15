@@ -51,14 +51,15 @@ function emptyDraft(state: SetupState): SetupDraft {
       legacyClassificationDefault: state.profile.classification?.defaultClassificationFloor ?? 'Unclassified',
       confirmLegacyClassificationDefault: !!state.profile.classification },
     operationalContact: { choice: 'Unspecified' }, securityContact: { choice: 'Unspecified' },
-    firstOffering: { choice: 'Unspecified' }, authorization: { choice: 'Unspecified' },
+    firstOffering: { choice: 'Unspecified' }, authorizationStartingPoint: { choice: 'Unspecified' },
     sources: { choice: 'Unspecified', intentIds: [] },
   };
 }
 
 function normalizeDraft(value: SetupDraft): SetupDraft {
+  const { authorization, ...canonical } = value;
   return {
-    ...value,
+    ...canonical,
     currentScreen: value.currentScreen === ('p-ready' as ProviderScreen) ? 'p-ready' : value.currentScreen,
     details: {
       ...value.details,
@@ -67,7 +68,7 @@ function normalizeDraft(value: SetupDraft): SetupDraft {
     },
     operationalContact: value.operationalContact ?? { choice: 'Unspecified' },
     firstOffering: { ...value.firstOffering, portfolioName: value.firstOffering.portfolioName ?? '' },
-    authorization: value.authorization ?? { choice: 'Unspecified' },
+    authorizationStartingPoint: value.authorizationStartingPoint ?? authorization ?? { choice: 'Unspecified' },
   };
 }
 
@@ -243,7 +244,7 @@ export default function CspWizard() {
     if (!draft || !state) return;
     if (screen === 'p-ready') { navigate('/setup'); return; }
     if (screen === 'p-uncertain') { await checkReceipt(); return; }
-    if (screen === 'p-authorization' && draft.authorization.choice === 'Unspecified')
+    if (screen === 'p-authorization' && draft.authorizationStartingPoint.choice === 'Unspecified')
       throw new Error('Choose an authorization starting point.');
     const saved = await save(draft);
     if (screen === 'p-review') {
@@ -380,34 +381,34 @@ export default function CspWizard() {
           ['InitialAuthorization', 'We are preparing for initial authorization', 'Create package-preparation follow-up without claiming that authorization has been issued.'],
           ['DetermineLater', 'We need to determine the authorization scope', 'Keep coverage unresolved and create follow-up work without fabricating a boundary.'],
         ].map(([value, label, detail]) => <label key={value} className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${
-          draft.authorization.choice === value ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white'}`}>
-          <input aria-label={label} type="radio" checked={draft.authorization.choice === value}
-            onChange={() => change('authorization', { choice: value as SetupDraft['authorization']['choice'] })} className="mt-1" />
+          draft.authorizationStartingPoint.choice === value ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white'}`}>
+          <input aria-label={label} type="radio" checked={draft.authorizationStartingPoint.choice === value}
+            onChange={() => change('authorizationStartingPoint', { choice: value as SetupDraft['authorizationStartingPoint']['choice'] })} className="mt-1" />
           <span><strong className="block">{label}</strong><span className="mt-1 block text-sm text-slate-600">{detail}</span></span>
         </label>)}
       </div>
-      {draft.authorization.choice === 'ExistingAuthorization' && <SetupPanel title="Available decision details · all optional">
+      {draft.authorizationStartingPoint.choice === 'ExistingAuthorization' && <SetupPanel title="Available decision details · all optional">
         <p className="mb-5 text-sm">Unknown values may remain blank. These are unconfirmed onboarding facts awaiting source review.</p>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Decision reference" value={draft.authorization.decisionReference ?? ''}
-            onChange={value => change('authorization', { ...draft.authorization, decisionReference: value })} />
-          <Field label="Issuing AO or authority" value={draft.authorization.issuingAuthority ?? ''}
-            onChange={value => change('authorization', { ...draft.authorization, issuingAuthority: value })} />
-          <Field label="Decision date" type="date" value={draft.authorization.decisionDate ?? ''}
-            onChange={value => change('authorization', { ...draft.authorization, decisionDate: value })} />
-          <Field label="Expiration date" type="date" value={draft.authorization.expirationDate ?? ''}
-            onChange={value => change('authorization', { ...draft.authorization, expirationDate: value })} />
-          <Field label="System or boundary name" value={draft.authorization.systemOrBoundaryName ?? ''}
-            onChange={value => change('authorization', { ...draft.authorization, systemOrBoundaryName: value })} />
-          <Field label="Supporting source" value={draft.authorization.supportingSource ?? ''}
-            onChange={value => change('authorization', { ...draft.authorization, supportingSource: value })} />
+          <Field label="Decision reference" value={draft.authorizationStartingPoint.decisionReference ?? ''}
+            onChange={value => change('authorizationStartingPoint', { ...draft.authorizationStartingPoint, decisionReference: value })} />
+          <Field label="Issuing AO or authority" value={draft.authorizationStartingPoint.issuingAuthority ?? ''}
+            onChange={value => change('authorizationStartingPoint', { ...draft.authorizationStartingPoint, issuingAuthority: value })} />
+          <Field label="Decision date" type="date" value={draft.authorizationStartingPoint.decisionDate ?? ''}
+            onChange={value => change('authorizationStartingPoint', { ...draft.authorizationStartingPoint, decisionDate: value })} />
+          <Field label="Expiration date" type="date" value={draft.authorizationStartingPoint.expirationDate ?? ''}
+            onChange={value => change('authorizationStartingPoint', { ...draft.authorizationStartingPoint, expirationDate: value })} />
+          <Field label="System or boundary name" value={draft.authorizationStartingPoint.systemOrBoundaryName ?? ''}
+            onChange={value => change('authorizationStartingPoint', { ...draft.authorizationStartingPoint, systemOrBoundaryName: value })} />
+          <Field label="Supporting source" value={draft.authorizationStartingPoint.supportingSource ?? ''}
+            onChange={value => change('authorizationStartingPoint', { ...draft.authorizationStartingPoint, supportingSource: value })} />
           <label className="grid gap-1 text-sm sm:col-span-2">Conditions<textarea className="min-h-24 rounded border p-3"
-            value={draft.authorization.conditions ?? ''}
-            onChange={event => change('authorization', { ...draft.authorization, conditions: event.target.value })} /></label>
+            value={draft.authorizationStartingPoint.conditions ?? ''}
+            onChange={event => change('authorizationStartingPoint', { ...draft.authorizationStartingPoint, conditions: event.target.value })} /></label>
         </div>
       </SetupPanel>}
     </>}
-    {(screen === 'p-sources' || screen === 'p-uncertain' || screen === 'p-authorization' && draft.authorization.choice === 'ExistingAuthorization') && <>
+    {(screen === 'p-sources' || screen === 'p-uncertain' || screen === 'p-authorization' && draft.authorizationStartingPoint.choice === 'ExistingAuthorization') && <>
       {screen === 'p-uncertain' && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-950"><b>Receipt is not yet confirmed</b>
         <p className="mt-2">The service may have received the source. Check the existing request before retrying. Browser File objects do not survive restart.</p></div>}
       <SetupPanel title={screen === 'p-uncertain' ? 'Pending upload'
@@ -463,9 +464,9 @@ export default function CspWizard() {
       <dt>Timezone</dt><dd>{draft.details.timeZoneId || 'Not yet recorded'}</dd>
       <dt>Service portfolio</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.portfolioName || 'No portfolio selected'}</dd>
       <dt>First offering</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.name ?? 'Not yet recorded'}</dd>
-      <dt>Authorization starting point</dt><dd>{draft.authorization.choice === 'ExistingAuthorization' ? 'Existing authorization declared; verification separate'
-        : draft.authorization.choice === 'InitialAuthorization' ? 'Preparing for initial authorization'
-          : draft.authorization.choice === 'DetermineLater' ? 'Authorization scope unresolved' : 'Not yet selected'}</dd>
+      <dt>Authorization starting point</dt><dd>{draft.authorizationStartingPoint.choice === 'ExistingAuthorization' ? 'Existing authorization declared; verification separate'
+        : draft.authorizationStartingPoint.choice === 'InitialAuthorization' ? 'Preparing for initial authorization'
+          : draft.authorizationStartingPoint.choice === 'DetermineLater' ? 'Authorization scope unresolved' : 'Not yet selected'}</dd>
       <dt>Source receipt</dt><dd>{unresolved.length ? 'Unknown — recovery remains open' : state.uploadIntents?.length ? 'Confirmed' : draft.sources.choice === 'Deferred' ? 'Deferred · optional' : 'Not yet recorded'}</dd>
       <dt>Source review</dt><dd>Not completed by onboarding</dd><dt>Published capabilities</dt><dd>None created by setup</dd>
     </dl><label className="mt-5 flex gap-2"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />Confirm this provider setup.</label>
@@ -480,7 +481,7 @@ export default function CspWizard() {
         <dt>Operating organization</dt><dd>{draft.details.legalEntityName}</dd>
         <dt>Service portfolio</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.portfolioName || 'No portfolio selected'}</dd>
         <dt>Offering</dt><dd>{draft.firstOffering.choice === 'Deferred' ? 'Deferred' : draft.firstOffering.name || 'Not recorded'}</dd>
-        <dt>Authorization intent</dt><dd>{draft.authorization.choice}</dd>
+        <dt>Authorization intent</dt><dd>{draft.authorizationStartingPoint.choice}</dd>
         <dt>Available records</dt><dd>{draft.sources.choice}</dd>
       </dl></SetupPanel>
       <SetupPanel title="Outstanding onboarding work">{state.facts?.map(item => <div key={item.actionId} className="border-b py-4 last:border-0">

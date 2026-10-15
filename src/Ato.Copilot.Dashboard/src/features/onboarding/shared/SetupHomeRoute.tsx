@@ -126,7 +126,7 @@ async function loadSetup(kind: 'csp' | 'organization', tenantId: string | null, 
     records: [...tenantRecords, ...drafts.items.map(item => ({
       id: item.systemId, kind: 'system' as const, name: item.displayName, state: item.setupState,
       detail: 'Saved system identity and preparation choices. Authorization and package readiness remain separate.',
-      destination: `/systems/${encodeURIComponent(item.systemId)}/setup`,
+      destination: `/setup/systems/${encodeURIComponent(item.systemId)}`,
     }))],
     nextCursor: drafts.nextCursor, nextPage: null,
   };
