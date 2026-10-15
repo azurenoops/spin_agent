@@ -29,7 +29,7 @@ public sealed class ProviderOfferingAssociationService(
         var query = db.Set<ProviderOfferingAssociationRevision>().AsNoTracking()
             .Where(x => x.ProviderId == provider && x.OfferingId == offeringId);
         if (!includeDrafts) query = query.Where(x => x.Status == "Published");
-        var rows = await query.OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+        var rows = await query.OrderByDescending(x => x.Revision).ThenByDescending(x => x.Id).ToListAsync(ct);
         return rows.Select(ToResponse).ToArray();
     }
 
@@ -57,10 +57,14 @@ public sealed class ProviderOfferingAssociationService(
             CapabilityId = capability.Id, CreatedBy = actor
         };
         var revision = BuildRevision(association, release, offering.Revision, request, actor, null);
-        association.CurrentRevisionId = revision.Id;
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         db.Add(association);
+        await db.SaveChangesAsync(ct);
         db.Add(revision);
         await db.SaveChangesAsync(ct);
+        association.CurrentRevisionId = revision.Id;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return ToResponse(revision);
     }
 

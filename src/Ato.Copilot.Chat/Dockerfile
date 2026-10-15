@@ -17,7 +17,7 @@ COPY src/Ato.Copilot.Chat/ClientApp/package.json \
      src/Ato.Copilot.Chat/ClientApp/.npmrc \
      ./
 ARG NPM_REGISTRY=https://registry.npmjs.org
-RUN npm ci --registry="$NPM_REGISTRY"
+RUN npm ci --include=dev --registry="$NPM_REGISTRY"
 
 # Copy frontend source and build
 COPY src/Ato.Copilot.Chat/ClientApp/ ./

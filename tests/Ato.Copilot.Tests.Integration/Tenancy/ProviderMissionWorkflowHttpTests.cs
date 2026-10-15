@@ -324,6 +324,36 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
         capability.ReleaseId.Should().NotBeNull();
         await AssertNoAdoptionOrInheritance(system);
 
+        // Package publication makes the release eligible for association review; it does not itself
+        // make the capability applicable to an organization.
+        var boundaryOverview = await Get<OfferingBoundaryOverview>(provider,
+            root + "/boundary-overview?capabilityPage=1&missionPage=1&pageSize=10");
+        var offeringCapability = boundaryOverview.Capabilities.Items.Single(item =>
+            item.CapabilityId == capability.RecordId && item.ReleaseId == capability.ReleaseId);
+        offeringCapability.ComponentId.Should().NotBeNull();
+        var sourceCapability = candidates.Single(item => item.Type == "Capability");
+        var associationRequest = new CreateOfferingAssociationRequest(
+            offeringCapability.ComponentId!.Value, capability.RecordId, capability.ReleaseId!.Value,
+            boundaryOverview.OfferingRevision,
+            sourceCapability.Citations.Select(c => new ProviderCitation(receipt.Package.PackageId, c.ArtifactId,
+                c.ArchivePath, c.Locator, c.Quote)).ToArray(),
+            ["AU-2"], ["Customer must review events"], "Primary");
+        var association = await Post<OfferingAssociationResponse>(provider, root + "/associations",
+            associationRequest, HttpStatusCode.Created);
+        var associationRejected = await Post<OfferingAssociationResponse>(provider,
+            root + $"/associations/{association.AssociationId:D}/review",
+            new ReviewOfferingAssociationRequest(association.Revision, false,
+                "Synthetic rejection verifies that an unreviewed association is not visible to customers."));
+        var revised = await Put<OfferingAssociationResponse>(provider,
+            root + $"/associations/{association.AssociationId:D}", associationRequest, associationRejected.Revision);
+        var associationReviewed = await Post<OfferingAssociationResponse>(provider,
+            root + $"/associations/{association.AssociationId:D}/review",
+            new ReviewOfferingAssociationRequest(revised.Revision, true,
+                "Reviewed retained source, provider coverage, and customer obligations."));
+        var publishedAssociation = await Post<OfferingAssociationResponse>(provider,
+            root + $"/associations/{association.AssociationId:D}/publish?expectedRevision={associationReviewed.Revision}", new { });
+        publishedAssociation.Status.Should().Be("Published");
+
         var publishedOffering = await Get<ProviderOfferingResponse>(provider, root);
         var assignment = await Post<ProviderHostingAssignmentResponse>(provider, root + "/hosting-assignments",
             new CreateProviderHostingAssignmentRequest(Tenant, system, hosting.Snapshot.RevisionId, scopes, []),
@@ -347,7 +377,10 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
         applicable.CanProposeAdoption.Should().BeTrue("customer allocation must not stale the published definition");
         (await Get<ProviderOfferingResponse>(provider, root)).Revision.Should().Be(publishedOffering.Revision);
         var adoptionRequest = new AdoptProviderCapabilityRequest(assignment.AssignmentId, assignment.Revision, capability.RecordId,
-            releaseId, applicable.Applicability.SnapshotHash, applicable.ApplicabilityPreviewHash);
+            releaseId, applicable.Applicability.SnapshotHash, applicable.ApplicabilityPreviewHash)
+        {
+            AssociationRevisionId = applicable.AssociationRevisionId
+        };
         using var unassigned = Client(Unassigned);
         using var foreign = Client(Foreign, tenant: WorkspaceMembershipFactory.TenantBId);
         foreach (var deniedClient in new[] { unassigned, foreign })
@@ -730,6 +763,13 @@ public sealed class ProviderMissionWorkflowHttpTests : IClassFixture<WorkspaceMe
         using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };
         request.Headers.Add("Idempotency-Key", key ?? Guid.NewGuid().ToString("N"));
         return await Read<T>(await client.SendAsync(request), expected, envelope);
+    }
+
+    private async Task<T> Put<T>(HttpClient client, string path, object body, long expectedRevision)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, path) { Content = JsonContent.Create(body) };
+        request.Headers.TryAddWithoutValidation("If-Match", expectedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return await Read<T>(await client.SendAsync(request), HttpStatusCode.OK);
     }
 
     private async Task<T> Read<T>(HttpResponseMessage response, HttpStatusCode expected, bool envelope = true)

@@ -7,7 +7,7 @@ WORKDIR /app
 COPY src/Ato.Copilot.Dashboard/package.json src/Ato.Copilot.Dashboard/package-lock.json ./
 
 ARG NPM_REGISTRY=https://registry.npmjs.org
-RUN npm ci --registry="$NPM_REGISTRY"
+RUN npm ci --include=dev --registry="$NPM_REGISTRY"
 
 # Copy shared workspace package so vite.config.ts alias resolves (#2683).
 # vite.config.ts resolves @ato-copilot/shared to ../../packages/ato-shared/src/index.ts
