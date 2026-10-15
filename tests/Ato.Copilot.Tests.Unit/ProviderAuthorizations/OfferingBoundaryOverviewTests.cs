@@ -12,6 +12,7 @@ using Ato.Copilot.Core.Services.Tenancy;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -400,13 +401,15 @@ public sealed class OfferingBoundaryOverviewTests
 
         public AtoCopilotContext Db() => new(_options);
 
-        public static async Task<Fixture> CreateAsync(bool sqlite = false)
+        public static async Task<Fixture> CreateAsync(
+            bool sqlite = false, DbCommandInterceptor? commandInterceptor = null)
         {
             SqliteConnection? connection = sqlite ? new("Data Source=:memory:") : null;
             if (connection is not null) await connection.OpenAsync();
             var builder = new DbContextOptionsBuilder<AtoCopilotContext>();
             if (connection is not null) builder.UseSqlite(connection);
             else builder.UseInMemoryDatabase(Guid.NewGuid().ToString());
+            if (commandInterceptor is not null) builder.AddInterceptors(commandInterceptor);
             var fixture = new Fixture(builder.Options, connection);
             await using var db = fixture.Db();
             await db.Database.EnsureCreatedAsync();

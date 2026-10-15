@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Data.Common;
 using Ato.Copilot.Core.Interfaces.PackageImports;
 using Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
 using Ato.Copilot.Core.Models.PackageImports;
@@ -5,6 +7,7 @@ using Ato.Copilot.Core.Models.ProviderAuthorizations;
 using Ato.Copilot.Core.Models.Tenancy;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Xunit;
 using Store = Ato.Copilot.Core.Services.ProviderAuthorizations.ProviderAuthorizationStore;
 using Fixture = Ato.Copilot.Tests.Unit.ProviderAuthorizations.OfferingBoundaryOverviewTests.Fixture;
@@ -167,6 +170,53 @@ public sealed class OfferingOverviewTests
         beyond.Packages.Items.Should().BeEmpty();
         beyond.Packages.Total.Should().Be(12);
         fixture.PackageService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Packages_ExtractSelectedProgressWithoutLoadingFullRetainedCheckpoint()
+    {
+        // Arrange
+        var commands = new CommandRecorder();
+        await using var fixture = await Fixture.CreateAsync(sqlite: true, commandInterceptor: commands);
+        var packageId = Guid.NewGuid();
+        await using (var db = fixture.Db())
+        {
+            db.Add(new CspPackage
+            {
+                Id = packageId,
+                ProviderId = fixture.Provider,
+                OfferingId = fixture.Offering,
+                BoundaryRevisionId = fixture.SourceBoundary,
+                Name = "Large retained checkpoint",
+                ProcessingState = "Processing",
+                AnalysisCheckpointJson = $$"""
+                    {
+                      "AnalysisProgress": {
+                        "CompletedSegments": 2,
+                        "TotalSegments": 3,
+                        "ModelCalls": 4,
+                        "ModelCallLimit": 8,
+                        "ContinuingAutomatically": true
+                      },
+                      "RetainedPayload": "{{new string('x', 1_000_000)}}"
+                    }
+                    """
+            });
+            await db.SaveChangesAsync();
+        }
+        commands.CommandTexts.Clear();
+
+        // Act
+        var result = await fixture.Service.OverviewAsync(fixture.Offering, 1, 1, 10, default);
+
+        // Assert
+        result.Packages.Items.Should().ContainSingle();
+        result.Packages.Items[0].Package.AnalysisProgress.Should().BeEquivalentTo(
+            new CspPackageAnalysisProgress(2, 3, 4, 8, true));
+        commands.CommandTexts.Should().Contain(command =>
+            command.Contains("json_extract(AnalysisCheckpointJson", StringComparison.OrdinalIgnoreCase));
+        commands.CommandTexts.Where(command => command.Contains("FROM \"CspPackages\" AS \"c\"", StringComparison.Ordinal))
+            .Should().NotContain(command => command.Contains("\"c\".\"AnalysisCheckpointJson\"", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -491,5 +541,25 @@ public sealed class OfferingOverviewTests
         var action = () => fixture.Service.OverviewAsync(fixture.Offering, 1, 1, 10, default);
         // Assert
         await action.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    private sealed class CommandRecorder : DbCommandInterceptor
+    {
+        public ConcurrentBag<string> CommandTexts { get; } = [];
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+        {
+            CommandTexts.Add(command.CommandText);
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            CommandTexts.Add(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
     }
 }

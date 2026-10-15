@@ -1,5 +1,8 @@
+using System.Text.Json;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Interfaces.PackageImports;
 using Ato.Copilot.Core.Interfaces.ProviderAuthorizations;
+using Ato.Copilot.Core.Models.PackageImports;
 using Ato.Copilot.Core.Models.ProviderAuthorizations;
 using Ato.Copilot.Core.Services.PackageImports;
 using Microsoft.EntityFrameworkCore;
@@ -117,7 +120,29 @@ public sealed partial class ProviderAuthorizationService
                     && p.Id == x.PackageId && p.ArchivedAt != null)).ToListAsync(ct);
         var linkedIds = versions.Select(x => x.PackageId).ToArray();
         var receipts = await db.CspPackages.AsNoTracking().Where(x => x.ProviderId == offering.ProviderId
-            && (x.OfferingId == offering.Id || linkedIds.Contains(x.Id))).ToListAsync(ct);
+            && (x.OfferingId == offering.Id || linkedIds.Contains(x.Id)))
+            .Select(x => new CspPackage
+            {
+                Id = x.Id,
+                ProviderId = x.ProviderId,
+                OfferingId = x.OfferingId,
+                PackageVersionId = x.PackageVersionId,
+                BoundaryRevisionId = x.BoundaryRevisionId,
+                Name = x.Name,
+                ProcessingState = x.ProcessingState,
+                PublicationState = x.PublicationState,
+                Revision = x.Revision,
+                LastError = x.LastError,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt,
+                ArchivedAt = x.ArchivedAt,
+                ArchivedBy = x.ArchivedBy,
+                ArchiveReason = x.ArchiveReason,
+                SupersededByPackageId = x.SupersededByPackageId,
+                SupersededAt = x.SupersededAt,
+                SupersededBy = x.SupersededBy,
+                SupersedeReason = x.SupersedeReason
+            }).ToListAsync(ct);
         var receiptMap = receipts.ToDictionary(x => x.Id);
         if (versions.GroupBy(x => x.PackageId).Any(x => x.Count() != 1)
             || versions.Any(x => !receiptMap.ContainsKey(x.PackageId) || x.Version is < 1 or > int.MaxValue))
@@ -148,6 +173,10 @@ public sealed partial class ProviderAuthorizationService
         var grouped = candidates.ToLookup(x => x.PackageId);
         var selected = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
         var selectedIds = selected.Select(x => x.Id).ToArray();
+        var checkpoints = await SelectedProgressCheckpointsAsync(
+            db, offering.ProviderId, selectedIds, ct);
+        foreach (var receipt in selected)
+            receipt.AnalysisCheckpointJson = checkpoints.GetValueOrDefault(receipt.Id);
         var entries = await db.CspPackageEntries.AsNoTracking().Where(x => selectedIds.Contains(x.PackageId))
             .Select(x => new { x.PackageId, x.Status }).ToListAsync(ct);
         var states = entries.ToLookup(x => x.PackageId, x => x.Status);
@@ -175,6 +204,63 @@ public sealed partial class ProviderAuthorizationService
         {
             SourceDocumentCount = sourceDocumentCount
         };
+    }
+
+    private static async Task<IReadOnlyDictionary<Guid, string?>> SelectedProgressCheckpointsAsync(
+        AtoCopilotContext db, Guid providerId, IReadOnlyList<Guid> packageIds, CancellationToken ct)
+    {
+        if (packageIds.Count == 0) return new Dictionary<Guid, string?>();
+        if (!db.Database.IsRelational())
+        {
+            var checkpoints = await db.CspPackages.AsNoTracking()
+                .Where(x => x.ProviderId == providerId && packageIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.AnalysisCheckpointJson })
+                .ToListAsync(ct);
+            return checkpoints.ToDictionary(x => x.Id, x => ProgressCheckpoint(x.AnalysisCheckpointJson));
+        }
+
+        var packageIdsJson = JsonSerializer.Serialize(packageIds);
+        IQueryable<PackageProgressProjection> query = db.Database.IsSqlServer()
+            ? db.Database.SqlQuery<PackageProgressProjection>($"""
+                SELECT Id, JSON_QUERY(AnalysisCheckpointJson, '$.AnalysisProgress') AS AnalysisProgressJson
+                FROM CspPackages
+                WHERE ProviderId = {providerId}
+                  AND Id IN (
+                      SELECT [value]
+                      FROM OPENJSON({packageIdsJson}) WITH ([value] uniqueidentifier '$')
+                  )
+                """)
+            : db.Database.IsSqlite()
+                ? db.Database.SqlQuery<PackageProgressProjection>($"""
+                    SELECT Id, json_extract(AnalysisCheckpointJson, '$.AnalysisProgress') AS AnalysisProgressJson
+                    FROM CspPackages
+                    WHERE ProviderId = {providerId}
+                      AND lower(Id) IN (
+                          SELECT lower(value)
+                          FROM json_each({packageIdsJson})
+                      )
+                    """)
+                : throw new NotSupportedException(
+                    $"Package overview progress extraction is not configured for provider '{db.Database.ProviderName}'.");
+        var rows = await query.ToListAsync(ct);
+        return rows.ToDictionary(x => x.Id, x => x.AnalysisProgressJson is null
+            ? null
+            : $$"""{"AnalysisProgress":{{x.AnalysisProgressJson}}}""");
+    }
+
+    private static string? ProgressCheckpoint(string? checkpoint)
+    {
+        if (string.IsNullOrWhiteSpace(checkpoint)) return null;
+        using var document = JsonDocument.Parse(checkpoint);
+        return document.RootElement.TryGetProperty(nameof(CspPackageAnalysisCheckpoint.AnalysisProgress), out var progress)
+            ? $$"""{"AnalysisProgress":{{progress.GetRawText()}}}"""
+            : null;
+    }
+
+    private sealed class PackageProgressProjection
+    {
+        public Guid Id { get; init; }
+        public string? AnalysisProgressJson { get; init; }
     }
 
     private static bool IsSourceContainer(string fileName, string archivePath, string mediaType)
