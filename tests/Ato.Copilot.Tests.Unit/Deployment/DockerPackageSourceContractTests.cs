@@ -167,7 +167,7 @@ public class DockerPackageSourceContractTests
 
         // Assert
         dockerfile.Should().Contain("ARG NPM_REGISTRY=https://registry.npmjs.org");
-        dockerfile.Should().Contain("RUN npm ci --registry=\"$NPM_REGISTRY\"");
+        dockerfile.Should().Contain("RUN npm ci --include=dev --registry=\"$NPM_REGISTRY\"");
     }
 
     [Theory]
