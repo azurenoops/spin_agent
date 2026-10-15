@@ -604,6 +604,18 @@ public class RmfRoleAssignment
 [TenantScoped]
 public class ControlBaseline
 {
+    [MaxLength(100)]
+    public string? SourceFrameworkIdentifier { get; set; }
+
+    [MaxLength(1000)]
+    public string? CatalogResolutionMessage { get; set; }
+
+    [ConcurrencyCheck]
+    public int CoverageRevision { get; set; }
+
+    [MaxLength(36)]
+    public string? RequirementCatalogBindingId { get; set; }
+
     /// <summary>
     /// FK to <see cref="Ato.Copilot.Core.Models.Tenancy.Tenant"/> — populated by
     /// <c>TenantStampingSaveChangesInterceptor</c> (Feature 048 FR-021).

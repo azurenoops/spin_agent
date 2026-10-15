@@ -58,6 +58,8 @@ public interface ICapabilityResponsibilityService
     Task<CapabilityResponsibilityResponse> ReconcileAsync(string systemId, string actor, CancellationToken ct = default);
     Task<CapabilityResponsibilityResponse> ConfirmAsync(string systemId, Guid capabilityId,
         ConfirmCapabilityResponsibilitiesRequest request, string actor, CancellationToken ct = default);
+    Task ConfirmSystemAllocationAsync(string systemId, string baselineId,
+        CapabilityResponsibilityAllocation allocation, string actor, CancellationToken ct = default);
     Task<CapabilitySubscriptionChangeResponse> SubscribeAsync(string systemId, Guid capabilityId, string actor, CancellationToken ct = default);
     /// <summary>Canonical subscription handoff for an assigned mission adopter; never confirms responsibilities.</summary>
     Task<CapabilitySubscriptionChangeResponse> SubscribeForAdoptionAsync(string systemId, Guid capabilityId, string actor, CancellationToken ct = default);

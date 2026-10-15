@@ -317,7 +317,7 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         var mergeData = await BuildMergeDataAsync(systemId, docType, cancellationToken, sapId, design);
         if (template != null)
         {
-            var merged = ApplyMailMerge(template.FileBytes, mergeData);
+            var merged = ApplyMailMerge(template.FileBytes, mergeData, preserveLineBreaks: docType == "ssp");
             // Older layouts may not contain the new planning fields. A retained-record
             // appendix keeps the export complete without invalidating those templates.
             return docType == "sap" ? AppendSapSnapshot(merged, mergeData)
@@ -329,7 +329,8 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         return design == null ? document : AppendDesignDiagrams(document, design, includeText: false);
     }
 
-    private static byte[] ApplyMailMerge(byte[] templateBytes, Dictionary<string, string> mergeData)
+    private static byte[] ApplyMailMerge(byte[] templateBytes, Dictionary<string, string> mergeData,
+        bool preserveLineBreaks = false)
     {
         using var inputMs = new MemoryStream(templateBytes);
         using var outputMs = new MemoryStream();
@@ -352,6 +353,22 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         foreach (var (key, value) in mergeData)
         {
             xml = xml.Replace($"{{{{{key}}}}}", EscapeXml(value), StringComparison.OrdinalIgnoreCase);
+        }
+        if (preserveLineBreaks)
+        {
+            XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+            var document = XDocument.Parse(xml, LoadOptions.PreserveWhitespace);
+            foreach (var text in document.Descendants(w + "t").Where(x => x.Value.Contains('\n')).ToArray())
+            {
+                var lines = new List<XElement>();
+                foreach (var line in text.Value.Split('\n'))
+                {
+                    if (lines.Count > 0) lines.Add(new XElement(w + "br"));
+                    lines.Add(new XElement(w + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), line));
+                }
+                text.ReplaceWith(lines);
+            }
+            xml = document.ToString(SaveOptions.DisableFormatting);
         }
 
         // Delete and re-create entry
@@ -500,9 +517,9 @@ public partial class DocumentTemplateService : IDocumentTemplateService
             {
                 page.Size(PageSizes.Letter);
                 page.Margin(1, Unit.Inch);
-                // SAP text must remain searchable/copyable: optional ligatures in
+                // SSP/SAP identifiers must remain searchable/copyable: optional ligatures in
                 // the bundled font lose characters in PDF text extraction.
-                page.DefaultTextStyle(x => documentType == "sap"
+                page.DefaultTextStyle(x => documentType is "sap" or "ssp"
                     ? x.FontSize(10).DisableFontFeature("liga").DisableFontFeature("clig").DisableFontFeature("dlig")
                     : x.FontSize(10));
 
@@ -702,6 +719,9 @@ public partial class DocumentTemplateService : IDocumentTemplateService
             .AsNoTracking()
             .Where(ci => ci.RegisteredSystemId == systemId)
             .ToListAsync(ct);
+        await ApprovedNarrativeDocumentData.ApplyAsync(db, implementations, ct);
+        var coverage = await RequirementCoverageDocumentData.LoadAsync(db, systemId, baseline, implementations, ct);
+        implementations = coverage.Controls.Select(x => x.Implementation).OfType<ControlImplementation>().ToList();
 
         data["ImplementedControls"] = implementations
             .Count(ci => ci.ImplementationStatus == ImplementationStatus.Implemented).ToString();
@@ -710,8 +730,8 @@ public partial class DocumentTemplateService : IDocumentTemplateService
         data["PlannedControls"] = implementations
             .Count(ci => ci.ImplementationStatus == ImplementationStatus.Planned).ToString();
 
-        await ApprovedNarrativeDocumentData.ApplyAsync(db, implementations, ct);
-        data["ControlNarratives"] = BuildControlNarratives(implementations);
+        data["ControlNarratives"] = BuildControlNarratives(implementations) + "\n\n"
+            + RequirementCoverageDocumentData.Render(coverage);
         var profileGaps = new List<string>();
         var profiles = await ApprovedProfileDocumentData.LoadAsync(db, systemId, profileGaps, ct);
         foreach (var profile in profiles)

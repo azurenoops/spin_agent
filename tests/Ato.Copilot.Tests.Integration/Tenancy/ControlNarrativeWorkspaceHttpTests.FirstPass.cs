@@ -52,7 +52,9 @@ public sealed partial class ControlNarrativeWorkspaceHttpTests
         client.DefaultRequestHeaders.Add("X-Workspace-Mode", "ordinary");
         client.DefaultRequestHeaders.Add("X-Workspace-Tenant-Id", Tenant.ToString());
         var path = $"/api/systems/{fixture.SystemId}/requirement-coverage/{fixture.AttentionControlId}";
-        var before = await client.GetFromJsonAsync<RequirementCoverageDetail>(path);
+        var beforeResponse = await client.GetAsync(path);
+        beforeResponse.StatusCode.Should().Be(HttpStatusCode.OK, await beforeResponse.Content.ReadAsStringAsync());
+        var before = await beforeResponse.Content.ReadFromJsonAsync<RequirementCoverageDetail>();
         // Act
         var generated = await client.PostAsJsonAsync(path + "/first-pass", new RequirementFirstPassInput(before!.NarrativeVersion!.Value, before.BaselineRevision, "Policy"));
         // Assert

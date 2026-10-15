@@ -19,7 +19,7 @@ internal static class RequirementCoverageDocumentData
 
     internal static async Task<Projection> LoadAsync(AtoCopilotContext db, string systemId,
         ControlBaseline? baseline, IReadOnlyList<ControlImplementation> implementations, CancellationToken ct,
-        bool evaluateCurrent = false)
+        bool evaluateCurrent = false, IReadOnlyCollection<string>? additionalControlIds = null)
     {
         var system = await db.RegisteredSystems.AsNoTracking().SingleAsync(x => x.Id == systemId, ct);
         var binding = baseline is null ? null : await CatalogSourceReader.ReadBindingAsync(db,
@@ -46,7 +46,10 @@ internal static class RequirementCoverageDocumentData
         var evidence = await db.EvidenceArtifacts.AsNoTracking().Where(x => x.RegisteredSystemId == systemId
             && x.TenantId == system.TenantId && !x.IsDeleted).ToDictionaryAsync(x => x.Id, ct);
         var controls = new List<Control>();
-        var selectedIds = baseline?.ControlIds ?? implementations.Select(x => x.ControlId).ToList();
+        var selectedIds = (baseline?.ControlIds ?? implementations.Select(x => x.ControlId))
+            .Concat(additionalControlIds ?? [])
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
         if (selectedIds.Count == 0) gaps.Add("Requirement coverage has no selected baseline controls.");
         foreach (var selected in selectedIds)
         {

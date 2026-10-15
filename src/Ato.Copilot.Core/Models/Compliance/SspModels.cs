@@ -51,6 +51,10 @@ public class ControlImplementation
     [MaxLength(8000)]
     public string? TechnicalNarrative { get; set; }
 
+    public string? RequirementCoverageJson { get; set; }
+
+    public string? ApprovedRequirementCoverageJson { get; set; }
+
     /// <summary>True when the technical narrative was backfilled from the legacy narrative.</summary>
     public bool MigratedFromLegacy { get; set; }
 

@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Text.Json;
 using Ato.Copilot.Agents.Compliance.Services;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
@@ -221,6 +222,43 @@ public sealed class InitialPackagePurposeTests
             foreach (var number in Enumerable.Range(1, 13))
                 db.Add(new SspSection { RegisteredSystemId = "mission", SectionNumber = number,
                     SectionTitle = $"DEMO section {number}", Status = SspSectionStatus.Approved, Content = "DEMO reviewed content" });
+            var raw = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,
+                "TestData", "Requirements", "export-audit-catalog.json"));
+            var baseline = new ControlBaseline { RegisteredSystemId = "mission", ControlIds = ["AU-2"] };
+            var binding = new BaselineCatalogBinding
+            {
+                ControlBaselineId = baseline.Id,
+                CatalogJson = raw,
+                ContentHash = RequirementCoverageService.Hash(raw),
+                CatalogVersion = "test-1",
+                SourceUri = "https://example.invalid/catalog.json"
+            };
+            baseline.RequirementCatalogBindingId = binding.Id;
+            var implementation = new ControlImplementation
+            {
+                RegisteredSystemId = "mission",
+                ControlId = "AU-2",
+                PolicyNarrative = "DEMO approved policy",
+                TechnicalNarrative = "DEMO approved technical"
+            };
+            var evidenceBytes = System.Text.Encoding.UTF8.GetBytes("DEMO evidence bytes");
+            var evidence = new EvidenceArtifact
+            {
+                RegisteredSystemId = "mission",
+                FileName = "demo.txt",
+                ContentHash = RequirementCoverageService.Hash("DEMO evidence bytes").ToLowerInvariant()
+            };
+            Evidence.Setup(x => x.DownloadAsync(evidence.Id, It.IsAny<CancellationToken>()))
+                .Returns(() => Task.FromResult<(Stream Content, string FileName, string ContentType)?>(
+                    (new MemoryStream(evidenceBytes), "demo.txt", "text/plain")));
+            var snapshot = new RequirementCoverageSnapshot(binding.Id, binding.ContentHash,
+                [new("audit-statement", "Technical", "DEMO reviewed response", [new(evidence.Id, evidence.ContentHash)])],
+                new Dictionary<string, string>(), RequirementCoverageService.NarrativeHash(implementation),
+                Guid.NewGuid(), "author", DateTime.UtcNow, Guid.NewGuid(), "reviewer", DateTime.UtcNow);
+            implementation.ApprovedRequirementCoverageJson = JsonSerializer.Serialize(snapshot,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            implementation.RequirementCoverageJson = implementation.ApprovedRequirementCoverageJson;
+            db.AddRange(baseline, binding, implementation, evidence);
             await db.SaveChangesAsync();
         }
 

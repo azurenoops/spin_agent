@@ -1,0 +1,9 @@
+{
+  "uuid": "a9d1bf93-3f43-499b-81ce-24e4b87f5415",
+  "metadata": { "title": "Synthetic system-design export catalog", "version": "test-1" },
+  "controls": [{
+    "id": "ac-1", "title": "Synthetic policy control",
+    "props": [{ "name": "label", "value": "AC-1" }],
+    "parts": [{ "id": "ac-1_smt", "name": "statement", "prose": "Document the synthetic policy." }]
+  }]
+}

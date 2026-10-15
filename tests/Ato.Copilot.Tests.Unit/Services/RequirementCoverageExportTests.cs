@@ -150,6 +150,36 @@ public sealed class RequirementCoverageExportTests
     }
 
     [Fact]
+    public async Task EmassExport_IncludesReviewedTailoredInControlsOutsideBaselineSelection()
+    {
+        // Arrange
+        using var fixture = new Fixture();
+        await fixture.SeedAsync();
+        var baseline = await fixture.Db.ControlBaselines.SingleAsync();
+        baseline.ControlIds = ["AC-11"];
+        fixture.Db.ControlTailorings.Add(new ControlTailoring
+        {
+            TenantId = baseline.TenantId,
+            ControlBaselineId = baseline.Id,
+            ControlId = "AC-11(1)",
+            Action = TailoringAction.Added,
+            Rationale = "Required for the system boundary",
+            TailoredBy = "reviewer"
+        });
+        await fixture.Db.SaveChangesAsync();
+        var exporter = new EmassExportService(fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<EmassExportService>.Instance, fixture.Exporter);
+
+        // Act
+        using var workbook = new XLWorkbook(new MemoryStream(await exporter.ExportControlsAsync("mission")));
+        var cells = workbook.Worksheet("Controls").CellsUsed().Select(x => x.GetString()).ToArray();
+
+        // Assert
+        cells.Should().Contain("unrelated-enhancement-key");
+        workbook.Worksheet("Controls").RowsUsed().Should().HaveCount(3);
+    }
+
+    [Fact]
     public async Task MappingsFromAnotherBinding_DoNotAssignParametersToCurrentSource()
     {
         // Arrange

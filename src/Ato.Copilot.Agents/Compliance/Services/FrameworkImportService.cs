@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Reflection;
 using Ato.Copilot.Agents.Compliance.Models;
 using Ato.Copilot.Core.Data.Context;
+using Ato.Copilot.Core.Data;
 using Ato.Copilot.Core.Models.Compliance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,9 +22,14 @@ public interface IFrameworkImportService
 
     /// <summary>Import or refresh a single framework by its identifier.</summary>
     Task<int> ImportFrameworkAsync(string identifier, CancellationToken ct = default);
+
+    /// <summary>Retain validated source only; do not replace catalog definitions or system records.</summary>
+    Task<FrameworkSourceResult> CaptureSourceAsync(string identifier, bool onlyIfMissing = false, CancellationToken ct = default);
 }
 
 public record FrameworkImportResult(int FrameworksImported, int TotalControls, int TotalBaselines, List<string> Errors);
+public record FrameworkSourceResult(string Identifier, string Version, string? SourceUri,
+    string ContentHash, DateTime? CapturedAt, bool Changed);
 
 /// <summary>
 /// Seed definitions for known compliance frameworks and their OSCAL source URLs.
@@ -168,6 +174,58 @@ public class FrameworkImportService : IFrameworkImportService
         return new FrameworkImportResult(fwkCount, totalControls, totalBaselines, errors);
     }
 
+    public async Task<FrameworkSourceResult> CaptureSourceAsync(string identifier, bool onlyIfMissing = false, CancellationToken ct = default)
+    {
+        var seed = FrameworkSeedData.Frameworks.SingleOrDefault(x => x.Identifier.Equals(identifier, StringComparison.OrdinalIgnoreCase))
+            ?? throw new ArgumentException("Choose a registered framework identifier.");
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+        var existing = await CatalogSourceReader.ReadFrameworkAsync(db, x => x.Identifier == seed.Identifier && x.IsActive, ct)
+            ?? throw new KeyNotFoundException("Import the framework before capturing its source.");
+        if (onlyIfMissing && !string.IsNullOrWhiteSpace(existing.RequirementCatalogJson))
+            return SourceResult(existing, false);
+        var catalog = await LoadCatalogAsync(seed, ct);
+        if (catalog.SourceJson is null || catalog.SourceUri is null)
+            throw new InvalidDataException("The catalog retrieval did not retain its source identity.");
+        RequirementCatalog parsed;
+        try { parsed = RequirementCatalog.Parse(catalog.SourceJson); }
+        catch (Exception error) when (error is ArgumentException or JsonException)
+        { throw new InvalidDataException("The authoritative source has invalid or ambiguous catalog structure.", error); }
+
+        var retry = false;
+        var result = await db.Database.CreateExecutionStrategy().ExecuteAsync(async token =>
+        {
+            if (retry) db.ChangeTracker.Clear();
+            retry = true;
+            await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, token);
+            var framework = await CatalogSourceReader.ReadFrameworkAsync(db, x => x.Id == existing.Id && x.IsActive, token)
+                ?? throw new KeyNotFoundException("The framework is no longer available.");
+            if (onlyIfMissing && !string.IsNullOrWhiteSpace(framework.RequirementCatalogJson))
+                return SourceResult(framework, false);
+            db.Attach(framework);
+            framework.RequirementCatalogJson = catalog.SourceJson;
+            framework.RequirementCatalogVersion = parsed.Version;
+            framework.RequirementCatalogSourceUri = catalog.SourceUri;
+            framework.RequirementCatalogCapturedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            _logger.LogInformation("Captured reference source {Identifier} version {Version}; definitions and system bindings unchanged",
+                framework.Identifier, parsed.Version);
+            return SourceResult(framework, true);
+        }, ct);
+        var automatic = scope.ServiceProvider.GetService<AutomaticCatalogBindingService>();
+        if (automatic is not null) await automatic.BackfillAsync(seed.Identifier, ct);
+        return result;
+    }
+
+    private static FrameworkSourceResult SourceResult(ComplianceFramework framework, bool changed)
+    {
+        var json = framework.RequirementCatalogJson ?? throw new InvalidDataException("Catalog source is absent.");
+        return new(framework.Identifier, RequirementCatalog.Parse(json).Version,
+            framework.RequirementCatalogSourceUri ?? framework.CatalogUrl, RequirementCoverageService.Hash(json),
+            framework.RequirementCatalogCapturedAt, changed);
+    }
+
     public async Task<int> ImportFrameworkAsync(string identifier, CancellationToken ct = default)
     {
         var seed = FrameworkSeedData.Frameworks.FirstOrDefault(f =>
@@ -179,8 +237,7 @@ public class FrameworkImportService : IFrameworkImportService
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
         // Upsert framework row
-        var framework = await db.ComplianceFrameworks
-            .FirstOrDefaultAsync(f => f.Identifier == seed.Identifier, ct);
+        var framework = await CatalogSourceReader.ReadFrameworkAsync(db, f => f.Identifier == seed.Identifier, ct);
 
         if (framework is null)
         {
@@ -196,8 +253,18 @@ public class FrameworkImportService : IFrameworkImportService
             db.ComplianceFrameworks.Add(framework);
             await db.SaveChangesAsync(ct);
         }
+        else db.Attach(framework);
 
         var catalog = await LoadCatalogAsync(seed, ct);
+        if (catalog.SourceJson is null)
+            throw new InvalidOperationException("Authoritative catalog source was not retained.");
+        var structured = RequirementCatalog.Parse(catalog.SourceJson);
+        framework.RequirementCatalogJson = catalog.SourceJson;
+        framework.RequirementCatalogVersion = structured.Version;
+        framework.RequirementCatalogSourceUri = catalog.SourceUri;
+        framework.RequirementCatalogCapturedAt = DateTime.UtcNow;
+        framework.Version = structured.Version;
+        framework.CatalogUrl = catalog.SourceUri;
 
         // Delete existing controls for this framework (cascade also removes baseline entries via FK)
         await db.FrameworkControls.Where(c => c.FrameworkId == framework.Id).ExecuteDeleteAsync(ct);
@@ -273,6 +340,8 @@ public class FrameworkImportService : IFrameworkImportService
 
         // Import baselines
         await ImportBaselinesAsync(db, framework, seed, ct);
+        var automatic = scope.ServiceProvider.GetService<AutomaticCatalogBindingService>();
+        if (automatic is not null) await automatic.BackfillAsync(seed.Identifier, ct);
 
         return controls.Count;
     }
@@ -393,8 +462,7 @@ public class FrameworkImportService : IFrameworkImportService
             cts.CancelAfter(TimeSpan.FromSeconds(90));
 
             using var stream = await _httpClient.GetStreamAsync(url, cts.Token);
-            var root = await JsonSerializer.DeserializeAsync<NistCatalogRoot>(stream, cancellationToken: cts.Token);
-            return root?.Catalog;
+            return await ReadCatalogSourceAsync(stream, url, cts.Token);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -420,14 +488,21 @@ public class FrameworkImportService : IFrameworkImportService
                 return null;
             }
 
-            var root = await JsonSerializer.DeserializeAsync<NistCatalogRoot>(stream, cancellationToken: ct);
-            return root?.Catalog;
+            return await ReadCatalogSourceAsync(stream, $"embedded://{resourceName}", ct);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Embedded catalog load failed for {Resource}", resourceName);
             return null;
         }
+    }
+
+    private static async Task<NistCatalog> ReadCatalogSourceAsync(Stream stream, string sourceUri, CancellationToken ct)
+    {
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        var source = document.RootElement.GetProperty("catalog");
+        var catalog = source.Deserialize<NistCatalog>() ?? throw new JsonException("Catalog is missing.");
+        return catalog with { SourceJson = source.GetRawText(), SourceUri = sourceUri };
     }
 
     private async Task<List<string>> TryFetchBaselineControlIdsAsync(

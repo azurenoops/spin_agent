@@ -11,8 +11,10 @@ using Ato.Copilot.Core.Interfaces.Compliance;
 using Ato.Copilot.Core.Interfaces.Storage;
 using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Models.Tenancy;
 using Ato.Copilot.Core.Services.ProviderAuthorizations;
 using Ato.Copilot.Core.Services.Tenancy;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -454,6 +456,83 @@ public sealed class RetainedPackageTests
         await changed.Should().ThrowAsync<DbUpdateConcurrencyException>();
         fixture.Channel.Reader.TryRead(out _).Should().BeTrue();
         fixture.Channel.Reader.TryRead(out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExpiredPackageCleanup_RunsAcrossTenantFilters()
+    {
+        // Arrange
+        var directory = Path.Combine(Directory.GetCurrentDirectory(), $"expired-package-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "expired.zip");
+        await File.WriteAllTextAsync(path, "expired package");
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var tenant = Guid.NewGuid();
+        var accessor = new TenantContextAccessor();
+        using var tenantScope = accessor.Push(new CleanupTenantContext(tenant, Guid.NewGuid()));
+        using var services = new ServiceCollection()
+            .AddDbContext<AtoCopilotContext>(options => options.UseSqlite(connection))
+            .AddSingleton<ITenantContextAccessor>(accessor)
+            .AddLogging()
+            .AddSingleton(Channel.CreateUnbounded<PackageExportJob>())
+            .AddSingleton(Mock.Of<IEvidenceArtifactService>())
+            .AddSingleton(Mock.Of<IFileStorageProvider>())
+            .AddSingleton(Mock.Of<IPackageValidationService>())
+            .AddSingleton<IAuthorizationPackageService, AuthorizationPackageService>()
+            .BuildServiceProvider();
+        string packageId;
+        using (var scope = services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+            await db.Database.EnsureCreatedAsync();
+            db.AddRange(
+                new Tenant { Id = tenant, DisplayName = "Expired package tenant" },
+                new RegisteredSystem
+                {
+                    Id = "expired-system",
+                    TenantId = tenant,
+                    Name = "Expired package system",
+                    CreatedBy = "test"
+                });
+            await db.SaveChangesAsync();
+            var package = new AuthorizationPackage
+            {
+                TenantId = tenant,
+                RegisteredSystemId = "expired-system",
+                Status = PackageStatus.Completed,
+                FilePath = path,
+                ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1)
+            };
+            db.AuthorizationPackages.Add(package);
+            await db.SaveChangesAsync();
+            packageId = package.Id;
+        }
+
+        // Act
+        var cleaned = await ((AuthorizationPackageService)services
+            .GetRequiredService<IAuthorizationPackageService>()).CleanupExpiredPackagesAsync();
+
+        // Assert
+        cleaned.Should().Be(1);
+        File.Exists(path).Should().BeFalse();
+        using var verifyScope = services.CreateScope();
+        var saved = await verifyScope.ServiceProvider.GetRequiredService<AtoCopilotContext>()
+            .AuthorizationPackages.IgnoreQueryFilters().SingleAsync(x => x.Id == packageId);
+        saved.FilePath.Should().BeNull();
+        Directory.Delete(directory, true);
+    }
+
+    private sealed class CleanupTenantContext(Guid tenantId, Guid personId) : ITenantContext
+    {
+        public Guid TenantId => tenantId;
+        public Guid? OrganizationId => null;
+        public bool IsCspAdmin => false;
+        public Guid? ImpersonatedTenantId => null;
+        public Guid EffectiveTenantId => tenantId;
+        public TenantStatus Status => TenantStatus.Active;
+        public Guid? PersonId => personId;
+        public bool IsWorkspaceRequest => true;
     }
 
     private sealed class Fixture : IDisposable

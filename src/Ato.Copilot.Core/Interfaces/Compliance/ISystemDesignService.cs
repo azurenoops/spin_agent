@@ -6,6 +6,7 @@ public interface ISystemDesignService
 {
     Task<SystemDesignGraph> GetAsync(string systemId, CancellationToken ct = default);
     Task<SystemDesignGraph> SaveAsync(string systemId, SaveSystemDesignRequest request, CancellationToken ct = default);
+    Task<SystemDesignGraph> SaveComponentScopeAsync(string systemId, SaveComponentScopeRequest request, CancellationToken ct = default);
     Task<SystemDesignGraph> ReviewAsync(string systemId, DesignReviewRequest request, CancellationToken ct = default);
     Task<SystemDesignGraph> ReconcileAsync(string systemId, DesignRevisionRequest request, CancellationToken ct = default);
     Task<SystemDesignGraph> BuildFromRecordedAsync(string systemId, DesignRevisionRequest request, CancellationToken ct = default);

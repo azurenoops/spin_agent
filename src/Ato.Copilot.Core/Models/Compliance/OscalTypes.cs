@@ -7,6 +7,12 @@ namespace Ato.Copilot.Core.Models.Compliance;
 /// </summary>
 public sealed record NistCatalog
 {
+    [JsonIgnore]
+    public string? SourceJson { get; init; }
+
+    [JsonIgnore]
+    public string? SourceUri { get; init; }
+
     /// <summary>Catalog UUID.</summary>
     [JsonPropertyName("uuid")]
     public string Uuid { get; init; } = string.Empty;

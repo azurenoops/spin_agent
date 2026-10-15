@@ -153,7 +153,18 @@ public sealed partial class RealInitialPackageAcceptanceTests(ITestOutputHelper 
             result.IsValid.Should().BeTrue($"{model}: {string.Join("\n", result.Violations.Select(x => $"{x.JsonPath}: {x.Message}"))}");
             using var document = JsonDocument.Parse(text);
             var root = document.RootElement.EnumerateObject().Single().Value;
-            if (model == "ssp") text.Should().Contain(marker);
+            if (model == "ssp")
+            {
+                text.Should().Contain(marker).And.Contain("SYNTHETIC reviewed response");
+                var requirements = root.GetProperty("control-implementation").GetProperty("implemented-requirements");
+                requirements.GetArrayLength().Should().Be(fixture.Controls.Count);
+                requirements.EnumerateArray().Select(x => x.GetProperty("control-id").GetString())
+                    .Should().BeEquivalentTo(fixture.Controls.Select(x => x.ToLowerInvariant()));
+                requirements.EnumerateArray().Should().OnlyContain(x => x.GetProperty("statements").GetArrayLength() == 1);
+                root.GetProperty("metadata").GetProperty("props").EnumerateArray()
+                    .Single(x => x.GetProperty("name").GetString() == "requirement-coverage-gaps")
+                    .GetProperty("value").GetString().Should().Be("[]");
+            }
             if (model is "poam" or "assessment-plan")
                 root.GetProperty("import-ssp").GetProperty("href").GetString().Should().Be("oscal-ssp.json");
             if (model == "assessment-results")
@@ -243,6 +254,7 @@ public sealed partial class RealInitialPackageAcceptanceTests(ITestOutputHelper 
 
         public async Task PrepareAsync()
         {
+            RequirementCatalog requirementCatalog;
             await using (As(Author))
             await using (var scope = Services.CreateAsyncScope())
             {
@@ -276,6 +288,14 @@ public sealed partial class RealInitialPackageAcceptanceTests(ITestOutputHelper 
                         IntegrityImpact = "Low", AvailabilityImpact = "Low" }], Reviewer.ToString());
                 var baseline = await Services.GetRequiredService<IBaselineService>().SelectBaselineAsync(SystemId, false, selectedBy: Reviewer.ToString());
                 Controls = baseline.ControlIds;
+                var catalogDb = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+                var framework = SyntheticRequirementCatalogFixture.CreateFramework(Controls);
+                catalogDb.ComplianceFrameworks.Add(framework);
+                await catalogDb.SaveChangesAsync();
+                var binding = await scope.ServiceProvider.GetRequiredService<RequirementCoverageService>().BindCatalogAsync(
+                    SystemId, framework.Id, baseline.CoverageRevision, "Explicit synthetic laboratory catalog for package acceptance.",
+                    Reviewer.ToString(), default);
+                requirementCatalog = RequirementCatalog.Parse(binding.CatalogJson);
                 await Services.GetRequiredService<IPrivacyService>().CreatePtaAsync(SystemId, Reviewer.ToString(), manualMode: true);
                 await Services.GetRequiredService<IInterconnectionService>().CertifyNoInterconnectionsAsync(SystemId, true);
                 await Services.GetRequiredService<IInventoryService>().AddItemAsync(SystemId, new()
@@ -298,7 +318,6 @@ public sealed partial class RealInitialPackageAcceptanceTests(ITestOutputHelper 
                     await Services.GetRequiredService<IDualNarrativeService>().UpdateAsync(SystemId, control,
                         $"SYNTHETIC {control} policy: laboratory-only approved procedure.", true,
                         $"SYNTHETIC {control} technical: isolated reference implementation.", true, "Isso", Author.ToString());
-                    await Services.GetRequiredService<INarrativeGovernanceService>().SubmitNarrativeAsync(SystemId, control, Author.ToString());
                     await using var scope = Services.CreateAsyncScope();
                     var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
                     var implementation = await db.ControlImplementations.SingleAsync(x => x.RegisteredSystemId == SystemId && x.ControlId == control);
@@ -308,6 +327,10 @@ public sealed partial class RealInitialPackageAcceptanceTests(ITestOutputHelper 
                         ArtifactCategory.TestResult, Author.ToString(), controlImplementationId: implementation.Id,
                         narrativeType: EvidenceNarrativeType.Technical);
                     evidenceIds[control] = evidence.Id;
+                    await scope.ServiceProvider.GetRequiredService<RequirementCoverageService>().SaveMappingsAsync(SystemId, control,
+                        new(implementation.CurrentVersion, SyntheticRequirementCatalogFixture.Responses(requirementCatalog, implementation, evidence),
+                            new Dictionary<string, string>()), Author.ToString(), default);
+                    await Services.GetRequiredService<INarrativeGovernanceService>().SubmitNarrativeAsync(SystemId, control, Author.ToString());
                 }
             }
             await using (As(Reviewer))
@@ -315,7 +338,14 @@ public sealed partial class RealInitialPackageAcceptanceTests(ITestOutputHelper 
                 for (var section = 1; section <= 13; section++)
                     await Services.GetRequiredService<ISspService>().ReviewSspSectionAsync(SystemId, section, "approve", Reviewer.ToString(), "Independent synthetic review.");
                 foreach (var control in Controls)
+                {
                     await Services.GetRequiredService<INarrativeGovernanceService>().ReviewNarrativeAsync(SystemId, control, ReviewDecision.Approve, Reviewer.ToString());
+                    await using var scope = Services.CreateAsyncScope();
+                    var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
+                    var implementation = await db.ControlImplementations.SingleAsync(x => x.RegisteredSystemId == SystemId && x.ControlId == control);
+                    await scope.ServiceProvider.GetRequiredService<RequirementCoverageService>().ReviewMappingsAsync(
+                        SystemId, control, implementation.CurrentVersion, Reviewer.ToString(), default);
+                }
             }
             await using (As(Assessor))
             {

@@ -1849,7 +1849,7 @@ public class NotificationAndEscalationToolTests
                 UseSsl = false,
                 FromAddress = "noreply@example.test",
                 Recipients = ["security@example.test"],
-                TimeoutSeconds = 1
+                TimeoutSeconds = 10
             }
         });
         var service = new Ato.Copilot.Agents.Compliance.Services.AlertNotificationService(
@@ -2202,6 +2202,71 @@ public class NotificationAndEscalationToolTests
         await svc.CheckEscalationsAsync();
     }
 
+    [Fact]
+    public async Task EscalationService_CheckEscalations_Sqlite_Completes()
+    {
+        // Arrange
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AtoCopilotContext>()
+            .UseSqlite(connection)
+            .Options;
+        var dbFactory = new TestDbContextFactory2(options);
+        await using (var db = dbFactory.CreateDbContext())
+            await db.Database.EnsureCreatedAsync();
+        var svc = CreateEscalationService(dbFactory);
+
+        // Act
+        var act = () => svc.CheckEscalationsAsync();
+
+        // Assert
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task EscalationService_CheckEscalations_DoesNotUseAnotherTenantsPath()
+    {
+        // Arrange
+        var alertTenant = Guid.NewGuid();
+        var otherTenant = Guid.NewGuid();
+        var dbFactory = CreateDbFactory();
+        await using (var db = dbFactory.CreateDbContext())
+        {
+            var alert = CreateTestAlert(AlertSeverity.Critical);
+            alert.TenantId = alertTenant;
+            alert.SlaDeadline = DateTimeOffset.UtcNow.AddHours(-1);
+            db.ComplianceAlerts.Add(alert);
+            db.EscalationPaths.Add(new EscalationPath
+            {
+                Id = Guid.NewGuid(),
+                TenantId = otherTenant,
+                Name = "Other tenant path",
+                TriggerSeverity = AlertSeverity.Critical,
+                EscalationDelayMinutes = 1,
+                Recipients = ["other@example.invalid"],
+                RepeatIntervalMinutes = 30,
+                IsEnabled = true,
+                CreatedBy = "test"
+            });
+            await db.SaveChangesAsync();
+        }
+        var notification = new Mock<IAlertNotificationService>();
+        var svc = new Ato.Copilot.Agents.Compliance.Services.EscalationHostedService(
+            dbFactory,
+            notification.Object,
+            Mock.Of<IAlertManager>(),
+            new Ato.Copilot.Core.Services.Tenancy.TenantContextAccessor(),
+            Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.EscalationHostedService>>());
+
+        // Act
+        await svc.CheckEscalationsAsync();
+
+        // Assert
+        notification.Verify(
+            service => service.SendNotificationAsync(It.IsAny<ComplianceAlert>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     // ─── Helpers ────────────────────────────────────────────────────────────
 
     private static TestDbContextFactory2 CreateDbFactory()
@@ -2220,6 +2285,7 @@ public class NotificationAndEscalationToolTests
             dbFactory,
             Mock.Of<IAlertNotificationService>(),
             Mock.Of<IAlertManager>(),
+            new Ato.Copilot.Core.Services.Tenancy.TenantContextAccessor(),
             Mock.Of<ILogger<Ato.Copilot.Agents.Compliance.Services.EscalationHostedService>>());
     }
 

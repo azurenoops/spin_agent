@@ -37,6 +37,16 @@ public class ComplianceFramework
     [MaxLength(50)]
     public string OscalModelType { get; set; } = "catalog";
 
+    [MaxLength(100)]
+    public string? RequirementCatalogVersion { get; set; }
+
+    [MaxLength(500)]
+    public string? RequirementCatalogSourceUri { get; set; }
+
+    public string? RequirementCatalogJson { get; set; }
+
+    public DateTime? RequirementCatalogCapturedAt { get; set; }
+
     /// <summary>When the catalog was last imported from the source.</summary>
     public DateTime? ImportedAt { get; set; }
 
