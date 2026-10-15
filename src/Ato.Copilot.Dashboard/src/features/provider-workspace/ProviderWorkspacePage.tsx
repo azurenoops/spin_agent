@@ -48,7 +48,7 @@ function OfferingWorkspace({ view }: { view: 'overview' | 'missions' }) {
   const [notice, setNotice] = useState('');
   const offerings = useRemote(signal => api.listOfferings(page, '', signal), [page]);
   const selected = selectedId ? offerings.data?.items.find(item => item.offeringId === selectedId)
-    : view === 'missions' || offerings.data?.total === 1 ? offerings.data?.items[0] : undefined;
+    : offerings.data?.items[0];
   return <>
     <WorkspacePageHeader eyebrow="Provider operations" title={view === 'overview' ? 'Your provider workspace' : 'Mission systems'}
       description={view === 'overview'

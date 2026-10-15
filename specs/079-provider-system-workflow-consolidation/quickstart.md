@@ -52,9 +52,10 @@ warnings. User acceptance and downstream native exports remain unverified.
 
 At `http://127.0.0.1:4196/workspaces/csp`, using an already authorized provider
 identity, confirm there is no Service offering dropdown. With multiple offerings,
-select an offering name in the lower register and check the named summary and
-focus links. Select a different offering and confirm that its own metrics appear;
-every Open offering link remains available. Check the explicit
+confirm the first alphabetically ordered offering immediately has a named
+summary and focus links. Select a different offering in the lower register and
+confirm that its own metrics appear; every Open offering link remains available.
+Check the explicit
 `?offeringId=<recorded-offering-id>` link, a missing ID, pagination, one offering
 and no offerings where locally available. Do not create/delete records to
 manufacture these cases. Check Tab/Enter and no page overflow at 1440px and 390px.

@@ -248,7 +248,7 @@ describe('provider task workspace', () => {
     expect(screen.getByRole('link', { name: 'Cross-organization oversight' })).toHaveAttribute('href', '/provider-oversight/systems');
   });
 
-  it('changes selected offering without reusing the prior service metrics', async () => {
+  it('opens the first ordered offering and changes selection without reusing prior service metrics', async () => {
     // Arrange
     const second = { ...offering, offeringId: 'offering-b', name: 'Second service' };
     vi.mocked(api.listOfferings).mockResolvedValue({ items: [offering, second], total: 2, page: 1, pageSize: 25 });
@@ -256,10 +256,10 @@ describe('provider task workspace', () => {
       ...overview, offeringId: id, capabilities: { ...overview.capabilities, published: id === second.offeringId ? 9 : 4 },
     }));
     render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);
-    await screen.findByRole('heading', { name: 'Service offerings' });
+    await screen.findByRole('heading', { name: `Offering overview: ${offering.name}` });
     expect(screen.queryByRole('combobox', { name: 'Service offering' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Published capabilities')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Focus for today' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Published capabilities')).toHaveTextContent('4');
+    expect(screen.getByRole('heading', { name: 'Focus for today' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: `Open offering ${offering.name}` })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open offering Second service' })).toBeInTheDocument();
     // Act

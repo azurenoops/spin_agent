@@ -1,10 +1,11 @@
 # Mandatory mock-to-screen and route contract
 
-**Provider Overview register (2026-10-07)**: `/workspaces/csp` has no Service
+**Provider Overview register (updated 2026-10-15)**: `/workspaces/csp` has no Service
 offering combobox. Select named offering summaries through the existing lower
 Service offerings register; retain all Open offering links and pagination.
-An unselected multi-offering page shows no offering metrics/focus tasks; a sole
-offering or explicit `offeringId` shows named context, never provider totals.
+An unselected page with offerings shows the first alphabetically ordered
+offering's named metrics/focus tasks; an explicit `offeringId` shows its named
+context, never provider totals.
 The register stays usable while summary reads load/fail. Missing deep-link
 selections do not fall back to another offering. Mission systems selectors,
 summary API and authorization/mutation contracts are unchanged.

@@ -49,6 +49,16 @@ lists live-workspace changes needed to follow it.
 Local check: run the dashboard, sign in as a provider admin, open
 `/workspaces/csp`, and complete one path against the IA.
 
+### Provider overview default offering (2026-10-15)
+
+When the provider has offerings, `/workspaces/csp` immediately shows the
+offering-specific overview for the first offering in the alphabetically ordered
+Service offerings register. The heading must name that offering, and the full
+register remains available for switching context. An explicit `offeringId`
+continues to pin the requested offering; an unavailable explicit selection must
+remain an error instead of silently falling back. The displayed counts remain
+offering-specific and must never be represented as provider totals.
+
 ---
 
 ## Product intent (from the brief)

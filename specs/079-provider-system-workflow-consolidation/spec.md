@@ -157,13 +157,15 @@ Remove the redundant Service offering dropdown from provider Overview only.
 Keep the paged Service offerings register and every Open offering link available
 independently of summary success. Offering names in this register select the
 offering-specific Overview metrics and focus tasks; identify that context by
-name. With multiple offerings and no deep-link selection, prompt for a register
-selection rather than silently showing the first offering's counts. A sole
-offering may show its explicitly named summary. Preserve offeringId/offeringPage
-deep links, missing-selection states, retries and Mission systems selectors.
-The existing overview API is offering-specific; do not aggregate its counts or
-represent them as provider totals. No backend, permission or mutation changes.
-Manual acceptance remains pending at local port 4196; exports are unaffected.
+name. **October 15 approved change:** with one or more offerings and no
+deep-link selection, show the first offering in the alphabetically ordered
+register and keep its name visible above the metrics. Preserve
+offeringId/offeringPage deep links, explicit missing-selection states, retries
+and Mission systems selectors. Never replace an unavailable explicit selection
+with the default. The existing overview API is offering-specific; do not
+aggregate its counts or represent them as provider totals. No backend,
+permission or mutation changes. Manual acceptance must cover both the default
+and switching offerings; exports are unaffected.
 ### October 2: task-oriented  Component details
 
 The component panel follows `docs/design/workspace-ui-mocks/component-review-simple.html`:
