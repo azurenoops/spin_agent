@@ -70,7 +70,7 @@ public sealed class DashboardAccessMiddleware(
             ? systemDestinations.Any(destination =>
                 string.Equals(destination.ScopeId, requestedSystemId, StringComparison.OrdinalIgnoreCase)
                 && destination.Actions.Contains(requiredAction, StringComparer.Ordinal))
-            : systemDestinations.Any(destination =>
+            : access.Destinations.Any(destination =>
                 destination.Badges.Any(badge =>
                     string.Equals(
                         badge.Source,

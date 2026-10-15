@@ -49,6 +49,7 @@ public sealed class EffectiveAccessService : IEffectiveAccessService
         AdminPortalActions.OrganizationImportsManage,
         AdminPortalActions.OrganizationTemplatesManage,
         AdminPortalActions.OrganizationAuditView,
+        AdminPortalActions.SystemAdminister,
     ];
 
     private static readonly string[] ProviderAdminActions =

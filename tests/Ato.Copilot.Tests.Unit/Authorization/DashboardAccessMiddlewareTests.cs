@@ -76,6 +76,43 @@ public class DashboardAccessMiddlewareTests
     }
 
     [Fact]
+    public async Task Organization_administrator_can_create_first_system_without_existing_system_destination()
+    {
+        // Arrange
+        var nextCalled = false;
+        var middleware = CreateMiddleware(() => nextCalled = true);
+        var context = CreateContext(HttpMethods.Post, "/api/dashboard/systems");
+        var service = CreateAccessService([
+            OrganizationDestination([AdminPortalActions.SystemAdminister], "OrganizationRoleAssignment"),
+        ]);
+
+        // Act
+        await middleware.InvokeAsync(context, CreateTenantContext(), service);
+
+        // Assert
+        nextCalled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Organization_member_without_system_administration_cannot_create_first_system()
+    {
+        // Arrange
+        var nextCalled = false;
+        var middleware = CreateMiddleware(() => nextCalled = true);
+        var context = CreateContext(HttpMethods.Post, "/api/dashboard/systems");
+        var service = CreateAccessService([
+            OrganizationDestination([AdminPortalActions.OrganizationOverviewView], "OrganizationMembership"),
+        ]);
+
+        // Act
+        await middleware.InvokeAsync(context, CreateTenantContext(), service);
+
+        // Assert
+        context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        nextCalled.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task System_role_assignment_requires_the_distinct_assignment_action()
     {
         // Arrange
@@ -286,6 +323,19 @@ public class DashboardAccessMiddlewareTests
             id,
             actions,
             [new AccessBadge("ISSO", source)],
+            "Available");
+
+    private static EffectiveAccessDestination OrganizationDestination(
+        IReadOnlyList<string> actions,
+        string source) =>
+        new(
+            "administration:organization:bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            WorkspaceKind.Administration,
+            AccessScopeKind.Organization,
+            "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "Organization",
+            actions,
+            [new AccessBadge("Administrator", source)],
             "Available");
 
     private sealed class TestHostEnvironment : IHostEnvironment

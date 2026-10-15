@@ -79,7 +79,7 @@ public class EffectiveAccessServiceTests
     }
 
     [Fact]
-    public async Task Administrator_without_rmf_role_can_view_systems_and_assign_roles_without_editing()
+    public async Task Administrator_without_rmf_role_can_create_and_view_systems_and_assign_roles_without_editing()
     {
         // Arrange
         var tenantId = Guid.NewGuid();
@@ -101,7 +101,8 @@ public class EffectiveAccessServiceTests
         result.Destinations.Should().Contain(destination =>
             destination.Workspace == WorkspaceKind.Administration
             && destination.ScopeKind == AccessScopeKind.Organization
-            && destination.Actions.Contains(AdminPortalActions.OrganizationProfileEdit));
+            && destination.Actions.Contains(AdminPortalActions.OrganizationProfileEdit)
+            && destination.Actions.Contains(AdminPortalActions.SystemAdminister));
         var system = result.Destinations.Single(destination => destination.Workspace == WorkspaceKind.System);
         system.ScopeId.Should().Be(systemId);
         system.Actions.Should().BeEquivalentTo(
