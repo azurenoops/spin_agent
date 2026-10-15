@@ -11,8 +11,8 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Data;
 
+[Collection("SqlServerSchema")]
 public sealed class BoundaryComponentSqlServerSchemaTests(BoundarySchemaSqlServerFixture fixture)
-    : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableFact]
     public async Task SingleBatch_OnLegacySchema_ReproducesInvalidColumnError()
@@ -212,6 +212,11 @@ public sealed class BoundaryComponentSqlServerSchemaTests(BoundarySchemaSqlServe
     }
 }
 
+[CollectionDefinition("SqlServerSchema", DisableParallelization = true)]
+public sealed class SqlServerSchemaCollection : ICollectionFixture<BoundarySchemaSqlServerFixture>
+{
+}
+
 public sealed class BoundarySchemaSqlServerFixture : IAsyncLifetime
 {
     private MsSqlContainer? _container;
@@ -246,6 +251,7 @@ public sealed class BoundarySchemaSqlServerFixture : IAsyncLifetime
         await using var connection = new SqlConnection(_container.GetConnectionString());
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
+        command.CommandTimeout = 120;
         command.CommandText = $"CREATE DATABASE [{connectionString.InitialCatalog}];";
         await command.ExecuteNonQueryAsync();
         return new AtoCopilotContext(new DbContextOptionsBuilder<AtoCopilotContext>()

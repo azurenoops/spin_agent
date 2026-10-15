@@ -15,8 +15,8 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Data;
 
+[Collection("SqlServerSchema")]
 public sealed class OrganizationCatalogStartupTests(BoundarySchemaSqlServerFixture fixture)
-    : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableTheory]
     [InlineData(false)]

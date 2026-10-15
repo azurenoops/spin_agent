@@ -6,8 +6,8 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Data;
 
+[Collection("SqlServerSchema")]
 public sealed class OrganizationCatalogSqlServerTests(BoundarySchemaSqlServerFixture fixture)
-    : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableFact]
     public async Task ApplyAsync_UpgradesLegacyCatalogAndNameIndexAcrossRepeatedStartup()

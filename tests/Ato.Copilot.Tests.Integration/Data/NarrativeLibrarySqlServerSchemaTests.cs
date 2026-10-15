@@ -6,8 +6,8 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Data;
 
+[Collection("SqlServerSchema")]
 public sealed class NarrativeLibrarySqlServerSchemaTests(BoundarySchemaSqlServerFixture fixture)
-    : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableFact]
     public async Task FreshSchemaAndRepeatStartup_PreserveEightThousandCharacterUnicodeProposals()

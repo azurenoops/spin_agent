@@ -44,8 +44,8 @@ public sealed class PackageReadinessSchemaTests
     }
 }
 
+[Collection("SqlServerSchema")]
 public sealed class PackageReadinessSqlServerSchemaTests(BoundarySchemaSqlServerFixture fixture)
-    : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableFact]
     public async Task SqlServer_AdditiveSchema_RepeatedStartupPreservesExistingPackageAndForeignKey()

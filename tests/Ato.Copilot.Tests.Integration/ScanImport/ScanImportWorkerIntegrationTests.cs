@@ -71,6 +71,8 @@ public sealed class ScanImportWorkerIntegrationTests
             importService.Verify(service => service.ImportNessusAsync(
                 It.IsAny<string>(), null, It.IsAny<byte[]>(), It.IsAny<string>(),
                 ImportConflictResolution.Skip, false, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+            foreach (var job in jobs)
+                await WaitForFileDeletionAsync(job.TemporaryFilePath);
             jobs.Should().OnlyContain(job => !File.Exists(job.TemporaryFilePath));
         }
         finally

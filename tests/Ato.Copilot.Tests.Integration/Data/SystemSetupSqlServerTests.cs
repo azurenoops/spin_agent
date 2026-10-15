@@ -8,8 +8,8 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Data;
 
+[Collection("SqlServerSchema")]
 public sealed class SystemSetupSqlServerTests(BoundarySchemaSqlServerFixture fixture)
-    : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableFact]
     public async Task LegacyUpgradeAndRepeatedStartup_PreserveOpaqueDraftAndBoundSource()

@@ -13,8 +13,8 @@ using Xunit;
 
 namespace Ato.Copilot.Tests.Integration.Data;
 
+[Collection("SqlServerSchema")]
 public sealed class WorkspaceOperationsSqlServerTests(BoundarySchemaSqlServerFixture fixture)
-    : IClassFixture<BoundarySchemaSqlServerFixture>
 {
     [SkippableFact]
     public async Task SystemCapabilityMigration_PreservesLegacyHistoryAcrossRepeatUpgrade()
