@@ -98,17 +98,44 @@ public sealed class PackageReadinessWorkerTests
                 db.SspSections.Add(new() { TenantId = tenant, RegisteredSystemId = systemId, SectionNumber = number,
                     SectionTitle = $"Synthetic section {number}", Status = SspSectionStatus.Approved });
             db.SecurityAssessmentReports.Add(new() { TenantId = tenant, RegisteredSystemId = systemId, Title = "SAR", Status = SarStatus.Approved, CreatedBy = "test" });
+            var baseline = new ControlBaseline { TenantId = tenant, RegisteredSystemId = systemId,
+                BaselineLevel = "Low", ControlIds = ["AC-1"], TotalControls = 1 };
+            var framework = SyntheticRequirementCatalogFixture.CreateFramework(baseline.ControlIds);
+            var binding = SyntheticRequirementCatalogFixture.CreateBinding(baseline, framework);
+            var implementation = new ControlImplementation { TenantId = tenant, RegisteredSystemId = systemId, ControlId = "AC-1",
+                PolicyNarrative = "Synthetic worker policy", TechnicalNarrative = "Synthetic worker implementation",
+                ApprovalStatus = SspSectionStatus.Approved };
+            db.AddRange(baseline, framework, binding, implementation);
+            EvidenceArtifact evidence;
             if (missingEvidence)
             {
-                var implementation = new ControlImplementation { TenantId = tenant, RegisteredSystemId = systemId, ControlId = "AC-1" };
-                db.ControlImplementations.Add(implementation);
-                db.EvidenceArtifacts.Add(new()
+                evidence = new()
                 {
                     TenantId = tenant, RegisteredSystemId = systemId, ControlImplementationId = implementation.Id,
                     FileName = "synthetic-missing.txt", ContentType = "text/plain", ContentHash = new string('a', 64),
                     StoragePath = $"synthetic-unavailable/{Guid.NewGuid()}", UploadedBy = "test"
-                });
+                };
+                db.EvidenceArtifacts.Add(evidence);
+                await db.SaveChangesAsync();
             }
+            else
+            {
+                await db.SaveChangesAsync();
+                using var content = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("Synthetic worker evidence"));
+                evidence = await scope.ServiceProvider.GetRequiredService<IEvidenceArtifactService>().UploadAsync(
+                    systemId, "synthetic-worker.txt", "text/plain", content, ArtifactCategory.TestResult,
+                    "test", controlImplementationId: implementation.Id);
+            }
+            var snapshot = new RequirementCoverageSnapshot(binding.Id, binding.ContentHash,
+                SyntheticRequirementCatalogFixture.Responses(RequirementCatalog.Parse(binding.CatalogJson), implementation, evidence),
+                new Dictionary<string, string>(), RequirementCoverageService.NarrativeHash(implementation),
+                Guid.NewGuid(), "synthetic-author", DateTime.UtcNow, Guid.NewGuid(), "synthetic-reviewer", DateTime.UtcNow);
+            implementation.RequirementCoverageJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            implementation.ApprovedRequirementCoverageJson = implementation.RequirementCoverageJson;
+            var version = new NarrativeVersion { TenantId = tenant, ControlImplementationId = implementation.Id,
+                Status = SspSectionStatus.Approved, SnapshotJson = NarrativeContentSnapshot.Capture(implementation), AuthoredBy = "synthetic-author" };
+            implementation.ApprovedVersionId = version.Id;
+            db.NarrativeVersions.Add(version);
             await db.SaveChangesAsync();
             await scope.ServiceProvider.GetRequiredService<IInventoryService>().AddItemAsync(systemId, new()
             {
@@ -117,7 +144,11 @@ public sealed class PackageReadinessWorkerTests
             }, "test");
             var evaluation = await scope.ServiceProvider.GetRequiredService<PackageReadinessService>()
                 .ValidateAsync(systemId, new(PackagePurpose.InitialSubmission), "test", default);
-            evaluation.Outcome.Should().Be(missingEvidence ? "Blocked" : "Ready", evaluation.FailureJson);
+            evaluation.Outcome.Should().Be(missingEvidence ? "Blocked" : "Ready",
+                string.Join("\n", PackageReadinessService.Checks(evaluation).Where(x => x.Required && x.Outcome != "Passed" && x.Outcome != "NotApplicable")
+                    .Select(x => $"{x.Id}: {x.Why}")));
+            PackageReadinessService.Checks(evaluation).Single(x => x.Id == "requirement-coverage").Outcome.Should().Be("Passed",
+                "the fixture has reviewed source-bound mappings; missing bytes must fail the separate evidence integrity gate");
             schema.Invocations.Clear();
             var source = await scope.ServiceProvider.GetRequiredService<PackageReadinessService>()
                 .ReadSourceAsync(systemId, new(PackagePurpose.InitialSubmission), "test", default);

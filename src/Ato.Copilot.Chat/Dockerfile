@@ -19,10 +19,6 @@ COPY src/Ato.Copilot.Chat/ClientApp/package.json \
 ARG NPM_REGISTRY=https://registry.npmjs.org
 RUN npm ci --registry="$NPM_REGISTRY"
 
-# #region agent log
-RUN node -e "const fs=require('fs');const path=require('path');const pkg=require('ajv/package.json');const dir=path.dirname(require.resolve('ajv/package.json'));const codegen=fs.existsSync(path.join(dir,'dist/compile/codegen.js'))||fs.existsSync(path.join(dir,'dist/compile/codegen/index.js'));console.log(JSON.stringify({sessionId:'3a8241',hypothesisId:'C',location:'Chat/Dockerfile:npm-ci',message:'ajv resolved after npm ci',data:{ajvVersion:pkg.version,codegenExists:codegen,ajvDir:dir},timestamp:Date.now()}));"
-# #endregion
-
 # Copy frontend source and build
 COPY src/Ato.Copilot.Chat/ClientApp/ ./
 ENV CI=true

@@ -402,10 +402,12 @@ public partial class AuthorizationPackageService : IAuthorizationPackageService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AtoCopilotContext>();
 
-        var expired = await db.AuthorizationPackages
-            .Where(p => p.ExpiresAt < DateTimeOffset.UtcNow &&
-                        !string.IsNullOrEmpty(p.FilePath))
+        var packagesWithFiles = await db.AuthorizationPackages
+            .IgnoreQueryFilters()
+            .Where(p => !string.IsNullOrEmpty(p.FilePath))
             .ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var expired = packagesWithFiles.Where(p => p.ExpiresAt < now).ToList();
 
         var cleaned = 0;
         foreach (var pkg in expired)

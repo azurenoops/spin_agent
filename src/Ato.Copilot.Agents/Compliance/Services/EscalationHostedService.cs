@@ -3,7 +3,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Ato.Copilot.Core.Data.Context;
 using Ato.Copilot.Core.Interfaces.Compliance;
+using Ato.Copilot.Core.Interfaces.Tenancy;
 using Ato.Copilot.Core.Models.Compliance;
+using Ato.Copilot.Core.Services.Tenancy;
 
 namespace Ato.Copilot.Agents.Compliance.Services;
 
@@ -17,6 +19,7 @@ public class EscalationHostedService : BackgroundService, IEscalationService
     private readonly IDbContextFactory<AtoCopilotContext> _dbFactory;
     private readonly IAlertNotificationService _notificationService;
     private readonly IAlertManager _alertManager;
+    private readonly ITenantContextAccessor _tenantAccessor;
     private readonly ILogger<EscalationHostedService> _logger;
     private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(1);
 
@@ -24,11 +27,13 @@ public class EscalationHostedService : BackgroundService, IEscalationService
         IDbContextFactory<AtoCopilotContext> dbFactory,
         IAlertNotificationService notificationService,
         IAlertManager alertManager,
+        ITenantContextAccessor tenantAccessor,
         ILogger<EscalationHostedService> logger)
     {
         _dbFactory = dbFactory;
         _notificationService = notificationService;
         _alertManager = alertManager;
+        _tenantAccessor = tenantAccessor;
         _logger = logger;
     }
 
@@ -57,17 +62,17 @@ public class EscalationHostedService : BackgroundService, IEscalationService
     {
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
 
-        // Find alerts past SLA that are still New or Acknowledged
         var now = DateTimeOffset.UtcNow;
-        var overdueAlerts = await db.ComplianceAlerts
-            .Where(a => a.SlaDeadline <= now
-                && (a.Status == AlertStatus.New || a.Status == AlertStatus.Acknowledged))
+        var activeAlerts = await db.ComplianceAlerts
+            .IgnoreQueryFilters()
+            .Where(a => a.Status == AlertStatus.New || a.Status == AlertStatus.Acknowledged)
             .ToListAsync(cancellationToken);
+        var overdueAlerts = activeAlerts.Where(a => a.SlaDeadline <= now).ToList();
 
         if (overdueAlerts.Count == 0) return;
 
-        // Get enabled escalation paths
         var paths = await db.EscalationPaths
+            .IgnoreQueryFilters()
             .Where(p => p.IsEnabled)
             .ToListAsync(cancellationToken);
 
@@ -75,16 +80,17 @@ public class EscalationHostedService : BackgroundService, IEscalationService
 
         foreach (var alert in overdueAlerts)
         {
-            // Match escalation paths by severity
+            using var tenantScope = _tenantAccessor.Push(new TenantContext(alert.TenantId));
             var matchingPaths = paths
-                .Where(p => p.TriggerSeverity == alert.Severity)
+                .Where(p => p.TenantId == alert.TenantId && p.TriggerSeverity == alert.Severity)
                 .ToList();
 
             if (matchingPaths.Count == 0) continue;
 
             // Check how many escalation notifications already sent for this alert
             var existingEscalations = await db.AlertNotifications
-                .CountAsync(n => n.AlertId == alert.Id
+                .IgnoreQueryFilters()
+                .CountAsync(n => n.TenantId == alert.TenantId && n.AlertId == alert.Id
                     && n.Subject != null && n.Subject.Contains("[ESCALATION]"), cancellationToken);
 
             foreach (var path in matchingPaths)
@@ -95,7 +101,8 @@ public class EscalationHostedService : BackgroundService, IEscalationService
 
                 // Check RepeatIntervalMinutes
                 var lastEscalation = await db.AlertNotifications
-                    .Where(n => n.AlertId == alert.Id
+                    .IgnoreQueryFilters()
+                    .Where(n => n.TenantId == alert.TenantId && n.AlertId == alert.Id
                         && n.Subject != null && n.Subject.Contains("[ESCALATION]"))
                     .OrderByDescending(n => n.SentAt)
                     .FirstOrDefaultAsync(cancellationToken);
