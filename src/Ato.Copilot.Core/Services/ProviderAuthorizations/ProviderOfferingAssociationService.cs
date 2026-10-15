@@ -51,21 +51,26 @@ public sealed class ProviderOfferingAssociationService(
                 && x.CapabilityReleaseId == request.CapabilityReleaseId
                 && (x.Status == "Draft" || x.Status == "Reviewed" || x.Status == "Published"), ct))
             throw new InvalidOperationException("An association already exists for this offering and capability release.");
-        var association = new ProviderOfferingAssociation
+        await using var strategyDb = await store.Factory.CreateDbContextAsync(ct);
+        return await strategyDb.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            ProviderId = provider, OfferingId = offeringId, ComponentId = capability.CspInheritedComponentId,
-            CapabilityId = capability.Id, CreatedBy = actor
-        };
-        var revision = BuildRevision(association, release, offering.Revision, request, actor, null);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        db.Add(association);
-        await db.SaveChangesAsync(ct);
-        db.Add(revision);
-        await db.SaveChangesAsync(ct);
-        association.CurrentRevisionId = revision.Id;
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return ToResponse(revision);
+            await using var writeDb = await store.Factory.CreateDbContextAsync(ct);
+            var association = new ProviderOfferingAssociation
+            {
+                ProviderId = provider, OfferingId = offeringId, ComponentId = capability.CspInheritedComponentId,
+                CapabilityId = capability.Id, CreatedBy = actor
+            };
+            var revision = BuildRevision(association, release, offering.Revision, request, actor, null);
+            await using var transaction = await writeDb.Database.BeginTransactionAsync(ct);
+            writeDb.Add(association);
+            await writeDb.SaveChangesAsync(ct);
+            writeDb.Add(revision);
+            await writeDb.SaveChangesAsync(ct);
+            association.CurrentRevisionId = revision.Id;
+            await writeDb.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return ToResponse(revision);
+        });
     }
 
     public async Task<OfferingAssociationResponse> UpdateAsync(Guid associationId,
