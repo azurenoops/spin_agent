@@ -18,15 +18,15 @@ public static class ProviderAuthorizationEndpoints
         var group = app.MapGroup("/api/csp/offerings").RequireAuthorization()
             .WithTags("Provider Authorizations").WithMetadata(new WorkspaceAuthorizedEndpoint());
         group.MapGet("/{id:guid}/associations", (Guid id, bool? includeDrafts, HttpContext http,
-            IProviderOfferingAssociationService service, CancellationToken ct) =>
+            [FromServices] IProviderOfferingAssociationService service, CancellationToken ct) =>
             ExecuteAsync(http, () => service.ListAsync(id, includeDrafts ?? true, ct)))
             .WithSummary("List explicit component/capability associations for an offering.");
         group.MapPost("/{id:guid}/associations", (Guid id, CreateOfferingAssociationRequest body, HttpContext http,
-            IProviderOfferingAssociationService service, CancellationToken ct) =>
+            [FromServices] IProviderOfferingAssociationService service, CancellationToken ct) =>
             ExecuteAsync(http, () => service.CreateAsync(id, body, Actor(http), ct), 201))
             .WithSummary("Create a draft, versioned offering association; catalog publication is not inclusion.");
         group.MapPut("/{id:guid}/associations/{associationId:guid}", (Guid id, Guid associationId,
-            CreateOfferingAssociationRequest body, HttpContext http, IProviderOfferingAssociationService service,
+            CreateOfferingAssociationRequest body, HttpContext http, [FromServices] IProviderOfferingAssociationService service,
             CancellationToken ct) => ExecuteAsync(http, async () =>
             {
                 await EnsureAssociationOfferingAsync(service, id, associationId, ct);
@@ -35,21 +35,21 @@ public static class ProviderAuthorizationEndpoints
                 return await service.UpdateAsync(associationId, body, expectedRevision, Actor(http), ct);
             }));
         group.MapPost("/{id:guid}/associations/{associationId:guid}/review", (Guid id, Guid associationId,
-            ReviewOfferingAssociationRequest body, HttpContext http, IProviderOfferingAssociationService service,
+            ReviewOfferingAssociationRequest body, HttpContext http, [FromServices] IProviderOfferingAssociationService service,
             CancellationToken ct) => ExecuteAsync(http, async () =>
             {
                 await EnsureAssociationOfferingAsync(service, id, associationId, ct);
                 return await service.ReviewAsync(associationId, body.ExpectedRevision, body.Approve, body.Rationale, Actor(http), ct);
             }));
         group.MapPost("/{id:guid}/associations/{associationId:guid}/publish", (Guid id, Guid associationId,
-            long expectedRevision, HttpContext http, IProviderOfferingAssociationService service, CancellationToken ct) =>
+            long expectedRevision, HttpContext http, [FromServices] IProviderOfferingAssociationService service, CancellationToken ct) =>
             ExecuteAsync(http, async () =>
             {
                 await EnsureAssociationOfferingAsync(service, id, associationId, ct);
                 return await service.PublishAsync(associationId, expectedRevision, Actor(http), ct);
             }));
         group.MapPost("/{id:guid}/associations/{associationId:guid}/withdraw", (Guid id, Guid associationId,
-            WithdrawOfferingAssociationRequest body, HttpContext http, IProviderOfferingAssociationService service,
+            WithdrawOfferingAssociationRequest body, HttpContext http, [FromServices] IProviderOfferingAssociationService service,
             CancellationToken ct) => ExecuteAsync(http, async () =>
             {
                 await EnsureAssociationOfferingAsync(service, id, associationId, ct);

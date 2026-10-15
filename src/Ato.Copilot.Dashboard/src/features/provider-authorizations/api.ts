@@ -2,6 +2,7 @@ import { PackageImportError, packageRequest } from '../package-imports/request';
 import type {
   AssociatedPackage, BoundaryInput, BoundaryRevision, ExternalDecision, ExternalDecisionInput,
   Finding, FindingInput, FindingEvidence, FindingReview, FindingReviewInput, ProviderPoam, PoamInput, ImpactInput, ImpactPreview, ImpactReview, ImpactTarget, Offering, OfferingIdentityInput, OfferingBoundaryOverview, OfferingOverviewData, PackageReceipt, PackageVersion, Page,
+  OfferingAssociation, OfferingAssociationInput,
 } from './types';
 
 const root = '/api/csp/offerings';
@@ -99,6 +100,37 @@ export async function getBoundaryOverview(id: string, capabilityPage = 1, missio
     throw new Error('The capability and mission overview did not identify the requested offering and current revision. Reload before continuing.');
   return result;
 }
+export const listOfferingAssociations = (id: string, includeDrafts = true, signal?: AbortSignal) =>
+  packageRequest<OfferingAssociation[]>({
+    url: `${offeringPath(id)}/associations`, params: { includeDrafts }, signal,
+  });
+export const createOfferingAssociation = (id: string, data: OfferingAssociationInput) =>
+  packageRequest<OfferingAssociation>({ method: 'POST', url: `${offeringPath(id)}/associations`, data });
+export const updateOfferingAssociation = (id: string, associationId: string, data: OfferingAssociationInput, expectedRevision: number) =>
+  packageRequest<OfferingAssociation>({
+    method: 'PUT',
+    url: `${offeringPath(id)}/associations/${encodeURIComponent(associationId)}`,
+    data,
+    headers: { 'If-Match': String(expectedRevision) },
+  });
+export const reviewOfferingAssociation = (id: string, associationId: string, expectedRevision: number, approve: boolean, rationale: string) =>
+  packageRequest<OfferingAssociation>({
+    method: 'POST',
+    url: `${offeringPath(id)}/associations/${encodeURIComponent(associationId)}/review`,
+    data: { expectedRevision, approve, rationale },
+  });
+export const publishOfferingAssociation = (id: string, associationId: string, expectedRevision: number) =>
+  packageRequest<OfferingAssociation>({
+    method: 'POST',
+    url: `${offeringPath(id)}/associations/${encodeURIComponent(associationId)}/publish`,
+    params: { expectedRevision },
+  });
+export const withdrawOfferingAssociation = (id: string, associationId: string, expectedRevision: number, rationale: string) =>
+  packageRequest<OfferingAssociation>({
+    method: 'POST',
+    url: `${offeringPath(id)}/associations/${encodeURIComponent(associationId)}/withdraw`,
+    data: { expectedRevision, rationale },
+  });
 export const createBoundary = (id: string, data: BoundaryInput & { expectedOfferingRevision: number; predecessorRevisionId: string | null }, key: string) =>
   packageRequest<BoundaryRevision>({ method: 'POST', url: `${offeringPath(id)}/boundary-revisions`, data, headers: keyHeader(key) });
 export const listPackageVersions = (id: string, page = 1, signal?: AbortSignal) =>

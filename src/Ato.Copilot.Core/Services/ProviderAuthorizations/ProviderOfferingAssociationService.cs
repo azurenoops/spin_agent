@@ -44,6 +44,7 @@ public sealed class ProviderOfferingAssociationService(
         if (offering.Revision != request.OfferingRevision)
             throw new DbUpdateConcurrencyException("The offering or capability release revision is stale.");
         Validate(request);
+        await store.CitationsAsync(db, provider, request.SourceProvenance, ct, required: true);
         if (await db.Set<ProviderOfferingAssociationRevision>().AnyAsync(x =>
                 x.ProviderId == provider && x.OfferingId == offeringId
                 && x.ComponentId == request.ComponentId && x.CapabilityId == request.CapabilityId
@@ -77,10 +78,12 @@ public sealed class ProviderOfferingAssociationService(
             throw new InvalidOperationException("An association revision cannot change its component or capability.");
         var (_, release) = await RequirePublishedCapabilityAsync(association.ProviderId, request, ct);
         Validate(request);
+        await store.CitationsAsync(db, association.ProviderId, request.SourceProvenance, ct, required: true);
         var prior = await db.Set<ProviderOfferingAssociationRevision>().SingleAsync(x =>
             x.Id == association.CurrentRevisionId && x.AssociationId == association.Id, ct);
         var revision = BuildRevision(association, release, offering.Revision, request, actor, prior.Id);
         association.Revision++;
+        revision.Revision = association.Revision;
         association.CurrentRevisionId = revision.Id;
         association.Lifecycle = "Draft";
         db.Add(revision);
@@ -120,6 +123,7 @@ public sealed class ProviderOfferingAssociationService(
         revision.ReviewedAt = DateTimeOffset.UtcNow;
         revision.ReviewRationale = Text(rationale, "review rationale", 4000);
         association.Revision++;
+        revision.Revision = association.Revision;
         association.Lifecycle = revision.Status;
         await db.SaveChangesAsync(ct);
         return ToResponse(revision);
@@ -139,7 +143,12 @@ public sealed class ProviderOfferingAssociationService(
         foreach (var prior in published) prior.Status = "Superseded";
         revision.Status = "Published";
         association.Revision++;
+        revision.Revision = association.Revision;
         association.Lifecycle = "Published";
+        var capability = await db.CspInheritedCapabilities.Include(x => x.CspInheritedComponent)
+            .SingleAsync(x => x.Id == association.CapabilityId && x.CspInheritedComponentId == association.ComponentId, ct);
+        await CspResponsibilitySourceTracker.StageAssociationAsync(
+            db, capability, revision.ContentHash, true, actor, ct);
         await db.SaveChangesAsync(ct);
         return ToResponse(revision);
     }
@@ -158,7 +167,12 @@ public sealed class ProviderOfferingAssociationService(
         revision.ReviewedAt = DateTimeOffset.UtcNow;
         revision.ReviewRationale = Text(rationale, "withdrawal rationale", 4000);
         association.Revision++;
+        revision.Revision = association.Revision;
         association.Lifecycle = "Withdrawn";
+        var capability = await db.CspInheritedCapabilities.Include(x => x.CspInheritedComponent)
+            .SingleAsync(x => x.Id == association.CapabilityId && x.CspInheritedComponentId == association.ComponentId, ct);
+        await CspResponsibilitySourceTracker.StageAssociationAsync(
+            db, capability, Hash($"withdrawn:{revision.ContentHash}"), false, actor, ct);
         await db.SaveChangesAsync(ct);
         return ToResponse(revision);
     }
@@ -188,6 +202,8 @@ public sealed class ProviderOfferingAssociationService(
         Bounded(request.SourceProvenance, "source provenance", 1);
         Bounded(request.ProviderCoverage, "provider coverage", 1);
         Bounded(request.CustomerObligations, "customer obligations");
+        foreach (var coverage in request.ProviderCoverage) Text(coverage, "provider coverage statement", 4000);
+        foreach (var obligation in request.CustomerObligations) Text(obligation, "customer obligation", 4000);
         if (request.ContributionRole is not ("Primary" or "Supporting"))
             throw new ArgumentException("Contribution role must be Primary or Supporting.");
     }

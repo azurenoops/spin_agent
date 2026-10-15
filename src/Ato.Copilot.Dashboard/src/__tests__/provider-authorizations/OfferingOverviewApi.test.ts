@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getOfferingOverview, getBoundaryOverview, updateOffering, listDecisions } from '../../features/provider-authorizations/api';
+import {
+  createOfferingAssociation, getOfferingOverview, getBoundaryOverview, listDecisions,
+  publishOfferingAssociation, reviewOfferingAssociation, updateOffering, withdrawOfferingAssociation,
+} from '../../features/provider-authorizations/api';
 import { offering } from './testData';
 import { packageRequest } from '../../features/package-imports/request';
 import { offeringOverview } from './overviewFixtures';
@@ -105,5 +108,37 @@ describe('offering overview transport', () => {
       params: { page: 1, pageSize: 25, recordKind: 'ProviderDecision' },
     }));
     expect(packageRequest).toHaveBeenNthCalledWith(2, expect.objectContaining({ params: { page: 1, pageSize: 25 } }));
+  });
+  it('uses explicit revision-fenced association lifecycle requests', async () => {
+    // Arrange
+    vi.mocked(packageRequest).mockResolvedValue({});
+    const input = {
+      componentId: 'component-1', capabilityId: 'capability-1', capabilityReleaseId: 'release-1',
+      offeringRevision: 4, sourceProvenance: [], providerCoverage: ['AC-2'], customerObligations: ['AC-2(1)'],
+      contributionRole: 'Primary' as const,
+    };
+
+    // Act
+    await createOfferingAssociation('offering-1', input);
+    await reviewOfferingAssociation('offering-1', 'association-1', 2, true, 'Reviewed source and duties.');
+    await publishOfferingAssociation('offering-1', 'association-1', 3);
+    await withdrawOfferingAssociation('offering-1', 'association-1', 4, 'Release retired.');
+
+    // Assert
+    expect(packageRequest).toHaveBeenNthCalledWith(1, {
+      method: 'POST', url: '/api/csp/offerings/offering-1/associations', data: input,
+    });
+    expect(packageRequest).toHaveBeenNthCalledWith(2, {
+      method: 'POST', url: '/api/csp/offerings/offering-1/associations/association-1/review',
+      data: { expectedRevision: 2, approve: true, rationale: 'Reviewed source and duties.' },
+    });
+    expect(packageRequest).toHaveBeenNthCalledWith(3, {
+      method: 'POST', url: '/api/csp/offerings/offering-1/associations/association-1/publish',
+      params: { expectedRevision: 3 },
+    });
+    expect(packageRequest).toHaveBeenNthCalledWith(4, {
+      method: 'POST', url: '/api/csp/offerings/offering-1/associations/association-1/withdraw',
+      data: { expectedRevision: 4, rationale: 'Release retired.' },
+    });
   });
 });

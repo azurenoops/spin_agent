@@ -29,7 +29,7 @@ export interface BoundaryRevision extends BoundaryInput {
   snapshotHash: string; predecessorRevisionId: string | null; createdAt: string;
 }
 export interface OfferingBoundaryCapability {
-  capabilityId: string | null; candidateId: string | null; packageId: string | null; name: string;
+  componentId?: string | null; capabilityId: string | null; candidateId: string | null; packageId: string | null; name: string;
   reviewState: string; publicationState: string; releaseId: string | null; boundaryRevisionId: string | null;
   releaseRevision?: number | null;
 }
@@ -51,6 +51,31 @@ export interface OfferingBoundaryOverview {
   offeringId: string; offeringRevision: number;
   capabilities: Page<OfferingBoundaryCapability> & { awaitingReview: number; published: number };
   missionSystems: Page<OfferingBoundaryMission>;
+}
+export type OfferingAssociationStatus = 'Draft' | 'Reviewed' | 'Rejected' | 'Published' | 'Superseded' | 'Withdrawn';
+export interface OfferingAssociationInput {
+  componentId: string;
+  capabilityId: string;
+  capabilityReleaseId: string;
+  offeringRevision: number;
+  sourceProvenance: Citation[];
+  providerCoverage: string[];
+  customerObligations: string[];
+  contributionRole: 'Primary' | 'Supporting';
+}
+export interface OfferingAssociation extends OfferingAssociationInput {
+  associationId: string;
+  revisionId: string;
+  offeringId: string;
+  capabilityReleaseRevision: number;
+  revision: number;
+  status: OfferingAssociationStatus;
+  author: string;
+  reviewer: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  reviewRationale: string | null;
+  contentHash: string;
 }
 export interface OfferingOverviewData {
   offeringId: string; offeringRevision: number;

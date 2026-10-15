@@ -65,7 +65,27 @@ public sealed partial class SystemEnvironmentServiceTests
                 Capability = new { Name = "Exact released capability", Description = "Source-stated operational description." }
             });
             release.SnapshotHash = "retained-release-hash";
-            (await db.CspInheritedCapabilities.SingleAsync()).Name = "Changed working name not the reviewed release";
+            var capability = await db.CspInheritedCapabilities.SingleAsync();
+            capability.Name = "Changed working name not the reviewed release";
+            db.Set<ProviderOfferingAssociationRevision>().Add(new()
+            {
+                AssociationId = Guid.NewGuid(),
+                ProviderId = f.ProviderId,
+                OfferingId = f.OfferingId,
+                ComponentId = capability.CspInheritedComponentId,
+                CapabilityId = capability.Id,
+                CapabilityReleaseId = release.Id,
+                CapabilityReleaseRevision = release.Revision,
+                OfferingRevision = 1,
+                Status = "Published",
+                SourceProvenanceJson = "[]",
+                ProviderCoverageJson = """["SC-7"]""",
+                CustomerObligationsJson = """["Maintain customer-managed access reviews"]""",
+                ContentHash = "association-content-hash",
+                Author = "provider-author",
+                Reviewer = "provider-reviewer",
+                ReviewedAt = DateTimeOffset.UtcNow
+            });
             await db.SaveChangesAsync();
         }
         var tenant = Tenant();
@@ -80,8 +100,11 @@ public sealed partial class SystemEnvironmentServiceTests
         duties.CapabilityName.Should().Be("Exact released capability");
         duties.Description.Should().Be("Source-stated operational description.");
         duties.CustomerControlIds.Should().Equal("AC-2");
-        duties.SharedControlIds.Should().Equal("AU-2");
-        duties.ProviderControlIds.Should().Equal("SC-7");
+        duties.SharedControlIds.Should().Equal("AU-2", "SC-7");
+        duties.ProviderControlIds.Should().BeEmpty();
+        duties.AssociationContentHash.Should().Be("association-content-hash");
+        duties.ProviderCoverage.Should().Equal("SC-7");
+        duties.CustomerObligations.Should().Equal("Maintain customer-managed access reviews");
         await using var verify = new AtoCopilotContext(_options);
         (await verify.Set<ProviderHostingAssignment>().CountAsync()).Should().Be(0);
         (await verify.CapabilitySubscriptions.CountAsync()).Should().Be(0);

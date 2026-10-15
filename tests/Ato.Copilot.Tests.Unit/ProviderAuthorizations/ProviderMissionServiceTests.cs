@@ -417,6 +417,9 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
         firstExport.ProviderProvenanceGaps.Should().BeEmpty();
         secondExport.ProviderProvenanceGaps.Should().BeEmpty();
         ExportedProperty(firstExport, "release-id").Should().Be(firstRelease.Id.ToString());
+        ExportedProperty(firstExport, "association-revision-id").Should().NotBeNullOrWhiteSpace();
+        ExportedProperty(firstExport, "association-content-hash").Should().Be("association-hash");
+        ExportedProperty(firstExport, "association-contribution-role").Should().Be("Primary");
         ExportedProperty(secondExport, "release-id").Should().Be(nextRelease.Id.ToString());
         ExportedProperty(afterReplay, "adoption-id").Should().Be(second.AdoptionSnapshotId.ToString());
         (await db.Set<CapabilityAdoptionSnapshot>().CountAsync()).Should().Be(2);

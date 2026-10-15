@@ -108,10 +108,8 @@ public static class ProviderAuthorizationSchemaAdditions
                 {ScopedReference("ImpactReviewId", "ProviderAuthorizationImpactReviews")}
                 """,
             ["ProviderOfferingAssociations"] = $"""
-                ComponentId {guid} NOT NULL, CapabilityId {guid} NOT NULL, Revision {number} NOT NULL,
-                Lifecycle {Short(24)} NOT NULL, CreatedBy {Short(254)} NOT NULL, CreatedAt {date} NOT NULL,
-                CurrentRevisionId {guid} NULL,
-                CONSTRAINT AK_ProviderOfferingAssociations_ProviderId_Id UNIQUE (ProviderId, Id)
+                ComponentId {guid} NOT NULL, CapabilityId {guid} NOT NULL,
+                Lifecycle {Short(24)} NOT NULL, CurrentRevisionId {guid} NULL
                 """,
             ["ProviderOfferingAssociationRevisions"] = $"""
                 AssociationId {guid} NOT NULL, ComponentId {guid} NOT NULL, CapabilityId {guid} NOT NULL,
@@ -208,7 +206,9 @@ public static class ProviderAuthorizationSchemaAdditions
         var scripts = new List<string>();
         foreach (var (table, extra) in columns)
         {
-            var common = $"""
+            var common = table == "ProviderOfferingAssociationRevisions" ? $"""
+                Id {guid} NOT NULL PRIMARY KEY, ProviderId {guid} NOT NULL, OfferingId {guid} NOT NULL
+                """ : $"""
                 Id {guid} NOT NULL PRIMARY KEY, ProviderId {guid} NOT NULL, OfferingId {guid} NOT NULL,
                 Revision {number} NOT NULL, CreatedAt {date} NOT NULL, CreatedBy {Short(254)} NOT NULL
                 """;

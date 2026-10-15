@@ -63,6 +63,47 @@ public sealed partial class ProviderMissionServiceTests
             .WithMessage("*cannot change its component or capability*");
     }
 
+    [Fact]
+    public async Task OfferingAssociation_ReviewPublishWithdraw_ReturnsCurrentConcurrencyRevisionAndPersistsHistory()
+    {
+        // Arrange
+        var (capabilityId, release) = await SeedPublishedAsync(false);
+        var component = await ComponentForAsync(capabilityId);
+        var providerTenant = new TenantContext(Guid.Empty) { IsCspAdmin = true };
+        using var scope = _accessor.Push(providerTenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = AssociationService(db, providerTenant);
+        var created = await service.CreateAsync(_offering.Id,
+            AssociationRequest(component.Id, capabilityId, release.Id), "author", default);
+
+        // Act
+        var reviewed = await service.ReviewAsync(created.AssociationId, created.Revision, true,
+            "Reviewed exact source, coverage, and obligations.", "reviewer", default);
+        var stalePublish = () => service.PublishAsync(created.AssociationId, created.Revision, "publisher", default);
+        var published = await service.PublishAsync(created.AssociationId, reviewed.Revision, "publisher", default);
+        var withdrawn = await service.WithdrawAsync(created.AssociationId, published.Revision,
+            "Synthetic release retired.", "reviewer", default);
+
+        // Assert
+        reviewed.Revision.Should().Be(2);
+        published.Revision.Should().Be(3);
+        withdrawn.Revision.Should().Be(4);
+        await stalePublish.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        var aggregate = await db.ProviderOfferingAssociations.SingleAsync(x => x.Id == created.AssociationId);
+        var revision = await db.ProviderOfferingAssociationRevisions.SingleAsync(x => x.AssociationId == created.AssociationId);
+        aggregate.Lifecycle.Should().Be("Withdrawn");
+        aggregate.Revision.Should().Be(4);
+        revision.Status.Should().Be("Withdrawn");
+        revision.Revision.Should().Be(4);
+        revision.ProviderCoverageJson.Should().Contain("AC-2");
+        revision.CustomerObligationsJson.Should().Contain("AC-4");
+        var sourceEvents = await db.Set<CspResponsibilitySourceEvent>().OrderBy(x => x.Sequence).ToListAsync();
+        sourceEvents.Should().HaveCount(2);
+        sourceEvents[0].SourceRevision.Should().Be(revision.ContentHash);
+        sourceEvents[0].IsAvailable.Should().BeTrue();
+        sourceEvents[1].IsAvailable.Should().BeFalse();
+    }
+
     private async Task<CspInheritedComponent> ComponentForAsync(Guid capabilityId)
     {
         await using var db = new AtoCopilotContext(_options);

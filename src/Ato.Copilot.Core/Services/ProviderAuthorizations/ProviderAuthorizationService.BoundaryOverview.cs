@@ -54,7 +54,7 @@ public sealed partial class ProviderAuthorizationService
         var releaseIds = contexts.Select(x => x.ReleaseId!.Value).Distinct().ToArray();
         var catalog = await db.CspInheritedCapabilities.AsNoTracking()
             .Where(x => capabilityIds.Contains(x.Id) && x.CspInheritedComponent.CspProfileId == offering.ProviderId)
-            .Select(x => new { x.Id, x.Name, x.Status }).ToDictionaryAsync(x => x.Id, ct);
+            .Select(x => new { x.Id, x.CspInheritedComponentId, x.Name, x.Status }).ToDictionaryAsync(x => x.Id, ct);
         var releases = await db.ProviderCapabilityReleases.AsNoTracking()
             .Where(x => releaseIds.Contains(x.Id) && capabilityIds.Contains(x.CapabilityId))
             .Select(x => new { x.Id, x.CapabilityId, x.Revision }).ToDictionaryAsync(x => x.Id, ct);
@@ -77,7 +77,8 @@ public sealed partial class ProviderAuthorizationService
                 capability.Status == CspInheritedCapabilityStatus.Archived ? "Archived" : "Published",
                 context.ReleaseId, material.BoundaryRevisionId)
             {
-                ReleaseRevision = releases[context.ReleaseId!.Value].Revision
+                ReleaseRevision = releases[context.ReleaseId!.Value].Revision,
+                ComponentId = capability.CspInheritedComponentId
             });
         }
 

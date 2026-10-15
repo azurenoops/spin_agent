@@ -73,6 +73,8 @@ public sealed record OfferingBoundaryCapability(Guid? CapabilityId, Guid? Candid
 {
     /// <summary>Canonical integer revision of the exact retained release; null for unpublished proposals.</summary>
     public long? ReleaseRevision { get; init; }
+    /// <summary>Provider-owned component containing the exact capability; null for unpublished proposals.</summary>
+    public Guid? ComponentId { get; init; }
 }
 /// <summary>An assignment with separately observed association and active, assignment-bound adoption count.</summary>
 public sealed record OfferingBoundaryMission(Guid AssignmentId, string SystemId, string? SystemName,

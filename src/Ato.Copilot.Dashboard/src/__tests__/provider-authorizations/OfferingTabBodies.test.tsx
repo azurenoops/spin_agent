@@ -15,7 +15,9 @@ import { WorkspaceNavigationProvider } from '../../features/workspaces/workspace
 
 vi.mock('../../features/provider-authorizations/api', async original => ({
   ...await original<typeof api>(), getBoundaryOverview: vi.fn(), listFindings: vi.fn(), listFindingEvidence: vi.fn(),
-  getFinding: vi.fn(), submitFindingEvidence: vi.fn(),
+  getFinding: vi.fn(), submitFindingEvidence: vi.fn(), listOfferingAssociations: vi.fn(),
+  createOfferingAssociation: vi.fn(), reviewOfferingAssociation: vi.fn(), publishOfferingAssociation: vi.fn(),
+  withdrawOfferingAssociation: vi.fn(),
 }));
 vi.mock('../../features/workspace-operations/api', async original => ({
   ...await original<typeof catalogApi>(), getProviderCapability: vi.fn(),
@@ -34,6 +36,7 @@ const finding = { findingId: 'finding-1', offeringId: offering.offeringId, revis
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(packageApi.getPackageCandidates).mockReset();
+  vi.mocked(api.listOfferingAssociations).mockResolvedValue([]);
   vi.mocked(api.getBoundaryOverview).mockImplementation(async (_id, next = 1) => ({
     offeringId: offering.offeringId, offeringRevision: offering.revision,
     capabilities: { items: capabilities.slice(next - 1, next), page: next, pageSize: 1, total: 2, published: 2, awaitingReview: 0 },
@@ -122,6 +125,47 @@ it('presents the offering implementation drawer with readable sections, exact du
   expect(within(drawer).queryByRole('textbox')).not.toBeInTheDocument();
   expect(drawer).toHaveTextContent('not an immutable release payload');
   expect(drawer).not.toHaveTextContent('Owns the listed shared-service operations');
+});
+
+it('creates an explicit source-backed offering association without implying responsibility acceptance', async () => {
+  // Arrange
+  vi.mocked(api.getBoundaryOverview).mockResolvedValue({
+    offeringId: offering.offeringId, offeringRevision: offering.revision,
+    capabilities: { ...page([{ ...capabilities[0]!, componentId: 'capability-0', candidateId: 'candidate-7', packageId: 'package-7' }]), published: 1, awaitingReview: 0 },
+    missionSystems: page([]),
+  });
+  vi.mocked(packageApi.getPackageCandidates).mockResolvedValue(page([candidate({
+    candidateId: 'candidate-7',
+    controlDuties: { 'CP-9': 'Provider', 'CP-10': 'Customer' },
+    citations: [{ artifactId: 'artifact-1', archivePath: 'source.json', locator: 'control:CP-9', quote: 'Provider operates backup.' }],
+  })]));
+  vi.mocked(api.createOfferingAssociation).mockResolvedValue({
+    associationId: 'association-1', revisionId: 'association-revision-1',
+    offeringId: offering.offeringId, componentId: 'capability-0', capabilityId: 'capability-0',
+    capabilityReleaseId: 'release-0', capabilityReleaseRevision: 3, offeringRevision: offering.revision,
+    revision: 1, status: 'Draft', sourceProvenance: [], providerCoverage: ['CP-9'],
+    customerObligations: ['CP-10'], contributionRole: 'Primary', author: 'provider',
+    reviewer: null, createdAt: '2026-10-14T00:00:00Z', reviewedAt: null, reviewRationale: null, contentHash: 'hash',
+  });
+  render(<MemoryRouter><WorkspaceNavigationProvider workspace={{ kind: 'csp' }}>
+    <OfferingCapabilities offering={offering} />
+  </WorkspaceNavigationProvider></MemoryRouter>);
+  await screen.findByRole('table', { name: 'Service implementations' });
+  fireEvent.click(screen.getByRole('button', { name: 'Azure Backup' }));
+  const drawer = screen.getByRole('dialog', { name: 'Azure Backup' });
+  fireEvent.change(within(drawer).getByLabelText('Remaining customer obligations'), { target: { value: 'CP-10' } });
+
+  // Act
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Create association proposal' }));
+
+  // Assert
+  await waitFor(() => expect(api.createOfferingAssociation).toHaveBeenCalledWith(offering.offeringId, expect.objectContaining({
+    componentId: 'capability-0', capabilityId: 'capability-0', capabilityReleaseId: 'release-0',
+    offeringRevision: offering.revision, providerCoverage: ['CP-9', 'CP-10'], customerObligations: ['CP-10'],
+    contributionRole: 'Primary', sourceProvenance: [expect.objectContaining({ packageId: 'package-7', artifactId: 'artifact-1' })],
+  })));
+  expect(api.reviewOfferingAssociation).not.toHaveBeenCalled();
+  expect(api.publishOfferingAssociation).not.toHaveBeenCalled();
 });
 
 it('keeps unavailable duties explicit for a draft catalog-only implementation, with no fabricated published revision', async () => {

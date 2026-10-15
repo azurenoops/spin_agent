@@ -17,8 +17,17 @@ internal static class ProviderDocumentProvenance
 {
     internal sealed record DocumentProjection(string Content, IReadOnlyList<string> SourceGaps, IReadOnlyList<string> AccessGaps);
     internal sealed record Source(CapabilityAdoptionSnapshot Adoption, ProviderAuthorizationRevision Revision,
-        CreateProviderDecisionRequest Decision, ProviderCapabilityRelease Release, ProviderCatalogContextSnapshot Context);
-    private sealed record ReleasePin(string ReleaseSnapshotHash, long ReleaseRevision);
+        CreateProviderDecisionRequest Decision, ProviderCapabilityRelease Release, ProviderCatalogContextSnapshot Context,
+        ProviderOfferingAssociationRevision? Association);
+    private sealed record ReleasePin(
+        string ReleaseSnapshotHash,
+        long ReleaseRevision,
+        Guid? AssociationRevisionId = null,
+        long? AssociationRevision = null,
+        string? AssociationContentHash = null,
+        IReadOnlyList<string>? AssociationProviderCoverage = null,
+        IReadOnlyList<string>? AssociationCustomerObligations = null,
+        string? AssociationContributionRole = null);
     private sealed record AdoptionMaterial(AdoptProviderCapabilityRequest Request, ReleasePin Selected);
 
     internal static async Task<DocumentProjection> ProjectDocumentAsync(AtoCopilotContext db, RegisteredSystem system, CancellationToken ct)
@@ -54,6 +63,13 @@ internal static class ProviderDocumentProvenance
             text.AppendLine($"Scope: {source.Decision.ScopeStatement}");
             text.AppendLine($"Conditions: {string.Join("; ", source.Decision.Conditions)}");
             text.AppendLine($"Selected release: {source.Release.Id}; revision: {source.Release.Revision}; SHA-256: {source.Release.SnapshotHash}");
+            if (source.Association is not null)
+            {
+                text.AppendLine($"Offering association: {source.Association.Id}; revision: {source.Association.Revision}; SHA-256: {source.Association.ContentHash}");
+                text.AppendLine($"Association contribution: {source.Association.ContributionRole}");
+                text.AppendLine($"Association provider coverage: {string.Join("; ", Read<string[]>(source.Association.ProviderCoverageJson))}");
+                text.AppendLine($"Association customer obligations: {string.Join("; ", Read<string[]>(source.Association.CustomerObligationsJson))}");
+            }
             text.AppendLine($"Adoption: {source.Adoption.Id}; decision revision: {source.Revision.Id}; source SHA-256: {source.Revision.SnapshotHash}");
             text.AppendLine($"Publication context: {source.Context.Id}; SHA-256: {source.Context.SnapshotHash}");
             var matching = confirmations.Where(c => c.SubscriptionId == source.Adoption.SubscriptionId
@@ -141,6 +157,18 @@ internal static class ProviderDocumentProvenance
             && release.Revision == retained.Selected.ReleaseRevision
             && release.SnapshotHash == retained.Selected.ReleaseSnapshotHash,
             "The exact adopted release is unavailable or changed.");
+        ProviderOfferingAssociationRevision? association = null;
+        if (retained.Selected.AssociationRevisionId is { } associationId)
+        {
+            association = await db.Set<ProviderOfferingAssociationRevision>().IgnoreQueryFilters().AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == associationId && x.ProviderId == adoption.ProviderId
+                    && x.OfferingId == adoption.OfferingId && x.CapabilityId == adoption.CapabilityId
+                    && x.CapabilityReleaseId == adoption.ReleaseId, ct);
+            Require(association != null
+                && association.Revision == retained.Selected.AssociationRevision
+                && association.ContentHash == retained.Selected.AssociationContentHash,
+                "The exact adopted offering association is unavailable or changed.");
+        }
 
         // Provider-owned metadata is accessible only via the tenant/system-scoped adoption above
         // and the exact provider/offering/context IDs. No current/latest-provider lookup is permitted.
@@ -172,7 +200,7 @@ internal static class ProviderDocumentProvenance
             Require(source.RecordKind is "ProviderDecision" or "InheritedMicrosoftReference" or "InheritedProviderReference", "The recorded source kind is unsupported.");
             var blocker = ProviderDecisionEligibility.Evaluate(revision, events, source.RecordKind);
             Require(blocker == null, blocker?.Message ?? "");
-            result.Add(new(adoption, revision, source, release!, context));
+            result.Add(new(adoption, revision, source, release!, context, association));
         }
         return result;
     }
@@ -204,6 +232,17 @@ internal static class ProviderDocumentProvenance
                 Prop("context-snapshot-id", source.Adoption.ContextSnapshotId.ToString()),
                 Prop("offering-id", source.Adoption.OfferingId.ToString())
             };
+            if (source.Association is not null)
+            {
+                props.Add(Prop("association-revision-id", source.Association.Id.ToString()));
+                props.Add(Prop("association-revision", source.Association.Revision.ToString(CultureInfo.InvariantCulture)));
+                props.Add(Prop("association-content-hash", source.Association.ContentHash));
+                props.Add(Prop("association-contribution-role", source.Association.ContributionRole));
+                foreach (var coverage in Read<string[]>(source.Association.ProviderCoverageJson))
+                    props.Add(Prop("association-provider-coverage", coverage));
+                foreach (var obligation in Read<string[]>(source.Association.CustomerObligationsJson))
+                    props.Add(Prop("association-customer-obligation", obligation));
+            }
             if (source.Decision.EffectiveOn != null) props.Add(Prop("effective-on", source.Decision.EffectiveOn));
             if (!string.IsNullOrWhiteSpace(source.Decision.UpstreamProvider)) props.Add(Prop("upstream-provider", source.Decision.UpstreamProvider));
             if (source.Decision.ExpiresOn != null) props.Add(Prop("expires-on", source.Decision.ExpiresOn));

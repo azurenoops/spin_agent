@@ -105,4 +105,17 @@ public static class CspResponsibilitySourceTracker
         db.Set<CspResponsibilitySourceEvent>().Add(sourceEvent);
         return sourceEvent;
     }
+
+    public static async Task<CspResponsibilitySourceEvent> StageAssociationAsync(
+        AtoCopilotContext db,
+        CspInheritedCapability capability,
+        string associationContentHash,
+        bool isAvailable,
+        string actor,
+        CancellationToken ct)
+    {
+        var sourceEvent = await StageReleaseAsync(db, capability, associationContentHash, actor, ct);
+        sourceEvent.IsAvailable = isAvailable;
+        return sourceEvent;
+    }
 }

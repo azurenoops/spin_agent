@@ -5,7 +5,7 @@ import { Pager, Status, useRemote } from '../workspace-operations/workspaceUi';
 import { getPackageCandidates } from '../package-imports/api';
 import { stateLabel } from '../package-imports/PackageReceipts';
 import * as api from './api';
-import type { Offering, OfferingBoundaryCapability } from './types';
+import type { Offering, OfferingAssociation, OfferingAssociationInput, OfferingBoundaryCapability } from './types';
 import { ProviderBadge, ProviderPanel } from './ProviderPresentation';
 import { readAllPages } from './providerReadModels';
 import SetupDialog from '../workspace-operations/SetupDialog';
@@ -25,6 +25,11 @@ export function OfferingCapabilities({ offering }: { offering: Offering }) {
     }
   }, [selected]);
   const [openingProvenance, setOpeningProvenance] = useState<string | null>(null);
+  const [associationPending, setAssociationPending] = useState(false);
+  const [associationError, setAssociationError] = useState<string | null>(null);
+  const [reviewRationale, setReviewRationale] = useState('Reviewed against the retained component, release, coverage, and customer obligations.');
+  const associations = useRemote(signal => api.listOfferingAssociations(offering.offeringId, true, signal),
+    [offering.offeringId, offering.revision]);
   const remote = useRemote(async signal => {
     const first = await api.getBoundaryOverview(offering.offeringId, 1, 1, signal);
     const items = await readAllPages(async next => {
@@ -73,6 +78,30 @@ export function OfferingCapabilities({ offering }: { offering: Offering }) {
         <strong>{remote.data.published} capabilities available · {remote.data.awaitingReview} awaiting review</strong>
         <p>Mission Owners use the published release until they review a replacement.</p>
       </div><ProviderBadge tone={remote.data.published ? 'success' : 'neutral'}>{releaseLabel}</ProviderBadge></div>
+      <ProviderPanel title="Offering association proposals"
+        description={<p>Only a reviewed and published association makes an exact capability release eligible for organization selection. Catalog publication alone does not.</p>}>
+        <Status loading={associations.loading} error={associations.error} retry={associations.retry} />
+        {associationError && <p role="alert" className="mb-3">{associationError}</p>}
+        {associations.data && !associations.data.length && <p>No offering-specific association has been proposed.</p>}
+        {!!associations.data?.length && <div className="provider-table-wrap"><table className="provider-table" aria-label="Offering association proposals">
+          <thead><tr><th>Capability release</th><th>Coverage and obligations</th><th>Review state</th><th>Actions</th></tr></thead>
+          <tbody>{associations.data.map(association => <tr key={association.revisionId}>
+            <td data-label="Capability release"><strong>{association.capabilityId}</strong><small>Release revision {association.capabilityReleaseRevision} · association revision {association.revision}</small></td>
+            <td data-label="Coverage and obligations"><small>{association.providerCoverage.join('; ') || 'No provider coverage recorded'}</small>
+              <small>{association.customerObligations.join('; ') || 'No remaining customer obligations'}</small></td>
+            <td data-label="Review state"><ProviderBadge tone={association.status === 'Published' ? 'success' : association.status === 'Rejected' || association.status === 'Withdrawn' ? 'attention' : 'neutral'}>{stateLabel(association.status)}</ProviderBadge>
+              <small>{association.contributionRole} contribution</small></td>
+            <td data-label="Actions"><AssociationActions association={association} pending={associationPending}
+              rationale={reviewRationale} setRationale={setReviewRationale}
+              run={async action => {
+                setAssociationPending(true); setAssociationError(null);
+                try { await action(); associations.retry(); } catch (error) {
+                  setAssociationError(error instanceof Error ? error.message : 'The association action failed.');
+                } finally { setAssociationPending(false); }
+              }} offeringId={offering.offeringId} /></td>
+          </tr>)}</tbody>
+        </table></div>}
+      </ProviderPanel>
       <ProviderPanel title="Service implementations">
         <div className="provider-toolbar mb-4 flex flex-wrap items-center justify-between gap-3">
           <input type="text" aria-label="Search capabilities" placeholder="Search capabilities or controls"
@@ -180,6 +209,10 @@ export function OfferingCapabilities({ offering }: { offering: Offering }) {
             </li>)}</ul>
           </details> : <p className="offering-implementation-muted">No retained source citations supplied by this read model. Evidence and review remain in the capability workflow.</p>}
         </section>
+        {selected.capabilityId && selected.releaseId && selectedRecord?.detail?.componentId
+          && <AssociationProposalForm offering={offering} item={selected} detail={selectedRecord.detail}
+            pending={associationPending} onCreated={() => { associations.retry(); setSelected(null); }}
+            setPending={setAssociationPending} setError={setAssociationError} />}
         <details><summary>Source and release identities</summary>
           <dl><div><dt>Published capability release</dt><dd>{selected.releaseRevision != null ? `Revision ${selected.releaseRevision}` : 'Release version not reported'}</dd></div>
             <div><dt>Offering identity</dt><dd>{offering.lifecycle} · revision {offering.revision}</dd></div></dl>
@@ -192,7 +225,14 @@ export function OfferingCapabilities({ offering }: { offering: Offering }) {
   </div>;
 }
 
-interface CapabilityDetails { description: string; controls: string[]; duties: Record<string, string> | null; provenance: string; citations: PackageCitation[] }
+interface CapabilityDetails {
+  componentId: string | null;
+  description: string;
+  controls: string[];
+  duties: Record<string, string> | null;
+  provenance: string;
+  citations: PackageCitation[];
+}
 
 async function readCapabilityDetails(item: OfferingBoundaryCapability, signal: AbortSignal, sources: Map<string, Promise<PackageCandidate[]>>): Promise<CapabilityDetails | null> {
   if (item.packageId && item.candidateId) {
@@ -201,17 +241,86 @@ async function readCapabilityDetails(item: OfferingBoundaryCapability, signal: A
     const records = await sources.get(item.packageId)!;
     const record = records.find(candidate => candidate.candidateId === item.candidateId);
     if (!record) throw new Error('The retained source proposal could not be found.');
-    return { description: record.description, controls: Object.keys(record.controlDuties), duties: record.controlDuties,
+    return { componentId: item.componentId ?? null, description: record.description, controls: Object.keys(record.controlDuties), duties: record.controlDuties,
       provenance: `Retained source proposal revision ${record.revision} · ${stateLabel(record.reviewState)}. Proposal revision is not capability release revision.`,
       citations: record.citations };
   }
-  if (item.capabilityId) {
-    const record = await getProviderCapability(item.capabilityId, signal);
-    return { description: record.capability.description, controls: record.mappedControlIds, duties: null,
-      provenance: `Current catalog context · working revision ${record.capability.workingRevision ?? 'not reported'} · ${record.capability.sourceFormat || 'source format not reported'}${record.capability.sourceReference ? ` · ${record.capability.sourceReference}` : ''}. Catalog metadata is not the pinned release snapshot.`,
+  const catalog = item.capabilityId ? await getProviderCapability(item.capabilityId, signal) : null;
+  if (catalog) {
+    return { componentId: catalog.capability.componentId, description: catalog.capability.description, controls: catalog.mappedControlIds, duties: null,
+      provenance: `Current catalog context · working revision ${catalog.capability.workingRevision ?? 'not reported'} · ${catalog.capability.sourceFormat || 'source format not reported'}${catalog.capability.sourceReference ? ` · ${catalog.capability.sourceReference}` : ''}. Catalog metadata is not the pinned release snapshot.`,
       citations: [] };
   }
   return null;
+}
+
+function AssociationActions({ association, offeringId, pending, rationale, setRationale, run }: {
+    association: OfferingAssociation;
+    offeringId: string;
+    pending: boolean;
+    rationale: string;
+    setRationale: (value: string) => void;
+    run: (action: () => Promise<unknown>) => Promise<void>;
+  }) {
+    return <div className="grid gap-2">
+      {['Draft', 'Rejected'].includes(association.status) && <>
+        <input aria-label={`Review rationale for ${association.capabilityId}`} value={rationale}
+          onChange={event => setRationale(event.target.value)} className="rounded border border-slate-300 p-2 text-xs" />
+        <div className="flex flex-wrap gap-2">
+          <button className="provider-secondary" disabled={pending || !rationale.trim()}
+            onClick={() => run(() => api.reviewOfferingAssociation(offeringId, association.associationId, association.revision, true, rationale))}>Approve review</button>
+          <button className="provider-secondary" disabled={pending || !rationale.trim()}
+            onClick={() => run(() => api.reviewOfferingAssociation(offeringId, association.associationId, association.revision, false, rationale))}>Reject</button>
+        </div>
+      </>}
+      {association.status === 'Reviewed' && <button className="provider-primary" disabled={pending}
+        onClick={() => run(() => api.publishOfferingAssociation(offeringId, association.associationId, association.revision))}>Publish association</button>}
+      {association.status === 'Published' && <button className="provider-secondary" disabled={pending || !rationale.trim()}
+        onClick={() => run(() => api.withdrawOfferingAssociation(offeringId, association.associationId, association.revision, rationale))}>Withdraw association</button>}
+    </div>;
+}
+
+function AssociationProposalForm({ offering, item, detail, pending, onCreated, setPending, setError }: {
+    offering: Offering;
+    item: OfferingBoundaryCapability;
+    detail: CapabilityDetails;
+    pending: boolean;
+    onCreated: () => void;
+    setPending: (value: boolean) => void;
+    setError: (value: string | null) => void;
+  }) {
+    const [coverage, setCoverage] = useState(detail.controls.join('\n'));
+    const [obligations, setObligations] = useState('');
+    const [role, setRole] = useState<'Primary' | 'Supporting'>('Primary');
+    if (!item.capabilityId || !item.releaseId || !detail.componentId) return null;
+    const citations = detail.citations.map(citation => ({
+      packageId: item.packageId!, artifactId: citation.artifactId, archivePath: citation.archivePath,
+      locator: citation.locator, quote: citation.quote,
+    }));
+    const submit = async () => {
+      const data: OfferingAssociationInput = {
+        componentId: detail.componentId!, capabilityId: item.capabilityId!, capabilityReleaseId: item.releaseId!,
+        offeringRevision: offering.revision, sourceProvenance: citations,
+        providerCoverage: coverage.split('\n').map(value => value.trim()).filter(Boolean),
+        customerObligations: obligations.split('\n').map(value => value.trim()).filter(Boolean),
+        contributionRole: role,
+      };
+      setPending(true); setError(null);
+      try { await api.createOfferingAssociation(offering.offeringId, data); onCreated(); }
+      catch (error) { setError(error instanceof Error ? error.message : 'The association proposal could not be created.'); }
+      finally { setPending(false); }
+    };
+    return <section aria-label="Propose offering association" className="grid gap-3">
+      <h3>Propose this release for the offering</h3>
+      {!citations.length && <p role="alert">A retained source citation is required. Review and link source evidence before proposing this catalog release.</p>}
+      <label>Provider coverage<textarea value={coverage} onChange={event => setCoverage(event.target.value)}
+        className="mt-1 min-h-24 w-full rounded border border-slate-300 p-2" /></label>
+      <label>Remaining customer obligations<textarea value={obligations} onChange={event => setObligations(event.target.value)}
+        className="mt-1 min-h-20 w-full rounded border border-slate-300 p-2" /></label>
+      <label>Contribution role<select value={role} onChange={event => setRole(event.target.value as 'Primary' | 'Supporting')}
+        className="ml-2 rounded border border-slate-300 p-2"><option>Primary</option><option>Supporting</option></select></label>
+      <button className="provider-primary" disabled={pending || !citations.length || !coverage.trim()} onClick={submit}>Create association proposal</button>
+    </section>;
 }
 
 function CapabilityRow({ item, detail, error, retry, onOpen, triggerRef }: {

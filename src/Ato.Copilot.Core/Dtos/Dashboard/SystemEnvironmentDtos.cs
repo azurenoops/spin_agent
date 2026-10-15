@@ -95,7 +95,14 @@ public sealed record ProviderScopeUnavailableCapability(Guid CapabilityId, strin
     Guid ReleaseId, long ReleaseRevision, string Reason);
 public sealed record ProviderScopeCapabilityDuties(Guid CapabilityId, string CapabilityName, string? Description,
     Guid ReleaseId, long ReleaseRevision, string ReleaseSnapshotHash, string ContentHash, Guid ApplicabilityContextId,
-    IReadOnlyList<string> ProviderControlIds, IReadOnlyList<string> SharedControlIds, IReadOnlyList<string> CustomerControlIds);
+    IReadOnlyList<string> ProviderControlIds, IReadOnlyList<string> SharedControlIds, IReadOnlyList<string> CustomerControlIds)
+{
+    public Guid? AssociationRevisionId { get; init; }
+    public string? AssociationContentHash { get; init; }
+    public IReadOnlyList<string> ProviderCoverage { get; init; } = [];
+    public IReadOnlyList<string> CustomerObligations { get; init; } = [];
+    public string? ContributionRole { get; init; }
+}
 public sealed record ProviderScopeResponsibilityReview(string State, bool CanReview, bool CanConfirm, string? Reason);
 public sealed record SystemProviderScopeChoicesResponse(string SystemId, long Version, bool CanManage,
     IReadOnlyList<SystemProviderScopeChoice> Choices);

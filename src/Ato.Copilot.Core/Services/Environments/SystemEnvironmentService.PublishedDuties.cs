@@ -38,6 +38,17 @@ public sealed partial class SystemEnvironmentService
             var release = await db.ProviderCapabilityReleases.AsNoTracking().SingleAsync(x =>
                 x.Id == context.ReleaseId && x.CapabilityId == context.CapabilityId, ct);
             if (!releases.Add(release.Id)) continue;
+            var association = await db.Set<ProviderOfferingAssociationRevision>().IgnoreQueryFilters().AsNoTracking()
+                .SingleOrDefaultAsync(x => x.ProviderId == offering.ProviderId && x.OfferingId == offering.Id
+                    && x.CapabilityId == release.CapabilityId && x.CapabilityReleaseId == release.Id
+                    && x.Status == "Published", ct);
+            if (association is null)
+            {
+                incomplete = true;
+                missing.Add(new(release.CapabilityId, null, release.Id, release.Revision,
+                    "No reviewed, published offering association pins this capability release."));
+                continue;
+            }
             string? capturedName = null;
             try
             {
@@ -56,11 +67,26 @@ public sealed partial class SystemEnvironmentService
                 if (duties.Count == 0 || duties.Any(x => string.IsNullOrWhiteSpace(x.Key)
                     || x.Value is not ("Provider" or "Shared" or "Customer")))
                     throw new InvalidDataException("Published release duty allocation is missing or invalid.");
+                var coverage = Read<string[]>(association.ProviderCoverageJson);
+                var obligations = Read<string[]>(association.CustomerObligationsJson);
+                if (coverage.Length == 0)
+                    throw new InvalidDataException("Published offering association has no provider coverage.");
+                var providerControls = Controls("Provider");
+                var sharedControls = Controls("Shared").Concat(obligations.Length == 0 ? [] : providerControls)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToArray();
+                if (obligations.Length > 0) providerControls = [];
                 rows.Add(new(release.CapabilityId, name.GetString()!,
                     captured.TryGetProperty("Description", out var description) && description.ValueKind == JsonValueKind.String
                         ? description.GetString() : null,
                     release.Id, release.Revision, release.SnapshotHash, Hash(release.SnapshotJson), context.Id,
-                    Controls("Provider"), Controls("Shared"), Controls("Customer")));
+                    providerControls, sharedControls, Controls("Customer"))
+                {
+                    AssociationRevisionId = association.Id,
+                    AssociationContentHash = association.ContentHash,
+                    ProviderCoverage = coverage,
+                    CustomerObligations = obligations,
+                    ContributionRole = association.ContributionRole
+                });
                 string[] Controls(string kind) => duties.Where(x => x.Value == kind).Select(x => x.Key).Order(StringComparer.Ordinal).ToArray();
             }
             catch (Exception failure) when (failure is JsonException or InvalidDataException)
