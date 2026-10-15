@@ -276,6 +276,43 @@ public sealed partial class ProviderMissionServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task WithdrawnAssociation_PreservesPinnedAdoptionProvenanceInExport()
+    {
+        // Arrange
+        var (capabilityId, release) = await SeedPublishedAsync();
+        var tenant = new TenantContext(_tenant) { PersonId = _person, IsWorkspaceRequest = true };
+        using var scope = _accessor.Push(tenant);
+        await using var db = new AtoCopilotContext(_options, _accessor);
+        var service = Service(db, tenant);
+        await service.AssociateAsync(_system, new(_assignment.Id, 1), "owner", default);
+        var adoption = await service.AdoptAsync(_system, await AdoptionRequestAsync(service, capabilityId, release.Id),
+            "manager", default, "withdrawn-pin");
+        var before = await ExportAsync();
+        var pinnedRevision = ExportedProperty(before, "association-revision");
+        await using (var provider = new AtoCopilotContext(_options))
+        {
+            var association = await provider.ProviderOfferingAssociations.SingleAsync();
+            var revision = await provider.ProviderOfferingAssociationRevisions.SingleAsync();
+            association.Lifecycle = "Withdrawn";
+            association.Revision++;
+            revision.Status = "Withdrawn";
+            revision.Revision = association.Revision;
+            await provider.SaveChangesAsync();
+        }
+
+        // Act
+        var after = await ExportAsync();
+
+        // Assert
+        adoption.AdoptionSnapshotId.Should().NotBeEmpty();
+        after.ProviderProvenanceGaps.Should().BeEmpty();
+        ExportedProperty(after, "association-revision-id").Should()
+            .Be(ExportedProperty(before, "association-revision-id"));
+        ExportedProperty(after, "association-revision").Should().Be(pinnedRevision);
+        ExportedProperty(after, "association-content-hash").Should().Be("association-hash");
+    }
+
+    [Fact]
     public async Task PublishedCatalogReleaseWithoutOfferingAssociation_IsNotOrganizationApplicable()
     {
         // Arrange

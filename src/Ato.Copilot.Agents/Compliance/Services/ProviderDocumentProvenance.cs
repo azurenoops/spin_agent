@@ -18,7 +18,7 @@ internal static class ProviderDocumentProvenance
     internal sealed record DocumentProjection(string Content, IReadOnlyList<string> SourceGaps, IReadOnlyList<string> AccessGaps);
     internal sealed record Source(CapabilityAdoptionSnapshot Adoption, ProviderAuthorizationRevision Revision,
         CreateProviderDecisionRequest Decision, ProviderCapabilityRelease Release, ProviderCatalogContextSnapshot Context,
-        ProviderOfferingAssociationRevision? Association);
+        ProviderOfferingAssociationRevision? Association, long? AdoptedAssociationRevision);
     private sealed record ReleasePin(
         string ReleaseSnapshotHash,
         long ReleaseRevision,
@@ -165,7 +165,6 @@ internal static class ProviderDocumentProvenance
                     && x.OfferingId == adoption.OfferingId && x.CapabilityId == adoption.CapabilityId
                     && x.CapabilityReleaseId == adoption.ReleaseId, ct);
             Require(association != null
-                && association.Revision == retained.Selected.AssociationRevision
                 && association.ContentHash == retained.Selected.AssociationContentHash,
                 "The exact adopted offering association is unavailable or changed.");
         }
@@ -200,7 +199,8 @@ internal static class ProviderDocumentProvenance
             Require(source.RecordKind is "ProviderDecision" or "InheritedMicrosoftReference" or "InheritedProviderReference", "The recorded source kind is unsupported.");
             var blocker = ProviderDecisionEligibility.Evaluate(revision, events, source.RecordKind);
             Require(blocker == null, blocker?.Message ?? "");
-            result.Add(new(adoption, revision, source, release!, context, association));
+            result.Add(new(adoption, revision, source, release!, context, association,
+                retained.Selected.AssociationRevision));
         }
         return result;
     }
@@ -235,7 +235,8 @@ internal static class ProviderDocumentProvenance
             if (source.Association is not null)
             {
                 props.Add(Prop("association-revision-id", source.Association.Id.ToString()));
-                props.Add(Prop("association-revision", source.Association.Revision.ToString(CultureInfo.InvariantCulture)));
+                props.Add(Prop("association-revision", (source.AdoptedAssociationRevision
+                    ?? source.Association.Revision).ToString(CultureInfo.InvariantCulture)));
                 props.Add(Prop("association-content-hash", source.Association.ContentHash));
                 props.Add(Prop("association-contribution-role", source.Association.ContributionRole));
                 foreach (var coverage in Read<string[]>(source.Association.ProviderCoverageJson))
