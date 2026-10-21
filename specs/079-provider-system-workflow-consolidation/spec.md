@@ -9,6 +9,16 @@
 
 ## Product outcome and scope
 
+### October 7: reusable package-alignment audit tooling
+
+Add a project `emass-package-auditor` prompt definition and usage documentation
+to audit provider-published scopes, mission-owned capabilities, responsibility
+review, artifact provenance, and export lineage against the eMASS package goal.
+This is local developer audit tooling, not a new runtime feature or a claim that
+package export is complete. Preserve the existing RMF advisor. Findings require
+source evidence and distinguish planned, implemented, execution-verified, and
+unverified paths. See `docs/design/emass-package-auditor.md` for the audit contract.
+
 ### September 30: consolidated workspace header
 
 Remove the separate blue workspace bar. Keep verified workspace, selected system

@@ -1,0 +1,42 @@
+{
+  "repository": "azurenoops/spin_agent",
+  "approved": true,
+  "issues": {
+    "FEATURE": {
+      "number": 1066,
+      "id": 5944118361,
+      "url": "https://github.com/azurenoops/spin_agent/issues/1066",
+      "title": "[Feature] Make assessment coverage, retests and STIG revisions auditable",
+      "parent": 1038,
+      "linked": true,
+      "verified": true
+    },
+    "US1": {
+      "number": 1067,
+      "id": 5944118937,
+      "url": "https://github.com/azurenoops/spin_agent/issues/1067",
+      "title": "[User Story] Show check-level assessment coverage and manual evaluation gaps",
+      "parent": 1066,
+      "linked": true,
+      "verified": true
+    },
+    "US2": {
+      "number": 1068,
+      "id": 5944119563,
+      "url": "https://github.com/azurenoops/spin_agent/issues/1068",
+      "title": "[User Story] Bind remediation verification to comparable retest evidence",
+      "parent": 1066,
+      "linked": true,
+      "verified": true
+    },
+    "US3": {
+      "number": 1069,
+      "id": 5944120149,
+      "url": "https://github.com/azurenoops/spin_agent/issues/1069",
+      "title": "[User Story] Preserve STIG revision identity through review and CKL export",
+      "parent": 1066,
+      "linked": true,
+      "verified": true
+    }
+  }
+}

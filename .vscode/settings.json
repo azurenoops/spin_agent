@@ -11,10 +11,6 @@
         ".specify/scripts/powershell/": true
     },
     "chat.promptFiles": true,
-    "chat.instructionsFilesLocations": {
-        ".github": true,
-        ".github/agents": true
-    },
     "github.copilot.chat.codeGeneration.useInstructionFiles": true,
     "dotnet.defaultSolution": "Ato.Copilot.sln",
     "files.exclude": {
