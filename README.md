@@ -1,17 +1,22 @@
 # Security Posture Intelligence Navigator
 
-AI-powered compliance copilot that guides DoD teams through every step of the NIST Risk Management Framework (RMF) — from system registration through continuous monitoring and ATO authorization.
+An AI-assisted compliance platform that helps DoD teams perform activities across the NIST Risk Management Framework (RMF), from system registration through continuous monitoring.
 
-Built on the Model Context Protocol (MCP) with Azure OpenAI function calling, 130 compliance tools, and multi-channel delivery (VS Code, web chat, stdio).
+Spin Agent combines Azure compliance evidence collection, RMF workflow support, natural-language interaction, and draft document generation. It is designed to assist qualified cybersecurity and RMF practitioners. It does not replace an Authorizing Official, approve security controls, accept risk, or independently issue or recommend an Authority to Operate (ATO).
 
-Security Posture Intelligence Navigator is the first tool that:
-
-- Covers all 7 steps in a single conversational interface
-- Uses AI to automate the hardest part (control narrative writing)
-- Integrates with Azure for automated compliance evidence
-- Exports to eMASS so it fits into the existing DoD workflow instead of replacing it
+Built on the Model Context Protocol (MCP) with Microsoft Foundry models, compliance tools, and multi-channel delivery through VS Code, web chat, and stdio.
 
 Security Posture Intelligence Navigator is where you DO the work, eMASS is where you SUBMIT the work. 
+
+### Spin Agent provides:
+
+- A single conversational workspace supporting all seven RMF steps
+- AI-assisted drafting of control implementation narratives and supporting documentation
+- Azure integration for automated collection of compliance evidence
+- Human review and approval workflows for AI-generated content
+- Export capabilities that support existing DoD workflows, including eMASS
+
+Spin Agent is where practitioners prepare, review, and manage RMF work. eMASS remains the system through which applicable authorization artifacts are submitted.
 
 ## Features
 
@@ -20,9 +25,9 @@ Security Posture Intelligence Navigator is where you DO the work, eMASS is where
 - **Prepare** — Register systems, define authorization boundaries, assign ISSO/ISSM/AO roles
 - **Categorize** — FIPS 199 impact levels with NIST SP 800-60 information type mapping
 - **Select** — Baseline selection, control tailoring, CRM inheritance, STIG cross-reference
-- **Implement** — Control narratives, batch SSP population, IaC compliance scanning
-- **Assess** — Automated compliance assessment, evidence collection, SAR generation
-- **Authorize** — ATO/IATT/DATO decisions, risk acceptance, POA&M management, authorization packages
+- **Implement** — Draft control narratives, populate SSP content for human review, and collect IaC compliance evidence
+- **Assess** — Support compliance analysis, evidence collection, and draft SAR generation for assessor review
+- **Authorize** — Assemble authorization packages, manage POA&Ms, and support human-led ATO, IATT, DATO, and risk-acceptance workflows
 - **Monitor** — Continuous monitoring plans, drift detection, ConMon reports, expiration alerts
 
 ### AI-Powered Intelligence
@@ -39,6 +44,52 @@ Security Posture Intelligence Navigator is where you DO the work, eMASS is where
 - **RBAC Enforcement** — Viewer, Operator, Administrator, Auditor, AuthorizingOfficial roles
 - **Audit Logging** — Full correlation-tracked audit trail with 7-year retention
 
+## Responsible AI and Human Oversight
+
+Spin Agent is a decision-support and documentation-assistance system. It is not an autonomous authorization or risk-acceptance system.
+
+### Human decision authority
+
+AI-generated narratives, summaries, mappings, findings, recommendations, and draft artifacts must be reviewed by a qualified and authorized human before they are approved, submitted, or used in an RMF or ATO decision.
+
+Spin Agent does not:
+
+- Approve or validate security controls
+- Determine that a system is compliant
+- Accept residual risk
+- Act as an assessor or Authorizing Official
+- Issue or independently recommend an ATO, IATT, DATO, or denial of authorization
+- Replace an organization's established RMF governance, review, or approval processes
+
+### Intended use
+
+Spin Agent is intended to help authorized practitioners:
+
+- Collect and organize compliance evidence
+- Draft control implementation narratives
+- Identify potential gaps requiring human investigation
+- Prepare draft RMF and authorization artifacts
+- Track workflow status and reviewer feedback
+- Produce traceable drafts for human review and approval
+
+### User responsibilities
+
+Organizations deploying Spin Agent are responsible for:
+
+- Configuring roles and access controls appropriately
+- Protecting sensitive, controlled, classified, and customer data
+- Validating model outputs against authoritative evidence
+- Ensuring qualified personnel review AI-generated content
+- Maintaining required records, approvals, and audit trails
+- Performing their own security, privacy, legal, compliance, and Responsible AI reviews
+- Using approved models and services within their authorized environment
+
+### AI output limitations
+
+Generative AI can produce inaccurate, incomplete, outdated, or unsupported content. Users should verify generated content against authoritative sources, including applicable NIST publications, DoD policy, organization-specific requirements, collected technical evidence, and the direction of the responsible assessment and authorization officials.
+
+Generated content should be clearly treated as a draft until a human reviewer approves it.
+
 ### Multi-Channel Delivery
 
 - **VS Code Extension** — GitHub Copilot Chat participant with `/compliance`, `/knowledge`, `/config` commands
@@ -51,6 +102,9 @@ Security Posture Intelligence Navigator is where you DO the work, eMASS is where
 - **SSP, POA&M, SAR, RAR** — QuestPDF and ClosedXML document generation
 - **eMASS Export** — Controls, POA&M, and OSCAL format export
 - **Template Engine** — Customizable document templates with save/reuse
+
+> [!IMPORTANT]
+> Spin Agent produces draft analysis and documentation for human review. It does not approve controls, accept risk, determine system compliance, or grant an Authority to Operate. Users remain responsible for validating evidence and obtaining all required approvals through their organization's established RMF process.
 
 ## Quick Start
 
