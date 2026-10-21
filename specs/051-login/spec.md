@@ -287,6 +287,15 @@ server. Restart with `ASPNETCORE_ENVIRONMENT=Staging` and the same
    identity choices only: no organization, membership or RMF role assignment is
    seeded or inferred from the persona label. Existing CSP Admin, ISSO and SOC
    Analyst choices remain available.
+8. For an explicitly requested local demo, a repeatable setup command provisions
+   a dedicated synthetic organization and sample system through the supported
+   administrative APIs. All eight organization identities receive explicit
+   memberships; the six RMF personas receive their corresponding persisted
+   roles, Organization Admin receives Administrator, and SOC Analyst retains
+   audit access without an unrelated RMF role. CSP Admin retains its provider
+   workspace. Setup must refuse remote targets or disabled simulation, stop on
+   API errors, reuse its own existing resources, and verify all nine sign-ins.
+   Application startup and ordinary sign-in must not create access grants.
 
 ---
 

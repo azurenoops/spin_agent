@@ -1294,7 +1294,85 @@ must explicitly bind that directory ID and the selected object ID to a Person
 through **Manage memberships**, then assign the appropriate organization/system
 role. The six new identity descriptors deliberately carry no global role claims.
 Persona labels do not grant access; "No tenant assignment" is expected for an
-unprovisioned organization persona. No demo tenants or assignments are seeded.
+unprovisioned organization persona. No demo tenants or assignments are seeded
+by application startup or sign-in.
+
+### Explicit local demo setup
+
+On 2026-09-25, the local Dashboard API returned 403 `NO_TENANT_ASSIGNMENT` for
+`dev-isso`; provider tenant discovery contained only the system audit tenant.
+The identity picker authenticates identities but cannot grant organization
+access. The approved correction is an explicitly invoked, local-only setup
+command, not an authorization bypass or automatic sign-in seeding.
+
+Run from the repository root against a Development backend with simulation
+enabled:
+
+```bash
+python3 scripts/setup-demo.py --base-url http://localhost:5173
+```
+
+The command uses the nine checked-in development identities and the existing
+tenant, Person, membership, onboarding and role APIs. It creates **SPIN Demo
+Organization** and **SPIN Demo System** using synthetic contact details only.
+The organization uses synthetic directory ID
+`de000000-0000-4000-8000-000000000051`; memberships bind the configured development
+directory/object IDs explicitly rather than relying on matching directory IDs.
+Reruns reuse this dataset; API errors stop setup and are reported, not ignored.
+Existing unrelated organizations, identities and roles must not be changed.
+
+| Login | Demo access |
+|---|---|
+| CSP Admin | Provider workspace; no organization membership required |
+| Organization Admin | Demo membership and organization Administrator |
+| ISSO, Mission Owner, System Owner, ISSM, SCA, Authorizing Official | Demo membership and corresponding organization RMF role, applicable to the sample system |
+| SOC Analyst | Demo membership and existing SOC audit claim; no RMF role |
+
+The command completes normal organization onboarding and registers the sample
+system as ISSM. Initial local execution confirmed the server rejects the
+role-list API with `TENANT_ONBOARDING_INCOMPLETE` until onboarding finishes:
+setup must enroll the initial Administrator, complete onboarding, then assign
+the remaining roles and register the system. It verifies each selected identity
+through `/api/auth/me` and checks the six RMF personas' sample-system access.
+SCA is stored as `Assessor` at organization scope and projected as `Sca` for
+system access; reruns compare against each API's canonical role name.
+The command does not turn every
+persona into an administrator, modify production authentication, seed compliance
+evidence or claim the sample system is authorized.
+
+For manual acceptance, use a development Dashboard (the production build
+intentionally omits the picker). Open `/login`, select each of the nine
+identities, and confirm no "No tenant assignment" page appears. RMF personas
+should see the sample system; Organization Admin should manage the organization;
+SOC Analyst should open login audit events; CSP Admin should enter the provider
+workspace. Role-restricted operations must remain restricted. Refresh and repeat
+setup to confirm persistence and reuse. Automated and live verification are
+reported separately; user manual sign-off remains required.
+
+Verification on 2026-09-25: 23 setup-command tests passed with 100% statement
+coverage of the command. Live setup and a repeat run verified all nine
+identities; the repeat run reused the existing organization, eight memberships,
+seven organization role assignments and one sample system. Actual browser
+button handlers on the development Dashboard at `http://localhost:4174/login`
+returned 204 for all nine choices, followed by `/api/auth/me` 200 with each
+expected object ID and a provider/organization workspace, not the tenant error
+page. Six RMF personas had their corresponding system roles; SOC audit access
+succeeded while SOC system access remained 404. Read-only permission checks
+confirmed authorization decisions remain AO-only and system management remains
+ISSM-only.
+
+The sample system is intentionally **In Setup**, without a boundary,
+categorization, assessment or authorization. This is sign-in/workspace demo
+verification, not full RMF workflow acceptance. Browser background probes to
+`/api/csp/onboarding/state` (explicit `FORBIDDEN_NOT_CSP_ADMIN`) and
+`/api/onboarding/organization-context` still returned 403 for non-admin roles;
+these are not tenant-assignment failures and were not changed here.
+
+Rerun the command's regression suite without additional dependencies:
+
+```bash
+python3 -m unittest discover -s scripts -p 'test_setup_demo.py' -v
+```
 
 Manual checks: enable simulation and confirm nine choices on `/login`; select
 CSP Admin and confirm `/api/auth/me` reports its object ID and CSP workspace.

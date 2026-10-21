@@ -109,6 +109,14 @@ the server issues an `ato-simulation` cookie + a discrete
 session is auto-flagged `IsSimulation=true` and excluded from real
 RMF bundles (per Feature 027).
 
+Identity selection alone does not grant organization membership. For a local
+demo with all nine checked-in personas, run
+`python3 scripts/setup-demo.py --base-url http://localhost:5173` from the
+repository root. This explicitly provisions a dedicated synthetic organization,
+normal memberships/roles and a sample system; it does not bypass authorization.
+See [explicit local demo setup](../architecture/workspaces.md#explicit-local-demo-setup)
+for the role matrix, safety limits and manual acceptance steps.
+
 In any non-Development environment the panel is hidden by the server
 (login-config descriptor is `null`) AND `POST /api/auth/simulate`
 returns `404 NotFound` (not 403) AND a `SimulationBlocked` audit row
