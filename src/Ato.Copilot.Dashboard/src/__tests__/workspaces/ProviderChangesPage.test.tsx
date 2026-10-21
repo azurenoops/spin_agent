@@ -38,6 +38,16 @@ beforeEach(() => {
       sourceTimestamp: null, snapshotJson: '{}' }] });
 });
 
+it('states offering changes are not Mission Owner telemetry or an ATO', async () => {
+  // Arrange
+  render(<MemoryRouter><ProviderChangesPage /></MemoryRouter>);
+  // Act
+  await screen.findByRole('heading', { name: 'Changes requiring attention' });
+  // Assert
+  expect(screen.getByText(/Not Mission Owner subscription telemetry/)).toBeVisible();
+  expect(screen.getByText(/not inheritance and not an ATO/)).toBeVisible();
+});
+
 it('shows a real pending queue and separates expired accepted history', async () => {
   // Arrange / Act
   render(<MemoryRouter><ProviderChangesPage /></MemoryRouter>);

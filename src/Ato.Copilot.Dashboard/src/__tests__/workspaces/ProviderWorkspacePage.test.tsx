@@ -85,6 +85,16 @@ describe('provider task workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview Systems handoff' }));
     expect(screen.getByRole('dialog', { name: 'Preview Systems handoff' })).toHaveTextContent('read-only');
   });
+  it('states offering access is not Azure hosting or pinned inheritance', async () => {
+    // Arrange
+    render(<MemoryRouter><ProviderWorkspacePage view="missions" /></MemoryRouter>);
+    // Act
+    await screen.findByRole('heading', { name: 'Mission systems' });
+    // Assert
+    expect(screen.getByText(/Offering access, Azure hosting, and pinned inheritance/)).toBeVisible();
+    expect(screen.getByText(/A subscription in this tenant is not an ATO/)).toBeVisible();
+    expect(screen.getByText(/Offering access ≠ Azure hosting ≠ pinned inheritance/)).toBeVisible();
+  });
   it('renders the mock overview from retained offering records, not sample counts', async () => {
     // Arrange
     render(<MemoryRouter><ProviderWorkspacePage view="overview" /></MemoryRouter>);

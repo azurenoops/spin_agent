@@ -53,7 +53,7 @@ function OfferingWorkspace({ view }: { view: 'overview' | 'missions' }) {
     <WorkspacePageHeader eyebrow="Provider operations" title={view === 'overview' ? 'Your provider workspace' : 'Mission systems'}
       description={view === 'overview'
         ? 'Maintain the services and evidence Mission Owners use to prepare and sustain their ATO packages.'
-        : 'See exactly which service scopes and releases your customers use.'}
+        : 'Offering access, Azure hosting, and pinned inheritance are three facts. A subscription in this tenant is not an ATO.'}
       actions={selected && (view === 'missions' ? <button className="provider-primary" onClick={() => { setNotice(''); setAssignOpen(true); }}>Assign service scope</button>
         : <Link className={primary} to={api.authorizationHref(selected.offeringId, view === 'overview' ? 'packages' : 'impact')}>
           {view === 'overview' ? 'Review source material' : 'Review change impact'}
@@ -218,7 +218,7 @@ function MissionSystems({ offering, offeringPage, refresh }: { offering: Offerin
     </>}
   </section>
   <div className="provider-banner provider-banner-release mt-5">
-    <div><strong>Association, adoption, and responsibilities have different states.</strong><p>A hosting allocation does not apply capabilities or accept customer duties.</p></div>
+    <div><strong>Offering access ≠ Azure hosting ≠ pinned inheritance.</strong><p>A subscription in the CSP tenant is not an ATO. Allocation does not adopt a release or accept customer duties.</p></div>
     <button type="button" className="provider-secondary" disabled={!items.length} onClick={() => setHandoff(items[0] ?? null)}>Preview Systems handoff</button>
   </div>
   {handoff && <SetupDialog title="Preview Systems handoff" busy={false} onClose={() => setHandoff(null)}

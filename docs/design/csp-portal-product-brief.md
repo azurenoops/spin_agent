@@ -519,7 +519,7 @@ GitHub: parents #1002, #1023, #1038. E2/E6 child is preview-only
 | **C5** | Inheritance / CRM (later) | #957, #1021, #1033–#1035, #1037, #1019 | Versioned CRM + pinned inheritance release. Test release ≠ prod release. Not in C1–C2 |
 | **C6** | What-if attach (later) | No issue yet; after C2. Pairs with **M3**. **Mock signed off 2026-10-09** | MO **Provider hosting** originates the request. Declare includes **IATT vs ATO** and **Dev/Test/Prod**. CSP Access requests → estimate → approve/refuse. Approve is access only — not Azure allocate, not adopt, not an issued IATT/ATO. IATT+Test = exception; IATT+Prod = out of scope |
 | **C7** | Declared-use correction (later) | No issue yet; after C6 | Per-MO impact **Request correction** lands on MO Provider hosting. Access stays. Scope fit stays until resubmit + re-score. Not Administration, not the MO SSP |
-| **C8** | Three yeses on live IA (later) | No issue yet; after C4+C6. Mock-first | Live subscribers / impact copy matches the mock: offering access ≠ Azure hosting ≠ pinned inheritance. A sub in the CSP tenant is not an ATO |
+| **C8** | Three yeses on live IA | No issue yet; after C4+C6. Mock-first. Copy overlay reconciled from `cedf21a4` on 2026-10-21 | Mission systems / Changes / relationship / oversight copy distinguishes offering access, Azure hosting, and pinned inheritance. A sub in the CSP tenant is not an ATO. This is wording, not completion of the inventory or monitoring workflow |
 
 ### Track M — Mission Owner / system package (#1038)
 
@@ -538,7 +538,9 @@ Design mocks already walk C6–C8 and M3–M4
 ([csp-home-impact-mock](csp-home-impact-mock/index.html),
 [mo-org-portal-mock](mo-org-portal-mock/index.html)). **Mock-first:** do not
 change live IA for those waves until the mock is signed off. C1/C2 live
-overlay stays the only authorized production slice.
+overlay stays the authorized production slice, with the C8 wording clarification
+reconciled on 2026-10-21. That clarification adds no connector, monitoring,
+inheritance, or authorization behavior.
 
 ### Fix-current (not a product wave)
 
@@ -556,7 +558,7 @@ Do not close them as superseded by this brief.
 - C6 and M3 share **one** access-request record. Origin is MO Provider hosting, not the CSP catalog.
 - C7 does not revoke access or auto-flip scope-fit.
 - C6 scores IATT vs ATO and Dev/Test/Prod; it does not issue either authorization.
-- C8 is copy/IA on live subscribers and impact after the mock is approved.
+- C8 is copy/IA on live subscribers and impact after the mock is approved. The reconciled wording appears on Mission systems, Changes, relationship detail, and the provider-oversight systems hero; it does not complete C4 inventory.
 
 ---
 

@@ -144,7 +144,7 @@ export function ProviderRelationshipDetail({ offering, assignmentId }: { offerin
       </>}
     </>}
   </div><aside className="provider-support">
-    <ProviderPanel title="Provider visibility"><p>Show this allocated relationship and its current customer release selections. This does not expose unrelated mission content or grant customer-workspace access.</p></ProviderPanel>
+    <ProviderPanel title="Provider visibility"><p>This records a hosting allocation. Offering access and pinned inheritance are separate facts. A subscription in the CSP tenant is not an ATO. This view does not expose unrelated mission content or grant customer-workspace access.</p></ProviderPanel>
     <ProviderPanel title="Provider actions">
       <div className="grid gap-3">
         <button type="button" className="provider-secondary" onClick={() => setAssignOpen(true)}>Assign another service scope</button>

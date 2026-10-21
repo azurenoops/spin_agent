@@ -27,7 +27,7 @@ export default function ProviderChangesPage() {
   const selected = selectedId ? offerings.data?.find(item => item.offeringId === selectedId) : offerings.data?.[0];
   return <div className="provider-workspace">
     {!monitoring && <div className="provider-page-head"><WorkspacePageHeader eyebrow="Provider operations" title="Changes requiring attention"
-      description="Understand service changes, affected customers, and the action each owner needs to take." /></div>}
+      description="Offering-change fan-out and offering ConMon. Not Mission Owner subscription telemetry. A hosted subscription is not inheritance and not an ATO." /></div>}
     <Status loading={offerings.loading} error={offerings.error} retry={offerings.retry} />
     {offerings.data && <label className="mb-5 block max-w-md text-xs text-slate-500">Service offering
       <select aria-label="Service offering" className="mt-2 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"

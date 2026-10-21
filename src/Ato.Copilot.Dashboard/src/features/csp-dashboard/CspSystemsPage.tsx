@@ -175,7 +175,7 @@ export default function CspSystemsPage({
         <PageHero
           eyebrow="Portfolio"
           title="Systems across all organizations"
-          description="Cross-organizational system oversight. Open a system using ordinary membership, or explicitly start a separate audited support session. System access is checked in the selected organization."
+          description="Inventory of organizations and systems — not a monitoring feed of Mission Owner ATOs. Offering access ≠ Azure hosting ≠ pinned inheritance. Open a system with ordinary membership, or start a separate audited support session."
           showOrgName={false}
           actions={
             data ? (
