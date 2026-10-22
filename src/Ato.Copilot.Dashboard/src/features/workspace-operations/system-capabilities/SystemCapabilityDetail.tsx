@@ -100,7 +100,7 @@ function CapabilityDetail({ tenantId, systemId, source, recordId }: {
               {source === 'provider' ? <>
                 <Status loading={responsibility.loading} error={responsibility.error} retry={responsibility.retry} />
                 {selected && responsibility.data && <SystemCapabilityResponsibility tenantId={tenantId} systemId={systemId} capabilityId={recordId}
-                  controlId={selected.controlId} sourceRevision={selected.availableSourceRevision} reviewRevision={selected.reviewRevision} preview={{ ...responsibility.data,
+                  source={source} controlId={selected.controlId} sourceRevision={selected.availableSourceRevision} reviewRevision={selected.reviewRevision} preview={{ ...responsibility.data,
                     canConfirm: responsibility.data.canConfirm && data.permissions.canReviewResponsibilities }} onChanged={next => {
                     setNotice(next ? 'Responsibility confirmation saved. Narrative acceptance remains a separate action.' : null);
                     responsibility.retry(); detail.retry();

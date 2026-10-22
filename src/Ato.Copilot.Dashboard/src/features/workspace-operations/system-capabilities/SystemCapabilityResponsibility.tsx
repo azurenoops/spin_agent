@@ -9,10 +9,13 @@ import { buttonClass, errorClass, inputClass, message, warningClass } from '../w
 import { workspaceCard } from '../CapabilityPresentation';
 import { boundedRequest } from './systemCapabilityRequests';
 import { confirmSystemCapabilityResponsibilities, type SystemCapabilityReviewEvidence } from './systemCapabilityResponsibilityRequests';
+import ResponsibilityDraftEditor, { type ResponsibilityDraftEdits } from './ResponsibilityDraftEditor';
+import type { SystemCapabilitySource } from './systemCapabilityTypes';
 
 interface Props {
   tenantId: string;
   systemId: string;
+  source: SystemCapabilitySource;
   capabilityId: string;
   controlId: string;
   sourceRevision: string;
@@ -22,6 +25,7 @@ interface Props {
 }
 
 export default function SystemCapabilityResponsibility(props: Props) {
+  const edits = useRef<ResponsibilityDraftEdits>(new Map());
   const { preview, systemId, capabilityId, controlId } = props;
   const items = preview.items.filter(item => item.capabilityId === capabilityId && item.controlId === controlId);
   if (preview.systemId !== systemId || items.length !== 1) {
@@ -31,7 +35,7 @@ export default function SystemCapabilityResponsibility(props: Props) {
   if (item.sourceRevision !== props.sourceRevision || item.reviewRevision !== props.reviewRevision)
     return <p role="alert" className={errorClass}>The control detail and responsibility revisions do not match. Refresh this capability before reviewing.</p>;
   return <ControlReview key={`${systemId}:${capabilityId}:${controlId}:${preview.baselineId}:${item.sourceRevision}:${item.reviewRevision}`}
-    {...props} item={item} />;
+    {...props} edits={edits.current} item={item} />;
 }
 
 const editableStates = new Set(['MissingAllocation', 'PendingReview', 'ConflictingAllocations', 'PreservedOverride', 'Applied', 'Ready']);
@@ -51,7 +55,8 @@ function Snapshot({ snapshot, title, revision }: { snapshot: ProviderReviewSnaps
   </section>;
 }
 
-function ControlReview({ tenantId, systemId, capabilityId, controlId, preview, item, onChanged }: Props & {
+function ControlReview({ tenantId, systemId, source, capabilityId, controlId, preview, item, edits, onChanged }: Props & {
+  edits: ResponsibilityDraftEdits;
   item: CapabilityResponsibilityItem & SystemCapabilityReviewEvidence;
 }) {
   const [allocation, setAllocation] = useState<ResponsibilityInheritanceType | ''>(item.allocation?.inheritanceType ?? '');
@@ -125,6 +130,13 @@ function ControlReview({ tenantId, systemId, capabilityId, controlId, preview, i
         <div><dt>Removed mappings</dt><dd>{confirmed.Controls.filter(id => !current!.Controls.includes(id)).join(', ') || 'None'}</dd></div>
       </dl>
     </details>}
+    <details className="rounded-lg border border-indigo-200 p-3 dark:border-indigo-800">
+      <summary className="cursor-pointer font-semibold">Prepare or review a saved responsibility draft</summary>
+      <div className="mt-3">
+        <ResponsibilityDraftEditor tenantId={tenantId} systemId={systemId} source={source} capabilityId={capabilityId}
+          controlId={controlId} edits={edits} onConfirmed={() => onChanged()} />
+      </div>
+    </details>
     {snapshotError && <p role="alert" className={errorClass}>{snapshotError}</p>}
     {error && <div role="alert" className={errorClass}><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => onChanged()}>Refresh responsibilities</button></div>}
     {!preview.canConfirm && <p className={warningClass}>Read-only: an effective assigned ISSM or ISSO is required to confirm responsibility.</p>}

@@ -13,6 +13,28 @@ This is a local integration only: no containers are replaced, no package is
 submitted and no remote branch is updated. Historical test totals below are not
 verification of this rebase; fresh targeted validation and manual acceptance are
 still required.
+## Component service-use scope acceptance
+
+In an organization system, open an applied component and select **System scope**.
+Verify the drawer reads the working System design and the retained approved
+baseline, offers Included / Excluded / Needs confirmation, and requires a recorded
+system area for Included. Save a correction and confirm only the working design
+revision changes. The approved review, provider source and canonical placement
+remain unchanged. Open **Existing infrastructure placements** separately and
+verify that it is a distinct placement workflow.
+
+Use **Prepare a first pass** with an authorized baseline control. Compare the
+selected provider scope's published source facts and versions with the proposed
+wording, questions and source references. Copy the proposal, edit it, and save the
+scope draft. Confirm the displayed provenance identifies its draft revision,
+source hash/references, original wording and human correction. The draft must not
+claim verified workloads, successful restore, accepted inheritance, control
+approval or authorization. Separately review and approve the System design before
+confirming that the approved SSP narrative retains the proposal provenance.
+Repeat with a viewer, a stale/changed provider source, and another tenant/system;
+unauthorized or cross-system draft references must be rejected without losing the
+entered correction.
+
 ## Focused provider offering review contracts
 
 The Environment drawer reads canonical relationship permissions and complete

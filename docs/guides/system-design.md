@@ -37,6 +37,32 @@ the register is empty or populated. The header no longer has **Review boundary**
 use each row's **Open** to inspect that exact record. Cancel or Escape restores
 focus without saving. Neither action automatically chooses a component's scope.
 
+## Applied component service-use review
+
+From an applied component's details drawer, use **System scope** to record whether
+the registered system uses the component, excludes it, or still needs confirmation.
+An included decision must reference an area already recorded for that system.
+This is a revision-bound System design draft: it does not alter provider-authored
+source content, canonical infrastructure placements, accepted inheritance, or the
+approved design. Review and approval remain a separate workflow.
+
+The component's provider placement is shown as a separate action because a service
+being used by the system does not mean provider infrastructure is inside the system
+boundary. If the source revision or selected area changes, compare the latest
+source and reload before saving; entered wording remains available for correction.
+Evidence links and control references identify material to review, not sufficient
+or verified implementation evidence.
+
+**Prepare a first pass** uses the existing responsibility-draft service with a
+selected baseline control and, optionally, an exact provider scope. Inspect source
+revisions, origin labels, source references, questions, and stale-source warnings
+before copying proposed words into the use description. Copying or correcting
+proposed wording saves a source-pinned provenance reference with the draft; it
+does not accept a control allocation, establish system applicability, prove an
+RPO/RTO result, or approve the design. The approved SSP retains the proposal
+origin, original wording, revision, source hash/references, and whether a person
+corrected it.
+
 ## PR review corrections (October 5)
 
 Context now preserves shared/separately authorized components and their

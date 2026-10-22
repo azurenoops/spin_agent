@@ -4,13 +4,18 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import '../helpers/dialog';
 import SystemCapabilityList from '../../features/workspace-operations/system-capabilities/SystemCapabilityList';
 import * as api from '../../features/workspace-operations/system-capabilities/systemCapabilityApi';
+import * as design from '../../api/systemDesign';
 import type { SystemCapabilityDetail, SystemCapabilityItem, SystemCapabilityPage } from '../../features/workspace-operations/system-capabilities/systemCapabilityTypes';
+import { componentDesignFixture } from '../fixtures/componentReview';
 import { systemSetupOperationFixture } from '../fixtures/systemCapabilityDetailSetup';
 
 vi.mock('../../features/workspace-operations/system-capabilities/systemCapabilityApi', () => ({
-  listSystemCapabilities: vi.fn(), getSystemCapability: vi.fn(),
+  listSystemCapabilities: vi.fn(), getSystemCapability: vi.fn(), getSystemComponentPlacements: vi.fn(),
   prepareSystemCapabilitySetup: vi.fn(), getSystemCapabilityOperation: vi.fn(),
   completeSystemCapabilityOperation: vi.fn(),
+}));
+vi.mock('../../api/systemDesign', () => ({
+  getSystemDesign: vi.fn(), getApprovedSystemDesign: vi.fn(), saveComponentScope: vi.fn(),
 }));
 vi.mock('../../components/layout/SystemLayout', () => ({
   useSystemContext: () => ({ detail: { systemId: 'system-a', name: 'Mission Alpha' } }),
@@ -85,6 +90,12 @@ beforeEach(() => {
   vi.mocked(api.listSystemCapabilities).mockResolvedValue(page);
   vi.mocked(api.getSystemCapability).mockImplementation(async (_tenantId, _systemId, key) =>
     key.recordType === 'component' ? componentDetail : capabilityDetail);
+  vi.mocked(api.getSystemComponentPlacements).mockResolvedValue({
+    source: 'provider', recordId: 'component-a', sourceRevision: 'r1', relationshipRevision: 'relationship-a',
+    canAssignBoundary: true, assignBlockedReason: null, boundaries: [{ id: 'boundary-a', name: 'Operations' }], placements: [],
+  });
+  vi.mocked(design.getSystemDesign).mockResolvedValue(componentDesignFixture('org-a', 'system-a'));
+  vi.mocked(design.getApprovedSystemDesign).mockResolvedValue(null);
 });
 
 describe('applied system security capability views', () => {
@@ -239,7 +250,7 @@ describe('applied system security capability views', () => {
     await waitFor(() => expect(api.listSystemCapabilities).toHaveBeenLastCalledWith('org-a', 'system-a', expect.objectContaining({ page: 2, source: 'local', boundaryId: 'boundary-a' }), expect.any(AbortSignal)));
   });
 
-  it('opens a source-qualified provider drawer with actual placements and read-only ownership', async () => {
+  it('opens a source-qualified component scope review without conflating it with provider placement', async () => {
     // Arrange
     mount();
     // Act
@@ -250,10 +261,10 @@ describe('applied system security capability views', () => {
     expect(api.getSystemCapability).toHaveBeenCalledWith('org-a', 'system-a', {
       source: 'provider', recordType: 'component', recordId: 'component-a',
     }, expect.any(AbortSignal));
-    expect(within(drawer).getByText(/source is managed by the provider/i)).toBeVisible();
-    expect(within(drawer).getByText('Team')).toBeVisible();
-    expect(within(drawer).getByText('Operations')).toBeVisible();
-    expect(within(drawer).getByText(/Development.*Excluded/)).toBeVisible();
+    expect(await within(drawer).findByText('System scope not recorded')).toBeVisible();
+    fireEvent.click(within(drawer).getByRole('tab', { name: 'System scope' }));
+    expect(within(drawer).getByText('Used by this system')).toBeVisible();
+    expect(within(drawer).getByText(/Provider infrastructure is not moved into your boundary/)).toBeVisible();
     expect(within(drawer).queryByRole('button', { name: /edit source/i })).not.toBeInTheDocument();
   });
 

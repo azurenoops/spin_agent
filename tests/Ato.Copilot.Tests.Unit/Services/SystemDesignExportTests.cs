@@ -25,18 +25,27 @@ public sealed class SystemDesignExportTests
         // Arrange
         var graph = new SystemDesignGraph { SystemId = "system", GovernanceStatus = "Draft",
             ComponentScopes = [new("provider", "backup", "Azure Backup", "source-1", "Included",
-                "area", "Mission API", "Protects recorded data; restore results unavailable.")] };
+                "area", "Mission API", "Protects recorded data; restore results unavailable.")
+            {
+                WordingBasis = new(Guid.Parse("d9b6724a-3c0c-4fc2-9bed-4dfbd1653e4f"), 7, "source-hash",
+                    "AI proposed", "Original proposed use", true, ["provider-release-7"])
+            }] };
         var characteristics = new Dictionary<string, object>();
         var implementation = new Dictionary<string, object>();
         var backMatter = new Dictionary<string, object>();
         // Act
         SystemDesignDocumentData.AppendWorkingOscal(graph, characteristics, implementation, backMatter, true);
         var output = JsonSerializer.Serialize(new { characteristics, implementation });
+        var approved = new ApprovedSystemDesign(graph with { GovernanceStatus = "Approved" }, 7, "reviewer",
+            DateTimeOffset.Parse("2026-10-01T00:00:00Z"), "snapshot-hash", "source-fingerprint", false);
+        var approvedNarrative = SystemDesignDocumentData.Narrative(approved, "Boundary", [], []);
         // Assert
         output.Should().Contain("Azure Backup").And.Contain("Mission API").And.Contain("source-1")
             .And.Contain("restore results unavailable").And.Contain("Included");
         output.Should().NotContain("InBoundary");
         output.Should().Contain("Service use does not establish infrastructure containment, accepted inheritance, verified recovery or authorization.");
+        output.Should().Contain("source-hash").And.Contain("provider-release-7").And.Contain("Original proposed use");
+        approvedNarrative.Should().Contain("source-hash").And.Contain("provider-release-7").And.Contain("Original proposed use");
     }
 
     [Fact]

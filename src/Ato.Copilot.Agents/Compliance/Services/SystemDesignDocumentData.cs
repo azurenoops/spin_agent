@@ -237,6 +237,12 @@ internal sealed record SystemDesignDocumentData(ApprovedSystemDesign Approved,
             text.AppendLine($"Component service use: {scope.Name}; decision: {scope.Decision}; system area: {scope.BoundaryName ?? "Not recorded"}.");
             text.AppendLine($"Usage: {scope.Usage}");
             text.AppendLine($"Source: {scope.Source}/{scope.ComponentId}; version: {scope.SourceRevision}.");
+            if (scope.WordingBasis is { } basis)
+            {
+                text.AppendLine($"Wording basis: {basis.Origin}; original proposal: {basis.OriginalWording}");
+                text.AppendLine($"Proposal reference: {basis.DraftId}; revision: {basis.Revision}; source hash: {basis.SourceHash}.");
+                text.AppendLine($"Proposal source references: {string.Join(", ", basis.SourceIds)}; human-corrected: {basis.UserEdited}.");
+            }
             text.AppendLine("Service use does not establish infrastructure containment, accepted inheritance, verified recovery or authorization.");
         }
     }

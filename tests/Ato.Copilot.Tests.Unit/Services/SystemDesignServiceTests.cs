@@ -5,6 +5,7 @@ using Ato.Copilot.Core.Data.Migrations.EnsureSchemaAdditions;
 using Ato.Copilot.Core.Dtos.SystemDesign;
 using Ato.Copilot.Core.Dtos.Dashboard;
 using Ato.Copilot.Core.Interfaces.Tenancy;
+using Ato.Copilot.Core.Interfaces.Workspaces;
 using Ato.Copilot.Core.Models.Compliance;
 using Ato.Copilot.Core.Services.Tenancy;
 using FluentAssertions;
@@ -68,6 +69,86 @@ public sealed partial class SystemDesignServiceTests : IAsyncLifetime
         saved.Gaps.Should().Contain(gap => gap.RecordId == edge.Id && gap.Id.StartsWith("MissingPps:"));
         SystemDesignSemantics.IsFlow(edge).Should().BeTrue();
     }
+    [Fact]
+    public async Task ComponentScope_PreservesProposalProvenanceAndHumanCorrection()
+    {
+        // Arrange
+        var componentId = Guid.NewGuid().ToString();
+        var draftId = Guid.NewGuid();
+        var suggestion = new ResponsibilityDraftSuggestion(new()
+        {
+            ["scope"] = new("Suggested use", "AI proposed", ["published-v7"], SourceHash: "pinned-hash"),
+            ["customer"] = new("Recorded customer duty", "From system records", ["system-record"])
+        }, [], []);
+        await using (var db = new AtoCopilotContext(_options))
+        {
+            db.SystemComponents.Add(new() { Id = componentId, TenantId = _tenant, RegisteredSystemId = _system, Name = "Recorded service" });
+            db.Set<ResponsibilityDraft>().Add(new()
+            {
+                Id = draftId, TenantId = _tenant, RegisteredSystemId = _system, ControlId = "CP-9",
+                SourceHash = "pinned-hash",
+                SuggestionJson = JsonSerializer.Serialize(suggestion, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            });
+            await db.SaveChangesAsync();
+        }
+        var workspace = new Mock<IWorkspaceOperationsService>();
+        workspace.Setup(x => x.GetSystemComponentPlacementsAsync(_tenant, _system, "local", componentId.ToString(),
+                It.IsAny<SystemSecurityCapabilityAccess>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SystemComponentPlacementOptions("local", componentId, "source-v1",
+                "relationships-v1", true, null, [new("area", "Mission API")], []));
+        var service = Service(workspace: workspace.Object);
+
+        // Act
+        var result = await service.SaveComponentScopeAsync(_system,
+            new(0, "local", componentId, "source-v1", "Included", "area", "Human-corrected use")
+            {
+                WordingDraftId = draftId,
+                WordingDraftRevision = 1
+            });
+
+        // Assert
+        var saved = result.ComponentScopes.Should().ContainSingle().Subject;
+        saved.Usage.Should().Be("Human-corrected use");
+        saved.WordingBasis.Should().BeEquivalentTo(new ScopeWordingBasis(draftId, 1, "pinned-hash",
+            "AI proposed", "Suggested use", true, ["published-v7"]));
+    }
+    [Fact]
+    public async Task ComponentScope_RejectsWordingDraftFromAnotherSystem()
+    {
+        // Arrange
+        var componentId = Guid.NewGuid().ToString();
+        var otherSystem = Guid.NewGuid().ToString();
+        var draftId = Guid.NewGuid();
+        await using (var db = new AtoCopilotContext(_options))
+        {
+            db.RegisteredSystems.Add(new() { Id = otherSystem, TenantId = _tenant, Name = "Other synthetic system" });
+            db.SystemComponents.Add(new() { Id = componentId, TenantId = _tenant, RegisteredSystemId = _system, Name = "Recorded service" });
+            db.Set<ResponsibilityDraft>().Add(new()
+            {
+                Id = draftId, TenantId = _tenant, RegisteredSystemId = otherSystem, ControlId = "CP-9"
+            });
+            await db.SaveChangesAsync();
+        }
+        var workspace = new Mock<IWorkspaceOperationsService>();
+        workspace.Setup(x => x.GetSystemComponentPlacementsAsync(_tenant, _system, "local", componentId,
+                It.IsAny<SystemSecurityCapabilityAccess>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SystemComponentPlacementOptions("local", componentId, "source-v1",
+                "relationships-v1", true, null, [new("area", "Mission API")], []));
+        var service = Service(workspace: workspace.Object);
+
+        // Act
+        var save = () => service.SaveComponentScopeAsync(_system,
+            new(0, "local", componentId, "source-v1", "Included", "area", "Retain this correction")
+            {
+                WordingDraftId = draftId,
+                WordingDraftRevision = 1
+            });
+
+        // Assert
+        await save.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("The proposed wording draft was not found in this system.");
+        (await service.GetHistoryAsync(_system)).Should().BeEmpty();
+    }
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly Guid _editor = Guid.NewGuid();
@@ -86,7 +167,8 @@ public sealed partial class SystemDesignServiceTests : IAsyncLifetime
         await db.SaveChangesAsync();
     }
     public Task DisposeAsync() => _connection.DisposeAsync().AsTask();
-    private SystemDesignService Service(Guid? actor = null, Guid? tenantId = null, bool canRead = true, bool edit = true)
+    private SystemDesignService Service(Guid? actor = null, Guid? tenantId = null, bool canRead = true,
+        bool edit = true, IWorkspaceOperationsService? workspace = null)
     {
         var person = actor ?? _editor;
         var tenant = new TenantContext(tenantId ?? _tenant) { PersonId = person, IsWorkspaceRequest = true };
@@ -97,7 +179,7 @@ public sealed partial class SystemDesignServiceTests : IAsyncLifetime
         var factory = new Mock<IDbContextFactory<AtoCopilotContext>>();
         factory.Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new AtoCopilotContext(_options));
-        return new(factory.Object, tenant, access.Object);
+        return new(factory.Object, tenant, access.Object, workspace);
     }
     private static SaveSystemDesignRequest Save(SystemDesignGraph graph) =>
         new(graph.Revision, graph.Nodes, graph.Edges, graph.Groups, "Synthetic reviewed architecture change");

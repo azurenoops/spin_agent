@@ -61,7 +61,37 @@ public sealed partial class SystemDesignService
         if (request.Decision == "Included" && boundary is null)
             throw new ArgumentException("Choose an area recorded in this system.");
         return new(source.Placement.Source, source.Placement.RecordId, source.Name, source.Placement.SourceRevision,
-            request.Decision, boundary?.Id, boundary?.Name, request.Usage.Trim());
+            request.Decision, boundary?.Id, boundary?.Name, request.Usage.Trim())
+        {
+            WordingBasis = await WordingBasisAsync(systemId, request, ct)
+        };
+    }
+
+    private async Task<ScopeWordingBasis?> WordingBasisAsync(string systemId, SaveComponentScopeRequest request,
+        CancellationToken ct)
+    {
+        if (request.WordingDraftId is null)
+        {
+            if (request.WordingDraftRevision is not null)
+                throw new ArgumentException("A wording draft identifier is required.");
+            return null;
+        }
+
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var draft = await db.Set<ResponsibilityDraft>().AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == request.WordingDraftId && x.TenantId == TenantId && x.RegisteredSystemId == systemId, ct)
+            ?? throw new KeyNotFoundException("The proposed wording draft was not found in this system.");
+        if (draft.Revision != request.WordingDraftRevision || draft.GenerationState == "Failed")
+            throw new DbUpdateConcurrencyException("The wording proposal changed or could not be prepared. Compare it before saving.");
+
+        var suggestion = Read<ResponsibilityDraftSuggestion>(draft.SuggestionJson);
+        var wording = suggestion.Values.GetValueOrDefault("scope")?.Origin == "AI proposed"
+            ? suggestion.Values["scope"] : suggestion.Values.GetValueOrDefault("customer");
+        if (wording is null || string.IsNullOrWhiteSpace(wording.Value))
+            throw new ArgumentException("The referenced draft contains no proposed system-use wording.");
+
+        return new(draft.Id, draft.Revision, draft.SourceHash, wording.Origin, wording.Value,
+            request.Usage.Trim() != wording.Value.Trim(), wording.SourceIds);
     }
 
     private async Task<IReadOnlyList<DesignGap>> ComponentScopeGapsAsync(SystemDesignGraph graph, CancellationToken ct)

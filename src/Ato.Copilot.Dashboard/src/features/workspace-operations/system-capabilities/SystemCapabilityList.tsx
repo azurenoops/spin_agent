@@ -3,7 +3,7 @@ import { Building2, FileText, Package, Plus, Search, Users } from 'lucide-react'
 import { Link } from '../../workspaces/workspaceNavigation';
 import { SystemTaskHeading } from '../../systems/SystemTaskPresentation';
 import SetupDialog from '../SetupDialog';
-import SystemComponentPlacements from './SystemComponentPlacements';
+import SystemComponentReview from './SystemComponentReview';
 import SystemCapabilitySetup from './SystemCapabilitySetup';
 import { buttonClass, inputClass, moveTabFocus, Pager, secondaryButtonClass, Status, surfaceClass, useQueryState, useRemote } from '../workspaceUi';
 import * as api from './systemCapabilityApi';
@@ -132,55 +132,15 @@ function AppliedCapabilityDrawer({ tenantId, systemId, source, recordId, onClose
 export function SystemComponentDrawer({ tenantId, systemId, source, componentId, onClose, onChanged }: {
   tenantId: string; systemId: string; source: SystemCapabilitySource; componentId: string; onClose: () => void; onChanged?: () => void;
 }) {
-  const [editingPlacement, setEditingPlacement] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const remote = useRemote(signal => api.getSystemCapability(tenantId, systemId,
     { source, recordType: 'component', recordId: componentId }, signal), [tenantId, systemId, source, componentId]);
-  const item = remote.data?.item;
   return <SetupDialog title="Component details" placement="right" busy={busy} onClose={onClose}
-    description="Source ownership and placement in this system are separate.">
+    description="Review service use, source facts and the evidence your system needs.">
     <Status loading={remote.loading} error={remote.error} retry={remote.retry} />
-    {notice && <p role="status" className="mb-4 rounded bg-green-50 p-3 text-sm text-green-900 dark:bg-green-950 dark:text-green-200">{notice}</p>}
-    {item && remote.data && <div className="space-y-6">
-      <header className="space-y-3">
-        <h2 className="text-xl font-semibold">{item.name}</h2>
-        <SystemCapabilitySourceBadge source={item.source} />
-        <p className="text-sm text-gray-600 dark:text-gray-300">{item.description || 'No source description recorded.'}</p>
-      </header>
-      <dl className="grid grid-cols-2 gap-3 text-sm">
-        <dt className="text-gray-500 dark:text-gray-400">Component type</dt><dd>{item.componentType || 'Not recorded'}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Subtype</dt><dd>{item.subType || 'Not recorded'}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Source</dt><dd>{item.sourceName}</dd>
-      </dl>
-      {source === 'provider' && <p className={`${surfaceClass} p-3 text-sm`}>
-        This source is managed by the provider and is read-only here. Changing a system placement does not change provider authorship.
-      </p>}
-      <section className="space-y-2">
-        <h3 className="font-semibold">Delivered capabilities</h3>
-        {item.capabilities.length ? <ul className="space-y-2">{item.capabilities.map(capability =>
-          <li key={`${capability.source}:${capability.recordId}`}><Link className={linkClass}
-            to={`/systems/${encodeURIComponent(systemId)}/security-capabilities/${capability.source}/${encodeURIComponent(capability.recordId)}`}>
-            {capability.name}
-          </Link></li>)}</ul> : <p className="text-sm">Direct system assignment. No applied capability links this component.</p>}
-      </section>
-      <section className="space-y-3">
-        <h3 className="font-semibold">System placements</h3>
-        {!editingPlacement && <SystemCapabilityPlacements placements={item.placements} />}
-        {remote.data.permissions.canManage && item.isApplied
-          ? editingPlacement ? <SystemComponentPlacements tenantId={tenantId} systemId={systemId} source={source} componentId={componentId}
-            onBusyChange={setBusy} onChanged={text => { setNotice(text); remote.retry(); onChanged?.(); }} />
-            : <button type="button" className={secondaryButtonClass} onClick={() => setEditingPlacement(true)}>Manage system placement</button>
-          : <p className="text-sm text-gray-600 dark:text-gray-300">System-management permission and an applied component are required to change placement.</p>}
-        <Link className={`${linkClass} inline-block text-sm`} to={`/systems/${encodeURIComponent(systemId)}/boundaries`}>Open system boundaries</Link>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Placements apply only to this system. Excluded assignments are not in-scope coverage.</p>
-      </section>
-      <Link className={`${linkClass} inline-block text-sm`}
-        to={`/security-capabilities/${source}/${encodeURIComponent(componentId)}?recordType=component`}>Open source in library</Link>
-      <details className="text-sm"><summary className="cursor-pointer">Technical details</summary>
-        <dl className="mt-2 space-y-2 break-all"><dt>Source revision</dt><dd>{item.sourceRevision}</dd><dt>Component identifier</dt><dd>{item.recordId}</dd></dl>
-      </details>
-    </div>}
+    {remote.data && <SystemComponentReview key={`${tenantId}:${systemId}:${source}:${componentId}`}
+      data={remote.data} tenantId={tenantId} systemId={systemId} onBusyChange={setBusy}
+      onChanged={() => { remote.retry(); onChanged?.(); }} />}
   </SetupDialog>;
 }
 

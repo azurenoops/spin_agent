@@ -104,10 +104,19 @@ public sealed record DesignGap(string Id, string Severity, string Explanation, s
     string View, string SspImpact, string Owner, string ResolutionUrl);
 public sealed record DesignContribution(string Section, int RecordCount, string State, string Explanation, string ResolutionUrl);
 public sealed record DesignChange(string Kind, string RecordId, string? Before, string? After);
+public sealed record ScopeWordingBasis(Guid DraftId, long Revision, string SourceHash, string Origin,
+    string OriginalWording, bool UserEdited, IReadOnlyList<string> SourceIds);
 public sealed record ComponentScopeUse(string Source, string ComponentId, string Name, string SourceRevision,
-    string Decision, string? BoundaryId, string? BoundaryName, string Usage);
+    string Decision, string? BoundaryId, string? BoundaryName, string Usage)
+{
+    public ScopeWordingBasis? WordingBasis { get; init; }
+}
 public sealed record SaveComponentScopeRequest(long ExpectedRevision, string Source, string ComponentId,
-    string SourceRevision, string Decision, string? BoundaryId, string Usage);
+    string SourceRevision, string Decision, string? BoundaryId, string Usage)
+{
+    public Guid? WordingDraftId { get; init; }
+    public long? WordingDraftRevision { get; init; }
+}
 
 public sealed record DesignActions(bool CanEdit, bool CanSubmit, bool CanWithdraw, bool CanReview, bool CanReconcile,
     bool CanDeriveDraft = false);
